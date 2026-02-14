@@ -1,0 +1,33 @@
+# MyCoach — Progress Log
+
+## Completed
+
+### Phase 0: Foundation
+
+- [x] **Project scaffolding** (commit 96d7a07)
+  - pyproject.toml with dependencies (fastapi, sqlalchemy, alembic, pydantic, etc.)
+  - Dev dependencies (pytest, pytest-asyncio, httpx, ruff, mypy)
+  - Full directory structure per PRD Section 4
+  - .env.example with placeholder env vars
+
+- [x] **config.py with Pydantic Settings** (commit ce47409)
+  - All settings groups: app, database, Garmin, Claude API, email, scheduler
+  - MYCOACH_ env prefix, .env file support
+  - Updated .env.example to match config field names
+
+- [x] **database.py + main.py + test infrastructure** (commit fc7294f)
+  - `database.py`: async SQLAlchemy engine, async_sessionmaker, DeclarativeBase, `get_db` FastAPI dependency
+  - `main.py`: FastAPI app factory with lifespan (auto-creates tables), `GET /api/system/status` health check
+  - `tests/conftest.py`: in-memory SQLite test engine, dependency override, auto-setup/teardown, async httpx client
+  - `tests/test_api/test_system.py`: health check test (passing)
+
+- [x] **Alembic async migrations setup**
+  - Initialized Alembic with async template (`alembic init -t async`)
+  - `alembic/env.py`: imports `Base.metadata` from `mycoach.database`, reads DB URL from `mycoach.config.Settings` dynamically
+  - `render_as_batch=True` for SQLite ALTER TABLE compatibility
+  - `alembic.ini`: removed hardcoded URL (driven by app config)
+  - Verified: `alembic upgrade head` and `alembic revision --autogenerate` both work
+
+## Next Up
+
+- [ ] Create SQLAlchemy ORM models in `models/` (User, DailyHealthSnapshot, Activity, etc.)

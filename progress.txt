@@ -44,6 +44,24 @@
   - Alembic autogenerate migration created and verified
   - All tests pass, ruff clean, mypy clean
 
+- [x] **Pydantic schemas/DTOs in `schemas/`**
+  - 9 schema files covering all 12 ORM models:
+    - `user.py`: `UserCreate`, `UserUpdate`, `UserRead` with EmailStr validation
+    - `data_source.py`: `DataSourceConfigCreate/Update/Read`, `DataSourceStatus`
+    - `sport_profile.py`: `SportProfileCreate/Update/Read` with skill level validation
+    - `availability.py`: `AvailabilitySlot`, `WeeklyAvailabilityCreate/Read`
+    - `health.py`: `DailyHealthSnapshotCreate/Read` with all biometric fields
+    - `activity.py`: `ActivityCreate/Read`, `GymWorkoutDetailCreate/Read` with RPE validation (1-10)
+    - `plan.py`: `WeeklyPlanCreate/Read`, `PlannedSessionCreate/Read` with nested sessions
+    - `coaching.py`: `CoachingInsightCreate/Read`, `MesocycleConfigCreate/Update/Read`
+    - `system.py`: `StatusResponse`
+  - `schemas/__init__.py` re-exports all 22 public schemas
+  - Added `email-validator>=2.0.0` dependency for `EmailStr`
+  - Validation: regex patterns for enums (fitness_level, skill_level, phase, insight_type, set_type), Field constraints (ge/le for day_of_week, rpe)
+  - `from_attributes=True` on all Read schemas for ORM compatibility
+  - 26 tests in `tests/test_schemas.py` covering valid/invalid cases
+  - All tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Create Pydantic schemas/DTOs in `schemas/`
+- [ ] Phase 1: Data source plugin system (base interface + Hevy CSV parser)

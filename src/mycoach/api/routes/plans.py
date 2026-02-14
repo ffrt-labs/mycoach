@@ -112,6 +112,39 @@ async def get_plan_sessions(
     return list(result.scalars().all())
 
 
+@router.patch("/{plan_id}/sessions/{session_id}", response_model=PlannedSessionRead)
+async def mark_session_completed(
+    plan_id: int,
+    session_id: int,
+    activity_id: int | None = None,
+    session: AsyncSession = Depends(get_db),
+) -> PlannedSession:
+    """Mark a planned session as completed, optionally linking to an activity."""
+    stmt = select(PlannedSession).where(
+        PlannedSession.id == session_id,
+        PlannedSession.plan_id == plan_id,
+    )
+    result = await session.execute(stmt)
+    planned = result.scalar_one_or_none()
+    if planned is None:
+        raise HTTPException(status_code=404, detail="Planned session not found.")
+
+    # Verify plan belongs to user
+    plan_stmt = select(WeeklyPlan).where(
+        WeeklyPlan.id == plan_id, WeeklyPlan.user_id == USER_ID
+    )
+    plan_result = await session.execute(plan_stmt)
+    if plan_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+
+    planned.completed = True
+    if activity_id is not None:
+        planned.activity_id = activity_id
+    await session.commit()
+    await session.refresh(planned)
+    return planned
+
+
 async def _load_plan_with_sessions(session: AsyncSession, plan_id: int) -> WeeklyPlan:
     """Load a plan and attach its sessions as a list attribute for serialization."""
     stmt = select(WeeklyPlan).where(WeeklyPlan.id == plan_id)

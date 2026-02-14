@@ -136,6 +136,94 @@ def build_weekly_plan_prompt(
     )
 
 
+def _format_activity_detail(activity: dict[str, Any]) -> str:
+    """Format a single activity with all available fields."""
+    lines = []
+    field_labels = {
+        "title": "Title",
+        "sport": "Sport",
+        "start_time": "Start",
+        "end_time": "End",
+        "duration_minutes": "Duration (min)",
+        "avg_hr": "Avg HR",
+        "max_hr": "Max HR",
+        "calories": "Calories",
+        "training_effect_aerobic": "Aerobic training effect",
+        "training_effect_anaerobic": "Anaerobic training effect",
+        "hr_zones": "HR zones",
+        "data_source": "Data source",
+    }
+    for key, label in field_labels.items():
+        val = activity.get(key)
+        if val is not None:
+            lines.append(f"- {label}: {val}")
+    return "\n".join(lines) if lines else "No activity data."
+
+
+def _format_gym_details(details: list[dict[str, Any]]) -> str:
+    """Format gym workout details (sets/reps/weight) for prompt."""
+    if not details:
+        return "No gym workout details (not a gym session or no data)."
+    lines = []
+    current_exercise = ""
+    for d in details:
+        exercise = d.get("exercise_title", "Unknown")
+        if exercise != current_exercise:
+            current_exercise = exercise
+            lines.append(f"\n**{exercise}**")
+        set_type = d.get("set_type", "normal")
+        weight = d.get("weight_kg")
+        reps = d.get("reps")
+        rpe = d.get("rpe")
+        parts = [f"  Set {d.get('set_index', '?')}"]
+        if set_type != "normal":
+            parts.append(f"({set_type})")
+        if weight is not None:
+            parts.append(f"{weight}kg")
+        if reps is not None:
+            parts.append(f"x{reps}")
+        if rpe is not None:
+            parts.append(f"RPE {rpe}")
+        lines.append(" ".join(parts))
+    return "\n".join(lines)
+
+
+def _format_planned_session(planned: dict[str, Any] | None) -> str:
+    """Format a planned session for comparison."""
+    if not planned:
+        return "No planned session found for this workout."
+    lines = [
+        f"- Title: {planned.get('title', '?')}",
+        f"- Sport: {planned.get('sport', '?')}",
+        f"- Duration: {planned.get('duration_minutes', '?')} min",
+    ]
+    if planned.get("details"):
+        lines.append(f"- Planned details: {planned['details']}")
+    if planned.get("notes"):
+        lines.append(f"- Notes: {planned['notes']}")
+    return "\n".join(lines)
+
+
+def build_post_workout_prompt(
+    *,
+    activity: dict[str, Any],
+    gym_details: list[dict[str, Any]],
+    planned_session: dict[str, Any] | None,
+    similar_activities: list[dict[str, Any]],
+    health_context: dict[str, Any],
+    version: str = "v1",
+) -> str:
+    """Build the user message for a post-workout analysis LLM call."""
+    template = _load_template("post_workout.txt", version)
+    return template.format(
+        activity_data=_format_activity_detail(activity),
+        gym_details=_format_gym_details(gym_details),
+        planned_session=_format_planned_session(planned_session),
+        similar_activities=_format_activities(similar_activities),
+        health_context=_format_health(health_context),
+    )
+
+
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
     """Convert a DailyHealthSnapshot ORM object to a plain dict."""
     fields = [

@@ -1,13 +1,16 @@
-"""Activity endpoints — list and detail with gym workout details."""
+"""Activity endpoints — list, detail, and post-workout analysis."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.engine import CoachingEngine
 from mycoach.database import get_db
 from mycoach.models.activity import Activity, GymWorkoutDetail
+from mycoach.models.coaching import CoachingInsight
 from mycoach.schemas.activity import ActivityRead, GymWorkoutDetailRead
+from mycoach.schemas.coaching import CoachingInsightRead
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
 
@@ -91,3 +94,42 @@ async def get_activity(
         ]
 
     return item
+
+
+@router.get("/{activity_id}/analysis", response_model=CoachingInsightRead)
+async def get_activity_analysis(
+    activity_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Get the post-workout analysis for an activity."""
+    result = await session.execute(
+        select(CoachingInsight).where(
+            CoachingInsight.activity_id == activity_id,
+            CoachingInsight.user_id == DEFAULT_USER_ID,
+            CoachingInsight.insight_type == "post_workout",
+        )
+    )
+    insight = result.scalar_one_or_none()
+    if insight is None:
+        raise HTTPException(
+            status_code=404, detail="No post-workout analysis found for this activity"
+        )
+    return insight
+
+
+@router.post("/{activity_id}/analyze", response_model=CoachingInsightRead)
+async def analyze_activity(
+    activity_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Trigger post-workout analysis for a completed activity."""
+    engine = CoachingEngine()
+    try:
+        insight = await engine.generate_post_workout_analysis(
+            session, DEFAULT_USER_ID, activity_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from None
+    return insight

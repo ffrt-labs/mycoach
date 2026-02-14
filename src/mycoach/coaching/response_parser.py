@@ -26,6 +26,18 @@ class WeeklyPlanResponse(BaseModel):
     sessions: list[WeeklyPlanSessionResponse] = Field(min_length=1)
 
 
+class PostWorkoutResponse(BaseModel):
+    performance_summary: str
+    planned_vs_actual: str
+    performance_trends: str
+    hr_analysis: str
+    training_effect_assessment: str
+    key_highlights: list[str] = Field(min_length=1)
+    areas_for_improvement: list[str] = Field(min_length=1)
+    next_session_recommendations: str
+    recovery_notes: str
+
+
 class DailyBriefingKeyMetrics(BaseModel):
     body_battery: int | None = None
     hrv_status: float | None = None

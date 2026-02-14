@@ -268,7 +268,47 @@
     - Context function (4): no configs, single sport, deload week detection, multiple sports
   - All 171 tests pass, ruff clean, mypy clean
 
+### Phase 4: Post-Workout Analysis (in progress)
+
+- [x] **Post-workout analysis engine + API endpoints**
+  - `coaching/response_parser.py`: Added `PostWorkoutResponse` model
+    - Validates performance_summary, planned_vs_actual, performance_trends, hr_analysis,
+      training_effect_assessment, key_highlights (min 1), areas_for_improvement (min 1),
+      next_session_recommendations, recovery_notes
+  - `coaching/context.py`: Added 4 new context query functions
+    - `get_activity_with_details()`: Fetches activity + gym workout details as dicts
+    - `find_matching_planned_session()`: Matches activity to planned session by date + sport + week
+    - `get_similar_activities()`: Gets last N activities of same sport for trend comparison
+    - `link_activity_to_planned_session()`: Marks PlannedSession as completed + links activity_id
+  - `coaching/prompt_builder.py`: Added 4 new formatting/building functions
+    - `_format_activity_detail()`: Detailed single-activity formatting with all fields
+    - `_format_gym_details()`: Formats sets/reps/weight/RPE grouped by exercise
+    - `_format_planned_session()`: Formats planned session for comparison
+    - `build_post_workout_prompt()`: Assembles full prompt from all context data
+  - `prompts/v1/post_workout.txt`: Post-workout analysis template
+    - Includes activity data, gym details, planned session comparison, similar activities, health context
+    - JSON output schema with 9 fields covering performance, trends, HR, recommendations
+  - `coaching/engine.py`: Added `generate_post_workout_analysis()` method
+    - Full pipeline: gather context → match planned session → find similar activities → LLM call → parse → store
+    - Duplicate check (one analysis per activity)
+    - Auto-links activity to planned session when match found (marks completed)
+    - Uses daily model (Sonnet) for cost efficiency
+    - Retry once on JSON parse failure
+    - Stores `CoachingInsight` (type=post_workout, linked to activity_id) + logs `PromptLog`
+  - `api/routes/activities.py`: 2 new endpoints
+    - `GET /api/activities/{id}/analysis` — retrieve post-workout analysis (404 if none)
+    - `POST /api/activities/{id}/analyze` — trigger analysis via LLM (409 if exists, 502 on failure)
+  - `api/routes/plans.py`: 1 new endpoint
+    - `PATCH /api/plans/{plan_id}/sessions/{session_id}` — mark planned session as completed, optionally link to activity
+  - 33 new tests in `tests/test_post_workout/`:
+    - `test_context.py` (10): activity with details (3), find matching planned session (3), similar activities (2), link to planned session (1), not found (1)
+    - `test_prompt_builder.py` (8): format activity detail (2), format gym details (3), format planned session (2), build full prompt (1)
+    - `test_engine.py` (7): success, prompt logging, duplicate check, activity not found, LLM failure, planned session linking, swimming activity
+    - `test_response_parser.py` (4): valid JSON, code block, missing field, empty highlights
+    - `test_api.py` (4): get existing analysis, 404 no analysis, 404 nonexistent, mark session completed
+  - All 204 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 3 continued: sport-specific coaching modules
-- [ ] Phase 4: Post-workout analysis
+- [ ] Phase 4 continued: plan adherence tracking (weekly adherence %)
+- [ ] Phase 5: Automation (scheduler, sleep coaching, weekly recap)

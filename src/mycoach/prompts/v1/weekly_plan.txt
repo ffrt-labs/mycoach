@@ -1,0 +1,52 @@
+Generate a weekly training plan for the upcoming week based on the following data.
+
+## Availability Slots
+{availability}
+
+## Health Trends (last 7 days)
+{health_trends}
+
+## Recent Activities (last 14 days)
+{recent_activities}
+
+## Mesocycle Context
+{mesocycle_context}
+
+## Instructions
+- Assign exactly one workout per availability slot, matching the preferred sport
+- For gym sessions: specify exercise name, sets, reps, RPE target, rest period, and weight guidance (progression from recent history)
+- For swimming sessions: specify drills, distances, intervals, stroke focus, and pace targets
+- For padel sessions: specify drill types, match play allocation, focus areas
+- Consider recovery status from health trends when setting intensity
+- If the user is in a deload week, reduce volume by ~40% and intensity by ~20%
+- Rest days should be explicitly marked with active recovery suggestions
+- Each session needs a clear title, sport, day, duration, and structured details
+
+Respond with a JSON object matching this exact schema:
+{{
+  "summary": "Brief overview of the week's training focus and goals",
+  "sessions": [
+    {{
+      "day_of_week": 0,
+      "sport": "gym | swimming | padel | rest",
+      "title": "Session title (e.g. 'Upper Body Strength', 'Endurance Swim')",
+      "duration_minutes": 60,
+      "details": {{
+        "exercises": [
+          {{
+            "name": "Exercise name",
+            "sets": 3,
+            "reps": "8-10",
+            "rpe": 7,
+            "rest_seconds": 90,
+            "notes": "Optional technique or weight cues"
+          }}
+        ]
+      }},
+      "notes": "Session-level coaching notes"
+    }}
+  ]
+}}
+
+The "sessions" array must contain exactly one entry per availability slot, in order of day_of_week.
+The "details" field structure varies by sport but must always be a JSON object.

@@ -3,13 +3,27 @@
 import json
 import logging
 import re
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+
+class WeeklyPlanSessionResponse(BaseModel):
+    day_of_week: int = Field(ge=0, le=6)
+    sport: str
+    title: str
+    duration_minutes: int | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    notes: str | None = None
+
+
+class WeeklyPlanResponse(BaseModel):
+    summary: str
+    sessions: list[WeeklyPlanSessionResponse] = Field(min_length=1)
 
 
 class DailyBriefingKeyMetrics(BaseModel):

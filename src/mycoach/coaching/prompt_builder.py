@@ -104,6 +104,38 @@ def build_daily_briefing_prompt(
     )
 
 
+def _format_availability(slots: list[dict[str, Any]]) -> str:
+    if not slots:
+        return "No availability slots set."
+    lines = []
+    for s in slots:
+        day = s.get("day_name", f"Day {s.get('day_of_week', '?')}")
+        start = s.get("start_time", "?")
+        dur = s.get("duration_minutes", "?")
+        sport = s.get("preferred_sport", "any")
+        lines.append(f"- {day} at {start} ({dur} min) — {sport}")
+    return "\n".join(lines)
+
+
+def build_weekly_plan_prompt(
+    *,
+    availability: list[dict[str, Any]],
+    health_trends: list[dict[str, Any]],
+    recent_activities: list[dict[str, Any]],
+    mesocycle_context: str | None = None,
+    version: str = "v1",
+) -> str:
+    """Build the user message for a weekly plan LLM call."""
+    template = _load_template("weekly_plan.txt", version)
+    return template.format(
+        availability=_format_availability(availability),
+        health_trends=_format_health_trends(health_trends),
+        recent_activities=_format_activities(recent_activities),
+        mesocycle_context=mesocycle_context
+        or "No mesocycle configured. Use general progressive programming.",
+    )
+
+
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
     """Convert a DailyHealthSnapshot ORM object to a plain dict."""
     fields = [

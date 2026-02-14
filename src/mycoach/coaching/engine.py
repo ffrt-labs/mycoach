@@ -1,5 +1,6 @@
 """Coaching engine — orchestrates LLM calls for generating coaching insights."""
 
+import json
 import logging
 from datetime import date
 
@@ -7,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.context import (
+    get_availability_for_week,
     get_health_trends,
     get_recent_activities,
     get_today_health,
@@ -14,10 +16,16 @@ from mycoach.coaching.context import (
 from mycoach.coaching.llm_client import LLMClient, LLMResponse
 from mycoach.coaching.prompt_builder import (
     build_daily_briefing_prompt,
+    build_weekly_plan_prompt,
     get_system_prompt,
 )
-from mycoach.coaching.response_parser import DailyBriefingResponse, parse_response
+from mycoach.coaching.response_parser import (
+    DailyBriefingResponse,
+    WeeklyPlanResponse,
+    parse_response,
+)
 from mycoach.models.coaching import CoachingInsight
+from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 
 logger = logging.getLogger(__name__)
@@ -135,3 +143,131 @@ class CoachingEngine:
         await session.refresh(insight)
 
         return insight
+
+    async def generate_weekly_plan(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        week_start: date,
+    ) -> WeeklyPlan:
+        """Generate a weekly training plan.
+
+        Gathers availability + health + activity context, calls the LLM (weekly model),
+        validates the response, stores WeeklyPlan + PlannedSessions, and logs the prompt.
+
+        Returns the saved WeeklyPlan.
+        """
+        if week_start.weekday() != 0:
+            raise ValueError("week_start must be a Monday")
+
+        # Check for existing active plan for this week
+        existing = await session.execute(
+            select(WeeklyPlan).where(
+                WeeklyPlan.user_id == user_id,
+                WeeklyPlan.week_start == week_start,
+                WeeklyPlan.status == "active",
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise ValueError(f"Active plan already exists for week of {week_start}")
+
+        # Gather context
+        availability = await get_availability_for_week(session, user_id, week_start)
+        if not availability:
+            raise ValueError(f"No availability slots set for week of {week_start}")
+
+        health_trends = await get_health_trends(
+            session, user_id, days=7, today=week_start
+        )
+        recent_activities = await get_recent_activities(
+            session, user_id, days=14, today=week_start
+        )
+
+        # Build prompts
+        system_prompt = get_system_prompt(PROMPT_VERSION)
+        user_message = build_weekly_plan_prompt(
+            availability=availability,
+            health_trends=health_trends,
+            recent_activities=recent_activities,
+            version=PROMPT_VERSION,
+        )
+
+        # Call LLM (weekly model for better reasoning)
+        llm_response: LLMResponse | None = None
+        error_msg: str | None = None
+        parsed: WeeklyPlanResponse | None = None
+
+        try:
+            llm_response = self._llm.call(
+                system=system_prompt,
+                user_message=user_message,
+                model=self._llm.weekly_model,
+                max_tokens=8192,
+            )
+            parsed = parse_response(llm_response.content, WeeklyPlanResponse)
+        except Exception as e:
+            error_msg = str(e)
+            logger.error("Weekly plan generation failed: %s", error_msg)
+
+            if llm_response is not None:
+                try:
+                    llm_response = self._llm.call(
+                        system=system_prompt,
+                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
+                        model=self._llm.weekly_model,
+                        max_tokens=8192,
+                    )
+                    parsed = parse_response(llm_response.content, WeeklyPlanResponse)
+                    error_msg = None
+                except Exception as retry_err:
+                    error_msg = f"Retry also failed: {retry_err}"
+                    logger.error("Weekly plan retry failed: %s", retry_err)
+
+        # Log the prompt call
+        prompt_log = PromptLog(
+            prompt_type="weekly_plan",
+            prompt_version=PROMPT_VERSION,
+            model=llm_response.model if llm_response else self._llm.weekly_model,
+            input_tokens=llm_response.input_tokens if llm_response else None,
+            output_tokens=llm_response.output_tokens if llm_response else None,
+            latency_ms=llm_response.latency_ms if llm_response else None,
+            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
+            prompt_text=user_message,
+            response_text=llm_response.content if llm_response else None,
+            success=parsed is not None,
+            error=error_msg,
+        )
+        session.add(prompt_log)
+
+        if parsed is None:
+            await session.commit()
+            raise RuntimeError(f"Failed to generate weekly plan: {error_msg}")
+
+        # Store the plan
+        plan = WeeklyPlan(
+            user_id=user_id,
+            week_start=week_start,
+            prompt_version=PROMPT_VERSION,
+            status="active",
+            summary=parsed.summary,
+            raw_llm_output=llm_response.content if llm_response else None,
+        )
+        session.add(plan)
+        await session.flush()  # get plan.id
+
+        for s in parsed.sessions:
+            planned = PlannedSession(
+                plan_id=plan.id,
+                day_of_week=s.day_of_week,
+                sport=s.sport,
+                title=s.title,
+                duration_minutes=s.duration_minutes,
+                details=json.dumps(s.details) if s.details else None,
+                notes=s.notes,
+            )
+            session.add(planned)
+
+        await session.commit()
+        await session.refresh(plan)
+
+        return plan

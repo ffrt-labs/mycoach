@@ -8,6 +8,7 @@ from mycoach.api.routes.activities import router as activities_router
 from mycoach.api.routes.availability import router as availability_router
 from mycoach.api.routes.coaching import router as coaching_router
 from mycoach.api.routes.health import router as health_router
+from mycoach.api.routes.plans import router as plans_router
 from mycoach.api.routes.sources import router as sources_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(availability_router)
     app.include_router(coaching_router)
     app.include_router(health_router)
+    app.include_router(plans_router)
     app.include_router(sources_router)
 
     @app.get("/api/system/status")

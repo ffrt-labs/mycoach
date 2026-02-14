@@ -218,6 +218,37 @@
     - Delete slot (1), not found (1)
   - All 137 tests pass, ruff clean, mypy clean
 
+- [x] **Weekly plan generation engine + API endpoints**
+  - `coaching/response_parser.py`: Added `WeeklyPlanResponse` + `WeeklyPlanSessionResponse` models
+    - Validates summary, sessions list (min 1), day_of_week (0-6), sport, title, duration, details (dict), notes
+  - `coaching/context.py`: Added `get_availability_for_week()` — fetches availability slots for a given week with day names
+  - `coaching/prompt_builder.py`: Added `_format_availability()` and `build_weekly_plan_prompt()`
+    - Formats availability slots, health trends, recent activities, mesocycle context into prompt
+  - `prompts/v1/weekly_plan.txt`: Weekly plan generation template
+    - Instructions for sport-specific session generation (gym exercises/sets/reps/RPE, swimming drills/intervals, padel drills)
+    - Mesocycle-aware (deload week volume/intensity reduction)
+    - JSON output schema with sessions array matching availability slots
+  - `coaching/engine.py`: Added `generate_weekly_plan()` method
+    - Full pipeline: gather context → build prompt → LLM call (weekly model, 8192 max tokens) → parse → store
+    - Validates week_start is Monday, checks for existing active plan (no duplicates)
+    - Requires availability slots (raises ValueError if none)
+    - Retry once on JSON parse failure
+    - Stores `WeeklyPlan` + `PlannedSession` records, logs `PromptLog`
+    - Session details stored as JSON in `PlannedSession.details`
+  - `api/routes/plans.py`: 4 endpoints
+    - `POST /api/plans/generate?week_start=` — generate plan via LLM (409 if exists/no availability, 502 on failure)
+    - `GET /api/plans/current` — active plan for current week (404 if none)
+    - `GET /api/plans/{plan_id}` — specific plan with sessions
+    - `GET /api/plans/{plan_id}/sessions` — list sessions for a plan
+  - Router registered in `main.py`
+  - 20 new tests in `tests/test_plans/`:
+    - `test_engine.py` (7): success, prompt logging, duplicate check, no availability, non-Monday, LLM failure, JSON details
+    - `test_api.py` (7): get by id, not found, sessions list, sessions not found, no current, generate no availability 409, generate non-Monday 409
+    - `test_context.py` (3): returns slots, empty, filters by week
+    - `test_prompt_builder.py` (3): format slots, empty slots, build full prompt
+  - All 157 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 3 continued: mesocycle tracking, sport modules, plan generation endpoints, weekly plan generation engine
+- [ ] Phase 3 continued: mesocycle tracking API, sport-specific coaching modules
+- [ ] Phase 4: Post-workout analysis

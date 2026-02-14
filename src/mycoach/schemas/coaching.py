@@ -5,9 +5,7 @@ from pydantic import BaseModel, Field
 
 class CoachingInsightBase(BaseModel):
     insight_date: date
-    insight_type: str = Field(
-        pattern=r"^(daily_briefing|post_workout|sleep|weekly_recap)$"
-    )
+    insight_type: str = Field(pattern=r"^(daily_briefing|post_workout|sleep|weekly_recap)$")
     content: str
     prompt_version: str = "v1"
     activity_id: int | None = None

@@ -5,9 +5,7 @@ from pydantic import BaseModel, Field
 
 class SportProfileBase(BaseModel):
     sport: str = Field(max_length=50)
-    skill_level: str = Field(
-        default="intermediate", pattern=r"^(beginner|intermediate|advanced)$"
-    )
+    skill_level: str = Field(default="intermediate", pattern=r"^(beginner|intermediate|advanced)$")
     goals: str | None = None
     preferences: str | None = None
     benchmarks: str | None = None
@@ -18,9 +16,7 @@ class SportProfileCreate(SportProfileBase):
 
 
 class SportProfileUpdate(BaseModel):
-    skill_level: str | None = Field(
-        default=None, pattern=r"^(beginner|intermediate|advanced)$"
-    )
+    skill_level: str | None = Field(default=None, pattern=r"^(beginner|intermediate|advanced)$")
     goals: str | None = None
     preferences: str | None = None
     benchmarks: str | None = None

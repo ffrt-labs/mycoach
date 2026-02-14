@@ -19,9 +19,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     email: EmailStr | None = None
-    fitness_level: str | None = Field(
-        default=None, pattern=r"^(beginner|intermediate|advanced)$"
-    )
+    fitness_level: str | None = Field(default=None, pattern=r"^(beginner|intermediate|advanced)$")
     goals: str | None = None
 
 

@@ -15,6 +15,4 @@ class WeeklyAvailability(Base):
     day_of_week: Mapped[int]  # 0=Monday, 6=Sunday
     start_time: Mapped[time]
     duration_minutes: Mapped[int]
-    preferred_sport: Mapped[str] = mapped_column(
-        String(50)
-    )  # gym, swimming, padel, rest
+    preferred_sport: Mapped[str] = mapped_column(String(50))  # gym, swimming, padel, rest

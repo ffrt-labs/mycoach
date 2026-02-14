@@ -67,9 +67,7 @@ class TestDataSourceSchemas:
         assert ds.enabled is True
 
     def test_create_with_credentials(self) -> None:
-        ds = DataSourceConfigCreate(
-            source_type="hevy_csv", credentials_encrypted="encrypted_data"
-        )
+        ds = DataSourceConfigCreate(source_type="hevy_csv", credentials_encrypted="encrypted_data")
         assert ds.credentials_encrypted == "encrypted_data"
 
 
@@ -159,9 +157,7 @@ class TestActivitySchemas:
 
     def test_invalid_rpe(self) -> None:
         with pytest.raises(ValidationError):
-            GymWorkoutDetailCreate(
-                exercise_title="Squat", set_index=1, rpe=11.0
-            )
+            GymWorkoutDetailCreate(exercise_title="Squat", set_index=1, rpe=11.0)
 
 
 class TestPlanSchemas:

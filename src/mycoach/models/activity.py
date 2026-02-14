@@ -28,12 +28,8 @@ class Activity(Base):
     training_effect_anaerobic: Mapped[float | None] = mapped_column(Float, default=None)
 
     # Source tracking
-    data_source: Mapped[str] = mapped_column(
-        String(20)
-    )  # garmin, hevy, merged
-    garmin_activity_id: Mapped[str | None] = mapped_column(
-        String(100), default=None, unique=True
-    )
+    data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, merged
+    garmin_activity_id: Mapped[str | None] = mapped_column(String(100), default=None, unique=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

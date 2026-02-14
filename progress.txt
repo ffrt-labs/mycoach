@@ -94,8 +94,39 @@
   - 15 new tests: health endpoints (7), activities endpoints (8)
   - All 62 tests pass, ruff clean, mypy clean
 
+- [x] **Garmin source (auth, client, fetcher, mappers)**
+  - `sources/garmin/auth.py`: `GarminAuth` class for authentication via garth
+    - Token persistence: saves/resumes tokens from disk (configurable `garmin_token_dir`)
+    - Fallback: resumes from saved tokens first, falls back to email/password login
+    - Robust re-auth on token expiration
+  - `sources/garmin/client.py`: `GarminClient` wrapper around garminconnect library
+    - Methods for all health endpoints: stats, HR, HRV, sleep, stress, Body Battery, training readiness/status, VO2 max, respiration, SpO2
+    - `get_activities_by_date()` for activity fetching
+  - `sources/garmin/mappers.py`: Maps raw Garmin JSON to ORM models
+    - `map_health_snapshot()`: Builds `DailyHealthSnapshot` from 10+ API responses, handles missing data gracefully, stores raw JSON for debugging
+    - `map_activity()`: Maps Garmin activities to `Activity` model with sport classification (swimming, gym, cardio, other)
+    - `import_health_snapshot()`: DB import with date-based deduplication
+    - `import_activities()`: DB import with Garmin activity ID deduplication
+    - Sport classification map: `GARMIN_SPORT_MAP` covering swimming variants, strength, cardio types
+  - `sources/garmin/source.py`: `GarminSource` implements `DataSource` interface
+    - `fetch_and_import()`: Orchestrates day-by-day health fetch + activity range fetch
+    - `_safe_call()`: Wraps each API call so partial data is still captured on individual failures
+    - Default 7-day lookback, configurable via `since` parameter
+  - `api/routes/sources.py`: `POST /api/sources/sync/garmin` endpoint
+    - Query param `days` (1-90, default 7) controls lookback period
+    - Returns `GarminSyncResponse` with activities_created/skipped, health_snapshots_created, errors
+    - 503 on auth failure with descriptive message
+  - Enabled `garminconnect>=0.2.0` and `garth>=0.4.0` dependencies in pyproject.toml
+  - 17 new tests in `tests/test_sources/test_garmin.py`:
+    - Health snapshot mapper (3): full data, stats only, empty stats
+    - Activity mapper (4): swimming, gym, unknown type, missing fields
+    - DB import health (2): new + duplicate skip
+    - DB import activities (3): new, duplicate skip, missing ID
+    - GarminSource integration (2): fetch_and_import with mock client, auth failure
+    - API endpoint (3): sync success, auth failure (503), days param
+  - All 79 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 1 (cont.): Garmin source (auth, client, fetcher, mappers)
 - [ ] Phase 1 (cont.): Data merging logic (Garmin + Hevy by date/time overlap)
 - [ ] Phase 1 (cont.): `GET /api/sources/status` endpoint

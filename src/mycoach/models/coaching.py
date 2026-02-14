@@ -31,14 +31,10 @@ class MesocycleConfig(Base):
     sport: Mapped[str] = mapped_column(String(50))
     block_length_weeks: Mapped[int] = mapped_column(default=4)
     current_week: Mapped[int] = mapped_column(default=1)
-    phase: Mapped[str] = mapped_column(
-        String(30), default="build"
-    )  # build, peak, deload
+    phase: Mapped[str] = mapped_column(String(30), default="build")  # build, peak, deload
     start_date: Mapped[date]
     progression_rules: Mapped[str | None] = mapped_column(
         Text, default=None
     )  # JSON: e.g., {"weight_increment_kg": 2.5}
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -28,9 +28,7 @@ class PlannedSessionRead(PlannedSessionBase):
 class WeeklyPlanBase(BaseModel):
     week_start: date
     mesocycle_week: int | None = None
-    mesocycle_phase: str | None = Field(
-        default=None, pattern=r"^(build|peak|deload)$"
-    )
+    mesocycle_phase: str | None = Field(default=None, pattern=r"^(build|peak|deload)$")
 
 
 class WeeklyPlanCreate(WeeklyPlanBase):

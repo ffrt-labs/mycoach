@@ -126,7 +126,27 @@
     - API endpoint (3): sync success, auth failure (503), days param
   - All 79 tests pass, ruff clean, mypy clean
 
+- [x] **Data merging logic (Garmin + Hevy by date/time overlap)**
+  - `sources/merger.py`: `merge_garmin_hevy()` finds overlapping gym activities by time
+    - Matches Hevy gym activities with Garmin gym activities using time overlap with 30-min tolerance
+    - Copies Garmin HR/calories/training effect data onto the Hevy activity
+    - Sets `data_source` to "merged" and stores `garmin_activity_id`
+    - Deletes redundant Garmin activity (frees unique constraint before update)
+    - Picks best overlap when multiple Garmin activities exist
+    - Fills missing Hevy duration from Garmin data
+    - Idempotent: already-merged activities are skipped
+  - `MergeResult` dataclass tracks merged count and errors
+  - `api/routes/sources.py`: Updated existing endpoints + new endpoint
+    - `POST /api/sources/merge`: Manual merge trigger
+    - `POST /api/sources/import/hevy`: Now auto-merges after Hevy import
+    - `POST /api/sources/sync/garmin`: Now auto-merges after Garmin sync
+    - Response models updated with `activities_merged` field
+  - 10 new tests in `tests/test_sources/test_merger.py`:
+    - Merge logic (8): overlapping merge, no overlap, non-gym sport, no double merge, time tolerance, best overlap selection, no Hevy activities, duration fill from Garmin
+    - API endpoint (2): merge endpoint success, nothing to merge
+  - All 89 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 1 (cont.): Data merging logic (Garmin + Hevy by date/time overlap)
 - [ ] Phase 1 (cont.): `GET /api/sources/status` endpoint
+- [ ] Phase 2: Coaching core (LLM client, prompt builder, response parser, daily briefing)

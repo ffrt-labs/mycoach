@@ -11,6 +11,7 @@ from mycoach.database import get_db
 from mycoach.sources.garmin.source import GarminSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.hevy.mappers import import_hevy_workouts
+from mycoach.sources.merger import merge_garmin_hevy
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ DEFAULT_USER_ID = 1
 class HevyImportResponse(BaseModel):
     activities_created: int
     activities_skipped: int
+    activities_merged: int
     rows_parsed: int
     rows_skipped: int
     errors: list[str]
@@ -30,7 +32,13 @@ class HevyImportResponse(BaseModel):
 class GarminSyncResponse(BaseModel):
     activities_created: int
     activities_skipped: int
+    activities_merged: int
     health_snapshots_created: int
+    errors: list[str]
+
+
+class MergeResponse(BaseModel):
+    activities_merged: int
     errors: list[str]
 
 
@@ -50,12 +58,21 @@ async def import_hevy_csv(
     parse_result = parse_hevy_csv(csv_text)
     import_result = await import_hevy_workouts(session, DEFAULT_USER_ID, parse_result)
 
+    # Auto-merge with any existing Garmin gym activities
+    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
+    await session.commit()
+
+    all_errors = list(import_result.errors or [])
+    if merge_result.errors:
+        all_errors.extend(merge_result.errors)
+
     return HevyImportResponse(
         activities_created=import_result.activities_created,
         activities_skipped=import_result.activities_skipped,
+        activities_merged=merge_result.merged,
         rows_parsed=parse_result.rows_parsed,
         rows_skipped=parse_result.rows_skipped,
-        errors=import_result.errors or [],
+        errors=all_errors,
     )
 
 
@@ -82,9 +99,36 @@ async def sync_garmin(
 
     result = await source.fetch_and_import(session, DEFAULT_USER_ID, since=since)
 
+    # Auto-merge with any existing Hevy gym activities
+    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
+    await session.commit()
+
+    all_errors = list(result.errors or [])
+    if merge_result.errors:
+        all_errors.extend(merge_result.errors)
+
     return GarminSyncResponse(
         activities_created=result.activities_created,
         activities_skipped=result.activities_skipped,
+        activities_merged=merge_result.merged,
         health_snapshots_created=result.health_snapshots_created,
-        errors=result.errors or [],
+        errors=all_errors,
+    )
+
+
+@router.post("/merge", response_model=MergeResponse)
+async def merge_activities(
+    session: AsyncSession = Depends(get_db),
+) -> MergeResponse:
+    """Manually trigger merging of Garmin + Hevy gym activities.
+
+    Finds overlapping gym activities from both sources and merges them,
+    keeping Hevy exercise details and adding Garmin HR/training data.
+    """
+    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
+    await session.commit()
+
+    return MergeResponse(
+        activities_merged=merge_result.merged,
+        errors=merge_result.errors or [],
     )

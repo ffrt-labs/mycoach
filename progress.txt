@@ -159,6 +159,46 @@
     - No data (both "never"), garmin health data, hevy activity data, merged counts for both
   - All 93 tests pass, ruff clean, mypy clean
 
+### Phase 2: Coaching Core (in progress)
+
+- [x] **LLM client, prompt builder, response parser, coaching engine, daily briefing**
+  - Enabled `anthropic>=0.40.0` dependency in pyproject.toml
+  - `coaching/llm_client.py`: `LLMClient` wrapper around Anthropic Python SDK
+    - `LLMResponse` dataclass with content, model, token counts, latency, cost
+    - Cost estimation based on model pricing (Sonnet for daily, Opus for weekly)
+    - Configurable model selection via `daily_model`/`weekly_model` properties
+  - `coaching/response_parser.py`: JSON→Pydantic validation
+    - `_extract_json()`: Handles markdown code blocks, raw JSON, surrounding text
+    - `DailyBriefingResponse` model: sleep assessment, recovery status, readiness verdict (go_hard/moderate/active_recovery/rest), workout adjustments, sleep recommendation, key metrics
+    - `parse_response()`: Generic JSON extraction + Pydantic validation with clear error messages
+  - `coaching/prompt_builder.py`: Context assembly + prompt formatting
+    - Loads versioned templates from `prompts/v1/`
+    - `_format_health()`, `_format_health_trends()`, `_format_activities()`: Human-readable context formatting
+    - `build_daily_briefing_prompt()`: Assembles full user message from health/activity data
+    - `snapshot_to_dict()`, `activity_to_dict()`: ORM→dict converters
+  - `coaching/context.py`: DB queries for prompt context
+    - `get_today_health()`: Today's health snapshot
+    - `get_health_trends()`: Last N days (excluding today)
+    - `get_recent_activities()`: Recent activities by date range
+  - `coaching/engine.py`: `CoachingEngine` orchestrator
+    - `generate_daily_briefing()`: Full pipeline — context gather → prompt build → LLM call → parse → store
+    - Retry once on JSON parse failure with explicit JSON instruction
+    - Duplicate check (one briefing per day)
+    - Stores `CoachingInsight` in DB + logs `PromptLog` (success and failure)
+  - `prompts/v1/system.txt`: Coaching persona prompt (direct, data-driven, progressive)
+  - `prompts/v1/daily_briefing.txt`: Daily briefing template with structured JSON output schema
+  - `api/routes/coaching.py`: 2 endpoints
+    - `GET /api/coaching/today` — retrieve today's briefing (404 if none)
+    - `POST /api/coaching/today/generate` — generate briefing via LLM (409 if exists, 502 on failure)
+  - Router registered in `main.py`
+  - 34 new tests in `tests/test_coaching/`:
+    - `test_response_parser.py` (10): JSON extraction (4), parse validation (6)
+    - `test_prompt_builder.py` (10): format helpers (5), system prompt (1), build prompt (2+2)
+    - `test_context.py` (7): health today (2), health trends (2), activities (2+1)
+    - `test_engine.py` (5): success, prompt logging, duplicate check, LLM failure logging, retry on bad JSON
+    - `test_api.py` (3): GET existing, 404 when none, 409 on duplicate generate
+  - All 127 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 2: Coaching core (LLM client, prompt builder, response parser, daily briefing)
+- [ ] Phase 3: Weekly plans (availability input, mesocycle tracking, sport modules, plan generation)

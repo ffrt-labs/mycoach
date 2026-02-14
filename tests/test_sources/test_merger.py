@@ -119,15 +119,11 @@ class TestMergeGarminHevy:
         from tests.conftest import test_session
 
         async with test_session() as session:
-            hevy = _make_hevy_activity(
-                user.id, "Push Day", datetime(2024, 6, 10, 9, 0)
-            )
+            hevy = _make_hevy_activity(user.id, "Push Day", datetime(2024, 6, 10, 9, 0))
             session.add(hevy)
 
             # Garmin activity 3 hours later — no overlap
-            garmin = _make_garmin_activity(
-                user.id, "g123", datetime(2024, 6, 10, 14, 0)
-            )
+            garmin = _make_garmin_activity(user.id, "g123", datetime(2024, 6, 10, 14, 0))
             session.add(garmin)
             await session.commit()
 
@@ -152,9 +148,7 @@ class TestMergeGarminHevy:
             hevy = _make_hevy_activity(user.id, "Push Day", start)
             session.add(hevy)
 
-            garmin = _make_garmin_activity(
-                user.id, "g123", start, sport="cardio"
-            )
+            garmin = _make_garmin_activity(user.id, "g123", start, sport="cardio")
             session.add(garmin)
             await session.commit()
 
@@ -223,15 +217,11 @@ class TestMergeGarminHevy:
             session.add(hevy)
 
             # Close overlap
-            garmin_close = _make_garmin_activity(
-                user.id, "g_close", start + timedelta(minutes=2)
-            )
+            garmin_close = _make_garmin_activity(user.id, "g_close", start + timedelta(minutes=2))
             session.add(garmin_close)
 
             # Further overlap
-            garmin_far = _make_garmin_activity(
-                user.id, "g_far", start + timedelta(minutes=25)
-            )
+            garmin_far = _make_garmin_activity(user.id, "g_far", start + timedelta(minutes=25))
             session.add(garmin_far)
             await session.commit()
 
@@ -243,18 +233,16 @@ class TestMergeGarminHevy:
 
         async with test_session() as session:
             merged = (
-                await session.execute(
-                    select(Activity).where(Activity.data_source == "merged")
-                )
+                await session.execute(select(Activity).where(Activity.data_source == "merged"))
             ).scalar_one()
             assert merged.garmin_activity_id == "g_close"
 
             # The far Garmin activity should still exist (unmerged)
             remaining = (
-                await session.execute(
-                    select(Activity).where(Activity.data_source == "garmin")
-                )
-            ).scalars().all()
+                (await session.execute(select(Activity).where(Activity.data_source == "garmin")))
+                .scalars()
+                .all()
+            )
             assert len(remaining) == 1
             assert remaining[0].garmin_activity_id == "g_far"
 
@@ -298,9 +286,7 @@ class TestMergeGarminHevy:
 
         async with test_session() as session:
             merged = (
-                await session.execute(
-                    select(Activity).where(Activity.data_source == "merged")
-                )
+                await session.execute(select(Activity).where(Activity.data_source == "merged"))
             ).scalar_one()
             assert merged.duration_minutes == 60
 

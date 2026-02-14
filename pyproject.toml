@@ -22,7 +22,7 @@ dependencies = [
     "garminconnect>=0.2.0",
     "garth>=0.4.0",
     # Phase 2: Coaching
-    # "anthropic>=0.40.0",
+    "anthropic>=0.40.0",
     # Phase 5: Automation
     # "apscheduler>=3.10.0",
     # Phase 7: Email

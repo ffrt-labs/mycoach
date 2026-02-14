@@ -5,9 +5,13 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.database import get_db
+from mycoach.models.activity import Activity
+from mycoach.models.health import DailyHealthSnapshot
+from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.sources.garmin.source import GarminSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.hevy.mappers import import_hevy_workouts
@@ -132,3 +136,63 @@ async def merge_activities(
         activities_merged=merge_result.merged,
         errors=merge_result.errors or [],
     )
+
+
+class SourcesStatusResponse(BaseModel):
+    sources: list[DataSourceStatus]
+
+
+@router.get("/status", response_model=SourcesStatusResponse)
+async def get_sources_status(
+    session: AsyncSession = Depends(get_db),
+) -> SourcesStatusResponse:
+    """Get connection status of all data sources.
+
+    Returns status for each known source type (garmin, hevy_csv) based on
+    actual imported data in the database.
+    """
+    sources: list[DataSourceStatus] = []
+
+    # Garmin status: check health snapshots and activities from garmin
+    garmin_latest_health = await session.scalar(
+        select(func.max(DailyHealthSnapshot.created_at)).where(
+            DailyHealthSnapshot.user_id == DEFAULT_USER_ID,
+            DailyHealthSnapshot.data_source == "garmin",
+        )
+    )
+    garmin_latest_activity = await session.scalar(
+        select(func.max(Activity.created_at)).where(
+            Activity.user_id == DEFAULT_USER_ID,
+            Activity.data_source.in_(["garmin", "merged"]),
+        )
+    )
+    garmin_last_sync = max(
+        filter(None, [garmin_latest_health, garmin_latest_activity]),
+        default=None,
+    )
+    sources.append(
+        DataSourceStatus(
+            source_type="garmin",
+            enabled=True,
+            sync_status="ok" if garmin_last_sync else "never",
+            last_sync_at=garmin_last_sync,
+        )
+    )
+
+    # Hevy status: check activities from hevy
+    hevy_last_import = await session.scalar(
+        select(func.max(Activity.created_at)).where(
+            Activity.user_id == DEFAULT_USER_ID,
+            Activity.data_source.in_(["hevy", "merged"]),
+        )
+    )
+    sources.append(
+        DataSourceStatus(
+            source_type="hevy_csv",
+            enabled=True,
+            sync_status="ok" if hevy_last_import else "never",
+            last_sync_at=hevy_last_import,
+        )
+    )
+
+    return SourcesStatusResponse(sources=sources)

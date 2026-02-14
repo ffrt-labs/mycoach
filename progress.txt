@@ -146,7 +146,19 @@
     - API endpoint (2): merge endpoint success, nothing to merge
   - All 89 tests pass, ruff clean, mypy clean
 
+- [x] **`GET /api/sources/status` endpoint** (Phase 1 complete)
+  - `api/routes/sources.py`: New `GET /api/sources/status` endpoint
+    - Returns status for each known source type (garmin, hevy_csv)
+    - Derives status from actual data in DB (health snapshots, activities)
+    - `sync_status`: "ok" when data exists, "never" when no data imported yet
+    - `last_sync_at`: timestamp of most recently created record per source
+    - "merged" activities count toward both garmin and hevy_csv status
+  - `SourcesStatusResponse` wrapper model with `sources: list[DataSourceStatus]`
+  - Uses existing `DataSourceStatus` schema from `schemas/data_source.py`
+  - 4 new tests in `tests/test_sources/test_sources_status.py`:
+    - No data (both "never"), garmin health data, hevy activity data, merged counts for both
+  - All 93 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 1 (cont.): `GET /api/sources/status` endpoint
 - [ ] Phase 2: Coaching core (LLM client, prompt builder, response parser, daily briefing)

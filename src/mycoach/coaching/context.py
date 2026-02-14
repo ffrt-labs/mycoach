@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach.coaching.prompt_builder import activity_to_dict, snapshot_to_dict
 from mycoach.models.activity import Activity
 from mycoach.models.availability import WeeklyAvailability
+from mycoach.models.coaching import MesocycleConfig
 from mycoach.models.health import DailyHealthSnapshot
 
 
@@ -90,3 +91,37 @@ async def get_availability_for_week(
         }
         for s in slots
     ]
+
+
+async def get_mesocycle_context(
+    session: AsyncSession, user_id: int
+) -> str | None:
+    """Build a human-readable mesocycle context string from all configured mesocycles.
+
+    Returns None if no mesocycles are configured.
+    """
+    stmt = (
+        select(MesocycleConfig)
+        .where(MesocycleConfig.user_id == user_id)
+        .order_by(MesocycleConfig.sport)
+    )
+    result = await session.execute(stmt)
+    configs = result.scalars().all()
+
+    if not configs:
+        return None
+
+    parts = []
+    for cfg in configs:
+        is_deload = cfg.current_week >= cfg.block_length_weeks
+        line = (
+            f"- {cfg.sport}: Week {cfg.current_week}/{cfg.block_length_weeks} "
+            f"({cfg.phase} phase, started {cfg.start_date})"
+        )
+        if is_deload:
+            line += " — DELOAD WEEK: reduce volume ~40%, reduce intensity"
+        if cfg.progression_rules:
+            line += f"\n  Progression rules: {cfg.progression_rules}"
+        parts.append(line)
+
+    return "Current mesocycle status:\n" + "\n".join(parts)

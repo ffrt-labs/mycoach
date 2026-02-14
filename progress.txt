@@ -248,7 +248,27 @@
     - `test_prompt_builder.py` (3): format slots, empty slots, build full prompt
   - All 157 tests pass, ruff clean, mypy clean
 
+- [x] **Mesocycle tracking API + context integration**
+  - `api/routes/mesocycles.py`: Full CRUD for mesocycle configurations per sport
+    - `POST /api/mesocycles`: Create mesocycle config (409 if sport already exists)
+    - `GET /api/mesocycles`: List all mesocycle configs
+    - `GET /api/mesocycles/{sport}`: Get config for a specific sport
+    - `PUT /api/mesocycles/{sport}`: Partial update (current_week, phase, progression_rules)
+    - `DELETE /api/mesocycles/{sport}`: Delete mesocycle for a sport
+  - `coaching/context.py`: Added `get_mesocycle_context()` function
+    - Builds human-readable mesocycle summary from all configured sports
+    - Detects deload weeks (current_week >= block_length_weeks) and flags them
+    - Includes progression rules when configured
+    - Returns None when no mesocycles configured (falls back to general programming)
+  - `coaching/engine.py`: Updated `generate_weekly_plan()` to fetch and pass mesocycle context
+    - Mesocycle data now flows into weekly plan LLM prompts via `mesocycle_context` parameter
+  - Router registered in `main.py`
+  - 14 new tests in `tests/test_api/test_mesocycles.py`:
+    - API endpoints (10): create, duplicate (409), list, list empty, get by sport, not found, update, update not found, delete, delete not found
+    - Context function (4): no configs, single sport, deload week detection, multiple sports
+  - All 171 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 3 continued: mesocycle tracking API, sport-specific coaching modules
+- [ ] Phase 3 continued: sport-specific coaching modules
 - [ ] Phase 4: Post-workout analysis

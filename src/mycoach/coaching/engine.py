@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach.coaching.context import (
     get_availability_for_week,
     get_health_trends,
+    get_mesocycle_context,
     get_recent_activities,
     get_today_health,
 )
@@ -182,6 +183,7 @@ class CoachingEngine:
         recent_activities = await get_recent_activities(
             session, user_id, days=14, today=week_start
         )
+        mesocycle_ctx = await get_mesocycle_context(session, user_id)
 
         # Build prompts
         system_prompt = get_system_prompt(PROMPT_VERSION)
@@ -189,6 +191,7 @@ class CoachingEngine:
             availability=availability,
             health_trends=health_trends,
             recent_activities=recent_activities,
+            mesocycle_context=mesocycle_ctx,
             version=PROMPT_VERSION,
         )
 

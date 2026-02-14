@@ -62,6 +62,26 @@
   - 26 tests in `tests/test_schemas.py` covering valid/invalid cases
   - All tests pass, ruff clean, mypy clean
 
+### Phase 1: Data Sources (in progress)
+
+- [x] **Data source plugin system + Hevy CSV import**
+  - `sources/base.py`: Abstract `DataSource` interface with `authenticate()`, `fetch_and_import()`, and `ImportResult` dataclass
+  - `sources/hevy/csv_parser.py`: Parses Hevy CSV exports into `HevyWorkout`/`HevySet` dataclasses
+    - Unit conversion: lbs→kg, miles→meters
+    - Validates required columns, set_index, RPE range (1-10), datetime formats
+    - BOM stripping for Windows-exported CSVs
+    - Groups CSV rows into workouts by (title, start_time)
+  - `sources/hevy/mappers.py`: Imports parsed workouts into DB as `Activity` + `GymWorkoutDetail` records
+    - Deduplication by (user_id, title, start_time, data_source)
+    - Duration calculation from start/end times
+  - `api/routes/sources.py`: `POST /api/sources/import/hevy` endpoint (file upload)
+  - Router registered in `main.py`
+  - Added B008 ignore to ruff config (standard FastAPI `Depends()` pattern)
+  - 20 new tests in `tests/test_sources/test_hevy.py`: CSV parsing (11), DB import (5), API endpoint (4)
+  - All 47 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 1: Data source plugin system (base interface + Hevy CSV parser)
+- [ ] Phase 1 (cont.): Garmin source (auth, client, fetcher, mappers)
+- [ ] Phase 1 (cont.): Data merging logic (Garmin + Hevy by date/time overlap)
+- [ ] Phase 1 (cont.): Health + Activities API endpoints

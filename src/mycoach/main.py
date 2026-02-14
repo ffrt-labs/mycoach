@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
+from mycoach.api.routes.sources import router as sources_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
 
@@ -25,6 +26,8 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
+
+    app.include_router(sources_router)
 
     @app.get("/api/system/status")
     async def system_status() -> dict[str, str]:

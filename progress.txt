@@ -80,8 +80,22 @@
   - 20 new tests in `tests/test_sources/test_hevy.py`: CSV parsing (11), DB import (5), API endpoint (4)
   - All 47 tests pass, ruff clean, mypy clean
 
+- [x] **Health + Activities API endpoints**
+  - `api/routes/health.py`: 3 endpoints
+    - `GET /api/health/today` — today's health snapshot (404 if none)
+    - `GET /api/health/{date}` — snapshot for a specific date
+    - `GET /api/health/trends?days=N` — last N days of snapshots (default 30, max 365)
+  - `api/routes/activities.py`: 2 endpoints
+    - `GET /api/activities` — paginated list with optional `sport` filter, includes gym workout details for gym activities
+    - `GET /api/activities/{id}` — single activity with gym details
+  - `PaginatedActivities` response model with `items`, `total`, `page`, `per_page`
+  - Gym workout details loaded via join query (ordered by set_index)
+  - Both routers registered in `main.py`
+  - 15 new tests: health endpoints (7), activities endpoints (8)
+  - All 62 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
 - [ ] Phase 1 (cont.): Garmin source (auth, client, fetcher, mappers)
 - [ ] Phase 1 (cont.): Data merging logic (Garmin + Hevy by date/time overlap)
-- [ ] Phase 1 (cont.): Health + Activities API endpoints
+- [ ] Phase 1 (cont.): `GET /api/sources/status` endpoint

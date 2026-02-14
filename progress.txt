@@ -199,6 +199,25 @@
     - `test_api.py` (3): GET existing, 404 when none, 409 on duplicate generate
   - All 127 tests pass, ruff clean, mypy clean
 
+### Phase 3: Weekly Plans (in progress)
+
+- [x] **Availability API endpoints**
+  - `api/routes/availability.py`: Full CRUD for weekly availability slots
+    - `POST /api/availability`: Set weekly availability (replaces existing slots for that week)
+    - `GET /api/availability/next-week`: Get slots for upcoming week (auto-calculates next Monday)
+    - `GET /api/availability/{week_start}`: Get slots for a specific week (by Monday date)
+    - `PUT /api/availability/{slot_id}`: Update a single slot
+    - `DELETE /api/availability/{slot_id}`: Delete a single slot
+  - Validation: `week_start` must be a Monday (422 if not)
+  - Idempotent POST: deletes existing slots for the week before inserting new ones
+  - Router registered in `main.py`
+  - 10 new tests in `tests/test_api/test_availability.py`:
+    - Set availability (1), replaces existing (1), rejects non-Monday (1)
+    - Get week (1), rejects non-Monday (1), empty result (1)
+    - Update slot (1), not found (1)
+    - Delete slot (1), not found (1)
+  - All 137 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 3: Weekly plans (availability input, mesocycle tracking, sport modules, plan generation)
+- [ ] Phase 3 continued: mesocycle tracking, sport modules, plan generation endpoints, weekly plan generation engine

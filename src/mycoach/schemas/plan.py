@@ -45,3 +45,25 @@ class WeeklyPlanRead(WeeklyPlanBase):
     sessions: list[PlannedSessionRead] | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SessionAdherenceRead(BaseModel):
+    """Adherence info for a single planned session."""
+
+    session_id: int
+    day_of_week: int
+    sport: str
+    title: str
+    completed: bool
+    activity_id: int | None = None
+
+
+class PlanAdherenceRead(BaseModel):
+    """Weekly plan adherence summary."""
+
+    plan_id: int
+    week_start: date
+    total_sessions: int
+    completed_sessions: int
+    adherence_pct: float = Field(ge=0.0, le=100.0)
+    sessions: list[SessionAdherenceRead]

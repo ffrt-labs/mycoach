@@ -96,6 +96,109 @@ class TestGetCurrentPlan:
         assert resp.status_code == 404
 
 
+async def _seed_plan_with_multiple_sessions(
+    session: object, completed_indices: list[int] | None = None
+) -> tuple[int, int, list[int]]:
+    """Create plan with 3 sessions, optionally marking some completed.
+
+    Returns (user_id, plan_id, session_ids).
+    """
+    if completed_indices is None:
+        completed_indices = []
+
+    user = User(email="test@example.com", name="Test User", fitness_level="intermediate")
+    session.add(user)  # type: ignore[union-attr]
+    await session.commit()  # type: ignore[union-attr]
+    await session.refresh(user)  # type: ignore[union-attr]
+
+    week_start = date(2024, 6, 10)
+    plan = WeeklyPlan(
+        user_id=user.id,
+        week_start=week_start,
+        prompt_version="v1",
+        status="active",
+        summary="Test plan",
+    )
+    session.add(plan)  # type: ignore[union-attr]
+    await session.flush()  # type: ignore[union-attr]
+
+    sessions_data = [
+        ("gym", "Upper Body", 0),
+        ("swimming", "Endurance Swim", 2),
+        ("gym", "Lower Body", 4),
+    ]
+    session_ids = []
+    for i, (sport, title, dow) in enumerate(sessions_data):
+        ps = PlannedSession(
+            plan_id=plan.id,
+            day_of_week=dow,
+            sport=sport,
+            title=title,
+            duration_minutes=60,
+            completed=i in completed_indices,
+        )
+        session.add(ps)  # type: ignore[union-attr]
+        await session.flush()  # type: ignore[union-attr]
+        session_ids.append(ps.id)
+
+    await session.commit()  # type: ignore[union-attr]
+    return user.id, plan.id, session_ids
+
+
+class TestPlanAdherence:
+    async def test_adherence_none_completed(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, _ = await _seed_plan_with_multiple_sessions(session)
+
+        resp = await client.get(f"/api/plans/{plan_id}/adherence")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["plan_id"] == plan_id
+        assert data["total_sessions"] == 3
+        assert data["completed_sessions"] == 0
+        assert data["adherence_pct"] == 0.0
+        assert len(data["sessions"]) == 3
+        assert all(not s["completed"] for s in data["sessions"])
+
+    async def test_adherence_partial(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, _ = await _seed_plan_with_multiple_sessions(
+                session, completed_indices=[0, 2]
+            )
+
+        resp = await client.get(f"/api/plans/{plan_id}/adherence")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_sessions"] == 3
+        assert data["completed_sessions"] == 2
+        assert data["adherence_pct"] == 66.7
+
+    async def test_adherence_all_completed(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, _ = await _seed_plan_with_multiple_sessions(
+                session, completed_indices=[0, 1, 2]
+            )
+
+        resp = await client.get(f"/api/plans/{plan_id}/adherence")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["completed_sessions"] == 3
+        assert data["adherence_pct"] == 100.0
+
+    async def test_adherence_plan_not_found(self, client: AsyncClient) -> None:
+        resp = await client.get("/api/plans/999/adherence")
+        assert resp.status_code == 404
+
+    async def test_adherence_sessions_ordered_by_day(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, _ = await _seed_plan_with_multiple_sessions(session)
+
+        resp = await client.get(f"/api/plans/{plan_id}/adherence")
+        data = resp.json()
+        days = [s["day_of_week"] for s in data["sessions"]]
+        assert days == sorted(days)
+
+
 class TestGeneratePlan:
     async def test_generate_no_availability_409(self, client: AsyncClient) -> None:
         """Generate without availability slots returns 409."""

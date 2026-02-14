@@ -27,8 +27,10 @@ from mycoach.schemas.health import (
     DailyHealthSnapshotRead,
 )
 from mycoach.schemas.plan import (
+    PlanAdherenceRead,
     PlannedSessionCreate,
     PlannedSessionRead,
+    SessionAdherenceRead,
     WeeklyPlanCreate,
     WeeklyPlanRead,
 )
@@ -57,8 +59,10 @@ __all__ = [
     "MesocycleConfigCreate",
     "MesocycleConfigRead",
     "MesocycleConfigUpdate",
+    "PlanAdherenceRead",
     "PlannedSessionCreate",
     "PlannedSessionRead",
+    "SessionAdherenceRead",
     "SportProfileCreate",
     "SportProfileRead",
     "SportProfileUpdate",

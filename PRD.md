@@ -192,6 +192,7 @@ GET  /api/activities/{id}/analysis        # Post-workout analysis
 POST /api/availability                    # Set weekly availability
 POST /api/plans/generate                  # Generate weekly plan
 GET  /api/plans/current                   # Current week's plan
+GET  /api/plans/{id}/adherence            # Plan adherence stats (completed/total %)
 
 GET  /api/coaching/today                  # Today's daily briefing
 GET  /api/coaching/sleep                  # Sleep recommendations

@@ -308,7 +308,20 @@
     - `test_api.py` (4): get existing analysis, 404 no analysis, 404 nonexistent, mark session completed
   - All 204 tests pass, ruff clean, mypy clean
 
+- [x] **Plan adherence tracking**
+  - `schemas/plan.py`: Added `PlanAdherenceRead` + `SessionAdherenceRead` response models
+    - `PlanAdherenceRead`: plan_id, week_start, total_sessions, completed_sessions, adherence_pct (0-100), sessions list
+    - `SessionAdherenceRead`: session_id, day_of_week, sport, title, completed, activity_id
+  - `api/routes/plans.py`: New `GET /api/plans/{plan_id}/adherence` endpoint
+    - Returns adherence stats: total sessions, completed count, adherence percentage
+    - Per-session breakdown with completion status
+    - Sessions ordered by day_of_week
+    - 404 when plan not found
+  - `schemas/__init__.py`: Exported new schemas
+  - 5 new tests in `tests/test_plans/test_api.py`:
+    - None completed (0%), partial (66.7%), all completed (100%), plan not found (404), sessions ordered by day
+  - All 209 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 4 continued: plan adherence tracking (weekly adherence %)
 - [ ] Phase 5: Automation (scheduler, sleep coaching, weekly recap)

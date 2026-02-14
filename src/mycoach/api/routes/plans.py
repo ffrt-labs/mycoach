@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.database import get_db
 from mycoach.models.plan import PlannedSession, WeeklyPlan
-from mycoach.schemas.plan import PlannedSessionRead, WeeklyPlanRead
+from mycoach.schemas.plan import (
+    PlanAdherenceRead,
+    PlannedSessionRead,
+    SessionAdherenceRead,
+    WeeklyPlanRead,
+)
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
@@ -143,6 +148,54 @@ async def mark_session_completed(
     await session.commit()
     await session.refresh(planned)
     return planned
+
+
+@router.get("/{plan_id}/adherence", response_model=PlanAdherenceRead)
+async def get_plan_adherence(
+    plan_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> PlanAdherenceRead:
+    """Get adherence stats for a plan (completed / total sessions)."""
+    # Verify plan exists and belongs to user
+    plan_stmt = select(WeeklyPlan).where(
+        WeeklyPlan.id == plan_id,
+        WeeklyPlan.user_id == USER_ID,
+    )
+    plan_result = await session.execute(plan_stmt)
+    plan = plan_result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+
+    sess_stmt = (
+        select(PlannedSession)
+        .where(PlannedSession.plan_id == plan_id)
+        .order_by(PlannedSession.day_of_week)
+    )
+    sess_result = await session.execute(sess_stmt)
+    sessions = list(sess_result.scalars().all())
+
+    total = len(sessions)
+    completed = sum(1 for s in sessions if s.completed)
+    adherence_pct = round((completed / total) * 100, 1) if total > 0 else 0.0
+
+    return PlanAdherenceRead(
+        plan_id=plan.id,
+        week_start=plan.week_start,
+        total_sessions=total,
+        completed_sessions=completed,
+        adherence_pct=adherence_pct,
+        sessions=[
+            SessionAdherenceRead(
+                session_id=s.id,
+                day_of_week=s.day_of_week,
+                sport=s.sport,
+                title=s.title,
+                completed=s.completed,
+                activity_id=s.activity_id,
+            )
+            for s in sessions
+        ],
+    )
 
 
 async def _load_plan_with_sessions(session: AsyncSession, plan_id: int) -> WeeklyPlan:

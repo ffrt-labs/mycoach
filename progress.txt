@@ -28,6 +28,22 @@
   - `alembic.ini`: removed hardcoded URL (driven by app config)
   - Verified: `alembic upgrade head` and `alembic revision --autogenerate` both work
 
+- [x] **SQLAlchemy ORM models + Alembic migration**
+  - 12 models across 8 files in `src/mycoach/models/`:
+    - `user.py`: `User` — profile, fitness level, goals
+    - `data_source.py`: `DataSourceConfig` — per-source config, credentials, sync status
+    - `sport_profile.py`: `SportProfile` — per-sport skill level, goals, preferences, benchmarks
+    - `availability.py`: `WeeklyAvailability` — time slots per day for upcoming week
+    - `health.py`: `DailyHealthSnapshot` — HR, HRV, sleep, Body Battery, stress, training metrics, VO2max
+    - `activity.py`: `Activity` + `GymWorkoutDetail` — workouts with HR/training effect; Hevy CSV sets/reps/weight/RPE
+    - `plan.py`: `WeeklyPlan` + `PlannedSession` — generated plans with mesocycle tracking, linked to activities
+    - `coaching.py`: `CoachingInsight` + `MesocycleConfig` — daily briefings, post-workout analysis, training blocks
+    - `prompt_log.py`: `PromptLog` — LLM call tracking (tokens, latency, cost, prompt/response)
+  - `models/__init__.py` re-exports all models
+  - `main.py` and `alembic/env.py` import models to register with Base.metadata
+  - Alembic autogenerate migration created and verified
+  - All tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Create SQLAlchemy ORM models in `models/` (User, DailyHealthSnapshot, Activity, etc.)
+- [ ] Create Pydantic schemas/DTOs in `schemas/`

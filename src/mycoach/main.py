@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+import mycoach.models  # noqa: F401 — register all models with Base.metadata
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
 

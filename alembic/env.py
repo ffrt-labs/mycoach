@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+import mycoach.models  # noqa: F401 — register all models with Base.metadata
 from mycoach.config import get_settings
 from mycoach.database import Base
 

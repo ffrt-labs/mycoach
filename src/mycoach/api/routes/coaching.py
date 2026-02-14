@@ -56,3 +56,46 @@ async def generate_today_briefing(
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return insight
+
+
+@router.get("/sleep", response_model=CoachingInsightRead)
+async def get_sleep_coaching(
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Get today's sleep coaching analysis.
+
+    Returns the existing sleep coaching if already generated today.
+    """
+    today = date.today()
+    stmt = select(CoachingInsight).where(
+        CoachingInsight.user_id == USER_ID,
+        CoachingInsight.insight_date == today,
+        CoachingInsight.insight_type == "sleep",
+    )
+    result = await session.execute(stmt)
+    insight = result.scalar_one_or_none()
+    if insight is None:
+        raise HTTPException(
+            status_code=404, detail="No sleep coaching for today. Generate one first."
+        )
+    return insight
+
+
+@router.post("/sleep/generate", response_model=CoachingInsightRead)
+async def generate_sleep_coaching(
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Generate sleep coaching analysis based on 14-day sleep trends.
+
+    Analyzes sleep patterns, consistency, architecture, and provides
+    personalized recommendations including bedtime and hygiene tips.
+    Returns 409 if sleep coaching already exists for today.
+    """
+    engine = CoachingEngine()
+    try:
+        insight = await engine.generate_sleep_coaching(session, USER_ID)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from None
+    return insight

@@ -15,6 +15,7 @@ from mycoach.coaching.context import (
     get_mesocycle_context,
     get_recent_activities,
     get_similar_activities,
+    get_sleep_trends,
     get_today_health,
     link_activity_to_planned_session,
 )
@@ -22,12 +23,14 @@ from mycoach.coaching.llm_client import LLMClient, LLMResponse
 from mycoach.coaching.prompt_builder import (
     build_daily_briefing_prompt,
     build_post_workout_prompt,
+    build_sleep_coaching_prompt,
     build_weekly_plan_prompt,
     get_system_prompt,
 )
 from mycoach.coaching.response_parser import (
     DailyBriefingResponse,
     PostWorkoutResponse,
+    SleepCoachingResponse,
     WeeklyPlanResponse,
     parse_response,
 )
@@ -183,12 +186,8 @@ class CoachingEngine:
         if not availability:
             raise ValueError(f"No availability slots set for week of {week_start}")
 
-        health_trends = await get_health_trends(
-            session, user_id, days=7, today=week_start
-        )
-        recent_activities = await get_recent_activities(
-            session, user_id, days=14, today=week_start
-        )
+        health_trends = await get_health_trends(session, user_id, days=7, today=week_start)
+        recent_activities = await get_recent_activities(session, user_id, days=14, today=week_start)
         mesocycle_ctx = await get_mesocycle_context(session, user_id)
 
         # Build prompts
@@ -304,17 +303,11 @@ class CoachingEngine:
             )
         )
         if existing.scalar_one_or_none() is not None:
-            raise ValueError(
-                f"Post-workout analysis already exists for activity {activity_id}"
-            )
+            raise ValueError(f"Post-workout analysis already exists for activity {activity_id}")
 
         # Gather context
-        activity_dict, gym_details = await get_activity_with_details(
-            session, activity_id, user_id
-        )
-        planned_session = await find_matching_planned_session(
-            session, activity_dict, user_id
-        )
+        activity_dict, gym_details = await get_activity_with_details(session, activity_id, user_id)
+        planned_session = await find_matching_planned_session(session, activity_dict, user_id)
         similar = await get_similar_activities(
             session, user_id, activity_dict["sport"], activity_id
         )
@@ -361,8 +354,7 @@ class CoachingEngine:
                 try:
                     llm_response = self._llm.call(
                         system=system_prompt,
-                        user_message=user_message
-                        + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
+                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
                         model=self._llm.daily_model,
                     )
                     parsed = parse_response(llm_response.content, PostWorkoutResponse)
@@ -393,9 +385,7 @@ class CoachingEngine:
 
         # Link activity to planned session if found
         if planned_session:
-            await link_activity_to_planned_session(
-                session, activity_id, planned_session["id"]
-            )
+            await link_activity_to_planned_session(session, activity_id, planned_session["id"])
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()
@@ -406,6 +396,108 @@ class CoachingEngine:
             content=content_json,
             prompt_version=PROMPT_VERSION,
             activity_id=activity_id,
+        )
+        session.add(insight)
+        await session.commit()
+        await session.refresh(insight)
+
+        return insight
+
+    async def generate_sleep_coaching(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        today: date | None = None,
+    ) -> CoachingInsight:
+        """Generate sleep coaching analysis based on 14-day sleep trends.
+
+        Gathers sleep data, recent activities, calls the LLM, validates the response,
+        stores the result as a CoachingInsight, and logs the prompt.
+
+        Returns the saved CoachingInsight.
+        """
+        today = today or date.today()
+
+        # Check for existing sleep coaching today
+        existing = await session.execute(
+            select(CoachingInsight).where(
+                CoachingInsight.user_id == user_id,
+                CoachingInsight.insight_date == today,
+                CoachingInsight.insight_type == "sleep",
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise ValueError(f"Sleep coaching already exists for {today}")
+
+        # Gather context
+        sleep_trends = await get_sleep_trends(session, user_id, days=14, today=today)
+        recent_activities = await get_recent_activities(session, user_id, days=7, today=today)
+
+        # Build prompts
+        system_prompt = get_system_prompt(PROMPT_VERSION)
+        user_message = build_sleep_coaching_prompt(
+            sleep_trends=sleep_trends,
+            recent_activities=recent_activities,
+            version=PROMPT_VERSION,
+        )
+
+        # Call LLM
+        llm_response: LLMResponse | None = None
+        error_msg: str | None = None
+        parsed: SleepCoachingResponse | None = None
+
+        try:
+            llm_response = self._llm.call(
+                system=system_prompt,
+                user_message=user_message,
+                model=self._llm.daily_model,
+            )
+            parsed = parse_response(llm_response.content, SleepCoachingResponse)
+        except Exception as e:
+            error_msg = str(e)
+            logger.error("Sleep coaching generation failed: %s", error_msg)
+
+            if llm_response is not None:
+                try:
+                    llm_response = self._llm.call(
+                        system=system_prompt,
+                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
+                        model=self._llm.daily_model,
+                    )
+                    parsed = parse_response(llm_response.content, SleepCoachingResponse)
+                    error_msg = None
+                except Exception as retry_err:
+                    error_msg = f"Retry also failed: {retry_err}"
+                    logger.error("Sleep coaching retry failed: %s", retry_err)
+
+        # Log the prompt call
+        prompt_log = PromptLog(
+            prompt_type="sleep",
+            prompt_version=PROMPT_VERSION,
+            model=llm_response.model if llm_response else self._llm.daily_model,
+            input_tokens=llm_response.input_tokens if llm_response else None,
+            output_tokens=llm_response.output_tokens if llm_response else None,
+            latency_ms=llm_response.latency_ms if llm_response else None,
+            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
+            prompt_text=user_message,
+            response_text=llm_response.content if llm_response else None,
+            success=parsed is not None,
+            error=error_msg,
+        )
+        session.add(prompt_log)
+
+        if parsed is None:
+            await session.commit()
+            raise RuntimeError(f"Failed to generate sleep coaching: {error_msg}")
+
+        # Store the coaching insight
+        content_json = parsed.model_dump_json()
+        insight = CoachingInsight(
+            user_id=user_id,
+            insight_date=today,
+            insight_type="sleep",
+            content=content_json,
+            prompt_version=PROMPT_VERSION,
         )
         session.add(insight)
         await session.commit()

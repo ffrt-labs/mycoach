@@ -235,14 +235,22 @@ async def test_mesocycle_context_multiple_sports() -> None:
         session.add(user)
         session.add(
             MesocycleConfig(
-                user_id=1, sport="gym", block_length_weeks=4,
-                current_week=2, phase="build", start_date=date(2026, 2, 9),
+                user_id=1,
+                sport="gym",
+                block_length_weeks=4,
+                current_week=2,
+                phase="build",
+                start_date=date(2026, 2, 9),
             )
         )
         session.add(
             MesocycleConfig(
-                user_id=1, sport="swimming", block_length_weeks=6,
-                current_week=3, phase="build", start_date=date(2026, 1, 12),
+                user_id=1,
+                sport="swimming",
+                block_length_weeks=6,
+                current_week=3,
+                phase="build",
+                start_date=date(2026, 1, 12),
             )
         )
         await session.commit()

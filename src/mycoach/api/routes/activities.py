@@ -125,9 +125,7 @@ async def analyze_activity(
     """Trigger post-workout analysis for a completed activity."""
     engine = CoachingEngine()
     try:
-        insight = await engine.generate_post_workout_analysis(
-            session, DEFAULT_USER_ID, activity_id
-        )
+        insight = await engine.generate_post_workout_analysis(session, DEFAULT_USER_ID, activity_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

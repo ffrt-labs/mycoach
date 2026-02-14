@@ -1,0 +1,25 @@
+Analyze the user's sleep data over the past 14 days and provide personalized sleep coaching.
+
+## Sleep Data (last 14 days)
+{sleep_trends}
+
+## Recent Activities
+{recent_activities}
+
+## Tomorrow's Planned Workout
+{planned_workout}
+
+Based on this data, provide a comprehensive sleep coaching analysis.
+
+Respond with a JSON object matching this exact schema:
+{{
+  "sleep_quality_summary": "Overall assessment of sleep quality over the 14-day period",
+  "consistency_analysis": "Analysis of sleep schedule consistency (bedtime/wake time variability)",
+  "sleep_architecture": "Assessment of sleep stage distribution (deep, REM, light) and trends",
+  "performance_correlation": "How sleep patterns are correlating with training performance and recovery",
+  "recommended_bedtime": "Specific recommended bedtime for tonight (HH:MM format) based on tomorrow's workout",
+  "recommended_wake_time": "Specific recommended wake time (HH:MM format)",
+  "sleep_debt_assessment": "Current sleep debt status and recovery plan if needed",
+  "hygiene_tips": ["List of 2-4 personalized sleep hygiene recommendations based on the data"],
+  "key_concern": "The single most important sleep issue to address right now (or 'None' if sleep is on track)"
+}}

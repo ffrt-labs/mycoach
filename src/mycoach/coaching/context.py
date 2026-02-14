@@ -94,9 +94,7 @@ async def get_availability_for_week(
     ]
 
 
-async def get_mesocycle_context(
-    session: AsyncSession, user_id: int
-) -> str | None:
+async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | None:
     """Build a human-readable mesocycle context string from all configured mesocycles.
 
     Returns None if no mesocycles are configured.
@@ -128,6 +126,53 @@ async def get_mesocycle_context(
     return "Current mesocycle status:\n" + "\n".join(parts)
 
 
+async def get_sleep_trends(
+    session: AsyncSession, user_id: int, days: int = 14, today: date | None = None
+) -> list[dict[str, Any]]:
+    """Get sleep-focused health snapshots for the last N days.
+
+    Returns dicts with sleep-specific fields for sleep coaching analysis.
+    """
+    today = today or date.today()
+    since = today - timedelta(days=days)
+    stmt = (
+        select(DailyHealthSnapshot)
+        .where(
+            DailyHealthSnapshot.user_id == user_id,
+            DailyHealthSnapshot.snapshot_date >= since,
+            DailyHealthSnapshot.snapshot_date <= today,
+        )
+        .order_by(DailyHealthSnapshot.snapshot_date.desc())
+    )
+    result = await session.execute(stmt)
+    snapshots = result.scalars().all()
+
+    sleep_fields = [
+        "snapshot_date",
+        "sleep_duration_minutes",
+        "sleep_score",
+        "sleep_deep_minutes",
+        "sleep_light_minutes",
+        "sleep_rem_minutes",
+        "body_battery_high",
+        "body_battery_low",
+        "resting_hr",
+        "hrv_status",
+        "avg_stress",
+        "training_readiness",
+    ]
+    trends: list[dict[str, Any]] = []
+    for s in snapshots:
+        entry: dict[str, Any] = {}
+        for f in sleep_fields:
+            val = getattr(s, f, None)
+            if val is not None:
+                entry[f] = str(val) if isinstance(val, date) else val
+        if entry:
+            trends.append(entry)
+    return trends
+
+
 async def get_activity_with_details(
     session: AsyncSession, activity_id: int, user_id: int
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -136,9 +181,7 @@ async def get_activity_with_details(
     Returns (activity_dict, gym_details_list). gym_details_list is empty for non-gym activities.
     Raises ValueError if activity not found.
     """
-    stmt = select(Activity).where(
-        Activity.id == activity_id, Activity.user_id == user_id
-    )
+    stmt = select(Activity).where(Activity.id == activity_id, Activity.user_id == user_id)
     result = await session.execute(stmt)
     activity = result.scalar_one_or_none()
     if activity is None:
@@ -160,17 +203,19 @@ async def get_activity_with_details(
         )
         detail_result = await session.execute(detail_stmt)
         for d in detail_result.scalars().all():
-            gym_details.append({
-                "exercise_title": d.exercise_title,
-                "set_index": d.set_index,
-                "set_type": d.set_type,
-                "weight_kg": d.weight_kg,
-                "reps": d.reps,
-                "rpe": d.rpe,
-                "distance_meters": d.distance_meters,
-                "duration_seconds": d.duration_seconds,
-                "superset_id": d.superset_id,
-            })
+            gym_details.append(
+                {
+                    "exercise_title": d.exercise_title,
+                    "set_index": d.set_index,
+                    "set_type": d.set_type,
+                    "weight_kg": d.weight_kg,
+                    "reps": d.reps,
+                    "rpe": d.rpe,
+                    "distance_meters": d.distance_meters,
+                    "duration_seconds": d.duration_seconds,
+                    "superset_id": d.superset_id,
+                }
+            )
 
     return activity_dict, gym_details
 

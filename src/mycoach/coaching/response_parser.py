@@ -38,6 +38,18 @@ class PostWorkoutResponse(BaseModel):
     recovery_notes: str
 
 
+class SleepCoachingResponse(BaseModel):
+    sleep_quality_summary: str
+    consistency_analysis: str
+    sleep_architecture: str
+    performance_correlation: str
+    recommended_bedtime: str
+    recommended_wake_time: str
+    sleep_debt_assessment: str
+    hygiene_tips: list[str] = Field(min_length=2, max_length=4)
+    key_concern: str
+
+
 class DailyBriefingKeyMetrics(BaseModel):
     body_battery: int | None = None
     hrv_status: float | None = None

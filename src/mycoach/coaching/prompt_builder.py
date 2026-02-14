@@ -224,6 +224,51 @@ def build_post_workout_prompt(
     )
 
 
+def _format_sleep_trends(trends: list[dict[str, Any]]) -> str:
+    """Format sleep trend data for the sleep coaching prompt."""
+    if not trends:
+        return "No sleep data available."
+    parts = []
+    field_labels = {
+        "sleep_duration_minutes": "Sleep duration (min)",
+        "sleep_score": "Sleep score",
+        "sleep_deep_minutes": "Deep sleep (min)",
+        "sleep_light_minutes": "Light sleep (min)",
+        "sleep_rem_minutes": "REM sleep (min)",
+        "body_battery_high": "Body Battery high",
+        "body_battery_low": "Body Battery low",
+        "resting_hr": "Resting HR",
+        "hrv_status": "HRV",
+        "avg_stress": "Avg stress",
+        "training_readiness": "Training readiness",
+    }
+    for entry in trends:
+        d = entry.get("snapshot_date", "?")
+        lines = [f"### {d}"]
+        for key, label in field_labels.items():
+            val = entry.get(key)
+            if val is not None:
+                lines.append(f"- {label}: {val}")
+        parts.append("\n".join(lines))
+    return "\n\n".join(parts)
+
+
+def build_sleep_coaching_prompt(
+    *,
+    sleep_trends: list[dict[str, Any]],
+    recent_activities: list[dict[str, Any]],
+    planned_workout: str | None = None,
+    version: str = "v1",
+) -> str:
+    """Build the user message for a sleep coaching LLM call."""
+    template = _load_template("sleep_coaching.txt", version)
+    return template.format(
+        sleep_trends=_format_sleep_trends(sleep_trends),
+        recent_activities=_format_activities(recent_activities),
+        planned_workout=planned_workout or "No workout planned for tomorrow.",
+    )
+
+
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
     """Convert a DailyHealthSnapshot ORM object to a plain dict."""
     fields = [

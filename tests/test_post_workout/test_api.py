@@ -12,14 +12,10 @@ from mycoach.models.user import User
 from tests.conftest import test_session
 
 
-async def _seed_user_and_activity(
-    sport: str = "gym", title: str = "Upper Body"
-) -> tuple[int, int]:
+async def _seed_user_and_activity(sport: str = "gym", title: str = "Upper Body") -> tuple[int, int]:
     """Create a user and an activity, return (user_id, activity_id)."""
     async with test_session() as session:
-        user = User(
-            email="test@example.com", name="Test User", fitness_level="intermediate"
-        )
+        user = User(email="test@example.com", name="Test User", fitness_level="intermediate")
         session.add(user)
         await session.flush()
 
@@ -107,9 +103,7 @@ class TestMarkSessionCompleted:
             session.add(planned)
             await session.commit()
 
-            resp = await client.patch(
-                f"/api/plans/{plan.id}/sessions/{planned.id}?activity_id=42"
-            )
+            resp = await client.patch(f"/api/plans/{plan.id}/sessions/{planned.id}?activity_id=42")
             assert resp.status_code == 200
             data = resp.json()
             assert data["completed"] is True

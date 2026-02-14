@@ -135,9 +135,7 @@ async def mark_session_completed(
         raise HTTPException(status_code=404, detail="Planned session not found.")
 
     # Verify plan belongs to user
-    plan_stmt = select(WeeklyPlan).where(
-        WeeklyPlan.id == plan_id, WeeklyPlan.user_id == USER_ID
-    )
+    plan_stmt = select(WeeklyPlan).where(WeeklyPlan.id == plan_id, WeeklyPlan.user_id == USER_ID)
     plan_result = await session.execute(plan_stmt)
     if plan_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Plan not found.")

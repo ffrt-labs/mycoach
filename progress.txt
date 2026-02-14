@@ -322,6 +322,38 @@
     - None completed (0%), partial (66.7%), all completed (100%), plan not found (404), sessions ordered by day
   - All 209 tests pass, ruff clean, mypy clean
 
+### Phase 5: Automation (in progress)
+
+- [x] **Sleep coaching — prompt, engine, API, tests**
+  - `prompts/v1/sleep_coaching.txt`: Sleep coaching prompt template
+    - 14-day sleep trend analysis, recent activities, tomorrow's planned workout
+    - JSON output schema with 9 fields: sleep quality summary, consistency analysis, sleep architecture,
+      performance correlation, recommended bedtime/wake time, sleep debt assessment, hygiene tips (2-4), key concern
+  - `coaching/response_parser.py`: Added `SleepCoachingResponse` model
+    - Validates all 9 fields, hygiene_tips list length (min 2, max 4)
+  - `coaching/context.py`: Added `get_sleep_trends()` function
+    - Fetches sleep-focused health snapshots for last N days (default 14)
+    - Returns sleep-specific fields (duration, score, deep/light/REM, Body Battery, HRV, stress, readiness)
+  - `coaching/prompt_builder.py`: Added `_format_sleep_trends()` and `build_sleep_coaching_prompt()`
+    - Formats sleep trend data with labeled fields per day
+    - Assembles full prompt with sleep trends, recent activities, planned workout
+  - `coaching/engine.py`: Added `generate_sleep_coaching()` method
+    - Full pipeline: gather 14-day sleep trends + 7-day activities → build prompt → LLM call → parse → store
+    - Duplicate check (one sleep coaching per day)
+    - Uses daily model (Sonnet) for cost efficiency
+    - Retry once on JSON parse failure
+    - Stores `CoachingInsight` (type=sleep) + logs `PromptLog`
+  - `api/routes/coaching.py`: 2 new endpoints
+    - `GET /api/coaching/sleep` — retrieve today's sleep coaching (404 if none)
+    - `POST /api/coaching/sleep/generate` — generate sleep coaching via LLM (409 if exists, 502 on failure)
+  - 22 new tests in `tests/test_sleep_coaching/`:
+    - `test_response_parser.py` (5): valid JSON, code block, missing field, too few tips, four tips
+    - `test_context.py` (4): returns sleep data, empty, respects date range, ordered by date desc
+    - `test_prompt_builder.py` (4): format entries, empty, multiple entries, build full prompt with planned workout
+    - `test_engine.py` (5): success, prompt logging, duplicate check, LLM failure logging, works without data
+    - `test_api.py` (3): get existing, 404 when none, 409 on duplicate generate
+  - All 231 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 5: Automation (scheduler, sleep coaching, weekly recap)
+- [ ] Phase 5 continued: weekly recap, scheduler, system monitoring

@@ -173,9 +173,7 @@ class TestGenerateWeeklyPlan:
             engine = CoachingEngine(llm_client=mock_llm)
 
             with pytest.raises(ValueError, match="No availability"):
-                await engine.generate_weekly_plan(
-                    session, user.id, date(2024, 6, 10)
-                )
+                await engine.generate_weekly_plan(session, user.id, date(2024, 6, 10))
 
     async def test_non_monday_raises(self) -> None:
         async with test_session() as session:
@@ -187,7 +185,9 @@ class TestGenerateWeeklyPlan:
             engine = CoachingEngine(llm_client=_mock_llm_client())
             with pytest.raises(ValueError, match="Monday"):
                 await engine.generate_weekly_plan(
-                    session, user.id, date(2024, 6, 12)  # Wednesday
+                    session,
+                    user.id,
+                    date(2024, 6, 12),  # Wednesday
                 )
 
     async def test_llm_failure_raises_and_logs(self) -> None:

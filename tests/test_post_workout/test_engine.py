@@ -91,9 +91,7 @@ class TestGeneratePostWorkoutAnalysis:
 
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
-            insight = await engine.generate_post_workout_analysis(
-                session, user_id, activity_id
-            )
+            insight = await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             assert insight.insight_type == "post_workout"
             assert insight.activity_id == activity_id
@@ -126,9 +124,7 @@ class TestGeneratePostWorkoutAnalysis:
             await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             with pytest.raises(ValueError, match="already exists"):
-                await engine.generate_post_workout_analysis(
-                    session, user_id, activity_id
-                )
+                await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
     async def test_activity_not_found_raises(self) -> None:
         async with test_session() as session:
@@ -149,9 +145,7 @@ class TestGeneratePostWorkoutAnalysis:
             engine = CoachingEngine(llm_client=mock_llm)
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
-                await engine.generate_post_workout_analysis(
-                    session, user_id, activity_id
-                )
+                await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             result = await session.execute(select(PromptLog))
             log = result.scalar_one()
@@ -195,9 +189,7 @@ class TestGeneratePostWorkoutAnalysis:
 
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_post_workout_analysis(
-                session, user_id, activity.id
-            )
+            await engine.generate_post_workout_analysis(session, user_id, activity.id)
 
             # Verify planned session is now linked
             await session.refresh(planned)
@@ -213,9 +205,7 @@ class TestGeneratePostWorkoutAnalysis:
 
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
-            insight = await engine.generate_post_workout_analysis(
-                session, user_id, activity_id
-            )
+            insight = await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             assert insight.insight_type == "post_workout"
             assert insight.activity_id == activity_id

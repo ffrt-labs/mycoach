@@ -54,9 +54,7 @@ class TestGetActivityWithDetails:
             )
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(
-                session, activity.id, user_id
-            )
+            act_dict, gym_details = await get_activity_with_details(session, activity.id, user_id)
             assert act_dict["sport"] == "gym"
             assert act_dict["title"] == "Upper Body"
             assert act_dict["id"] == activity.id
@@ -78,9 +76,7 @@ class TestGetActivityWithDetails:
             session.add(activity)
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(
-                session, activity.id, user_id
-            )
+            act_dict, gym_details = await get_activity_with_details(session, activity.id, user_id)
             assert act_dict["sport"] == "swimming"
             assert gym_details == []
 
@@ -196,9 +192,7 @@ class TestGetSimilarActivities:
             await session.commit()
 
             # Exclude a2, should only get a1 (swimming excluded by sport filter)
-            similar = await get_similar_activities(
-                session, user_id, "gym", a2.id
-            )
+            similar = await get_similar_activities(session, user_id, "gym", a2.id)
             assert len(similar) == 1
             assert similar[0]["title"] == "Workout 1"
 

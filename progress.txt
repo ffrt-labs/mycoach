@@ -475,6 +475,55 @@
     - Completed badge (1): shows Done badge for completed sessions
   - All 283 tests pass, ruff clean, mypy clean
 
+- [x] **Availability input page**
+  - `api/pages/availability.py`: Availability page route (`GET /availability`)
+    - Fetches existing slots for next week, pre-fills form
+    - Builds 7-day week view with dates for each day
+    - Passes sport options for dropdown
+  - `templates/availability.html`: Availability form template extending base layout
+    - 7-day card list with toggle checkboxes for each day
+    - Per-day inputs: start time, duration (30-120 min select), preferred sport
+    - Pre-fills checked/time/duration/sport from existing slots
+    - JavaScript form handler builds JSON payload and POSTs to `/api/availability`
+    - Success/error feedback messages
+  - Router registered in `main.py`
+  - 5 new tests in `tests/test_pages/test_availability.py`:
+    - Empty page (1): renders with all days, sports, and save button
+    - Week dates (1): shows correct next week date range
+    - Pre-fills existing (1): checked checkbox, time, duration for saved slot
+    - Multiple slots (1): multiple checkboxes checked, unchecked days not checked
+    - Save button (1): save button present
+  - All 288 tests pass, ruff clean, mypy clean
+
+- [x] **History page**
+  - `api/pages/history.py`: History page route (`GET /history`)
+    - Paginated activity list (20 per page) with sport filter
+    - Fetches gym workout details for gym activities, groups by exercise
+    - Checks which activities have post-workout analyses (Analyzed badge)
+    - Groups activities by date for display
+    - Available sports query for filter chips
+  - `templates/history.html`: History page template extending base layout
+    - Sport filter chips (All + each available sport) with active highlighting
+    - Activities grouped by date with card layout
+    - Activity cards: title, sport, time, duration, data source badge
+    - Metrics row: avg/max HR, calories, training effect
+    - Gym exercise details: exercise name with sets/reps/weight inline
+    - Analyzed badge (purple) for activities with post-workout analysis
+    - Pagination (Prev/Next) with page count
+    - Empty state message
+  - Router registered in `main.py`
+  - 9 new tests in `tests/test_pages/test_history.py`:
+    - Empty page (1): renders with empty state message and 0 count
+    - With activities (1): shows titles, dates, grouped by date
+    - Sport filter (1): filters to single sport, correct count
+    - Gym details (1): shows exercise name, weight, reps
+    - Metrics (1): shows HR and calories
+    - Analysis badge (1): shows Analyzed badge for analyzed activities
+    - Filter chips (1): shows sport filter links
+    - Pagination (1): page 1/2 with Next, page 2/2 with Prev
+    - Data source badge (1): shows data source label
+  - All 297 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 6 (continued): Availability input page, history page
+- [ ] Phase 7: Email templates, send triggers, email preferences

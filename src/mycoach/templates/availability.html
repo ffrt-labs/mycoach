@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Set Availability — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-20 sm:pb-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Set Availability</h1>
+        <p class="text-sm text-gray-500">{{ week_start_str }} — {{ week_end_str }}</p>
+    </div>
+
+    <p class="text-sm text-gray-600">
+        Select the days you can train next week, set a start time, duration, and preferred sport.
+    </p>
+
+    <!-- Availability form -->
+    <form id="availability-form" method="post" class="space-y-3">
+        {% for day in week_days %}
+        <div class="rounded-xl shadow-sm border border-gray-200 bg-white overflow-hidden">
+            <div class="px-4 py-3">
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" name="day_{{ day.day_of_week }}_enabled"
+                        class="day-toggle h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        data-day="{{ day.day_of_week }}"
+                        {% if day.slot %}checked{% endif %}>
+                    <div class="flex items-center gap-3 flex-1">
+                        <div class="w-10 text-center">
+                            <p class="text-xs uppercase font-semibold text-gray-500">{{ day.day_name[:3] }}</p>
+                            <p class="text-lg font-bold text-gray-700">{{ day.date.day }}</p>
+                        </div>
+                        <span class="font-medium text-gray-900">{{ day.day_name }}</span>
+                    </div>
+                </label>
+
+                <!-- Slot inputs (shown when day is enabled) -->
+                <div id="slot-{{ day.day_of_week }}" class="mt-3 pl-11 grid grid-cols-3 gap-3 {% if not day.slot %}hidden{% endif %}">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Start time</label>
+                        <input type="time" name="day_{{ day.day_of_week }}_time"
+                            value="{{ day.slot.start_time.strftime('%H:%M') if day.slot else '09:00' }}"
+                            class="w-full rounded-lg border-gray-300 text-sm px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Duration</label>
+                        <select name="day_{{ day.day_of_week }}_duration"
+                            class="w-full rounded-lg border-gray-300 text-sm px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                            {% for dur in [30, 45, 60, 75, 90, 120] %}
+                            <option value="{{ dur }}" {% if day.slot and day.slot.duration_minutes == dur %}selected{% endif %}
+                                {% if not day.slot and dur == 60 %}selected{% endif %}>{{ dur }} min</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Sport</label>
+                        <select name="day_{{ day.day_of_week }}_sport"
+                            class="w-full rounded-lg border-gray-300 text-sm px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                            {% for sport in sports %}
+                            <option value="{{ sport }}" {% if day.slot and day.slot.preferred_sport == sport %}selected{% endif %}>
+                                {{ sport | capitalize }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Submit -->
+        <div class="pt-2">
+            <button type="submit" id="save-btn"
+                hx-post="/api/availability"
+                hx-target="#save-result"
+                hx-swap="innerHTML"
+                hx-indicator="#save-spinner"
+                class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 px-4 rounded-xl transition-colors">
+                Save Availability
+            </button>
+            <div id="save-result" class="mt-3 text-center text-sm"></div>
+            <div id="save-spinner" class="htmx-indicator mt-2 text-center text-sm text-gray-500">
+                Saving...
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle slot inputs visibility when checkbox changes
+    document.querySelectorAll('.day-toggle').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var day = this.dataset.day;
+            var slotDiv = document.getElementById('slot-' + day);
+            if (this.checked) {
+                slotDiv.classList.remove('hidden');
+            } else {
+                slotDiv.classList.add('hidden');
+            }
+        });
+    });
+
+    // Intercept form submit to build JSON and POST to API
+    var form = document.getElementById('availability-form');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var slots = [];
+        for (var day = 0; day < 7; day++) {
+            var cb = form.querySelector('[name="day_' + day + '_enabled"]');
+            if (cb && cb.checked) {
+                var timeVal = form.querySelector('[name="day_' + day + '_time"]').value;
+                var durVal = form.querySelector('[name="day_' + day + '_duration"]').value;
+                var sportVal = form.querySelector('[name="day_' + day + '_sport"]').value;
+                slots.push({
+                    day_of_week: day,
+                    start_time: timeVal + ':00',
+                    duration_minutes: parseInt(durVal),
+                    preferred_sport: sportVal
+                });
+            }
+        }
+
+        var weekStart = '{{ week_start.isoformat() }}';
+        var payload = { week_start: weekStart, slots: slots };
+
+        var resultDiv = document.getElementById('save-result');
+        var btn = document.getElementById('save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        fetch('/api/availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function(resp) {
+            if (resp.ok) {
+                return resp.json().then(function(data) {
+                    resultDiv.innerHTML = '<span class="text-green-600 font-medium">Saved ' + data.length + ' slot(s) for next week.</span>';
+                });
+            } else {
+                return resp.json().then(function(data) {
+                    resultDiv.innerHTML = '<span class="text-red-600 font-medium">Error: ' + (data.detail || 'Unknown error') + '</span>';
+                });
+            }
+        }).catch(function(err) {
+            resultDiv.innerHTML = '<span class="text-red-600 font-medium">Network error. Please try again.</span>';
+        }).finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Save Availability';
+        });
+    });
+});
+</script>
+{% endblock %}

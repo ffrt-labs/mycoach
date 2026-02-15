@@ -1,0 +1,14 @@
+/* MyCoach custom styles — extends Tailwind CDN */
+
+/* Smooth page transitions with HTMX boost */
+.htmx-settling {
+    opacity: 0.8;
+    transition: opacity 150ms ease-in;
+}
+
+/* Bottom nav spacer on mobile */
+@media (max-width: 639px) {
+    body {
+        padding-bottom: 4rem;
+    }
+}

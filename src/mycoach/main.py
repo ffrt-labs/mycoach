@@ -2,10 +2,14 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
+from mycoach.api.pages.dashboard import router as dashboard_router
 from mycoach.api.routes.activities import router as activities_router
 from mycoach.api.routes.availability import router as availability_router
 from mycoach.api.routes.coaching import router as coaching_router
@@ -16,6 +20,8 @@ from mycoach.api.routes.sources import router as sources_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
 from mycoach.scheduler.scheduler import create_scheduler
+
+_BASE_DIR = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +58,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Static files + Jinja2 templates
+    app.mount("/static", StaticFiles(directory=_BASE_DIR / "static"), name="static")
+    templates = Jinja2Templates(directory=_BASE_DIR / "templates")
+    app.state.templates = templates
+
+    # API routes (JSON)
     app.include_router(activities_router)
     app.include_router(availability_router)
     app.include_router(coaching_router)
@@ -59,6 +71,9 @@ def create_app() -> FastAPI:
     app.include_router(mesocycles_router)
     app.include_router(plans_router)
     app.include_router(sources_router)
+
+    # Page routes (HTML)
+    app.include_router(dashboard_router)
 
     @app.get("/api/system/status")
     async def system_status() -> dict[str, str]:

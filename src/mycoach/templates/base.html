@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <meta name="description" content="MyCoach — AI-powered personal fitness coaching">
+    <link rel="manifest" href="/static/manifest.json">
+    <title>{% block title %}MyCoach{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="h-full" hx-boost="true">
+    <!-- Navigation -->
+    <nav class="bg-blue-800 text-white shadow-lg">
+        <div class="max-w-5xl mx-auto px-4">
+            <div class="flex items-center justify-between h-14">
+                <a href="/" class="text-lg font-bold tracking-tight">MyCoach</a>
+                <div class="flex gap-4 text-sm">
+                    <a href="/" class="hover:text-blue-200 {% if active_page == 'dashboard' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Dashboard</a>
+                    <a href="/plan" class="hover:text-blue-200 {% if active_page == 'plan' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Plan</a>
+                    <a href="/availability" class="hover:text-blue-200 {% if active_page == 'availability' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Availability</a>
+                    <a href="/history" class="hover:text-blue-200 {% if active_page == 'history' %}text-white font-semibold{% else %}text-blue-300{% endif %}">History</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="max-w-5xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bottom nav (mobile) -->
+    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 sm:hidden z-50">
+        <div class="flex justify-around py-2">
+            <a href="/" class="flex flex-col items-center text-xs {% if active_page == 'dashboard' %}text-blue-700{% else %}text-gray-500{% endif %}">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                Home
+            </a>
+            <a href="/plan" class="flex flex-col items-center text-xs {% if active_page == 'plan' %}text-blue-700{% else %}text-gray-500{% endif %}">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Plan
+            </a>
+            <a href="/availability" class="flex flex-col items-center text-xs {% if active_page == 'availability' %}text-blue-700{% else %}text-gray-500{% endif %}">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                Schedule
+            </a>
+            <a href="/history" class="flex flex-col items-center text-xs {% if active_page == 'history' %}text-blue-700{% else %}text-gray-500{% endif %}">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                History
+            </a>
+        </div>
+    </nav>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

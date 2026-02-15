@@ -416,6 +416,41 @@
     - `test_api.py` (1): scheduler status endpoint when not running
   - All 272 tests pass, ruff clean, mypy clean
 
+### Phase 6: PWA Frontend (in progress)
+
+- [x] **Dashboard page + PWA infrastructure**
+  - `templates/base.html`: Base layout with Tailwind CSS (CDN) + HTMX + responsive nav
+    - Desktop top nav + mobile bottom nav with icons (Home, Plan, Schedule, History)
+    - Active page highlighting, PWA manifest link, service worker registration
+    - `hx-boost="true"` for SPA-like page transitions
+  - `templates/dashboard.html`: Dashboard page extending base layout
+    - Readiness card: color-coded by verdict (go_hard/moderate/active_recovery/rest), recovery status, adjustments
+    - Health metrics grid: resting HR, HRV, Body Battery, sleep score, sleep duration, training readiness, steps, stress
+    - Today's workout card: session title, sport, duration, notes, parsed JSON details (exercises, etc.)
+    - Sleep recommendation card from daily briefing
+    - Empty state messages for missing data (no health, no briefing, no plan, rest day)
+  - `api/pages/dashboard.py`: Dashboard page route (`GET /`)
+    - Fetches today's health snapshot, daily briefing (with JSON content parsing),
+      current week's plan, and today's planned session (with details JSON parsing)
+    - Passes structured data to Jinja2 template for server-side rendering
+  - `main.py`: Updated to mount Jinja2 templates + static files + page router
+    - `StaticFiles` mounted at `/static` from `src/mycoach/static/`
+    - `Jinja2Templates` initialized from `src/mycoach/templates/`
+    - Templates stored on `app.state.templates` for access in page routes
+    - Dashboard page router registered
+  - `static/manifest.json`: PWA manifest (standalone display, theme color, icon references)
+  - `static/sw.js`: Service worker with network-first caching strategy, cache cleanup on activate
+  - `static/js/app.js`: Service worker registration
+  - `static/css/app.css`: Custom styles (HTMX transitions, mobile bottom nav spacer)
+  - 6 new tests in `tests/test_pages/test_dashboard.py`:
+    - Empty dashboard (1): renders HTML with empty state messages
+    - Health metrics (1): displays resting HR, body battery, sleep score, formatted steps
+    - Daily briefing (1): shows readiness verdict, recovery status, sleep recommendation
+    - Plan with session (1): shows workout title, sport, duration, notes
+    - Rest day (1): shows rest day message when plan exists but no session today
+    - Static files (1): verifies CSS, JS, and manifest.json are served correctly
+  - All 278 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 6: PWA Frontend — dashboard, plan view, availability input
+- [ ] Phase 6 (continued): Plan view page, availability input page, history page

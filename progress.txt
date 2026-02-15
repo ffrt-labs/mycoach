@@ -354,6 +354,39 @@
     - `test_api.py` (3): get existing, 404 when none, 409 on duplicate generate
   - All 231 tests pass, ruff clean, mypy clean
 
+- [x] **Weekly recap — prompt, engine, API, tests**
+  - `prompts/v1/weekly_recap.txt`: Weekly recap prompt template
+    - Week date range, plan adherence, activities, health trends, mesocycle status
+    - JSON output schema with 8 fields: week summary, adherence analysis, performance highlights (2-4),
+      areas of concern (1-3), recovery assessment, training load analysis, next week recommendations,
+      mesocycle progress
+  - `coaching/response_parser.py`: Added `WeeklyRecapResponse` model
+    - Validates all 8 fields, performance_highlights list length (min 2, max 4),
+      areas_of_concern list length (min 1, max 3)
+  - `coaching/context.py`: Added 2 new context query functions
+    - `get_plan_adherence_for_week()`: Fetches plan + sessions, calculates adherence percentage,
+      returns per-session breakdown with completion status
+    - `get_activities_for_week()`: Gets all activities within a specific week (Monday to Sunday)
+  - `coaching/prompt_builder.py`: Added `_format_plan_adherence()` and `build_weekly_recap_prompt()`
+    - Formats plan adherence with DONE/MISSED markers per session
+    - Assembles full prompt with week dates, adherence, activities, health trends, mesocycle context
+  - `coaching/engine.py`: Added `generate_weekly_recap()` method
+    - Full pipeline: gather context → build prompt → LLM call → parse → store
+    - Validates week_start is Monday, checks for existing recap (no duplicates)
+    - Uses daily model (Sonnet) for cost efficiency
+    - Retry once on JSON parse failure
+    - Stores `CoachingInsight` (type=weekly_recap) + logs `PromptLog`
+  - `api/routes/coaching.py`: 2 new endpoints
+    - `GET /api/coaching/weekly-recap?week_start=` — retrieve weekly recap (defaults to last week, 404 if none)
+    - `POST /api/coaching/weekly-recap/generate?week_start=` — generate recap via LLM (409 if exists, 422 non-Monday)
+  - 26 new tests in `tests/test_weekly_recap/`:
+    - `test_response_parser.py` (5): valid JSON, code block, missing field, too few highlights, too many concerns
+    - `test_context.py` (5): adherence data, no plan, all completed, activities in range, empty week
+    - `test_prompt_builder.py` (5): no plan, with adherence, empty sessions, full prompt, no plan no mesocycle
+    - `test_engine.py` (6): success, prompt logging, duplicate check, non-Monday, LLM failure, with plan adherence
+    - `test_api.py` (5): get existing, 404 when none, 422 non-Monday, 409 duplicate generate, 409 non-Monday generate
+  - All 257 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 5 continued: weekly recap, scheduler, system monitoring
+- [ ] Phase 5 continued: scheduler, system monitoring

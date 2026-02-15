@@ -1,0 +1,29 @@
+Provide a comprehensive weekly training recap for the past week.
+
+## Week: {week_start} to {week_end}
+
+## Plan Adherence
+{plan_adherence}
+
+## Activities Completed This Week
+{weekly_activities}
+
+## Health Trends This Week
+{health_trends}
+
+## Mesocycle Status
+{mesocycle_context}
+
+Based on this data, provide a comprehensive weekly recap analysis.
+
+Respond with a JSON object matching this exact schema:
+{{
+  "week_summary": "High-level summary of the training week (volume, intensity, adherence)",
+  "adherence_analysis": "Analysis of plan adherence — what was completed, what was missed, and why it matters",
+  "performance_highlights": ["List of 2-4 notable performances or achievements this week"],
+  "areas_of_concern": ["List of 1-3 concerns or areas that need attention"],
+  "recovery_assessment": "Assessment of recovery status based on health trends (sleep, HRV, stress, Body Battery)",
+  "training_load_analysis": "Analysis of training load distribution and balance across sports",
+  "next_week_recommendations": "Specific recommendations for next week's training focus and adjustments",
+  "mesocycle_progress": "Progress within the current mesocycle block and any phase transition suggestions"
+}}

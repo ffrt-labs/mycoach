@@ -173,6 +173,73 @@ async def get_sleep_trends(
     return trends
 
 
+async def get_plan_adherence_for_week(
+    session: AsyncSession, user_id: int, week_start: date
+) -> dict[str, Any] | None:
+    """Get plan adherence data for a given week.
+
+    Returns a dict with total_sessions, completed_sessions, adherence_pct,
+    and per-session breakdown. Returns None if no plan exists for the week.
+    """
+    stmt = select(WeeklyPlan).where(
+        WeeklyPlan.user_id == user_id,
+        WeeklyPlan.week_start == week_start,
+    )
+    result = await session.execute(stmt)
+    plan = result.scalar_one_or_none()
+    if plan is None:
+        return None
+
+    sessions_stmt = (
+        select(PlannedSession)
+        .where(PlannedSession.plan_id == plan.id)
+        .order_by(PlannedSession.day_of_week)
+    )
+    sessions_result = await session.execute(sessions_stmt)
+    sessions = sessions_result.scalars().all()
+
+    total = len(sessions)
+    completed = sum(1 for s in sessions if s.completed)
+    adherence_pct = round(completed / total * 100, 1) if total > 0 else 0.0
+
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    session_list = [
+        {
+            "day": day_names[s.day_of_week],
+            "sport": s.sport,
+            "title": s.title,
+            "completed": s.completed,
+        }
+        for s in sessions
+    ]
+
+    return {
+        "plan_summary": plan.summary,
+        "total_sessions": total,
+        "completed_sessions": completed,
+        "adherence_pct": adherence_pct,
+        "sessions": session_list,
+    }
+
+
+async def get_activities_for_week(
+    session: AsyncSession, user_id: int, week_start: date
+) -> list[dict[str, Any]]:
+    """Get all activities within a specific week (Monday to Sunday)."""
+    week_end = week_start + timedelta(days=7)
+    stmt = (
+        select(Activity)
+        .where(
+            Activity.user_id == user_id,
+            Activity.start_time >= week_start.isoformat(),
+            Activity.start_time < week_end.isoformat(),
+        )
+        .order_by(Activity.start_time)
+    )
+    result = await session.execute(stmt)
+    return [activity_to_dict(a) for a in result.scalars().all()]
+
+
 async def get_activity_with_details(
     session: AsyncSession, activity_id: int, user_id: int
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:

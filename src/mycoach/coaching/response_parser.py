@@ -50,6 +50,17 @@ class SleepCoachingResponse(BaseModel):
     key_concern: str
 
 
+class WeeklyRecapResponse(BaseModel):
+    week_summary: str
+    adherence_analysis: str
+    performance_highlights: list[str] = Field(min_length=2, max_length=4)
+    areas_of_concern: list[str] = Field(min_length=1, max_length=3)
+    recovery_assessment: str
+    training_load_analysis: str
+    next_week_recommendations: str
+    mesocycle_progress: str
+
+
 class DailyBriefingKeyMetrics(BaseModel):
     body_battery: int | None = None
     hrv_status: float | None = None

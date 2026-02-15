@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.context import (
     find_matching_planned_session,
+    get_activities_for_week,
     get_activity_with_details,
     get_availability_for_week,
     get_health_trends,
     get_mesocycle_context,
+    get_plan_adherence_for_week,
     get_recent_activities,
     get_similar_activities,
     get_sleep_trends,
@@ -25,6 +27,7 @@ from mycoach.coaching.prompt_builder import (
     build_post_workout_prompt,
     build_sleep_coaching_prompt,
     build_weekly_plan_prompt,
+    build_weekly_recap_prompt,
     get_system_prompt,
 )
 from mycoach.coaching.response_parser import (
@@ -32,6 +35,7 @@ from mycoach.coaching.response_parser import (
     PostWorkoutResponse,
     SleepCoachingResponse,
     WeeklyPlanResponse,
+    WeeklyRecapResponse,
     parse_response,
 )
 from mycoach.models.coaching import CoachingInsight
@@ -496,6 +500,114 @@ class CoachingEngine:
             user_id=user_id,
             insight_date=today,
             insight_type="sleep",
+            content=content_json,
+            prompt_version=PROMPT_VERSION,
+        )
+        session.add(insight)
+        await session.commit()
+        await session.refresh(insight)
+
+        return insight
+
+    async def generate_weekly_recap(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        week_start: date,
+    ) -> CoachingInsight:
+        """Generate a weekly training recap for a completed week.
+
+        Gathers plan adherence, activities, health trends, and mesocycle context,
+        calls the LLM, validates the response, stores as CoachingInsight, and logs the prompt.
+
+        Returns the saved CoachingInsight.
+        """
+        if week_start.weekday() != 0:
+            raise ValueError("week_start must be a Monday")
+
+        # Check for existing recap for this week
+        existing = await session.execute(
+            select(CoachingInsight).where(
+                CoachingInsight.user_id == user_id,
+                CoachingInsight.insight_date == week_start,
+                CoachingInsight.insight_type == "weekly_recap",
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise ValueError(f"Weekly recap already exists for week of {week_start}")
+
+        # Gather context
+        plan_adherence = await get_plan_adherence_for_week(session, user_id, week_start)
+        weekly_activities = await get_activities_for_week(session, user_id, week_start)
+        health_trends = await get_health_trends(session, user_id, days=7, today=week_start)
+        mesocycle_ctx = await get_mesocycle_context(session, user_id)
+
+        # Build prompts
+        system_prompt = get_system_prompt(PROMPT_VERSION)
+        user_message = build_weekly_recap_prompt(
+            week_start=week_start,
+            plan_adherence=plan_adherence,
+            weekly_activities=weekly_activities,
+            health_trends=health_trends,
+            mesocycle_context=mesocycle_ctx,
+            version=PROMPT_VERSION,
+        )
+
+        # Call LLM (daily model for cost efficiency)
+        llm_response: LLMResponse | None = None
+        error_msg: str | None = None
+        parsed: WeeklyRecapResponse | None = None
+
+        try:
+            llm_response = self._llm.call(
+                system=system_prompt,
+                user_message=user_message,
+                model=self._llm.daily_model,
+            )
+            parsed = parse_response(llm_response.content, WeeklyRecapResponse)
+        except Exception as e:
+            error_msg = str(e)
+            logger.error("Weekly recap generation failed: %s", error_msg)
+
+            if llm_response is not None:
+                try:
+                    llm_response = self._llm.call(
+                        system=system_prompt,
+                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
+                        model=self._llm.daily_model,
+                    )
+                    parsed = parse_response(llm_response.content, WeeklyRecapResponse)
+                    error_msg = None
+                except Exception as retry_err:
+                    error_msg = f"Retry also failed: {retry_err}"
+                    logger.error("Weekly recap retry failed: %s", retry_err)
+
+        # Log the prompt call
+        prompt_log = PromptLog(
+            prompt_type="weekly_recap",
+            prompt_version=PROMPT_VERSION,
+            model=llm_response.model if llm_response else self._llm.daily_model,
+            input_tokens=llm_response.input_tokens if llm_response else None,
+            output_tokens=llm_response.output_tokens if llm_response else None,
+            latency_ms=llm_response.latency_ms if llm_response else None,
+            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
+            prompt_text=user_message,
+            response_text=llm_response.content if llm_response else None,
+            success=parsed is not None,
+            error=error_msg,
+        )
+        session.add(prompt_log)
+
+        if parsed is None:
+            await session.commit()
+            raise RuntimeError(f"Failed to generate weekly recap: {error_msg}")
+
+        # Store the coaching insight
+        content_json = parsed.model_dump_json()
+        insight = CoachingInsight(
+            user_id=user_id,
+            insight_date=week_start,
+            insight_type="weekly_recap",
             content=content_json,
             prompt_version=PROMPT_VERSION,
         )

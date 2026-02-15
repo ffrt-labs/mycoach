@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}History — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-20 sm:pb-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">History</h1>
+            <p class="text-sm text-gray-500">{{ total }} activit{{ "y" if total == 1 else "ies" }}</p>
+        </div>
+    </div>
+
+    <!-- Sport filter -->
+    {% if available_sports %}
+    <div class="flex gap-2 flex-wrap">
+        <a href="/history"
+            class="text-xs font-medium px-3 py-1.5 rounded-full transition-colors
+                {% if not sport_filter %}bg-blue-700 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+            All
+        </a>
+        {% for sport in available_sports %}
+        <a href="/history?sport={{ sport }}"
+            class="text-xs font-medium px-3 py-1.5 rounded-full capitalize transition-colors
+                {% if sport_filter == sport %}bg-blue-700 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+            {{ sport | capitalize }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not grouped_activities %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <p class="text-gray-500 text-sm">No activities yet.</p>
+        <p class="text-gray-400 text-xs mt-1">Sync from Garmin or import a Hevy CSV to get started.</p>
+    </div>
+    {% else %}
+
+    <!-- Activities grouped by date -->
+    <div class="space-y-6">
+        {% for date_str, cards in grouped_activities.items() %}
+        <div>
+            <h2 class="text-sm font-semibold text-gray-500 mb-2">{{ date_str }}</h2>
+            <div class="space-y-3">
+                {% for card in cards %}
+                <div class="rounded-xl shadow-sm border border-gray-200 bg-white overflow-hidden">
+                    <div class="px-4 py-3 flex items-center justify-between">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center bg-{{ card.color }}-100 flex-shrink-0">
+                                <svg class="w-5 h-5 text-{{ card.color }}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                </svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="font-semibold text-gray-900 truncate">{{ card.activity.title }}</h3>
+                                <div class="flex items-center gap-2 text-xs text-gray-500">
+                                    <span class="capitalize">{{ card.activity.sport }}</span>
+                                    <span>{{ card.time_str }}</span>
+                                    {% if card.activity.duration_minutes %}
+                                    <span>{{ card.activity.duration_minutes }} min</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            {% if card.has_analysis %}
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Analyzed</span>
+                            {% endif %}
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{{ card.activity.data_source }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Metrics row -->
+                    {% if card.activity.avg_hr or card.activity.calories or card.activity.training_effect_aerobic %}
+                    <div class="px-4 pb-3 flex gap-4 text-xs text-gray-500 border-t border-gray-100 pt-2">
+                        {% if card.activity.avg_hr %}
+                        <span>Avg HR: <span class="font-medium text-gray-700">{{ card.activity.avg_hr }} bpm</span></span>
+                        {% endif %}
+                        {% if card.activity.max_hr %}
+                        <span>Max HR: <span class="font-medium text-gray-700">{{ card.activity.max_hr }} bpm</span></span>
+                        {% endif %}
+                        {% if card.activity.calories %}
+                        <span>Cal: <span class="font-medium text-gray-700">{{ card.activity.calories }}</span></span>
+                        {% endif %}
+                        {% if card.activity.training_effect_aerobic %}
+                        <span>TE: <span class="font-medium text-gray-700">{{ card.activity.training_effect_aerobic }}</span></span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Gym exercises -->
+                    {% if card.exercises %}
+                    <div class="px-4 pb-3 border-t border-gray-100">
+                        <div class="mt-2 space-y-1">
+                            {% for ex in card.exercises %}
+                            <div class="text-sm">
+                                <span class="font-medium text-gray-700">{{ ex.title }}</span>
+                                <span class="text-gray-400"> —
+                                    {% for s in ex.sets %}
+                                    {% if s.weight_kg and s.reps %}{{ s.weight_kg | round(1) }}kg x {{ s.reps }}{% elif s.reps %}{{ s.reps }} reps{% elif s.duration_seconds %}{{ s.duration_seconds }}s{% endif %}{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="flex items-center justify-center gap-2 pt-4">
+        {% if page > 1 %}
+        <a href="/history?page={{ page - 1 }}{% if sport_filter %}&sport={{ sport_filter }}{% endif %}"
+            class="px-3 py-1.5 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">Prev</a>
+        {% endif %}
+        <span class="text-sm text-gray-500">Page {{ page }} of {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="/history?page={{ page + 1 }}{% if sport_filter %}&sport={{ sport_filter }}{% endif %}"
+            class="px-3 py-1.5 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

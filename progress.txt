@@ -387,6 +387,35 @@
     - `test_api.py` (5): get existing, 404 when none, 422 non-Monday, 409 duplicate generate, 409 non-Monday generate
   - All 257 tests pass, ruff clean, mypy clean
 
+- [x] **APScheduler background scheduler + daily pipeline jobs**
+  - Enabled `apscheduler>=3.10.0` dependency in pyproject.toml
+  - `scheduler/scheduler.py`: APScheduler `BackgroundScheduler` configuration
+    - Creates scheduler with all 5 pipeline jobs configured via cron triggers
+    - Configurable timezone, sync hour/minute, briefing hour/minute, weekly plan day/hour
+    - `misfire_grace_time=3600` on all jobs (runs if up to 1 hour late)
+    - `replace_existing=True` for safe restarts
+    - Not auto-started: caller controls lifecycle
+  - `scheduler/jobs.py`: 5 job functions for the full daily coaching pipeline
+    - `job_garmin_sync()`: Syncs last 2 days of Garmin data + auto-merges with Hevy
+    - `job_daily_briefing()`: Generates daily coaching briefing via LLM
+    - `job_sleep_coaching()`: Generates sleep coaching analysis via LLM
+    - `job_weekly_plan()`: Generates next week's training plan (calculates next Monday)
+    - `job_weekly_recap()`: Generates recap for the previous week (calculates last Monday)
+    - All jobs are idempotent — skip gracefully on duplicate (ValueError from engine)
+    - Each job creates its own async DB session from `async_session`
+    - `_run_async()` bridge for sync APScheduler → async job coroutines
+  - `main.py`: Scheduler integrated into FastAPI lifespan
+    - Starts scheduler on app startup (skipped when `env=test`)
+    - Shuts down scheduler on app shutdown
+    - `GET /api/system/scheduler`: New endpoint returning scheduler status
+      - Running state, timezone, current time, list of jobs with next_run_time and trigger
+  - `scheduler/__init__.py`: Exports `create_scheduler`
+  - 15 new tests in `tests/test_scheduler/`:
+    - `test_scheduler.py` (5): registers all jobs, configured timezone, default timezone, plan day configurable, not auto-started
+    - `test_jobs.py` (9): garmin sync success/auth failure, daily briefing success/duplicate skip, sleep coaching success, weekly plan next Monday/from Sunday, weekly recap last Monday/duplicate skip
+    - `test_api.py` (1): scheduler status endpoint when not running
+  - All 272 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 5 continued: scheduler, system monitoring
+- [ ] Phase 6: PWA Frontend — dashboard, plan view, availability input

@@ -567,6 +567,27 @@
       weekly recap sends
   - All 321 tests pass, ruff clean, mypy clean
 
+### Phase 8: Polish & Hardening (in progress)
+
+- [x] **Global exception handler in FastAPI**
+  - `api/error_handlers.py`: Three exception handlers registered on the FastAPI app
+    - `RequestValidationError` handler: Returns structured 422 JSON with per-field errors
+      (`field` location path + `message`), logs warning
+    - `HTTPException` handler: Returns consistent JSON structure (`error` + `detail`)
+      for all HTTP errors (404, 409, 422, 502, 503, etc.)
+    - Unhandled `Exception` handler: Catches all uncaught exceptions, returns generic 500
+      JSON without leaking internal error details, logs full traceback via `logger.exception()`
+  - `register_error_handlers()` function called in `create_app()` before router registration
+  - All API error responses now have consistent JSON format: `{"error": "<type>", "detail": "<message>"}`
+  - Validation errors include `"errors"` array with `field` and `message` per invalid input
+  - 5 new tests in `tests/test_api/test_error_handlers.py`:
+    - Structured 422 for validation errors (field + message)
+    - Structured JSON for HTTPException (404)
+    - Generic 500 without leaking error details (uses dedicated test app with `raise_app_exceptions=False`)
+    - Exception logging verification (logger.exception called with method + path)
+    - Multiple validation errors listed
+  - All 326 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8: Error handling, encryption, logging, testing, deployment
+- [ ] Phase 8 (continued): Credential encryption, structured logging, Garmin re-auth, deployment

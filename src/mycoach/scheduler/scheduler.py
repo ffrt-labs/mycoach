@@ -1,0 +1,115 @@
+"""APScheduler setup — configures and manages the background scheduler.
+
+The scheduler runs five jobs as part of the daily coaching pipeline:
+1. Garmin sync (default 6:00 AM) — fetch health + activity data
+2. Daily briefing (default 6:30 AM) — LLM-generated coaching for the day
+3. Sleep coaching (default 6:30 AM) — 14-day sleep trend analysis
+4. Weekly plan (default Sunday 6:00 PM) — generate next week's training plan
+5. Weekly recap (default Monday 7:00 AM) — recap the previous week
+"""
+
+import logging
+
+from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
+
+from mycoach.config import Settings
+from mycoach.scheduler.jobs import (
+    job_daily_briefing,
+    job_garmin_sync,
+    job_sleep_coaching,
+    job_weekly_plan,
+    job_weekly_recap,
+)
+
+logger = logging.getLogger(__name__)
+
+# Day name → APScheduler day-of-week string
+DAY_MAP = {
+    "mon": "mon",
+    "tue": "tue",
+    "wed": "wed",
+    "thu": "thu",
+    "fri": "fri",
+    "sat": "sat",
+    "sun": "sun",
+}
+
+
+def create_scheduler(settings: Settings) -> BackgroundScheduler:
+    """Create and configure the background scheduler with all coaching pipeline jobs.
+
+    Jobs are not started — call scheduler.start() to begin execution.
+    """
+    scheduler = BackgroundScheduler(timezone=settings.scheduler_timezone)
+
+    # 1. Garmin sync — daily (fetches health + activities, then auto-merges)
+    scheduler.add_job(
+        job_garmin_sync,
+        "cron",
+        id="garmin_sync",
+        hour=settings.scheduler_sync_hour,
+        minute=settings.scheduler_sync_minute,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+
+    # 2. Daily briefing — daily, after Garmin sync
+    scheduler.add_job(
+        job_daily_briefing,
+        "cron",
+        id="daily_briefing",
+        hour=settings.scheduler_briefing_hour,
+        minute=settings.scheduler_briefing_minute,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+
+    # 3. Sleep coaching — daily, same time as briefing
+    scheduler.add_job(
+        job_sleep_coaching,
+        "cron",
+        id="sleep_coaching",
+        hour=settings.scheduler_briefing_hour,
+        minute=settings.scheduler_briefing_minute,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+
+    # 4. Weekly plan — once per week (default Sunday evening)
+    plan_day = DAY_MAP.get(settings.scheduler_weekly_plan_day.lower(), "sun")
+    scheduler.add_job(
+        job_weekly_plan,
+        "cron",
+        id="weekly_plan",
+        day_of_week=plan_day,
+        hour=settings.scheduler_weekly_plan_hour,
+        minute=0,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+
+    # 5. Weekly recap — Monday morning (after the week ends)
+    scheduler.add_job(
+        job_weekly_recap,
+        "cron",
+        id="weekly_recap",
+        day_of_week="mon",
+        hour=7,
+        minute=0,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+
+    logger.info(
+        "Scheduler configured: sync=%02d:%02d, briefing=%02d:%02d, "
+        "plan=%s@%02d:00, recap=mon@07:00, tz=%s",
+        settings.scheduler_sync_hour,
+        settings.scheduler_sync_minute,
+        settings.scheduler_briefing_hour,
+        settings.scheduler_briefing_minute,
+        plan_day,
+        settings.scheduler_weekly_plan_hour,
+        settings.scheduler_timezone,
+    )
+
+    return scheduler

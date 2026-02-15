@@ -24,7 +24,7 @@ dependencies = [
     # Phase 2: Coaching
     "anthropic>=0.40.0",
     # Phase 5: Automation
-    # "apscheduler>=3.10.0",
+    "apscheduler>=3.10.0",
     # Phase 7: Email
     # "resend>=2.0.0",
 ]

@@ -1,5 +1,7 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 
@@ -13,6 +15,9 @@ from mycoach.api.routes.plans import router as plans_router
 from mycoach.api.routes.sources import router as sources_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
+from mycoach.scheduler.scheduler import create_scheduler
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -20,7 +25,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Create tables on startup (dev convenience; Alembic for production)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Start the background scheduler if not in test mode
+    settings = get_settings()
+    scheduler = None
+    if settings.env != "test":
+        scheduler = create_scheduler(settings)
+        scheduler.start()
+        app.state.scheduler = scheduler
+        logger.info("Background scheduler started")
+
     yield
+
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
+        logger.info("Background scheduler stopped")
     await engine.dispose()
 
 
@@ -44,6 +63,26 @@ def create_app() -> FastAPI:
     @app.get("/api/system/status")
     async def system_status() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/system/scheduler")
+    async def scheduler_status() -> dict:  # type: ignore[type-arg]
+        scheduler = getattr(app.state, "scheduler", None)
+        if scheduler is None:
+            return {"running": False, "jobs": []}
+        jobs = []
+        for job in scheduler.get_jobs():
+            next_run = job.next_run_time
+            jobs.append({
+                "id": job.id,
+                "next_run_time": next_run.isoformat() if next_run else None,
+                "trigger": str(job.trigger),
+            })
+        return {
+            "running": scheduler.running,
+            "timezone": str(scheduler.timezone),
+            "now": datetime.now(UTC).isoformat(),
+            "jobs": jobs,
+        }
 
     return app
 

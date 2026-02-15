@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
 from mycoach.api.pages.dashboard import router as dashboard_router
+from mycoach.api.pages.plan import router as plan_router
 from mycoach.api.routes.activities import router as activities_router
 from mycoach.api.routes.availability import router as availability_router
 from mycoach.api.routes.coaching import router as coaching_router
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
 
     # Page routes (HTML)
     app.include_router(dashboard_router)
+    app.include_router(plan_router)
 
     @app.get("/api/system/status")
     async def system_status() -> dict[str, str]:

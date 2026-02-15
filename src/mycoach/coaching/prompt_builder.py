@@ -269,6 +269,48 @@ def build_sleep_coaching_prompt(
     )
 
 
+def _format_plan_adherence(adherence: dict[str, Any] | None) -> str:
+    """Format plan adherence data for the weekly recap prompt."""
+    if not adherence:
+        return "No training plan was active this week."
+    lines = [
+        f"Plan summary: {adherence.get('plan_summary', 'N/A')}",
+        f"Adherence: {adherence['completed_sessions']}/{adherence['total_sessions']} "
+        f"sessions completed ({adherence['adherence_pct']}%)",
+        "",
+        "Session breakdown:",
+    ]
+    for s in adherence.get("sessions", []):
+        status = "DONE" if s["completed"] else "MISSED"
+        lines.append(f"- {s['day']}: {s['title']} [{s['sport']}] — {status}")
+    return "\n".join(lines)
+
+
+def build_weekly_recap_prompt(
+    *,
+    week_start: date,
+    plan_adherence: dict[str, Any] | None,
+    weekly_activities: list[dict[str, Any]],
+    health_trends: list[dict[str, Any]],
+    mesocycle_context: str | None = None,
+    version: str = "v1",
+) -> str:
+    """Build the user message for a weekly recap LLM call."""
+    from datetime import timedelta
+
+    week_end = week_start + timedelta(days=6)
+    template = _load_template("weekly_recap.txt", version)
+    return template.format(
+        week_start=str(week_start),
+        week_end=str(week_end),
+        plan_adherence=_format_plan_adherence(plan_adherence),
+        weekly_activities=_format_activities(weekly_activities),
+        health_trends=_format_health_trends(health_trends),
+        mesocycle_context=mesocycle_context
+        or "No mesocycle configured. Use general progressive programming.",
+    )
+
+
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
     """Convert a DailyHealthSnapshot ORM object to a plain dict."""
     fields = [

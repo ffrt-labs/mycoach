@@ -1,8 +1,8 @@
-"""Coaching API routes — daily briefing, post-workout analysis, sleep coaching."""
+"""Coaching API routes — daily briefing, post-workout analysis, sleep coaching, weekly recap."""
 
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -94,6 +94,57 @@ async def generate_sleep_coaching(
     engine = CoachingEngine()
     try:
         insight = await engine.generate_sleep_coaching(session, USER_ID)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from None
+    return insight
+
+
+@router.get("/weekly-recap", response_model=CoachingInsightRead)
+async def get_weekly_recap(
+    week_start: date | None = Query(
+        default=None, description="Monday of the week (defaults to last week)"
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Get the weekly recap for a given week.
+
+    Defaults to last week (most recent completed Monday) if week_start is not provided.
+    """
+    if week_start is None:
+        today = date.today()
+        # Last Monday = this Monday minus 7 days
+        week_start = today - timedelta(days=today.weekday() + 7)
+    if week_start.weekday() != 0:
+        raise HTTPException(status_code=422, detail="week_start must be a Monday")
+    stmt = select(CoachingInsight).where(
+        CoachingInsight.user_id == USER_ID,
+        CoachingInsight.insight_date == week_start,
+        CoachingInsight.insight_type == "weekly_recap",
+    )
+    result = await session.execute(stmt)
+    insight = result.scalar_one_or_none()
+    if insight is None:
+        raise HTTPException(
+            status_code=404, detail="No weekly recap for this week. Generate one first."
+        )
+    return insight
+
+
+@router.post("/weekly-recap/generate", response_model=CoachingInsightRead)
+async def generate_weekly_recap(
+    week_start: date = Query(description="Monday of the week to recap"),
+    session: AsyncSession = Depends(get_db),
+) -> CoachingInsight:
+    """Generate a weekly training recap.
+
+    Analyzes plan adherence, activities, health trends, and mesocycle progress.
+    Returns 409 if a recap already exists for the given week.
+    """
+    engine = CoachingEngine()
+    try:
+        insight = await engine.generate_weekly_recap(session, USER_ID, week_start)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

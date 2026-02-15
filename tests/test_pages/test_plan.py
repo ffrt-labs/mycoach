@@ -105,16 +105,25 @@ async def test_plan_page_adherence(client: AsyncClient) -> None:
         await session.flush()
 
         s1 = PlannedSession(
-            plan_id=plan.id, day_of_week=0, sport="gym",
-            title="Session A", completed=True,
+            plan_id=plan.id,
+            day_of_week=0,
+            sport="gym",
+            title="Session A",
+            completed=True,
         )
         s2 = PlannedSession(
-            plan_id=plan.id, day_of_week=2, sport="gym",
-            title="Session B", completed=True,
+            plan_id=plan.id,
+            day_of_week=2,
+            sport="gym",
+            title="Session B",
+            completed=True,
         )
         s3 = PlannedSession(
-            plan_id=plan.id, day_of_week=4, sport="gym",
-            title="Session C", completed=False,
+            plan_id=plan.id,
+            day_of_week=4,
+            sport="gym",
+            title="Session C",
+            completed=False,
         )
         session.add_all([s1, s2, s3])
         await session.commit()

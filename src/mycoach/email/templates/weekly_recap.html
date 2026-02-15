@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Weekly Recap{% endblock %}
+{% block subtitle %}Weekly Recap &mdash; Week of {{ week_start }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h3>Week Summary</h3>
+  <p>{{ recap.week_summary }}</p>
+</div>
+
+{% if recap.adherence_analysis %}
+<div class="card">
+  <h3>Adherence Analysis</h3>
+  <p>{{ recap.adherence_analysis }}</p>
+</div>
+{% endif %}
+
+{% if recap.performance_highlights %}
+<div class="card">
+  <h3>Performance Highlights</h3>
+  <ul>
+  {% for item in recap.performance_highlights %}
+    <li>{{ item }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if recap.areas_of_concern %}
+<div class="card">
+  <h3>Areas of Concern</h3>
+  <ul>
+  {% for item in recap.areas_of_concern %}
+    <li>{{ item }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if recap.recovery_assessment %}
+<div class="card">
+  <h3>Recovery Assessment</h3>
+  <p>{{ recap.recovery_assessment }}</p>
+</div>
+{% endif %}
+
+{% if recap.training_load_analysis %}
+<div class="card">
+  <h3>Training Load Analysis</h3>
+  <p>{{ recap.training_load_analysis }}</p>
+</div>
+{% endif %}
+
+{% if recap.next_week_recommendations %}
+<div class="card">
+  <h3>Next Week Recommendations</h3>
+  <p>{{ recap.next_week_recommendations }}</p>
+</div>
+{% endif %}
+
+{% if recap.mesocycle_progress %}
+<div class="card">
+  <h3>Mesocycle Progress</h3>
+  <p>{{ recap.mesocycle_progress }}</p>
+</div>
+{% endif %}
+{% endblock %}

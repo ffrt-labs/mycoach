@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Post-Workout Analysis{% endblock %}
+{% block subtitle %}Post-Workout Analysis &mdash; {{ activity_title }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h3>Performance Summary</h3>
+  <p>{{ analysis.performance_summary }}</p>
+</div>
+
+{% if analysis.planned_vs_actual %}
+<div class="card">
+  <h3>Planned vs Actual</h3>
+  <p>{{ analysis.planned_vs_actual }}</p>
+</div>
+{% endif %}
+
+{% if analysis.hr_analysis %}
+<div class="card">
+  <h3>Heart Rate Analysis</h3>
+  <p>{{ analysis.hr_analysis }}</p>
+</div>
+{% endif %}
+
+{% if analysis.performance_trends %}
+<div class="card">
+  <h3>Performance Trends</h3>
+  <p>{{ analysis.performance_trends }}</p>
+</div>
+{% endif %}
+
+{% if analysis.key_highlights %}
+<div class="card">
+  <h3>Highlights</h3>
+  <ul>
+  {% for item in analysis.key_highlights %}
+    <li>{{ item }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if analysis.areas_for_improvement %}
+<div class="card">
+  <h3>Areas for Improvement</h3>
+  <ul>
+  {% for item in analysis.areas_for_improvement %}
+    <li>{{ item }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if analysis.next_session_recommendations %}
+<div class="card">
+  <h3>Next Session Recommendations</h3>
+  <p>{{ analysis.next_session_recommendations }}</p>
+</div>
+{% endif %}
+
+{% if analysis.recovery_notes %}
+<div class="card">
+  <h3>Recovery Notes</h3>
+  <p>{{ analysis.recovery_notes }}</p>
+</div>
+{% endif %}
+{% endblock %}

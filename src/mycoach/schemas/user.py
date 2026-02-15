@@ -25,7 +25,30 @@ class UserUpdate(BaseModel):
 
 class UserRead(UserBase):
     id: int
+    email_daily_briefing: bool
+    email_weekly_plan: bool
+    email_post_workout: bool
+    email_sleep_coaching: bool
+    email_weekly_recap: bool
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EmailPreferencesUpdate(BaseModel):
+    email_daily_briefing: bool | None = None
+    email_weekly_plan: bool | None = None
+    email_post_workout: bool | None = None
+    email_sleep_coaching: bool | None = None
+    email_weekly_recap: bool | None = None
+
+
+class EmailPreferencesRead(BaseModel):
+    email_daily_briefing: bool
+    email_weekly_plan: bool
+    email_post_workout: bool
+    email_sleep_coaching: bool
+    email_weekly_recap: bool
 
     model_config = {"from_attributes": True}

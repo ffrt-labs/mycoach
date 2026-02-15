@@ -71,22 +71,24 @@ async def plan_page(
     for i in range(7):
         day_date = monday + timedelta(days=i)
         if i in sessions_by_day:
-            week_days.append({
-                **sessions_by_day[i],
-                "date": day_date,
-            })
+            week_days.append(
+                {
+                    **sessions_by_day[i],
+                    "date": day_date,
+                }
+            )
         else:
-            week_days.append({
-                "session": None,
-                "details": None,
-                "day_name": DAY_NAMES[i],
-                "is_today": i == today.weekday(),
-                "date": day_date,
-            })
+            week_days.append(
+                {
+                    "session": None,
+                    "details": None,
+                    "day_name": DAY_NAMES[i],
+                    "is_today": i == today.weekday(),
+                    "date": day_date,
+                }
+            )
 
-    adherence_pct = (
-        round(completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
-    )
+    adherence_pct = round(completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
 
     week_end = monday + timedelta(days=6)
 

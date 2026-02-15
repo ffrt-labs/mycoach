@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Weekly Plan{% endblock %}
+{% block subtitle %}Weekly Training Plan &mdash; Week of {{ week_start }}{% endblock %}
+{% block content %}
+{% if summary %}
+<div class="card">
+  <h3>Plan Summary</h3>
+  <p>{{ summary }}</p>
+</div>
+{% endif %}
+
+{% for session in sessions %}
+<div class="card">
+  <h3>{{ session.day_name }} &mdash; {{ session.title }}</h3>
+  <p>
+    <span class="badge badge-blue">{{ session.sport }}</span>
+    {% if session.duration_minutes %} &bull; {{ session.duration_minutes }} min{% endif %}
+  </p>
+  {% if session.notes %}<p>{{ session.notes }}</p>{% endif %}
+  {% if session.details %}
+  <ul>
+  {% for key, value in session.details.items() %}
+    <li><strong>{{ key }}:</strong> {{ value }}</li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

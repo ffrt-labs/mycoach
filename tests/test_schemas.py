@@ -55,6 +55,11 @@ class TestUserSchemas:
             email="john@example.com",
             fitness_level="beginner",
             goals=None,
+            email_daily_briefing=True,
+            email_weekly_plan=True,
+            email_post_workout=True,
+            email_sleep_coaching=True,
+            email_weekly_recap=True,
             created_at=now,
             updated_at=now,
         )

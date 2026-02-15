@@ -55,12 +55,14 @@ async def availability_page(
     for i in range(7):
         day_date = next_mon + timedelta(days=i)
         existing = slots_by_day.get(i)
-        week_days.append({
-            "day_of_week": i,
-            "day_name": DAY_NAMES[i],
-            "date": day_date,
-            "slot": existing,
-        })
+        week_days.append(
+            {
+                "day_of_week": i,
+                "day_name": DAY_NAMES[i],
+                "date": day_date,
+                "slot": existing,
+            }
+        )
 
     templates: Jinja2Templates = request.app.state.templates
     return templates.TemplateResponse(

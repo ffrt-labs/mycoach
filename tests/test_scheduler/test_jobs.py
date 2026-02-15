@@ -67,9 +67,7 @@ async def test_garmin_sync_auth_failure(mock_session: AsyncMock) -> None:
     mock_source.fetch_and_import.assert_not_awaited()
 
 
-async def test_daily_briefing_success(
-    mock_session: AsyncMock, mock_engine: MagicMock
-) -> None:
+async def test_daily_briefing_success(mock_session: AsyncMock, mock_engine: MagicMock) -> None:
     """Daily briefing job should call the coaching engine."""
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
@@ -96,9 +94,7 @@ async def test_daily_briefing_skips_duplicate(
         await _daily_briefing()
 
 
-async def test_sleep_coaching_success(
-    mock_session: AsyncMock, mock_engine: MagicMock
-) -> None:
+async def test_sleep_coaching_success(mock_session: AsyncMock, mock_engine: MagicMock) -> None:
     """Sleep coaching job should call the coaching engine."""
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
@@ -126,14 +122,10 @@ async def test_weekly_plan_calculates_next_monday(
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         await _weekly_plan()
 
-    mock_engine.generate_weekly_plan.assert_awaited_once_with(
-        mock_session, 1, expected_monday
-    )
+    mock_engine.generate_weekly_plan.assert_awaited_once_with(mock_session, 1, expected_monday)
 
 
-async def test_weekly_plan_from_sunday(
-    mock_session: AsyncMock, mock_engine: MagicMock
-) -> None:
+async def test_weekly_plan_from_sunday(mock_session: AsyncMock, mock_engine: MagicMock) -> None:
     """When run on Sunday, next Monday should be tomorrow."""
     fake_today = date(2025, 1, 19)  # Sunday
     expected_monday = date(2025, 1, 20)  # tomorrow
@@ -147,9 +139,7 @@ async def test_weekly_plan_from_sunday(
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         await _weekly_plan()
 
-    mock_engine.generate_weekly_plan.assert_awaited_once_with(
-        mock_session, 1, expected_monday
-    )
+    mock_engine.generate_weekly_plan.assert_awaited_once_with(mock_session, 1, expected_monday)
 
 
 async def test_weekly_recap_calculates_last_monday(

@@ -16,5 +16,13 @@ class User(Base):
         String(20), default="intermediate"
     )  # beginner, intermediate, advanced
     goals: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # Email preferences (per-type opt-in, all enabled by default)
+    email_daily_briefing: Mapped[bool] = mapped_column(default=True)
+    email_weekly_plan: Mapped[bool] = mapped_column(default=True)
+    email_post_workout: Mapped[bool] = mapped_column(default=True)
+    email_sleep_coaching: Mapped[bool] = mapped_column(default=True)
+    email_weekly_recap: Mapped[bool] = mapped_column(default=True)
+
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)

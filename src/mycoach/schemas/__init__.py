@@ -40,7 +40,13 @@ from mycoach.schemas.sport_profile import (
     SportProfileUpdate,
 )
 from mycoach.schemas.system import StatusResponse
-from mycoach.schemas.user import UserCreate, UserRead, UserUpdate
+from mycoach.schemas.user import (
+    EmailPreferencesRead,
+    EmailPreferencesUpdate,
+    UserCreate,
+    UserRead,
+    UserUpdate,
+)
 
 __all__ = [
     "ActivityCreate",
@@ -67,6 +73,8 @@ __all__ = [
     "SportProfileRead",
     "SportProfileUpdate",
     "StatusResponse",
+    "EmailPreferencesRead",
+    "EmailPreferencesUpdate",
     "UserCreate",
     "UserRead",
     "UserUpdate",

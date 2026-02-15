@@ -16,6 +16,7 @@ from mycoach.api.pages.plan import router as plan_router
 from mycoach.api.routes.activities import router as activities_router
 from mycoach.api.routes.availability import router as availability_router
 from mycoach.api.routes.coaching import router as coaching_router
+from mycoach.api.routes.email_preferences import router as email_prefs_router
 from mycoach.api.routes.health import router as health_router
 from mycoach.api.routes.mesocycles import router as mesocycles_router
 from mycoach.api.routes.plans import router as plans_router
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(activities_router)
     app.include_router(availability_router)
     app.include_router(coaching_router)
+    app.include_router(email_prefs_router)
     app.include_router(health_router)
     app.include_router(mesocycles_router)
     app.include_router(plans_router)
@@ -93,11 +95,13 @@ def create_app() -> FastAPI:
         jobs = []
         for job in scheduler.get_jobs():
             next_run = job.next_run_time
-            jobs.append({
-                "id": job.id,
-                "next_run_time": next_run.isoformat() if next_run else None,
-                "trigger": str(job.trigger),
-            })
+            jobs.append(
+                {
+                    "id": job.id,
+                    "next_run_time": next_run.isoformat() if next_run else None,
+                    "trigger": str(job.trigger),
+                }
+            )
         return {
             "running": scheduler.running,
             "timezone": str(scheduler.timezone),

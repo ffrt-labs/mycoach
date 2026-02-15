@@ -38,9 +38,7 @@ async def history_page(
         base_where.append(Activity.sport == sport)
 
     # Count total
-    count_result = await session.execute(
-        select(func.count(Activity.id)).where(*base_where)
-    )
+    count_result = await session.execute(select(func.count(Activity.id)).where(*base_where))
     total = count_result.scalar() or 0
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
@@ -90,20 +88,24 @@ async def history_page(
             for d in gym_details[a.id]:
                 exercise_map.setdefault(d.exercise_title, []).append(d)
             for ex_title, sets in exercise_map.items():
-                exercises.append({
-                    "title": ex_title,
-                    "sets": sets,
-                })
+                exercises.append(
+                    {
+                        "title": ex_title,
+                        "sets": sets,
+                    }
+                )
 
         color = SPORT_COLORS.get(a.sport, "gray")
-        activity_cards.append({
-            "activity": a,
-            "exercises": exercises,
-            "has_analysis": a.id in analyzed_ids,
-            "color": color,
-            "date_str": a.start_time.strftime("%b %d, %Y"),
-            "time_str": a.start_time.strftime("%H:%M"),
-        })
+        activity_cards.append(
+            {
+                "activity": a,
+                "exercises": exercises,
+                "has_analysis": a.id in analyzed_ids,
+                "color": color,
+                "date_str": a.start_time.strftime("%b %d, %Y"),
+                "time_str": a.start_time.strftime("%H:%M"),
+            }
+        )
 
     # Group by date for display
     grouped: dict[str, list[dict[str, object]]] = {}

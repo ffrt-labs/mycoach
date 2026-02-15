@@ -75,6 +75,7 @@ async def test_availability_page_prefills_existing(client: AsyncClient) -> None:
     # The checked attribute should be present for day 0
     # Find the checkbox for day 0 and verify it's checked
     import re
+
     day0_checkbox = re.search(r'name="day_0_enabled"[^>]*', html)
     assert day0_checkbox is not None
     assert "checked" in day0_checkbox.group(0)
@@ -114,6 +115,7 @@ async def test_availability_page_multiple_slots(client: AsyncClient) -> None:
     html = resp.text
     # Both slots should have checked checkboxes
     import re
+
     day0_cb = re.search(r'name="day_0_enabled"[^>]*', html)
     assert day0_cb is not None
     assert "checked" in day0_cb.group(0)

@@ -155,9 +155,7 @@ async def test_history_page_sport_filter_chips(client: AsyncClient) -> None:
     """History page shows sport filter chips for available sports."""
     await _seed_user()
     await _seed_activity(title="Gym", sport="gym")
-    await _seed_activity(
-        title="Swim", sport="swimming", start_time=datetime(2025, 6, 11, 8, 0)
-    )
+    await _seed_activity(title="Swim", sport="swimming", start_time=datetime(2025, 6, 11, 8, 0))
 
     resp = await client.get("/history")
     assert resp.status_code == 200

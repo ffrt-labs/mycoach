@@ -524,6 +524,49 @@
     - Data source badge (1): shows data source label
   - All 297 tests pass, ruff clean, mypy clean
 
+### Phase 7: Email (in progress)
+
+- [x] **Email sender, templates, preferences, send triggers**
+  - Enabled `resend>=2.0.0` and `aiosmtplib>=3.0.0` dependencies in pyproject.toml
+  - `email/sender.py`: Email sender with dual backend support
+    - `send_email()`: Dispatches to Resend API or SMTP based on config
+    - `_send_via_resend()`: Sends via Resend API (preferred when API key configured)
+    - `_send_via_smtp()`: Sends via SMTP with STARTTLS and optional auth
+    - Convenience functions: `send_daily_briefing()`, `send_weekly_plan()`,
+      `send_post_workout()`, `send_sleep_coaching()`, `send_weekly_recap()`
+    - Each renders a Jinja2 email template then calls `send_email()`
+    - Gracefully disabled when `email_enabled=False`
+  - `email/templates/`: 6 Jinja2 email templates
+    - `base.html`: Email layout wrapper (header, footer, card/badge/metric styles)
+    - `daily_briefing.html`: Readiness verdict badge, sleep assessment, workout adjustments, key metrics
+    - `weekly_plan.html`: Plan summary + per-session cards with sport badge, duration, details
+    - `post_workout.html`: Performance summary, planned vs actual, HR analysis, highlights, improvements
+    - `sleep_coaching.html`: Quality summary, consistency, architecture, schedule, hygiene tips
+    - `weekly_recap.html`: Week summary, adherence, highlights, concerns, load analysis, mesocycle progress
+  - `models/user.py`: Added 5 email preference columns to `User` model
+    - `email_daily_briefing`, `email_weekly_plan`, `email_post_workout`,
+      `email_sleep_coaching`, `email_weekly_recap` (all default `True`)
+  - `schemas/user.py`: Added `EmailPreferencesRead` and `EmailPreferencesUpdate` schemas
+    - `EmailPreferencesUpdate`: partial update with all fields optional
+    - `UserRead`: now includes all 5 email preference fields
+  - `api/routes/email_preferences.py`: 2 endpoints
+    - `GET /api/email-preferences` — retrieve current email preferences (404 if no user)
+    - `PATCH /api/email-preferences` — partial update of email preferences
+  - `scheduler/jobs.py`: Email send triggers integrated into all coaching jobs
+    - `_get_user_email_pref()`: Checks email_enabled config + per-user preference
+    - Daily briefing, sleep coaching, weekly recap jobs: send email after LLM generation
+    - Weekly plan job: fetches plan sessions, formats with day names, sends email
+    - Email failures logged but don't block coaching generation
+  - Alembic migration for email preference columns
+  - Router registered in `main.py`
+  - 24 new tests in `tests/test_email/`:
+    - `test_sender.py` (19): template rendering (5), send_email function (5),
+      convenience senders (5), backend selection (4)
+    - `test_api.py` (5): get preferences, no user 404, update partial, update no user 404, empty update
+    - `test_job_email.py` (4): daily briefing sends/skips email, sleep coaching sends,
+      weekly recap sends
+  - All 321 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 7: Email templates, send triggers, email preferences
+- [ ] Phase 8: Error handling, encryption, logging, testing, deployment

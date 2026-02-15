@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Daily Briefing{% endblock %}
+{% block subtitle %}Daily Coaching Briefing{% endblock %}
+{% block content %}
+<div class="card">
+  <h3>Readiness</h3>
+  {% if briefing.readiness_verdict == "go_hard" %}
+  <span class="badge badge-green">Go Hard</span>
+  {% elif briefing.readiness_verdict == "moderate" %}
+  <span class="badge badge-yellow">Moderate</span>
+  {% elif briefing.readiness_verdict == "active_recovery" %}
+  <span class="badge badge-yellow">Active Recovery</span>
+  {% else %}
+  <span class="badge badge-red">Rest</span>
+  {% endif %}
+  <p>{{ briefing.recovery_status }}</p>
+</div>
+
+<div class="card">
+  <h3>Sleep Assessment</h3>
+  <p>{{ briefing.sleep_assessment }}</p>
+</div>
+
+{% if briefing.workout_adjustments %}
+<div class="card">
+  <h3>Workout Adjustments</h3>
+  <p>{{ briefing.workout_adjustments }}</p>
+</div>
+{% endif %}
+
+{% if briefing.key_metrics %}
+<div class="card">
+  <h3>Key Metrics</h3>
+  <ul>
+  {% for key, value in briefing.key_metrics.items() %}
+    <li><strong>{{ key }}:</strong> {{ value }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if briefing.sleep_recommendation %}
+<div class="card">
+  <h3>Tonight's Sleep Recommendation</h3>
+  <p>{{ briefing.sleep_recommendation }}</p>
+</div>
+{% endif %}
+{% endblock %}

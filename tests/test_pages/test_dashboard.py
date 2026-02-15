@@ -64,12 +64,14 @@ async def test_dashboard_with_health(client: AsyncClient) -> None:
 async def test_dashboard_with_briefing(client: AsyncClient) -> None:
     """Dashboard shows readiness verdict from daily briefing."""
     await _seed_user()
-    briefing_content = json.dumps({
-        "readiness_verdict": "go_hard",
-        "recovery_status": "Fully recovered and ready to train.",
-        "workout_adjustments": "No adjustments needed.",
-        "sleep_recommendation": "Aim for 7.5 hours tonight.",
-    })
+    briefing_content = json.dumps(
+        {
+            "readiness_verdict": "go_hard",
+            "recovery_status": "Fully recovered and ready to train.",
+            "workout_adjustments": "No adjustments needed.",
+            "sleep_recommendation": "Aim for 7.5 hours tonight.",
+        }
+    )
     async with test_session() as session:
         insight = CoachingInsight(
             user_id=1,

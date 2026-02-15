@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
+from mycoach.api.error_handlers import register_error_handlers
 from mycoach.api.pages.availability import router as availability_page_router
 from mycoach.api.pages.dashboard import router as dashboard_router
 from mycoach.api.pages.history import router as history_router
@@ -61,6 +62,9 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
+
+    # Global error handlers
+    register_error_handlers(app)
 
     # Static files + Jinja2 templates
     app.mount("/static", StaticFiles(directory=_BASE_DIR / "static"), name="static")

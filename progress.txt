@@ -451,6 +451,30 @@
     - Static files (1): verifies CSS, JS, and manifest.json are served correctly
   - All 278 tests pass, ruff clean, mypy clean
 
+- [x] **Plan view page**
+  - `api/pages/plan.py`: Plan page route (`GET /plan`)
+    - Fetches current week's active plan + all planned sessions
+    - Builds full Mon-Sun week view with rest days for empty slots
+    - Calculates adherence percentage (completed/total sessions)
+    - Parses JSON details for each session
+    - Highlights today's session, shows Done/Today badges
+  - `templates/plan.html`: Plan page template extending base layout
+    - Week date range header with adherence percentage
+    - Empty state with link to availability page
+    - Plan summary card (when available)
+    - 7-day card list (Mon-Sun) with session details or "Rest day"
+    - Today's card highlighted with blue accent
+    - Done badge (green) for completed sessions, Today badge (blue) for current day
+    - Expandable session details (exercises, notes) with key-value rendering
+  - Router registered in `main.py`
+  - 5 new tests in `tests/test_pages/test_plan.py`:
+    - No plan (1): empty state with availability link
+    - With sessions (1): shows all sessions, summary, details, rest days
+    - Adherence (1): shows percentage and completed/total count
+    - Today highlighted (1): shows Today badge for current day's session
+    - Completed badge (1): shows Done badge for completed sessions
+  - All 283 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 6 (continued): Plan view page, availability input page, history page
+- [ ] Phase 6 (continued): Availability input page, history page

@@ -665,6 +665,22 @@
       email prefs included (1)
   - All 363 tests pass, ruff clean, mypy clean
 
+- [x] **Sport Profile CRUD API**
+  - `api/routes/sport_profiles.py`: Full CRUD for per-sport skill levels, goals, and benchmarks
+    - `POST /api/sport-profiles`: Create sport profile (409 if sport already exists)
+    - `GET /api/sport-profiles`: List all sport profiles (ordered by sport name)
+    - `GET /api/sport-profiles/{sport}`: Get profile for a specific sport
+    - `PUT /api/sport-profiles/{sport}`: Partial update (skill_level, goals, preferences, benchmarks)
+    - `DELETE /api/sport-profiles/{sport}`: Delete sport profile
+  - Single-user MVP: hardcoded `USER_ID = 1`
+  - Uses existing `SportProfile` model and `SportProfileCreate/Update/Read` schemas
+  - Router registered in `main.py`
+  - 12 new tests in `tests/test_api/test_sport_profiles.py`:
+    - Create (1), duplicate (1), invalid skill level (1), list (1), list empty (1),
+      get by sport (1), not found (1), update (1), update not found (1),
+      delete (1), delete not found (1), default skill level (1)
+  - All 375 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): Sport profile CRUD API, testing
+- [ ] Phase 8 (continued): testing

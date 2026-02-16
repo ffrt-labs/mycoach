@@ -634,6 +634,21 @@
     - `TestRequestLoggingMiddleware` (2): logs request method/path, logs status code
   - All 353 tests pass, ruff clean, mypy clean
 
+- [x] **Docker deployment (Dockerfile + docker-compose)**
+  - `Dockerfile`: Multi-stage build with Python 3.11-slim + uv
+    - Installs dependencies via `uv sync --no-dev` for production
+    - Copies app code, alembic config, and migrations
+    - Creates `/data` directory for SQLite DB and Garmin tokens
+    - Default env vars for DB path and token dir within container
+    - CMD runs Alembic migrations then starts uvicorn on port 8000
+  - `docker-compose.yml`: Single-service setup with persistent volume
+    - `app` service: builds from Dockerfile, reads `.env`, mounts `app-data` volume
+    - Commented-out Caddy reverse proxy service for optional HTTPS
+    - Named volumes for data persistence across container restarts
+  - `.dockerignore`: Excludes `.git`, tests, docs, cache dirs, `.env`, DB files
+  - `Caddyfile.example`: Template for Caddy reverse proxy configuration
+  - All 353 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): Garmin re-auth, testing, deployment
+- [ ] Phase 8 (continued): Garmin re-auth, testing

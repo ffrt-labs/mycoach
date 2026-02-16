@@ -1,0 +1,33 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYCOACH_DB_URL: sqlite+aiosqlite:////data/mycoach.db
+      MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
+    volumes:
+      - app-data:/data
+    ports:
+      - "8000:8000"
+
+  # Optional: Caddy reverse proxy for automatic HTTPS
+  # Uncomment and set your domain to enable.
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - app
+
+volumes:
+  app-data:
+  # caddy-data:
+  # caddy-config:

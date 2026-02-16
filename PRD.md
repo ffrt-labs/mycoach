@@ -172,7 +172,7 @@ mycoach/
 | **5: Automation** | Scheduler, sleep coaching, weekly recap, full daily pipeline | Week 5-6 |
 | **6: PWA Frontend** | Dashboard, plan view, availability input, history, settings, service worker | Week 6-7 |
 | **7: Email** | Email templates, send triggers, email preferences | Week 7-8 |
-| **8: Polish** | ~~Error handling~~, encryption, logging, testing, deployment | Week 8-9 |
+| **8: Polish** | ~~Error handling~~, ~~encryption~~, logging, testing, deployment | Week 8-9 |
 
 ---
 

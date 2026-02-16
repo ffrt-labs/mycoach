@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_token: str = ""
 
+    # Security
+    encryption_key: str = ""  # Fernet key for encrypting credentials at rest
+
     # Database
     db_url: str = "sqlite+aiosqlite:///./mycoach.db"
 

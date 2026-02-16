@@ -17,6 +17,8 @@ from mycoach.schemas.coaching import (
     MesocycleConfigUpdate,
 )
 from mycoach.schemas.data_source import (
+    CredentialsInput,
+    CredentialsStored,
     DataSourceConfigCreate,
     DataSourceConfigRead,
     DataSourceConfigUpdate,
@@ -54,6 +56,8 @@ __all__ = [
     "AvailabilitySlot",
     "CoachingInsightCreate",
     "CoachingInsightRead",
+    "CredentialsInput",
+    "CredentialsStored",
     "DataSourceConfigCreate",
     "DataSourceConfigRead",
     "DataSourceConfigUpdate",

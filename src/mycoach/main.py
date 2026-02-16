@@ -26,6 +26,7 @@ from mycoach.api.routes.mesocycles import router as mesocycles_router
 from mycoach.api.routes.plans import router as plans_router
 from mycoach.api.routes.profile import router as profile_router
 from mycoach.api.routes.sources import router as sources_router
+from mycoach.api.routes.sport_profiles import router as sport_profiles_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
 from mycoach.logging_config import setup_logging
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(plans_router)
     app.include_router(profile_router)
     app.include_router(sources_router)
+    app.include_router(sport_profiles_router)
 
     # Page routes (HTML)
     app.include_router(availability_page_router)

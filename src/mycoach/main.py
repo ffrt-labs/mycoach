@@ -1,12 +1,14 @@
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
 from mycoach.api.error_handlers import register_error_handlers
@@ -25,11 +27,36 @@ from mycoach.api.routes.plans import router as plans_router
 from mycoach.api.routes.sources import router as sources_router
 from mycoach.config import get_settings
 from mycoach.database import Base, engine
+from mycoach.logging_config import setup_logging
 from mycoach.scheduler.scheduler import create_scheduler
 
 _BASE_DIR = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
+_request_logger = logging.getLogger("mycoach.access")
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Logs every HTTP request with method, path, status, and duration."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        _request_logger.info(
+            "%s %s %d (%.1fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
+        return response
 
 
 @asynccontextmanager
@@ -57,12 +84,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    setup_logging(settings.log_level)
     app = FastAPI(
         title="MyCoach",
         version="0.1.0",
         debug=settings.debug,
         lifespan=lifespan,
     )
+
+    # Request logging middleware
+    app.add_middleware(RequestLoggingMiddleware)
 
     # Global error handlers
     register_error_handlers(app)

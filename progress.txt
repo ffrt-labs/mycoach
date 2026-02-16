@@ -588,6 +588,32 @@
     - Multiple validation errors listed
   - All 326 tests pass, ruff clean, mypy clean
 
+- [x] **Credential encryption (Fernet-based)**
+  - Enabled `cryptography>=42.0.0` dependency in pyproject.toml
+  - `crypto.py`: Fernet symmetric encryption utilities for credential storage
+    - `generate_key()`: Generates a new Fernet encryption key for `MYCOACH_ENCRYPTION_KEY`
+    - `encrypt_credentials()`: Encrypts a dict of credentials to a base64 Fernet token string
+    - `decrypt_credentials()`: Decrypts back to a dict, raises `InvalidToken` on wrong key/corruption
+  - `config.py`: Added `encryption_key` setting (`MYCOACH_ENCRYPTION_KEY` env var)
+  - `schemas/data_source.py`: Added `CredentialsInput` and `CredentialsStored` schemas
+    - `CredentialsInput`: Accepts plaintext `credentials: dict[str, str]` for API input
+    - `CredentialsStored`: Response confirming credentials were encrypted and stored
+    - `DataSourceConfigRead`: Added `has_credentials` field
+  - `api/routes/credentials.py`: 3 endpoints for credential management
+    - `PUT /api/credentials/{source_type}`: Encrypt and store credentials (creates/updates DataSourceConfig)
+    - `DELETE /api/credentials/{source_type}`: Remove stored credentials
+    - `GET /api/credentials/{source_type}/status`: Check if credentials exist (without revealing them)
+    - Returns 503 when encryption key not configured
+  - Router registered in `main.py`
+  - `.env.example`: Added `MYCOACH_ENCRYPTION_KEY` with generation instructions
+  - 16 new tests in `tests/test_crypto/`:
+    - `test_crypto.py` (8): key generation (2), encrypt/decrypt roundtrip, not plaintext,
+      wrong key raises, corrupted data raises, empty dict, nested values
+    - `test_api.py` (8): store credentials, update existing, no encryption key (503),
+      delete credentials, delete not found (404), status with credentials, status without,
+      verify DB value is encrypted and decryptable
+  - All 342 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): Credential encryption, structured logging, Garmin re-auth, deployment
+- [ ] Phase 8 (continued): Structured logging, Garmin re-auth, deployment

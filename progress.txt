@@ -614,6 +614,26 @@
       verify DB value is encrypted and decryptable
   - All 342 tests pass, ruff clean, mypy clean
 
+- [x] **Structured logging (JSON formatter + request middleware)**
+  - `logging_config.py`: Centralized logging configuration module
+    - `JSONFormatter`: Formats log records as single-line JSON objects with timestamp, level,
+      logger name, message, and optional fields (exception, method, path, status_code, duration_ms)
+    - `setup_logging()`: Configures root logger with JSON handler to stderr, uses `log_level`
+      setting from config (was previously defined but unused)
+    - Quietens noisy third-party loggers (uvicorn.access, apscheduler) to WARNING level
+  - `main.py`: Logging integration
+    - `setup_logging(settings.log_level)` called at app startup in `create_app()`
+    - `RequestLoggingMiddleware`: Logs every HTTP request with method, path, status code,
+      and duration in milliseconds via structured JSON fields
+    - Middleware registered before error handlers
+  - 11 new tests in `tests/test_logging/test_logging_config.py`:
+    - `TestJSONFormatter` (4): basic format, exception included, extra fields propagated,
+      single-line output
+    - `TestSetupLogging` (5): sets root level, adds JSON handler, case insensitive,
+      quietens noisy loggers, replaces existing handlers
+    - `TestRequestLoggingMiddleware` (2): logs request method/path, logs status code
+  - All 353 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): Structured logging, Garmin re-auth, deployment
+- [ ] Phase 8 (continued): Garmin re-auth, testing, deployment

@@ -649,6 +649,22 @@
   - `Caddyfile.example`: Template for Caddy reverse proxy configuration
   - All 353 tests pass, ruff clean, mypy clean
 
+- [x] **User Profile CRUD API**
+  - `api/routes/profile.py`: 3 endpoints for user profile management
+    - `GET /api/profile` — retrieve user profile (404 if none)
+    - `POST /api/profile` — create user profile (409 if exists, 201 on success)
+    - `PUT /api/profile` — partial update of user profile (404 if none)
+  - Single-user MVP: hardcoded `USER_ID = 1`
+  - Uses existing `UserCreate`, `UserUpdate`, `UserRead` schemas
+  - Default fitness_level "intermediate", email preferences all True
+  - Router registered in `main.py`
+  - 10 new tests in `tests/test_api/test_profile.py`:
+    - Get profile (1), not found (1), create (1), duplicate (1),
+      default fitness level (1), invalid fitness level (1),
+      update (1), update not found (1), empty update (1),
+      email prefs included (1)
+  - All 363 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): Garmin re-auth, testing
+- [ ] Phase 8 (continued): Sport profile CRUD API, testing

@@ -93,25 +93,28 @@ class TestSportProfileSchemas:
 class TestAvailabilitySchemas:
     def test_slot_valid(self) -> None:
         slot = AvailabilitySlot(
-            day_of_week=0, start_time=time(9, 0), duration_minutes=60, preferred_sport="gym"
+            day_of_week=0, start_time=time(9, 0), duration_minutes=60, sport="gym"
         )
         assert slot.day_of_week == 0
+        assert slot.sport == "gym"
 
     def test_slot_invalid_day(self) -> None:
         with pytest.raises(ValidationError):
             AvailabilitySlot(
-                day_of_week=7, start_time=time(9, 0), duration_minutes=60, preferred_sport="gym"
+                day_of_week=7, start_time=time(9, 0), duration_minutes=60, sport="gym"
+            )
+
+    def test_slot_invalid_sport(self) -> None:
+        with pytest.raises(ValidationError):
+            AvailabilitySlot(
+                day_of_week=0, start_time=time(9, 0), duration_minutes=60, sport="cycling"
             )
 
     def test_weekly_create(self) -> None:
-        avail = WeeklyAvailabilityCreate(
-            week_start=date(2025, 1, 6),
-            slots=[
-                AvailabilitySlot(
-                    day_of_week=0, start_time=time(9, 0), duration_minutes=60, preferred_sport="gym"
-                )
-            ],
+        slot = AvailabilitySlot(
+            day_of_week=0, start_time=time(9, 0), duration_minutes=60, sport="swimming"
         )
+        avail = WeeklyAvailabilityCreate(week_start=date(2025, 1, 6), slots=[slot])
         assert len(avail.slots) == 1
 
 
@@ -129,6 +132,19 @@ class TestHealthSchemas:
             steps=8000,
         )
         assert h.resting_hr == 55
+
+    def test_create_with_new_fields(self) -> None:
+        h = DailyHealthSnapshotCreate(
+            snapshot_date=date(2025, 1, 15),
+            hrv_status_text="BALANCED",
+            body_battery_morning=75,
+            recovery_time_hours=12.5,
+            load_focus='{"aerobic_low": 30}',
+        )
+        assert h.hrv_status_text == "BALANCED"
+        assert h.body_battery_morning == 75
+        assert h.recovery_time_hours == 12.5
+        assert h.load_focus == '{"aerobic_low": 30}'
 
 
 class TestActivitySchemas:
@@ -159,6 +175,22 @@ class TestActivitySchemas:
         )
         assert len(a.gym_details) == 1  # type: ignore[arg-type]
         assert a.gym_details[0].exercise_title == "Squat"  # type: ignore[index]
+
+    def test_create_with_new_fields(self) -> None:
+        a = ActivityCreate(
+            sport="swimming",
+            title="Morning Swim",
+            start_time=datetime(2025, 1, 15, 7, 0),
+            data_source="garmin",
+            epoc=85.5,
+            recovery_time_minutes=18,
+            avg_cadence=32,
+            avg_swolf=42.0,
+        )
+        assert a.epoc == 85.5
+        assert a.recovery_time_minutes == 18
+        assert a.avg_cadence == 32
+        assert a.avg_swolf == 42.0
 
     def test_invalid_rpe(self) -> None:
         with pytest.raises(ValidationError):

@@ -43,6 +43,19 @@ class TestFormatHealth:
         assert "Body Battery low: 20" in result
         assert "Max HR: 185" in result
 
+    def test_includes_new_health_fields(self) -> None:
+        data = {
+            "hrv_status_text": "BALANCED",
+            "body_battery_morning": 75,
+            "recovery_time_hours": 12.5,
+            "load_focus": '{"aerobic_low": 30, "aerobic_high": 50, "anaerobic": 20}',
+        }
+        result = _format_health(data)
+        assert "HRV Status: BALANCED" in result
+        assert "Body Battery (morning): 75" in result
+        assert "Recovery time (hours): 12.5" in result
+        assert "Load Focus:" in result
+
     def test_ignores_none_values(self) -> None:
         data = {"resting_hr": 55, "avg_hr": None}
         result = _format_health(data)
@@ -150,6 +163,21 @@ class TestFormatActivityDetail:
         activity = {"title": "Walk", "sport": "other"}
         result = _format_activity_detail(activity)
         assert "HR zones" not in result
+
+    def test_includes_new_activity_fields(self) -> None:
+        activity = {
+            "title": "Morning Swim",
+            "sport": "swimming",
+            "epoc": 85.5,
+            "recovery_time_minutes": 18,
+            "avg_cadence": 32,
+            "avg_swolf": 42.0,
+        }
+        result = _format_activity_detail(activity)
+        assert "EPOC: 85.5" in result
+        assert "Recovery time (min): 18" in result
+        assert "Avg cadence: 32" in result
+        assert "Avg SWOLF: 42.0" in result
 
 
 class TestFormatHealthTrends:

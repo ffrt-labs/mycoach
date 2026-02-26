@@ -186,10 +186,10 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ## 6. Test Updates
 
-- [ ] `tests/test_sources/test_garmin.py` — Update test fixtures with new fields, verify mapper extracts them
-- [ ] `tests/test_coaching/test_prompt_builder.py` — Verify `_format_health()` includes sleep stages and new fields
-- [ ] `tests/test_coaching/test_prompt_builder.py` — Verify `_format_activities()` enriched output
-- [ ] `tests/test_schemas.py` — Verify new schema fields
+- [x] `tests/test_sources/test_garmin.py` — Update test fixtures with new fields, verify mapper extracts them
+- [x] `tests/test_coaching/test_prompt_builder.py` — Verify `_format_health()` includes sleep stages and new fields
+- [x] `tests/test_coaching/test_prompt_builder.py` — Verify `_format_activities()` enriched output
+- [x] `tests/test_schemas.py` — Verify new schema fields
 
 ---
 
@@ -223,5 +223,33 @@ These are in the spec but deprioritized:
 3. Garmin mappers (Phase 5)
 4. Schemas (Phase 4)
 5. Prompt builder (Phase 3)
-6. Tests (Phase 6)
+6. Tests (Phase 6) ✅
 7. Manual verification: sync, trigger features, compare prompt logs
+
+---
+
+## Progress Log
+
+### 2026-02-26 — Phase 6: Test Updates for LLM Data Pipeline Refactor
+
+Completed all 4 test update tasks:
+
+**test_garmin.py:**
+- Updated `SAMPLE_HRV` fixture with `status: "BALANCED"` for hrv_status_text extraction
+- Updated `SAMPLE_BODY_BATTERY` fixture with `bodyBatteryValuesArray` for body_battery_morning extraction
+- Updated `SAMPLE_TRAINING_STATUS` fixture with `mostRecentTrainingLoadBalance` for load_focus extraction
+- Updated `SAMPLE_ACTIVITY_RAW` fixture with `activityTrainingLoad`, `recoveryTime`, `averageSwimCadenceInStrokesPerMinute`, `averageSwolf`
+- Added assertions for all new health fields (hrv_status_text, body_battery_morning, load_focus) in `test_full_snapshot`
+- Added None assertions for new fields in `test_stats_only`
+- Added assertions for all new activity fields (epoc, recovery_time_minutes, avg_cadence, avg_swolf) in `test_swimming_activity` and `test_missing_fields`
+- Added `test_running_cadence` test for running-specific cadence field
+
+**test_prompt_builder.py:**
+- Added `test_includes_new_health_fields` — verifies hrv_status_text, body_battery_morning, recovery_time_hours, load_focus in `_format_health()` output
+- Added `test_includes_new_activity_fields` — verifies epoc, recovery_time_minutes, avg_cadence, avg_swolf in `_format_activity_detail()` output
+
+**test_schemas.py:**
+- Added `TestHealthSchemas::test_create_with_new_fields` — validates Pydantic accepts hrv_status_text, body_battery_morning, recovery_time_hours, load_focus
+- Added `TestActivitySchemas::test_create_with_new_fields` — validates Pydantic accepts epoc, recovery_time_minutes, avg_cadence, avg_swolf
+
+All 69 tests pass. Lint clean.

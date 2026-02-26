@@ -1,7 +1,7 @@
 """Tests for plans API endpoints."""
 
 import json
-from datetime import date, time
+from datetime import date
 
 from httpx import AsyncClient
 
@@ -26,9 +26,7 @@ async def _seed_user_availability_plan(session: object) -> tuple[int, int]:
             user_id=user.id,
             week_start=week_start,
             day_of_week=0,
-            start_time=time(7, 0),
-            duration_minutes=60,
-            preferred_sport="gym",
+            sport="gym",
         )
     )
 
@@ -231,9 +229,7 @@ class TestMarkSessionCompleted:
         async with test_session() as session:
             _, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
 
-        resp = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id=42"
-        )
+        resp = await client.patch(f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id=42")
         assert resp.status_code == 200
         data = resp.json()
         assert data["completed"] is True

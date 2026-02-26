@@ -202,11 +202,9 @@ def _format_availability(slots: list[dict[str, Any]]) -> str:
     lines = []
     for s in slots:
         day = s.get("day_name", f"Day {s.get('day_of_week', '?')}")
-        start = s.get("start_time", "?")
-        dur = s.get("duration_minutes", "?")
         sport = s.get("sport")
         sport_str = f" — {sport.capitalize()}" if sport else ""
-        lines.append(f"- {day} at {start} ({dur} min){sport_str}")
+        lines.append(f"- {day}{sport_str}")
     return "\n".join(lines)
 
 
@@ -719,10 +717,8 @@ def _format_cardio_slots(slots: list[dict[str, Any]]) -> str:
     lines = []
     for s in slots:
         day = s.get("day_name", f"Day {s.get('day_of_week', '?')}")
-        start = s.get("start_time", "?")
-        dur = s.get("duration_minutes", "?")
         sport = s.get("sport", "cardio")
-        lines.append(f"- {day} at {start} ({dur} min) — {sport.capitalize()}")
+        lines.append(f"- {day} — {sport.capitalize()}")
     return "\n".join(lines)
 
 

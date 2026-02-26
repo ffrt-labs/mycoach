@@ -17,10 +17,12 @@ from mycoach.config import get_settings
 from mycoach.database import async_session
 from mycoach.email.sender import (
     send_daily_briefing,
-    send_sleep_coaching,
+    send_post_workout,
     send_weekly_plan,
     send_weekly_recap,
 )
+from mycoach.models.activity import Activity
+from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession
 from mycoach.models.user import User
 from mycoach.sources.garmin.source import GarminSource
@@ -114,28 +116,6 @@ async def _daily_briefing() -> None:
             logger.exception("Scheduler: daily briefing failed")
 
 
-def job_sleep_coaching() -> None:
-    """Generate sleep coaching analysis."""
-    logger.info("Scheduler: generating sleep coaching")
-    _run_async(_sleep_coaching())
-
-
-async def _sleep_coaching() -> None:
-    engine = CoachingEngine()
-    async with async_session() as session:
-        try:
-            insight = await engine.generate_sleep_coaching(session, USER_ID)
-            logger.info("Scheduler: sleep coaching generated")
-
-            if await _get_user_email_pref("email_sleep_coaching"):
-                content = json.loads(insight.content)
-                send_sleep_coaching(content)
-                logger.info("Scheduler: sleep coaching email sent")
-        except ValueError as e:
-            logger.info("Scheduler: sleep coaching skipped — %s", e)
-        except Exception:
-            logger.exception("Scheduler: sleep coaching failed")
-
 
 def job_weekly_plan() -> None:
     """Generate the weekly training plan (runs Sunday evening for next week)."""
@@ -210,3 +190,76 @@ async def _weekly_recap() -> None:
             logger.info("Scheduler: weekly recap skipped — %s", e)
         except Exception:
             logger.exception("Scheduler: weekly recap generation failed")
+
+
+def job_post_workout_analysis() -> None:
+    """Analyze recent activities that don't have a post-workout insight yet.
+
+    Runs after Garmin sync. Finds activities from the last 2 days without
+    an existing CoachingInsight, generates analysis for each, and sends email.
+    """
+    logger.info("Scheduler: starting post-workout analysis scan")
+    _run_async(_post_workout_analysis())
+
+
+async def _post_workout_analysis() -> None:
+    engine = CoachingEngine()
+    since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    since = since - timedelta(days=2)
+
+    async with async_session() as session:
+        # Find activities from the last 2 days that have no post-workout insight
+        existing_ids_stmt = (
+            select(CoachingInsight.activity_id)
+            .where(
+                CoachingInsight.user_id == USER_ID,
+                CoachingInsight.insight_type == "post_workout",
+                CoachingInsight.activity_id.isnot(None),
+            )
+        )
+        activities_stmt = (
+            select(Activity)
+            .where(
+                Activity.user_id == USER_ID,
+                Activity.start_time >= since,
+                Activity.id.notin_(existing_ids_stmt),
+            )
+            .order_by(Activity.start_time)
+        )
+        result = await session.execute(activities_stmt)
+        activities = list(result.scalars().all())
+
+        if not activities:
+            logger.info("Scheduler: no new activities to analyze")
+            return
+
+        logger.info("Scheduler: found %d activities to analyze", len(activities))
+        send_email = await _get_user_email_pref("email_post_workout")
+
+        for activity in activities:
+            try:
+                insight = await engine.generate_post_workout_analysis(
+                    session, USER_ID, activity.id
+                )
+                logger.info(
+                    "Scheduler: post-workout analysis generated for activity %d (%s)",
+                    activity.id,
+                    activity.title,
+                )
+
+                if send_email:
+                    content = json.loads(insight.content)
+                    send_post_workout(content, activity.title)
+                    logger.info(
+                        "Scheduler: post-workout email sent for activity %d", activity.id
+                    )
+            except ValueError as e:
+                logger.info(
+                    "Scheduler: post-workout analysis skipped for activity %d — %s",
+                    activity.id,
+                    e,
+                )
+            except Exception:
+                logger.exception(
+                    "Scheduler: post-workout analysis failed for activity %d", activity.id
+                )

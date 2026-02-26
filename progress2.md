@@ -270,3 +270,16 @@ All 69 tests pass. Lint clean.
 - `test_plans/test_prompt_builder.py`: Updated availability format assertions to match new output
 
 All 422 tests pass. Lint clean on modified files.
+
+### 2026-02-26 — Phase 5: Add scheduled post-workout analysis job
+
+Added `job_post_workout_analysis` — the missing scheduler job that automatically analyzes new activities after Garmin sync. All building blocks (engine method, email sender, prompt templates, API endpoints) already existed; this wires them into the automated daily pipeline.
+
+**Changes:**
+- `scheduler/jobs.py`: Added `job_post_workout_analysis()` / `_post_workout_analysis()`. Queries activities from last 2 days without a CoachingInsight, generates analysis for each, sends email if enabled.
+- `scheduler/scheduler.py`: Registered new job as `post_workout_analysis` (default 7:00 AM, after briefing at 6:30). Updated docstring and log message.
+- `config.py`: Added `scheduler_post_workout_hour` (default 7) and `scheduler_post_workout_minute` (default 0).
+- `tests/test_scheduler/test_jobs.py`: 4 new tests — processes new activities, skips when none, handles ValueError for duplicates, sends email when pref enabled.
+- `tests/test_scheduler/test_scheduler.py`: Updated to expect 5 jobs instead of 4.
+
+All 426 tests pass. Lint and mypy clean.

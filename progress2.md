@@ -76,7 +76,7 @@ Gaps fall into 3 categories:
 
 ### Formatting gaps (data exists, sent poorly)
 
-- [ ] **HR Zones formatting** — `hr_zones` stored as raw JSON string, sent as-is to LLM. Create `_format_hr_zones()` to parse into readable format: "Zone 1: X min, Zone 2: Y min, ...".
+- [x] **HR Zones formatting** — `hr_zones` stored as raw JSON string, sent as-is to LLM. Create `_format_hr_zones()` to parse into readable format: "Zone 1: X min, Zone 2: Y min, ...".
   - File: `coaching/prompt_builder.py`
   - Used by: Post-Workout Analysis, Weekly Recap
 

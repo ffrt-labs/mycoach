@@ -1,9 +1,13 @@
 """Tests for coaching prompt builder."""
 
+import json
+
 from mycoach.coaching.prompt_builder import (
     _format_activities,
+    _format_activity_detail,
     _format_health,
     _format_health_trends,
+    _format_hr_zones,
     build_daily_briefing_prompt,
     get_system_prompt,
 )
@@ -98,6 +102,54 @@ class TestFormatActivities:
         ]
         result = _format_activities(activities)
         assert "800m" in result
+
+
+class TestFormatHrZones:
+    def test_minutes_format(self) -> None:
+        zones = json.dumps([
+            {"zone": 1, "minutes": 10},
+            {"zone": 2, "minutes": 25},
+            {"zone": 3, "minutes": 15},
+            {"zone": 4, "minutes": 5},
+            {"zone": 5, "minutes": 2},
+        ])
+        result = _format_hr_zones(zones)
+        assert "Zone 1: 10 min" in result
+        assert "Zone 2: 25 min" in result
+        assert "Zone 5: 2 min" in result
+
+    def test_garmin_secs_format(self) -> None:
+        zones = json.dumps([
+            {"zoneNumber": 1, "secsInZone": 600},
+            {"zoneNumber": 2, "secsInZone": 1500},
+        ])
+        result = _format_hr_zones(zones)
+        assert "Zone 1: 10.0 min" in result
+        assert "Zone 2: 25.0 min" in result
+
+    def test_invalid_json_returns_raw(self) -> None:
+        assert _format_hr_zones("not json") == "not json"
+
+    def test_empty_list_returns_raw(self) -> None:
+        assert _format_hr_zones("[]") == "[]"
+
+
+class TestFormatActivityDetail:
+    def test_hr_zones_formatted(self) -> None:
+        activity = {
+            "title": "Morning Run",
+            "sport": "running",
+            "hr_zones": json.dumps([{"zone": 1, "minutes": 10}, {"zone": 2, "minutes": 20}]),
+        }
+        result = _format_activity_detail(activity)
+        assert "HR zones: Zone 1: 10 min, Zone 2: 20 min" in result
+        # Should NOT contain raw JSON
+        assert '"zone"' not in result
+
+    def test_no_hr_zones(self) -> None:
+        activity = {"title": "Walk", "sport": "other"}
+        result = _format_activity_detail(activity)
+        assert "HR zones" not in result
 
 
 class TestFormatHealthTrends:

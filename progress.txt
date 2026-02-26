@@ -718,6 +718,16 @@
       enriched activity data, short distance in meters
   - All 400 tests pass (1 pre-existing failure in test_plans/test_api.py unrelated), mypy clean
 
+- [x] **Format HR zones for LLM readability**
+  - `coaching/prompt_builder.py`: New `_format_hr_zones()` helper
+    - Parses JSON hr_zones into "Zone 1: X min, Zone 2: Y min, ..." format
+    - Handles both `{"zone": N, "minutes": M}` and Garmin `{"zoneNumber": N, "secsInZone": S}` formats
+    - Falls back to raw string on invalid JSON
+  - `_format_activity_detail()` now uses `_format_hr_zones()` instead of dumping raw JSON
+  - 6 new tests: minutes format, Garmin secsInZone format, invalid JSON fallback, empty list,
+    activity detail with formatted zones, activity detail without zones
+  - All tests pass, mypy clean
+
 ## Next Up
 
 - LLM Data Pipeline Refactor: investigate raw Garmin data for new field extraction (recovery_time, load_focus, body_battery_morning, hrv_status_text, epoc, avg_cadence, avg_swolf)

@@ -225,6 +225,38 @@ def build_weekly_plan_prompt(
     )
 
 
+def _format_hr_zones(hr_zones_json: str) -> str:
+    """Parse JSON hr_zones into a readable format for the LLM.
+
+    Handles Garmin format: list of objects with zone/zoneNumber and
+    minutes/secsInZone fields.
+    """
+    import json
+
+    try:
+        zones = json.loads(hr_zones_json)
+    except (json.JSONDecodeError, TypeError):
+        return hr_zones_json  # fall back to raw string
+
+    if not isinstance(zones, list):
+        return hr_zones_json
+
+    parts = []
+    for z in zones:
+        zone_num = z.get("zoneNumber") or z.get("zone")
+        if zone_num is None:
+            continue
+        minutes = z.get("minutes")
+        if minutes is None:
+            secs = z.get("secsInZone")
+            if secs is not None:
+                minutes = round(secs / 60, 1)
+        if minutes is not None:
+            parts.append(f"Zone {zone_num}: {minutes} min")
+
+    return ", ".join(parts) if parts else hr_zones_json
+
+
 def _format_activity_detail(activity: dict[str, Any]) -> str:
     """Format a single activity with all available fields."""
     lines = []
@@ -241,13 +273,15 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
         "calories": "Calories",
         "training_effect_aerobic": "Aerobic training effect",
         "training_effect_anaerobic": "Anaerobic training effect",
-        "hr_zones": "HR zones",
         "data_source": "Data source",
     }
     for key, label in field_labels.items():
         val = activity.get(key)
         if val is not None:
             lines.append(f"- {label}: {val}")
+    hr_zones = activity.get("hr_zones")
+    if hr_zones:
+        lines.append(f"- HR zones: {_format_hr_zones(hr_zones)}")
     return "\n".join(lines) if lines else "No activity data."
 
 

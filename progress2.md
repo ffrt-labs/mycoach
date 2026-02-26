@@ -253,3 +253,20 @@ Completed all 4 test update tasks:
 - Added `TestActivitySchemas::test_create_with_new_fields` — validates Pydantic accepts epoc, recovery_time_minutes, avg_cadence, avg_swolf
 
 All 69 tests pass. Lint clean.
+
+### 2026-02-26 — Fix WeeklyAvailability schema mismatch (12 failing tests)
+
+`start_time` and `duration_minutes` were removed from `WeeklyAvailability` model (migration `cf66f22e4752`) but 12 tests and 3 source files still referenced them.
+
+**Source fixes:**
+- `coaching/context.py`: Removed `start_time` and `duration_minutes` from `get_availability_for_week()` return dict
+- `coaching/engine.py`: Replaced 3 `slot["duration_minutes"]` refs with `None` (PlannedSession.duration_minutes is nullable)
+- `coaching/prompt_builder.py`: Updated `_format_availability()` and `_format_cardio_slots()` to omit removed fields
+
+**Test fixes:**
+- `test_plans/test_context.py`: Removed `start_time`/`duration_minutes` from WeeklyAvailability constructors and assertions
+- `test_plans/test_api.py`: Removed `start_time`/`duration_minutes` from `_seed_user_availability_plan()`
+- `test_plans/test_engine.py`: Removed `start_time`/`duration_minutes` from all 6 WeeklyAvailability constructors
+- `test_plans/test_prompt_builder.py`: Updated availability format assertions to match new output
+
+All 422 tests pass. Lint clean on modified files.

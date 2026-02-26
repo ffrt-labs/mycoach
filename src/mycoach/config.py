@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
     api_token: str = ""
+    timezone: str = "Europe/London"
 
     # Security
     encryption_key: str = ""  # Fernet key for encrypting credentials at rest
@@ -29,11 +30,19 @@ class Settings(BaseSettings):
     garmin_password: str = ""
     garmin_token_dir: Path = Field(default=Path(".garmin_tokens"))
 
-    # Claude API
+    # LLM Provider (anthropic, gemini)
+    llm_provider: str = "anthropic"
+
+    # Anthropic Claude API
     claude_api_key: str = ""
     claude_model_daily: str = "claude-sonnet-4-5-20250929"
     claude_model_weekly: str = "claude-opus-4-6"
     claude_monthly_cost_ceiling: float = 30.0
+
+    # Google Gemini API
+    gemini_api_key: str = ""
+    gemini_model_daily: str = "gemini-2.5-flash"
+    gemini_model_weekly: str = "gemini-2.5-pro"
 
     # Email
     email_enabled: bool = False
@@ -46,14 +55,22 @@ class Settings(BaseSettings):
     email_resend_api_key: str = ""
 
     # Scheduler
-    scheduler_timezone: str = "Europe/London"
+    scheduler_timezone: str = ""
     scheduler_sync_hour: int = 6
     scheduler_sync_minute: int = 0
     scheduler_briefing_hour: int = 6
     scheduler_briefing_minute: int = 30
+    scheduler_post_workout_hour: int = 7
+    scheduler_post_workout_minute: int = 0
     scheduler_weekly_plan_day: str = "sun"
     scheduler_weekly_plan_hour: int = 18
 
+
+    @model_validator(mode="after")
+    def _default_scheduler_timezone(self) -> "Settings":
+        if not self.scheduler_timezone:
+            self.scheduler_timezone = self.timezone
+        return self
 
 def get_settings() -> Settings:
     return Settings()

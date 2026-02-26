@@ -8,7 +8,7 @@ import pytest
 from mycoach.scheduler.jobs import (
     _daily_briefing,
     _garmin_sync,
-    _sleep_coaching,
+    _post_workout_analysis,
     _weekly_plan,
     _weekly_recap,
 )
@@ -26,7 +26,6 @@ def mock_session() -> AsyncMock:
 def mock_engine(mock_session: AsyncMock) -> MagicMock:
     engine = MagicMock()
     engine.generate_daily_briefing = AsyncMock()
-    engine.generate_sleep_coaching = AsyncMock()
     engine.generate_weekly_plan = AsyncMock()
     engine.generate_weekly_recap = AsyncMock()
     return engine
@@ -93,16 +92,6 @@ async def test_daily_briefing_skips_duplicate(
         # Should not raise
         await _daily_briefing()
 
-
-async def test_sleep_coaching_success(mock_session: AsyncMock, mock_engine: MagicMock) -> None:
-    """Sleep coaching job should call the coaching engine."""
-    with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
-        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-    ):
-        await _sleep_coaching()
-
-    mock_engine.generate_sleep_coaching.assert_awaited_once()
 
 
 async def test_weekly_plan_calculates_next_monday(
@@ -180,3 +169,94 @@ async def test_weekly_recap_skips_duplicate(
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         # Should not raise
         await _weekly_recap()
+
+
+async def test_post_workout_analysis_processes_new_activities(
+    mock_session: AsyncMock, mock_engine: MagicMock,
+) -> None:
+    """Post-workout job should analyze activities without existing insights."""
+    mock_engine.generate_post_workout_analysis = AsyncMock()
+
+    # Simulate two activities returned by the query
+    mock_activity_1 = MagicMock(id=10, title="Morning Swim")
+    mock_activity_2 = MagicMock(id=11, title="Gym Session")
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_activity_1, mock_activity_2]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+    ):
+        await _post_workout_analysis()
+
+    assert mock_engine.generate_post_workout_analysis.await_count == 2
+    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, 10)
+    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, 11)
+
+
+async def test_post_workout_analysis_no_activities(
+    mock_session: AsyncMock, mock_engine: MagicMock,
+) -> None:
+    """Post-workout job should skip when no new activities exist."""
+    mock_engine.generate_post_workout_analysis = AsyncMock()
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+    ):
+        await _post_workout_analysis()
+
+    mock_engine.generate_post_workout_analysis.assert_not_awaited()
+
+
+async def test_post_workout_analysis_skips_existing(
+    mock_session: AsyncMock, mock_engine: MagicMock,
+) -> None:
+    """Post-workout job should skip activities that already have analysis (ValueError)."""
+    mock_activity = MagicMock(id=10, title="Morning Swim")
+    mock_engine.generate_post_workout_analysis = AsyncMock(
+        side_effect=ValueError("Post-workout analysis already exists for activity 10")
+    )
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_activity]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+    ):
+        # Should not raise
+        await _post_workout_analysis()
+
+
+async def test_post_workout_analysis_sends_email(
+    mock_session: AsyncMock, mock_engine: MagicMock,
+) -> None:
+    """Post-workout job should send email when user preference is enabled."""
+    mock_insight = MagicMock()
+    mock_insight.content = '{"performance_summary": "Great workout"}'
+    mock_engine.generate_post_workout_analysis = AsyncMock(return_value=mock_insight)
+
+    mock_activity = MagicMock(id=10, title="Morning Swim")
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_activity]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_post_workout") as mock_send,
+    ):
+        await _post_workout_analysis()
+
+    mock_send.assert_called_once_with({"performance_summary": "Great workout"}, "Morning Swim")

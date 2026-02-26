@@ -3,7 +3,7 @@
 The scheduler runs five jobs as part of the daily coaching pipeline:
 1. Garmin sync (default 6:00 AM) — fetch health + activity data
 2. Daily briefing (default 6:30 AM) — LLM-generated coaching for the day
-3. Sleep coaching (default 6:30 AM) — 14-day sleep trend analysis
+3. Post-workout analysis (default 7:00 AM) — analyze new activities after sync
 4. Weekly plan (default Sunday 6:00 PM) — generate next week's training plan
 5. Weekly recap (default Monday 7:00 AM) — recap the previous week
 """
@@ -16,7 +16,7 @@ from mycoach.config import Settings
 from mycoach.scheduler.jobs import (
     job_daily_briefing,
     job_garmin_sync,
-    job_sleep_coaching,
+    job_post_workout_analysis,
     job_weekly_plan,
     job_weekly_recap,
 )
@@ -64,13 +64,13 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
         replace_existing=True,
     )
 
-    # 3. Sleep coaching — daily, same time as briefing
+    # 3. Post-workout analysis — daily, after briefing (analyzes new activities)
     scheduler.add_job(
-        job_sleep_coaching,
+        job_post_workout_analysis,
         "cron",
-        id="sleep_coaching",
-        hour=settings.scheduler_briefing_hour,
-        minute=settings.scheduler_briefing_minute,
+        id="post_workout_analysis",
+        hour=settings.scheduler_post_workout_hour,
+        minute=settings.scheduler_post_workout_minute,
         misfire_grace_time=3600,
         replace_existing=True,
     )
@@ -102,11 +102,13 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
 
     logger.info(
         "Scheduler configured: sync=%02d:%02d, briefing=%02d:%02d, "
-        "plan=%s@%02d:00, recap=mon@07:00, tz=%s",
+        "post_workout=%02d:%02d, plan=%s@%02d:00, recap=mon@07:00, tz=%s",
         settings.scheduler_sync_hour,
         settings.scheduler_sync_minute,
         settings.scheduler_briefing_hour,
         settings.scheduler_briefing_minute,
+        settings.scheduler_post_workout_hour,
+        settings.scheduler_post_workout_minute,
         plan_day,
         settings.scheduler_weekly_plan_hour,
         settings.scheduler_timezone,

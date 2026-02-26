@@ -12,6 +12,8 @@ def test_create_scheduler_registers_all_jobs() -> None:
         scheduler_sync_minute=0,
         scheduler_briefing_hour=6,
         scheduler_briefing_minute=30,
+        scheduler_post_workout_hour=7,
+        scheduler_post_workout_minute=0,
         scheduler_weekly_plan_day="sun",
         scheduler_weekly_plan_hour=18,
     )
@@ -21,7 +23,7 @@ def test_create_scheduler_registers_all_jobs() -> None:
     assert job_ids == {
         "garmin_sync",
         "daily_briefing",
-        "sleep_coaching",
+        "post_workout_analysis",
         "weekly_plan",
         "weekly_recap",
     }

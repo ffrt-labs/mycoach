@@ -54,6 +54,10 @@ def _format_health(snapshot: dict[str, Any]) -> str:
         "training_load": "Training load",
         "training_status": "Training status",
         "vo2_max": "VO2 max",
+        "recovery_time_hours": "Recovery time (hours)",
+        "load_focus": "Load Focus",
+        "body_battery_morning": "Body Battery (morning)",
+        "hrv_status_text": "HRV Status",
         "spo2_avg": "Avg SpO2",
     }
     for key, label in field_labels.items():
@@ -273,6 +277,10 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
         "calories": "Calories",
         "training_effect_aerobic": "Aerobic training effect",
         "training_effect_anaerobic": "Anaerobic training effect",
+        "epoc": "EPOC",
+        "recovery_time_minutes": "Recovery time (min)",
+        "avg_cadence": "Avg cadence",
+        "avg_swolf": "Avg SWOLF",
         "data_source": "Data source",
     }
     for key, label in field_labels.items():
@@ -537,6 +545,10 @@ def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
         "spo2_avg",
         "intensity_minutes",
         "sleep_awake_minutes",
+        "recovery_time_hours",
+        "load_focus",
+        "body_battery_morning",
+        "hrv_status_text",
     ]
     result: dict[str, Any] = {}
     for f in fields:
@@ -562,6 +574,10 @@ def activity_to_dict(activity: Any) -> dict[str, Any]:
         "end_time": str(activity.end_time) if activity.end_time else None,
         "hr_zones": activity.hr_zones,
         "training_effect_anaerobic": activity.training_effect_anaerobic,
+        "epoc": activity.epoc,
+        "recovery_time_minutes": activity.recovery_time_minutes,
+        "avg_cadence": activity.avg_cadence,
+        "avg_swolf": activity.avg_swolf,
         "data_source": activity.data_source,
     }
 

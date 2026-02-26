@@ -15,19 +15,19 @@ Gaps fall into 3 categories:
 
 ### Data not extracted (already in raw_data from existing API calls)
 
-- [ ] **Recovery Time (hours)** — `get_training_status()` response contains `recoveryTime` or `recoveryTimeInMinutes`. Add `recovery_time_hours: float | None` to `DailyHealthSnapshot`.
+- [x] **Recovery Time (hours)** — `get_training_status()` response contains `recoveryTime` or `recoveryTimeInMinutes`. Add `recovery_time_hours: float | None` to `DailyHealthSnapshot`.
   - Files: `models/health.py`, `sources/garmin/mappers.py` (`map_health_snapshot`), `_UPDATABLE_FIELDS`
   - Used by: Daily Briefing, Post-Workout Analysis
 
-- [ ] **Load Focus** — `get_training_status()` response contains `trainingLoadBalance` (low aerobic / high aerobic / anaerobic percentages). Add `load_focus: str | None` (JSON) to `DailyHealthSnapshot`.
+- [x] **Load Focus** — `get_training_status()` response contains `trainingLoadBalance` (low aerobic / high aerobic / anaerobic percentages). Add `load_focus: str | None` (JSON) to `DailyHealthSnapshot`.
   - Files: `models/health.py`, `sources/garmin/mappers.py`
   - Used by: Weekly Plan, Weekly Recap
 
-- [ ] **Body Battery morning value** — `get_body_battery()` returns a timeline list. Currently we extract `max(charged)` and `min(drained)`. Add `body_battery_morning: int | None` — the first Body Battery reading of the day.
+- [x] **Body Battery morning value** — `get_body_battery()` returns a timeline list. Currently we extract `max(charged)` and `min(drained)`. Add `body_battery_morning: int | None` — the first Body Battery reading of the day.
   - Files: `models/health.py`, `sources/garmin/mappers.py`
   - Used by: Daily Briefing (current energy reserve)
 
-- [ ] **HRV status text** — `get_hrv_data()` response likely has `status` or `baselineStatus` field (e.g., "BALANCED", "UNBALANCED", "LOW"). Add `hrv_status_text: str | None` to `DailyHealthSnapshot`.
+- [x] **HRV status text** — `get_hrv_data()` response likely has `status` or `baselineStatus` field (e.g., "BALANCED", "UNBALANCED", "LOW"). Add `hrv_status_text: str | None` to `DailyHealthSnapshot`.
   - Files: `models/health.py`, `sources/garmin/mappers.py`
   - Used by: Daily Briefing (autonomic recovery indicator)
 
@@ -46,7 +46,7 @@ Gaps fall into 3 categories:
 
 ### DB migration needed
 
-- [ ] Create Alembic migration adding 4 new columns to `daily_health_snapshots`:
+- [x] Create Alembic migration adding 4 new columns to `daily_health_snapshots`:
   - `recovery_time_hours FLOAT`
   - `load_focus TEXT` (JSON string)
   - `body_battery_morning INTEGER`
@@ -58,19 +58,19 @@ Gaps fall into 3 categories:
 
 ### Data not extracted (likely in raw activity data)
 
-- [ ] **EPOC** — Activity summary from `get_activities_by_date()` may contain EPOC value. Add `epoc: float | None` to `Activity` model.
+- [x] **EPOC** — Activity summary from `get_activities_by_date()` may contain EPOC value. Add `epoc: float | None` to `Activity` model.
   - Files: `models/activity.py`, `sources/garmin/mappers.py` (`map_activity`)
   - Used by: Post-Workout Analysis
 
-- [ ] **Recovery Time post-activity** — Activity summary may contain recovery time recommendation. Add `recovery_time_minutes: int | None` to `Activity` model.
+- [x] **Recovery Time post-activity** — Activity summary may contain recovery time recommendation. Add `recovery_time_minutes: int | None` to `Activity` model.
   - Files: `models/activity.py`, `sources/garmin/mappers.py`
   - Used by: Post-Workout Analysis
 
-- [ ] **Avg Cadence** — Activity summary contains `averageRunningCadenceInStepsPerMinute` (running) or `averageSwimCadenceInStrokesPerMinute` (swimming). Add `avg_cadence: int | None` to `Activity` model.
+- [x] **Avg Cadence** — Activity summary contains `averageRunningCadenceInStepsPerMinute` (running) or `averageSwimCadenceInStrokesPerMinute` (swimming). Add `avg_cadence: int | None` to `Activity` model.
   - Files: `models/activity.py`, `sources/garmin/mappers.py`
   - Used by: Post-Workout Analysis (running/swimming specific)
 
-- [ ] **Avg SWOLF** — Activity summary contains `averageSwolf` for swimming. Add `avg_swolf: float | None` to `Activity` model.
+- [x] **Avg SWOLF** — Activity summary contains `averageSwolf` for swimming. Add `avg_swolf: float | None` to `Activity` model.
   - Files: `models/activity.py`, `sources/garmin/mappers.py`
   - Used by: Post-Workout Analysis (swimming specific)
 
@@ -86,7 +86,7 @@ Gaps fall into 3 categories:
 
 ### DB migration needed
 
-- [ ] Create Alembic migration adding 4 new columns to `activities`:
+- [x] Create Alembic migration adding 4 new columns to `activities`:
   - `epoc FLOAT`
   - `recovery_time_minutes INTEGER`
   - `avg_cadence INTEGER`
@@ -100,7 +100,7 @@ Gaps fall into 3 categories:
 
 Currently sends 13 of 23+ available fields. After refactor should send:
 
-- [ ] Add to `field_labels` dict:
+- [x] Add to `field_labels` dict:
   ```
   "sleep_deep_minutes": "Deep sleep (min)"
   "sleep_light_minutes": "Light sleep (min)"
@@ -116,7 +116,7 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ### `_format_activity_detail()` (prompt_builder.py:204-227)
 
-- [ ] Add new activity fields to `field_labels` dict:
+- [x] Add new activity fields to `field_labels` dict:
   ```
   "epoc": "EPOC"
   "recovery_time_minutes": "Recovery time (min)"
@@ -126,7 +126,7 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ### `_format_activities()` (prompt_builder.py:71-82)
 
-- [ ] Enrich activity summary lines with HR, distance, calories, training effect when available. Example:
+- [x] Enrich activity summary lines with HR, distance, calories, training effect when available. Example:
   ```
   Before: "- 2024-06-10: Morning Swim [swimming] (60 min)"
   After:  "- 2024-06-10: Morning Swim [swimming] (60 min, 2.4km, avg HR 142, 450 cal, TE 3.2)"
@@ -134,11 +134,11 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ### New function: `_format_hr_zones()`
 
-- [ ] Create helper to parse JSON hr_zones into readable format. Use it in `_format_activity_detail()` instead of raw JSON dump.
+- [x] Create helper to parse JSON hr_zones into readable format. Use it in `_format_activity_detail()` instead of raw JSON dump.
 
 ### `snapshot_to_dict()` (prompt_builder.py:456-488)
 
-- [ ] Add new health fields to the `fields` list:
+- [x] Add new health fields to the `fields` list:
   ```
   "recovery_time_hours"
   "load_focus"
@@ -148,7 +148,7 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ### `activity_to_dict()` (prompt_builder.py:491-508)
 
-- [ ] Add new activity fields to the returned dict:
+- [x] Add new activity fields to the returned dict:
   ```
   "epoc": activity.epoc
   "recovery_time_minutes": activity.recovery_time_minutes
@@ -160,8 +160,8 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ## 4. Schema Updates
 
-- [ ] `schemas/health.py` — Add 4 new fields to `DailyHealthSnapshotBase`
-- [ ] `schemas/activity.py` — Add 4 new fields to `ActivityBase` / `ActivityRead`
+- [x] `schemas/health.py` — Add 4 new fields to `DailyHealthSnapshotBase`
+- [x] `schemas/activity.py` — Add 4 new fields to `ActivityBase` / `ActivityRead`
 
 ---
 
@@ -169,18 +169,18 @@ Currently sends 13 of 23+ available fields. After refactor should send:
 
 ### `map_health_snapshot()` (mappers.py:72-223)
 
-- [ ] Extract `recovery_time_hours` from `training_status` dict (look for `recoveryTime`, `recoveryTimeInMinutes`)
-- [ ] Extract `load_focus` from `training_status` dict (look for `trainingLoadBalance`)
-- [ ] Extract `body_battery_morning` from `body_battery` list (first chronological reading)
-- [ ] Extract `hrv_status_text` from `hrv` dict (look for `status`, `baselineStatus`, `currentStatus`)
-- [ ] Add all 4 new fields to `_UPDATABLE_FIELDS` list
+- [x] Extract `recovery_time_hours` from `training_status` dict (look for `recoveryTime`, `recoveryTimeInMinutes`)
+- [x] Extract `load_focus` from `training_status` dict (look for `trainingLoadBalance`)
+- [x] Extract `body_battery_morning` from `body_battery` list (first chronological reading)
+- [x] Extract `hrv_status_text` from `hrv` dict (look for `status`, `baselineStatus`, `currentStatus`)
+- [x] Add all 4 new fields to `_UPDATABLE_FIELDS` list
 
 ### `map_activity()` (mappers.py:226-264)
 
-- [ ] Extract `epoc` from raw activity dict
-- [ ] Extract `recovery_time_minutes` from raw activity dict
-- [ ] Extract `avg_cadence` — `averageRunningCadenceInStepsPerMinute` or `averageSwimCadenceInStrokesPerMinute`
-- [ ] Extract `avg_swolf` — `averageSwolf`
+- [x] Extract `epoc` from raw activity dict
+- [x] Extract `recovery_time_minutes` from raw activity dict
+- [x] Extract `avg_cadence` — `averageRunningCadenceInStepsPerMinute` or `averageSwimCadenceInStrokesPerMinute`
+- [x] Extract `avg_swolf` — `averageSwolf`
 
 ---
 

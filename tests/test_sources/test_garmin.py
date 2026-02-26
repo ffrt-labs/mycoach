@@ -41,13 +41,14 @@ SAMPLE_HRV = {
     "hrvSummary": {
         "lastNightAvg": 42.5,
         "weeklyAvg": 40.0,
+        "status": "BALANCED",
     }
 }
 
 SAMPLE_STRESS = {"overallStressLevel": 32}
 
 SAMPLE_BODY_BATTERY = [
-    {"charged": 85, "drained": 20},
+    {"charged": 85, "drained": 20, "bodyBatteryValuesArray": [[1640000000000, 75]]},
     {"charged": 60, "drained": 45},
 ]
 
@@ -56,6 +57,17 @@ SAMPLE_TRAINING_READINESS = {"score": 72}
 SAMPLE_TRAINING_STATUS = {
     "trainingLoad": 345.5,
     "trainingStatus": "PRODUCTIVE",
+    "mostRecentTrainingLoadBalance": {
+        "metricsTrainingLoadBalanceDTOMap": {
+            "device1": {
+                "primaryTrainingDevice": True,
+                "monthlyLoadAerobicLow": 30,
+                "monthlyLoadAerobicHigh": 50,
+                "monthlyLoadAnaerobic": 20,
+                "trainingBalanceFeedbackPhrase": "BALANCED",
+            }
+        }
+    },
 }
 
 SAMPLE_MAX_METRICS = {"generic": {"vo2MaxValue": 48.5}}
@@ -75,6 +87,10 @@ SAMPLE_ACTIVITY_RAW = {
     "calories": 450,
     "aerobicTrainingEffect": 3.2,
     "anaerobicTrainingEffect": 1.5,
+    "activityTrainingLoad": 85.5,
+    "recoveryTime": 18,
+    "averageSwimCadenceInStrokesPerMinute": 32,
+    "averageSwolf": 42.0,
 }
 
 SAMPLE_ACTIVITY_GYM = {
@@ -134,6 +150,14 @@ class TestMapHealthSnapshot:
         assert snapshot.respiration_avg == 15.2
         assert snapshot.spo2_avg == 97.5
         assert snapshot.intensity_minutes == 45
+        assert snapshot.hrv_status_text == "BALANCED"
+        assert snapshot.body_battery_morning == 75
+        assert snapshot.load_focus is not None
+        import json
+        lf = json.loads(snapshot.load_focus)
+        assert lf["aerobic_low"] == 30
+        assert lf["aerobic_high"] == 50
+        assert lf["anaerobic"] == 20
         assert snapshot.data_source == "garmin"
         assert snapshot.raw_data is not None
 
@@ -150,6 +174,9 @@ class TestMapHealthSnapshot:
         assert snapshot.hrv_status is None
         assert snapshot.body_battery_high is None
         assert snapshot.vo2_max is None
+        assert snapshot.hrv_status_text is None
+        assert snapshot.body_battery_morning is None
+        assert snapshot.load_focus is None
 
     def test_empty_stats(self) -> None:
         """Empty stats still creates a valid snapshot."""
@@ -178,6 +205,10 @@ class TestMapActivity:
         assert activity.data_source == "garmin"
         assert activity.training_effect_aerobic == 3.2
         assert activity.end_time is not None
+        assert activity.epoc == 85.5
+        assert activity.recovery_time_minutes == 18
+        assert activity.avg_cadence == 32
+        assert activity.avg_swolf == 42.0
 
     def test_gym_activity(self) -> None:
         activity = map_activity(user_id=1, raw=SAMPLE_ACTIVITY_GYM)
@@ -197,10 +228,25 @@ class TestMapActivity:
             "startTimeLocal": "2024-06-10T08:00:00",
         }
         activity = map_activity(user_id=1, raw=raw)
-        assert activity.sport == "cardio"
+        assert activity.sport == "running"
         assert activity.title == "running"
         assert activity.avg_hr is None
         assert activity.duration_minutes is None
+        assert activity.epoc is None
+        assert activity.recovery_time_minutes is None
+        assert activity.avg_cadence is None
+        assert activity.avg_swolf is None
+
+    def test_running_cadence(self) -> None:
+        """Running cadence uses averageRunningCadenceInStepsPerMinute."""
+        raw = {
+            "activityId": 55555,
+            "activityType": {"typeKey": "running"},
+            "startTimeLocal": "2024-06-10T08:00:00",
+            "averageRunningCadenceInStepsPerMinute": 170,
+        }
+        activity = map_activity(user_id=1, raw=raw)
+        assert activity.avg_cadence == 170
 
 
 # ── DB Import Tests ──────────────────────────────────────────────────

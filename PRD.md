@@ -55,12 +55,7 @@
 - Actual vs planned comparison, HR zone analysis, training effect, performance trends
 - Recommendations for next similar session
 
-### 1.5 Sleep Coaching
-- 14-day sleep trend analysis (consistency, architecture, correlation with performance)
-- Recommended bedtime based on tomorrow's planned activity
-- Personalized sleep hygiene tips
-
-### 1.6 Progressive Programming
+### 1.5 Progressive Programming
 - Mesocycle tracking (4-6 week blocks with progressive overload + deload)
 - Auto-progression when performance targets are met
 - Sport balancing and fatigue management (acute:chronic load ratio)
@@ -109,7 +104,7 @@
 - **GymWorkoutDetail** — from Hevy CSV: exercises, sets, reps, weight, RPE, supersets (linked to Activity via date/time matching)
 - **WeeklyPlan** — generated plan with mesocycle tracking, prompt version
 - **PlannedSession** — individual session within a plan (exercises, targets, notes)
-- **CoachingInsight** — daily briefing, post-workout analysis, sleep coaching, weekly recap
+- **CoachingInsight** — daily briefing, post-workout analysis, weekly recap
 - **MesocycleConfig** — training block tracking (phase, progression rules)
 - **PromptLog** — all LLM calls logged (tokens, latency, prompt/response text)
 
@@ -169,7 +164,7 @@ mycoach/
 | **2: Coaching Core** | LLM client, prompt builder, response parser, daily briefing | Week 3 |
 | **3: Weekly Plans** | Availability input, mesocycle tracking, sport modules, plan generation | Week 4 |
 | **4: Post-Workout** | Activity analysis, plan adherence tracking | Week 5 |
-| **5: Automation** | Scheduler, sleep coaching, weekly recap, full daily pipeline | Week 5-6 |
+| **5: Automation** | Scheduler, weekly recap, full daily pipeline | Week 5-6 |
 | **6: PWA Frontend** | Dashboard, plan view, availability input, history, settings, service worker | Week 6-7 |
 | **7: Email** | Email templates, send triggers, email preferences | Week 7-8 |
 | **8: Polish** | ~~Error handling~~, ~~encryption~~, ~~logging~~, ~~profile API~~, ~~sport profile API~~, ~~testing~~, ~~deployment~~ | Week 8-9 |
@@ -195,8 +190,6 @@ GET  /api/plans/current                   # Current week's plan
 GET  /api/plans/{id}/adherence            # Plan adherence stats (completed/total %)
 
 GET  /api/coaching/today                  # Today's daily briefing
-GET  /api/coaching/sleep                  # Sleep recommendations
-
 GET  /api/system/status                   # Health check
 ```
 
@@ -233,6 +226,7 @@ GET  /api/system/status                   # Health check
 - Native push notifications
 - Injury tracking
 - User-selectable data sources (onboarding flow: "Which apps do you use?")
+- ~~**Richer activity summaries in LLM prompts** — `_format_activities()` now sends distance, avg_hr, calories, training_effect_aerobic alongside the original 4 fields. `_format_health()` now includes sleep stages, body_battery_low, and max_hr.~~
 
 ---
 

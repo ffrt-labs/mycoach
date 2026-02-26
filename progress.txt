@@ -701,6 +701,23 @@
     `plans.py` routes 51%→85%
   - All 400 tests pass, ruff clean, mypy clean
 
+### Post-MVP: LLM Data Pipeline Refactor (in progress)
+
+- [x] **Enrich prompt builder formatting with existing DB fields**
+  - `coaching/prompt_builder.py`: `_format_health()` expanded from 13 to 20 fields
+    - Added: `max_hr`, `sleep_deep_minutes`, `sleep_light_minutes`, `sleep_rem_minutes`,
+      `sleep_awake_minutes`, `body_battery_low`, `body_battery_morning` (future)
+    - LLM now receives full sleep stage breakdown + body battery drain range
+  - `coaching/prompt_builder.py`: `_format_activities()` enriched with training metrics
+    - Now includes: distance (km/m), avg_hr, calories, training_effect_aerobic
+    - Affects: daily briefing, weekly recap, post-workout similar activities
+    - Before: "2024-06-10: Morning Swim [swimming] (60 min)"
+    - After:  "2024-06-10: Morning Swim [swimming] (60 min, 2.4km, avg HR 142, 450 cal, TE 3.2)"
+  - 4 new tests in `tests/test_coaching/test_prompt_builder.py`:
+    - Sleep stages included, body_battery_low + max_hr included,
+      enriched activity data, short distance in meters
+  - All 400 tests pass (1 pre-existing failure in test_plans/test_api.py unrelated), mypy clean
+
 ## Next Up
 
-- All Phase 8 tasks complete. MVP development finished.
+- LLM Data Pipeline Refactor: investigate raw Garmin data for new field extraction (recovery_time, load_focus, body_battery_morning, hrv_status_text, epoc, avg_cadence, avg_swolf)

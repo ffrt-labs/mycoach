@@ -1,5 +1,8 @@
 """Activity history page — past workouts with details."""
 
+import json
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -27,6 +30,7 @@ async def history_page(
     request: Request,
     page: int = Query(default=1, ge=1),
     sport: str | None = Query(default=None),
+    recap_week: str | None = Query(default=None),
     session: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Render the activity history page with paginated activities."""
@@ -122,6 +126,49 @@ async def history_page(
     )
     available_sports = [row[0] for row in sports_result.all()]
 
+    # Week picker: determine which week to show
+    today = date.today()
+    default_last_monday = today - timedelta(days=today.weekday() + 7)
+
+    # Parse recap_week param if provided; must be a valid Monday
+    last_monday = default_last_monday
+    if recap_week:
+        try:
+            parsed_week = date.fromisoformat(recap_week)
+            if parsed_week.weekday() == 0:
+                last_monday = parsed_week
+        except ValueError:
+            pass
+
+    # Generate last 8 Mondays for week picker (newest first)
+    available_weeks = []
+    for i in range(8):
+        monday = default_last_monday - timedelta(weeks=i)
+        available_weeks.append(
+            {
+                "iso": monday.isoformat(),
+                "label": f"Week of {monday.strftime('%b')} {monday.day}, {monday.year}",
+            }
+        )
+
+    selected_week_label = f"Week of {last_monday.strftime('%b')} {last_monday.day}, {last_monday.year}"
+
+    # Fetch weekly recap for the selected week
+    recap_result = await session.execute(
+        select(CoachingInsight).where(
+            CoachingInsight.user_id == USER_ID,
+            CoachingInsight.insight_date == last_monday,
+            CoachingInsight.insight_type == "weekly_recap",
+        )
+    )
+    weekly_recap = recap_result.scalar_one_or_none()
+    recap_data = None
+    if weekly_recap and weekly_recap.content:
+        try:
+            recap_data = json.loads(weekly_recap.content)
+        except (json.JSONDecodeError, TypeError):
+            recap_data = None
+
     templates: Jinja2Templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
@@ -135,5 +182,10 @@ async def history_page(
             "per_page": per_page,
             "sport_filter": sport,
             "available_sports": available_sports,
+            "weekly_recap": weekly_recap,
+            "recap_data": recap_data,
+            "last_monday_iso": last_monday.isoformat(),
+            "available_weeks": available_weeks,
+            "selected_week_label": selected_week_label,
         },
     )

@@ -21,6 +21,10 @@ class GarminClient:
     def connect(self) -> bool:
         """Authenticate and initialize the Garmin API client.
 
+        Uses garth tokens (managed by GarminAuth) to initialize the garminconnect
+        client. GarminAuth handles the email/password login and saves tokens to disk;
+        garminconnect then loads those tokens via its tokenstore parameter.
+
         Returns:
             True if connection succeeds, False otherwise.
         """
@@ -29,7 +33,7 @@ class GarminClient:
 
         try:
             self._api = Garmin()
-            self._api.login()
+            self._api.login(tokenstore=str(self.auth.token_dir))
             logger.info("Garmin API client connected")
             return True
         except Exception:

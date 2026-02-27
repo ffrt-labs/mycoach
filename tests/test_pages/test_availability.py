@@ -1,6 +1,6 @@
 """Tests for the availability input page route."""
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -35,9 +35,6 @@ async def test_availability_page_empty(client: AsyncClient) -> None:
     assert "Set Availability" in resp.text
     assert "Monday" in resp.text
     assert "Sunday" in resp.text
-    assert "Gym" in resp.text
-    assert "Swimming" in resp.text
-    assert "Padel" in resp.text
 
 
 async def test_availability_page_shows_week_dates(client: AsyncClient) -> None:
@@ -60,9 +57,7 @@ async def test_availability_page_prefills_existing(client: AsyncClient) -> None:
             user_id=1,
             week_start=next_mon,
             day_of_week=0,  # Monday
-            start_time=time(7, 30),
-            duration_minutes=90,
-            preferred_sport="gym",
+            sport="gym",
         )
         session.add(slot)
         await session.commit()
@@ -79,10 +74,6 @@ async def test_availability_page_prefills_existing(client: AsyncClient) -> None:
     day0_checkbox = re.search(r'name="day_0_enabled"[^>]*', html)
     assert day0_checkbox is not None
     assert "checked" in day0_checkbox.group(0)
-    # The time should be pre-filled
-    assert "07:30" in html
-    # The duration should be selected (90 min)
-    assert "90 min" in html
 
 
 async def test_availability_page_multiple_slots(client: AsyncClient) -> None:
@@ -95,17 +86,13 @@ async def test_availability_page_multiple_slots(client: AsyncClient) -> None:
             user_id=1,
             week_start=next_mon,
             day_of_week=0,  # Monday
-            start_time=time(7, 0),
-            duration_minutes=60,
-            preferred_sport="gym",
+            sport="gym",
         )
         slot2 = WeeklyAvailability(
             user_id=1,
             week_start=next_mon,
             day_of_week=3,  # Thursday
-            start_time=time(18, 0),
-            duration_minutes=45,
-            preferred_sport="swimming",
+            sport="swimming",
         )
         session.add_all([slot1, slot2])
         await session.commit()

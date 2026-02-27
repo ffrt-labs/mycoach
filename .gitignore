@@ -22,3 +22,20 @@ build/
 
 # Garmin tokens
 garmin_tokens/
+.garmin_tokens/
+
+# Garmin raw API data (personal health data)
+garmin-api-data/
+
+# SQLite WAL files
+*.db-shm
+*.db-wal
+
+# Test artifacts
+.coverage
+
+# Personal data / scratch files
+workout_data.csv
+refactor_llm_data.md
+afk-ralph.sh
+ralph-once.sh

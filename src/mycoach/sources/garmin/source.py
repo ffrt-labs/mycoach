@@ -56,6 +56,8 @@ class GarminSource(DataSource):
                 created = await import_health_snapshot(session, snapshot)
                 if created:
                     result.health_snapshots_created += 1
+                else:
+                    result.health_snapshots_updated += 1
             except Exception as e:
                 errors.append(f"Health fetch failed for {current}: {e}")
                 logger.warning("Health fetch failed for %s: %s", current, e)

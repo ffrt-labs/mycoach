@@ -13,6 +13,7 @@ class ImportResult:
     activities_created: int = 0
     activities_skipped: int = 0
     health_snapshots_created: int = 0
+    health_snapshots_updated: int = 0
     errors: list[str] | None = None
 
     @property

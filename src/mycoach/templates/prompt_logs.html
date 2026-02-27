@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Prompt Logs — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-900">Prompt Logs</h1>
+        <span class="text-sm text-gray-500">{{ total }} total</span>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" action="/prompt-logs" class="flex flex-wrap gap-3 items-end bg-white rounded-lg shadow p-4">
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+            <select name="prompt_type" class="rounded border-gray-300 text-sm px-2 py-1.5">
+                <option value="">All types</option>
+                {% for pt in prompt_types %}
+                <option value="{{ pt }}" {% if prompt_type_filter == pt %}selected{% endif %}>{{ pt }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+            <select name="success" class="rounded border-gray-300 text-sm px-2 py-1.5">
+                <option value="">All</option>
+                <option value="true" {% if success_filter == 'true' %}selected{% endif %}>Success</option>
+                <option value="false" {% if success_filter == 'false' %}selected{% endif %}>Failed</option>
+            </select>
+        </div>
+        <button type="submit" class="bg-blue-700 text-white text-sm px-4 py-1.5 rounded hover:bg-blue-800">Filter</button>
+        {% if prompt_type_filter or success_filter %}
+        <a href="/prompt-logs" class="text-sm text-gray-500 hover:text-gray-700 py-1.5">Clear</a>
+        {% endif %}
+    </form>
+
+    <!-- Log cards -->
+    {% if logs %}
+    <div class="space-y-3">
+        {% for log in logs %}
+        <a href="/prompt-logs/{{ log.id }}" class="block bg-white rounded-lg shadow hover:shadow-md transition-shadow p-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                    {% set type_colors = {
+                        'daily_briefing': 'bg-blue-100 text-blue-800',
+                        'weekly_plan': 'bg-purple-100 text-purple-800',
+                        'gym_adjustment': 'bg-orange-100 text-orange-800',
+                        'cardio_plan': 'bg-red-100 text-red-800',
+                        'post_workout': 'bg-green-100 text-green-800',
+                        'sleep': 'bg-indigo-100 text-indigo-800',
+                        'weekly_recap': 'bg-teal-100 text-teal-800'
+                    } %}
+                    <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {{ type_colors.get(log.prompt_type, 'bg-gray-100 text-gray-800') }}">{{ log.prompt_type }}</span>
+                    <span class="text-xs text-gray-500">{{ log.model }}</span>
+                    <span class="text-xs text-gray-400">v{{ log.prompt_version }}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% if log.success %}
+                    <span class="inline-block w-2 h-2 rounded-full bg-green-500" title="Success"></span>
+                    {% else %}
+                    <span class="inline-block w-2 h-2 rounded-full bg-red-500" title="Failed"></span>
+                    {% endif %}
+                    <span class="text-xs text-gray-400">{{ (log.created_at|localtime).strftime('%b %d, %H:%M') }}</span>
+                </div>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
+                {% if log.input_tokens is not none %}
+                <span>In: {{ "{:,}".format(log.input_tokens) }} tok</span>
+                {% endif %}
+                {% if log.output_tokens is not none %}
+                <span>Out: {{ "{:,}".format(log.output_tokens) }} tok</span>
+                {% endif %}
+                {% if log.estimated_cost_usd is not none %}
+                <span>${{ "%.4f"|format(log.estimated_cost_usd) }}</span>
+                {% endif %}
+                {% if log.latency_ms is not none %}
+                <span>{{ "{:,}".format(log.latency_ms) }}ms</span>
+                {% endif %}
+            </div>
+            {% if log.error %}
+            <p class="mt-2 text-xs text-red-600 truncate">{{ log.error }}</p>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No prompt logs found.
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <nav class="flex justify-center gap-2 pt-2">
+        {% if page > 1 %}
+        <a href="/prompt-logs?page={{ page - 1 }}{% if prompt_type_filter %}&prompt_type={{ prompt_type_filter }}{% endif %}{% if success_filter %}&success={{ success_filter }}{% endif %}"
+           class="px-3 py-1.5 text-sm rounded bg-white shadow hover:bg-gray-50">&laquo; Prev</a>
+        {% endif %}
+        <span class="px-3 py-1.5 text-sm text-gray-600">Page {{ page }} of {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="/prompt-logs?page={{ page + 1 }}{% if prompt_type_filter %}&prompt_type={{ prompt_type_filter }}{% endif %}{% if success_filter %}&success={{ success_filter }}{% endif %}"
+           class="px-3 py-1.5 text-sm rounded bg-white shadow hover:bg-gray-50">Next &raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

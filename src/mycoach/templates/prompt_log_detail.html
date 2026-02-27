@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Prompt Log #{{ log.id if log else '?' }} — MyCoach{% endblock %}
+
+{% block content %}
+{% if log is none %}
+<div class="bg-white rounded-lg shadow p-8 text-center">
+    <h2 class="text-lg font-semibold text-gray-900">Prompt log not found</h2>
+    <a href="/prompt-logs" class="mt-4 inline-block text-blue-700 hover:underline text-sm">&larr; Back to logs</a>
+</div>
+{% else %}
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <a href="/prompt-logs" class="text-blue-700 hover:underline text-sm">&larr; Back to logs</a>
+        <h1 class="text-2xl font-bold text-gray-900">Log #{{ log.id }}</h1>
+    </div>
+
+    <!-- Metadata -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="block text-xs text-gray-500">Type</span>
+                <span class="font-medium">{{ log.prompt_type }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Model</span>
+                <span class="font-medium">{{ log.model }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Version</span>
+                <span class="font-medium">v{{ log.prompt_version }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Status</span>
+                {% if log.success %}
+                <span class="font-medium text-green-700">Success</span>
+                {% else %}
+                <span class="font-medium text-red-700">Failed</span>
+                {% endif %}
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Input Tokens</span>
+                <span class="font-medium">{{ "{:,}".format(log.input_tokens) if log.input_tokens is not none else '—' }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Output Tokens</span>
+                <span class="font-medium">{{ "{:,}".format(log.output_tokens) if log.output_tokens is not none else '—' }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Cost</span>
+                <span class="font-medium">{{ "$%.4f"|format(log.estimated_cost_usd) if log.estimated_cost_usd is not none else '—' }}</span>
+            </div>
+            <div>
+                <span class="block text-xs text-gray-500">Latency</span>
+                <span class="font-medium">{{ "{:,}ms".format(log.latency_ms) if log.latency_ms is not none else '—' }}</span>
+            </div>
+            <div class="col-span-2 sm:col-span-4">
+                <span class="block text-xs text-gray-500">Timestamp</span>
+                <span class="font-medium">{{ (log.created_at|localtime).strftime('%B %d, %Y at %H:%M:%S') }}</span>
+            </div>
+            {% if log.error %}
+            <div class="col-span-2 sm:col-span-4">
+                <span class="block text-xs text-gray-500">Error</span>
+                <span class="font-medium text-red-700">{{ log.error }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Prompt -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-100">
+            <h2 class="text-sm font-semibold text-gray-700">Prompt Sent</h2>
+        </div>
+        <div class="p-4 overflow-auto max-h-[32rem]">
+            {% if log.prompt_text %}
+            <pre class="text-xs text-gray-800 whitespace-pre-wrap break-words">{{ log.prompt_text }}</pre>
+            {% else %}
+            <p class="text-sm text-gray-400 italic">No prompt text recorded.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Response -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-100">
+            <h2 class="text-sm font-semibold text-gray-700">LLM Response</h2>
+        </div>
+        <div class="p-4 overflow-auto max-h-[32rem]">
+            {% if log.response_text %}
+            <pre class="text-xs text-gray-800 whitespace-pre-wrap break-words">{{ log.response_text }}</pre>
+            {% else %}
+            <p class="text-sm text-gray-400 italic">No response text recorded.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

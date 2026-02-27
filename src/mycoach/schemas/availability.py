@@ -1,13 +1,14 @@
-from datetime import date, time
+from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+SportType = Literal["gym", "swimming", "running", "padel"]
 
 
 class AvailabilitySlot(BaseModel):
     day_of_week: int = Field(ge=0, le=6)
-    start_time: time
-    duration_minutes: int = Field(gt=0)
-    preferred_sport: str = Field(max_length=50)
+    sport: SportType
 
 
 class WeeklyAvailabilityCreate(BaseModel):
@@ -15,9 +16,11 @@ class WeeklyAvailabilityCreate(BaseModel):
     slots: list[AvailabilitySlot]
 
 
-class WeeklyAvailabilityRead(AvailabilitySlot):
+class WeeklyAvailabilityRead(BaseModel):
     id: int
     user_id: int
     week_start: date
+    day_of_week: int
+    sport: str | None = None  # nullable for backward compat with existing rows
 
     model_config = {"from_attributes": True}

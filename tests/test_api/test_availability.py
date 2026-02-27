@@ -34,18 +34,8 @@ async def test_set_availability(client: AsyncClient) -> None:
         json={
             "week_start": monday.isoformat(),
             "slots": [
-                {
-                    "day_of_week": 0,
-                    "start_time": "07:00:00",
-                    "duration_minutes": 90,
-                    "preferred_sport": "gym",
-                },
-                {
-                    "day_of_week": 2,
-                    "start_time": "18:00:00",
-                    "duration_minutes": 60,
-                    "preferred_sport": "swimming",
-                },
+                {"day_of_week": 0, "sport": "gym"},
+                {"day_of_week": 2, "sport": "swimming"},
             ],
         },
     )
@@ -53,9 +43,9 @@ async def test_set_availability(client: AsyncClient) -> None:
     data = resp.json()
     assert len(data) == 2
     assert data[0]["day_of_week"] == 0
-    assert data[0]["preferred_sport"] == "gym"
+    assert data[0]["sport"] == "gym"
     assert data[1]["day_of_week"] == 2
-    assert data[1]["preferred_sport"] == "swimming"
+    assert data[1]["sport"] == "swimming"
 
 
 @pytest.mark.asyncio
@@ -66,32 +56,18 @@ async def test_set_availability_replaces_existing(client: AsyncClient) -> None:
     monday = _next_monday()
     payload = {
         "week_start": monday.isoformat(),
-        "slots": [
-            {
-                "day_of_week": 0,
-                "start_time": "07:00:00",
-                "duration_minutes": 90,
-                "preferred_sport": "gym",
-            },
-        ],
+        "slots": [{"day_of_week": 0, "sport": "gym"}],
     }
     await client.post("/api/availability", json=payload)
 
     # Replace with new slots
-    payload["slots"] = [
-        {
-            "day_of_week": 1,
-            "start_time": "08:00:00",
-            "duration_minutes": 60,
-            "preferred_sport": "padel",
-        },
-    ]
+    payload["slots"] = [{"day_of_week": 1, "sport": "running"}]
     resp = await client.post("/api/availability", json=payload)
     assert resp.status_code == 201
     data = resp.json()
     assert len(data) == 1
     assert data[0]["day_of_week"] == 1
-    assert data[0]["preferred_sport"] == "padel"
+    assert data[0]["sport"] == "running"
 
     # Verify old slots are gone
     resp2 = await client.get(f"/api/availability/{monday.isoformat()}")
@@ -113,6 +89,22 @@ async def test_set_availability_rejects_non_monday(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_availability_rejects_invalid_sport(client: AsyncClient) -> None:
+    async with test_session() as session:
+        await _create_user(session)
+
+    monday = _next_monday()
+    resp = await client.post(
+        "/api/availability",
+        json={
+            "week_start": monday.isoformat(),
+            "slots": [{"day_of_week": 0, "sport": "cycling"}],
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_get_week_availability(client: AsyncClient) -> None:
     async with test_session() as session:
         await _create_user(session)
@@ -123,18 +115,8 @@ async def test_get_week_availability(client: AsyncClient) -> None:
         json={
             "week_start": monday.isoformat(),
             "slots": [
-                {
-                    "day_of_week": 3,
-                    "start_time": "19:00:00",
-                    "duration_minutes": 60,
-                    "preferred_sport": "padel",
-                },
-                {
-                    "day_of_week": 0,
-                    "start_time": "07:00:00",
-                    "duration_minutes": 90,
-                    "preferred_sport": "gym",
-                },
+                {"day_of_week": 3, "sport": "padel"},
+                {"day_of_week": 0, "sport": "gym"},
             ],
         },
     )
@@ -145,7 +127,9 @@ async def test_get_week_availability(client: AsyncClient) -> None:
     assert len(data) == 2
     # Should be ordered by day_of_week
     assert data[0]["day_of_week"] == 0
+    assert data[0]["sport"] == "gym"
     assert data[1]["day_of_week"] == 3
+    assert data[1]["sport"] == "padel"
 
 
 @pytest.mark.asyncio
@@ -173,44 +157,26 @@ async def test_update_slot(client: AsyncClient) -> None:
         "/api/availability",
         json={
             "week_start": monday.isoformat(),
-            "slots": [
-                {
-                    "day_of_week": 0,
-                    "start_time": "07:00:00",
-                    "duration_minutes": 90,
-                    "preferred_sport": "gym",
-                },
-            ],
+            "slots": [{"day_of_week": 0, "sport": "gym"}],
         },
     )
     slot_id = create_resp.json()[0]["id"]
 
     resp = await client.put(
         f"/api/availability/{slot_id}",
-        json={
-            "day_of_week": 1,
-            "start_time": "08:30:00",
-            "duration_minutes": 60,
-            "preferred_sport": "swimming",
-        },
+        json={"day_of_week": 1, "sport": "running"},
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["day_of_week"] == 1
-    assert data["duration_minutes"] == 60
-    assert data["preferred_sport"] == "swimming"
+    assert data["sport"] == "running"
 
 
 @pytest.mark.asyncio
 async def test_update_slot_not_found(client: AsyncClient) -> None:
     resp = await client.put(
         "/api/availability/999",
-        json={
-            "day_of_week": 0,
-            "start_time": "07:00:00",
-            "duration_minutes": 90,
-            "preferred_sport": "gym",
-        },
+        json={"day_of_week": 0, "sport": "gym"},
     )
     assert resp.status_code == 404
 
@@ -226,18 +192,8 @@ async def test_delete_slot(client: AsyncClient) -> None:
         json={
             "week_start": monday.isoformat(),
             "slots": [
-                {
-                    "day_of_week": 0,
-                    "start_time": "07:00:00",
-                    "duration_minutes": 90,
-                    "preferred_sport": "gym",
-                },
-                {
-                    "day_of_week": 2,
-                    "start_time": "18:00:00",
-                    "duration_minutes": 60,
-                    "preferred_sport": "swimming",
-                },
+                {"day_of_week": 0, "sport": "gym"},
+                {"day_of_week": 2, "sport": "swimming"},
             ],
         },
     )

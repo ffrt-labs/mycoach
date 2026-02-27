@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,6 +13,5 @@ class WeeklyAvailability(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     week_start: Mapped[date]  # Monday of the target week
     day_of_week: Mapped[int]  # 0=Monday, 6=Sunday
-    start_time: Mapped[time]
-    duration_minutes: Mapped[int]
-    preferred_sport: Mapped[str] = mapped_column(String(50))  # gym, swimming, padel, rest
+    # sport: one of gym/swimming/running/padel; nullable for backward compat
+    sport: Mapped[str | None] = mapped_column(String(50), nullable=True)

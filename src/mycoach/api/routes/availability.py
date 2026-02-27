@@ -50,9 +50,7 @@ async def set_availability(
             user_id=USER_ID,
             week_start=body.week_start,
             day_of_week=slot.day_of_week,
-            start_time=slot.start_time,
-            duration_minutes=slot.duration_minutes,
-            preferred_sport=slot.preferred_sport,
+            sport=slot.sport,
         )
         session.add(row)
         rows.append(row)
@@ -118,9 +116,7 @@ async def update_slot(
         raise HTTPException(status_code=404, detail="Slot not found")
 
     slot.day_of_week = body.day_of_week
-    slot.start_time = body.start_time
-    slot.duration_minutes = body.duration_minutes
-    slot.preferred_sport = body.preferred_sport
+    slot.sport = body.sport
     await session.commit()
     await session.refresh(slot)
     return slot

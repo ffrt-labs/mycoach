@@ -16,7 +16,6 @@ router = APIRouter(tags=["pages"])
 USER_ID = 1  # Single-user MVP
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-SPORTS = ["gym", "swimming", "padel"]
 
 
 def _next_monday(ref: date | None = None) -> date:
@@ -74,6 +73,5 @@ async def availability_page(
             "week_start_str": next_mon.strftime("%b %d"),
             "week_end_str": (next_mon + timedelta(days=6)).strftime("%b %d, %Y"),
             "week_days": week_days,
-            "sports": SPORTS,
         },
     )

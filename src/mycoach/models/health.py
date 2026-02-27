@@ -21,6 +21,9 @@ class DailyHealthSnapshot(Base):
     # HRV
     hrv_status: Mapped[float | None] = mapped_column(Float, default=None)  # ms
     hrv_7day_avg: Mapped[float | None] = mapped_column(Float, default=None)
+    hrv_status_text: Mapped[str | None] = mapped_column(
+        String(50), default=None
+    )  # BALANCED, UNBALANCED, LOW
 
     # Sleep
     sleep_duration_minutes: Mapped[int | None] = mapped_column(default=None)
@@ -33,6 +36,7 @@ class DailyHealthSnapshot(Base):
     # Body Battery & Stress
     body_battery_high: Mapped[int | None] = mapped_column(default=None)
     body_battery_low: Mapped[int | None] = mapped_column(default=None)
+    body_battery_morning: Mapped[int | None] = mapped_column(default=None)
     avg_stress: Mapped[int | None] = mapped_column(default=None)
 
     # Training metrics
@@ -42,6 +46,8 @@ class DailyHealthSnapshot(Base):
         String(50), default=None
     )  # productive, maintaining, detraining, etc.
     vo2_max: Mapped[float | None] = mapped_column(Float, default=None)
+    recovery_time_hours: Mapped[float | None] = mapped_column(Float, default=None)
+    load_focus: Mapped[str | None] = mapped_column(Text, default=None)  # JSON
 
     # Other
     steps: Mapped[int | None] = mapped_column(default=None)

@@ -14,7 +14,7 @@ VALID_RECAP_CONTENT = json.dumps(
         "week_summary": "Strong week.",
         "adherence_analysis": "4/5 completed.",
         "performance_highlights": ["PR on bench", "Improved swim time"],
-        "areas_of_concern": ["Elevated resting HR"],
+        "areas_of_concern": ["Elevated Resting Heart Rate"],
         "recovery_assessment": "Good recovery.",
         "training_load_analysis": "Balanced.",
         "next_week_recommendations": "Maintain volume.",

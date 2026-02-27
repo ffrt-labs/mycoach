@@ -1,0 +1,31 @@
+Analyze the following completed workout and provide a post-workout coaching analysis.
+
+## Completed Activity
+{activity_data}
+
+## Gym Workout Details (if gym session)
+{gym_details}
+
+## Planned Session (if available)
+{planned_session}
+
+## Recent Similar Activities (last 5 of same sport)
+{similar_activities}
+
+## Today's Health Context
+{health_context}
+
+Provide a detailed post-workout analysis. Compare actual performance to the planned session if available. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
+
+Respond with a JSON object matching this exact schema:
+{{
+  "performance_summary": "Brief overall assessment of the workout quality and effort",
+  "planned_vs_actual": "Comparison to planned session — adherence, deviations, and why (or 'No planned session to compare')",
+  "performance_trends": "How this session compares to recent similar workouts — improvements, regressions, plateaus",
+  "hr_analysis": "Heart rate zone analysis and cardiovascular response (or 'No HR data available')",
+  "training_effect_assessment": "Assessment of aerobic/anaerobic training effect and what it means for adaptation",
+  "key_highlights": ["List of 2-4 specific positive highlights from the workout"],
+  "areas_for_improvement": ["List of 1-3 specific areas to work on in next similar session"],
+  "next_session_recommendations": "Specific recommendations for the next similar workout (weights, volume, intensity adjustments)",
+  "recovery_notes": "Post-workout recovery recommendations based on effort level and health context"
+}}

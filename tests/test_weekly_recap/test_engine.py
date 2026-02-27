@@ -18,9 +18,13 @@ VALID_RECAP_RESPONSE = """{
   "week_summary": "Strong training week with 4/5 sessions completed.",
   "adherence_analysis": "Missed Friday padel due to weather.",
   "performance_highlights": ["New bench press PR at 85kg", "Improved 100m swim time"],
-  "areas_of_concern": ["Elevated resting HR mid-week"],
+  "areas_of_concern": ["Elevated Resting Heart Rate mid-week"],
   "recovery_assessment": "Sleep quality dipped mid-week.",
   "training_load_analysis": "Good distribution across gym and swimming.",
+  "gym_coaching": "Bench press progressing well. Squat stagnating at 120kg for 3 weeks.",
+  "exercise_substitutions": ["Squat → Bulgarian Split Squat because plateau at 120kg"],
+  "cardio_coaching": "Swimming pace steady. Add one fartlek session next week.",
+  "coach_recommendations": ["Deload on squat", "Add fartlek swim", "Sleep earlier"],
   "next_week_recommendations": "Reduce gym volume by 10%.",
   "mesocycle_progress": "Week 3 of 4 in build phase."
 }"""

@@ -37,6 +37,7 @@ class PlannedSession(Base):
     details: Mapped[str | None] = mapped_column(Text, default=None)  # JSON structured
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     completed: Mapped[bool] = mapped_column(default=False)
+    track: Mapped[str] = mapped_column(String(20), default="cardio")  # "gym" or "cardio"
     activity_id: Mapped[int | None] = mapped_column(
         ForeignKey("activities.id"), default=None
     )  # Link to actual workout

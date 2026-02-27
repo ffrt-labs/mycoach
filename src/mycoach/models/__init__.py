@@ -5,6 +5,7 @@ from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
+from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
 from mycoach.models.sport_profile import SportProfile
 from mycoach.models.user import User
 
@@ -17,8 +18,11 @@ __all__ = [
     "MesocycleConfig",
     "PlannedSession",
     "PromptLog",
+    "RoutineDay",
+    "RoutineExercise",
     "SportProfile",
     "User",
     "WeeklyAvailability",
     "WeeklyPlan",
+    "WorkoutRoutine",
 ]

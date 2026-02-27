@@ -19,6 +19,7 @@ class PlannedSessionCreate(PlannedSessionBase):
 class PlannedSessionRead(PlannedSessionBase):
     id: int
     plan_id: int
+    track: str = "cardio"
     completed: bool
     activity_id: int | None = None
 

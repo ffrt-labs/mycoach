@@ -21,7 +21,10 @@
                     <a href="/" class="hover:text-blue-200 {% if active_page == 'dashboard' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Dashboard</a>
                     <a href="/plan" class="hover:text-blue-200 {% if active_page == 'plan' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Plan</a>
                     <a href="/availability" class="hover:text-blue-200 {% if active_page == 'availability' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Availability</a>
+                    <a href="/routine" class="hover:text-blue-200 {% if active_page == 'routine' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Routine</a>
+                    <a href="/sport-profiles" class="hover:text-blue-200 {% if active_page == 'sport_profiles' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Sports</a>
                     <a href="/history" class="hover:text-blue-200 {% if active_page == 'history' %}text-white font-semibold{% else %}text-blue-300{% endif %}">History</a>
+                    <a href="/prompt-logs" class="hover:text-blue-200 {% if active_page == 'prompt_logs' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Logs</a>
                 </div>
             </div>
         </div>
@@ -51,9 +54,14 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 History
             </a>
+            <a href="/prompt-logs" class="flex flex-col items-center text-xs {% if active_page == 'prompt_logs' %}text-blue-700{% else %}text-gray-500{% endif %}">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Logs
+            </a>
         </div>
     </nav>
 
     <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

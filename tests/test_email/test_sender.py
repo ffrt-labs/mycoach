@@ -8,7 +8,6 @@ from mycoach.email.sender import (
     send_daily_briefing,
     send_email,
     send_post_workout,
-    send_sleep_coaching,
     send_weekly_plan,
     send_weekly_recap,
 )
@@ -99,28 +98,6 @@ def test_render_post_workout_template() -> None:
     assert "PR on squat" in html
     assert "Leg Day" in html
 
-
-def test_render_sleep_coaching_template() -> None:
-    """Sleep coaching template renders all fields."""
-    html = _render_template(
-        "sleep_coaching.html",
-        {
-            "coaching": {
-                "sleep_quality_summary": "Declining quality",
-                "consistency_analysis": "Inconsistent bedtime",
-                "sleep_architecture": "Low deep sleep",
-                "performance_correlation": "Affects recovery",
-                "recommended_bedtime": "10:30 PM",
-                "recommended_wake_time": "6:30 AM",
-                "sleep_debt_assessment": "Moderate debt",
-                "hygiene_tips": ["No screens before bed", "Cool room"],
-                "key_concern": "Late caffeine",
-            }
-        },
-    )
-    assert "Declining quality" in html
-    assert "10:30 PM" in html
-    assert "No screens before bed" in html
 
 
 def test_render_weekly_recap_template() -> None:
@@ -244,16 +221,6 @@ def test_send_post_workout_calls_send_email(mock_send: MagicMock) -> None:
     assert result is True
     assert "Leg Day" in mock_send.call_args[0][1]
 
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_send_sleep_coaching_calls_send_email(mock_send: MagicMock) -> None:
-    """send_sleep_coaching renders template and calls send_email."""
-    settings = _make_settings()
-    result = send_sleep_coaching(
-        content={"sleep_quality_summary": "Good"},
-        settings=settings,
-    )
-    assert result is True
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)

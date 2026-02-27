@@ -1,6 +1,6 @@
 """Email sender with SMTP and Resend API backends.
 
-Sends coaching emails (daily briefing, weekly plan, post-workout, sleep, weekly recap).
+Sends coaching emails (daily briefing, weekly plan, post-workout, weekly recap).
 Backend is selected based on configuration: Resend API key takes precedence over SMTP.
 """
 
@@ -126,13 +126,6 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
         settings.email_to, f"MyCoach — Post-Workout: {activity_title}", html, settings
     )
 
-
-def send_sleep_coaching(content: dict, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]
-    """Send sleep coaching email."""
-    if settings is None:
-        settings = get_settings()
-    html = _render_template("sleep_coaching.html", {"coaching": content})
-    return send_email(settings.email_to, "MyCoach — Sleep Coaching", html, settings)
 
 
 def send_weekly_recap(content: dict, week_start: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]

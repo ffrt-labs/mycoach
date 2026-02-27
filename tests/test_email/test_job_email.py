@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mycoach.scheduler.jobs import _daily_briefing, _sleep_coaching, _weekly_recap
+from mycoach.scheduler.jobs import _daily_briefing, _weekly_recap
 
 
 @pytest.fixture
@@ -60,24 +60,6 @@ async def test_daily_briefing_skips_email_when_disabled(
         await _daily_briefing()
         mock_send.assert_not_called()
 
-
-async def test_sleep_coaching_sends_email(
-    mock_session: AsyncMock,
-) -> None:
-    """Sleep coaching job sends email when preference is enabled."""
-    insight = MagicMock()
-    insight.content = json.dumps({"sleep_quality_summary": "Good"})
-    mock_engine = MagicMock()
-    mock_engine.generate_sleep_coaching = AsyncMock(return_value=insight)
-
-    with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
-        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
-        patch("mycoach.scheduler.jobs.send_sleep_coaching") as mock_send,
-    ):
-        await _sleep_coaching()
-        mock_send.assert_called_once()
 
 
 async def test_weekly_recap_sends_email(

@@ -10,18 +10,59 @@
             <p class="text-sm text-gray-500">{{ week_start_str }} — {{ week_end_str }}</p>
         </div>
         {% if plan %}
-        <div class="text-right">
-            <p class="text-2xl font-bold text-blue-700">{{ adherence_pct }}%</p>
-            <p class="text-xs text-gray-500">{{ completed_sessions }}/{{ total_sessions }} done</p>
+        <div class="flex items-center gap-3">
+            <button id="regen-plan-btn" onclick="regeneratePlan()"
+                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg id="regen-plan-icon" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <svg id="regen-plan-spinner" class="h-3 w-3 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <span id="regen-plan-label">Regenerate</span>
+            </button>
+            <div class="text-right">
+                <p class="text-2xl font-bold text-blue-700">{{ adherence_pct }}%</p>
+                <p class="text-xs text-gray-500">{{ completed_sessions }}/{{ total_sessions }} done</p>
+            </div>
         </div>
         {% endif %}
+    </div>
+    <div id="regen-plan-status"></div>
+
+    <!-- Week navigation -->
+    <div class="flex items-center justify-between">
+        <a href="/plan?week={{ prev_week }}"
+            class="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            Prev week
+        </a>
+        {% if not is_current_week %}
+        <a href="/plan"
+            class="text-xs font-medium text-gray-500 hover:text-blue-700 transition-colors px-3 py-1 rounded-full border border-gray-300 hover:border-blue-300">
+            This week
+        </a>
+        {% else %}
+        <span class="text-xs font-medium text-blue-700 px-3 py-1 rounded-full bg-blue-100">
+            This week
+        </span>
+        {% endif %}
+        <a href="/plan?week={{ next_week }}"
+            class="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900 transition-colors">
+            Next week
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
     </div>
 
     {% if not plan %}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
         <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
         <p class="text-gray-500 text-sm">No plan for this week.</p>
+        {% if has_availability %}
+        <button id="generate-btn" type="button"
+            class="mt-4 inline-flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-colors">
+            Generate Plan
+        </button>
+        <div id="generate-result" class="mt-3 text-sm"></div>
+        {% else %}
         <p class="text-gray-400 text-xs mt-1">Set your <a href="/availability" class="text-blue-600 hover:underline">availability</a> first, then generate a plan.</p>
+        {% endif %}
     </div>
     {% else %}
 
@@ -50,6 +91,10 @@
                     <div>
                         <h3 class="font-semibold text-gray-900">{{ day.session.title }}</h3>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if day.session.track == 'gym' %}bg-purple-100 text-purple-700{% else %}bg-teal-100 text-teal-700{% endif %}">
+                                {{ day.session.track | capitalize }}
+                            </span>
                             <span class="capitalize">{{ day.session.sport }}</span>
                             {% if day.session.duration_minutes %}
                             <span>{{ day.session.duration_minutes }} min</span>
@@ -79,7 +124,47 @@
             </div>
             {% endif %}
 
-            {% if day.details %}
+            {% if day.details and day.details.exercises %}
+            <div class="px-4 pb-3 border-t {% if day.is_today %}border-blue-200{% else %}border-gray-100{% endif %}">
+                <div class="mt-3 space-y-2">
+                    {% set ns = namespace(num=0, seen_groups=[], group_labels={}) %}
+                    {% set superset_colors = ['purple', 'emerald', 'amber', 'red'] %}
+                    {% set superset_bg = ['bg-purple-100 text-purple-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-red-100 text-red-700'] %}
+                    {% set superset_border = ['border-l-purple-500', 'border-l-emerald-500', 'border-l-amber-500', 'border-l-red-500'] %}
+                    {% for ex in day.details.exercises %}
+                    {% set sg = ex.superset_group if ex.superset_group is defined else none %}
+                    {% set is_superset = sg is not none %}
+                    {% set color_idx = sg % 4 if is_superset else 0 %}
+                    <div class="flex items-start gap-3 py-2 {% if not loop.last %}border-b border-gray-100{% endif %} {% if is_superset %}border-l-4 {{ superset_border[color_idx] }} pl-3{% endif %}">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <p class="font-medium text-sm text-gray-900">{{ ex.name }}</p>
+                                {% if is_superset %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold {{ superset_bg[color_idx] }}">
+                                    Superset {{ ['A','B','C','D'][color_idx] }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-500">
+                                <span>{{ ex.sets }} sets x {{ ex.reps }}</span>
+                                {% if ex.target_weight_kg %}<span class="font-semibold text-gray-700">{{ ex.target_weight_kg }}kg</span>{% endif %}
+                                {% if ex.rpe %}<span>RPE {{ ex.rpe }}</span>{% endif %}
+                                {% if ex.rest_seconds %}<span>{{ ex.rest_seconds }}s rest</span>{% endif %}
+                            </div>
+                            {% if ex.adjustment_rationale %}
+                            <p class="text-xs text-blue-600 mt-1">{{ ex.adjustment_rationale }}</p>
+                            {% endif %}
+                            {% if ex.notes %}
+                            <p class="text-xs text-gray-400 mt-0.5">{{ ex.notes }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% elif day.details %}
+            {# Fallback for non-exercise details (swimming, running, etc.) #}
             <div class="px-4 pb-3 border-t {% if day.is_today %}border-blue-200{% else %}border-gray-100{% endif %}">
                 <div class="mt-2 text-sm text-gray-700 space-y-1">
                     {% for key, value in day.details.items() %}
@@ -95,7 +180,15 @@
                         {% elif value is iterable and value is not string %}
                         <ul class="ml-4 list-disc text-gray-600">
                             {% for item in value %}
+                            {% if item is mapping %}
+                            <li>
+                                {% for k, v in item.items() %}
+                                <span class="font-medium">{{ k | replace('_', ' ') }}:</span> {{ v }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </li>
+                            {% else %}
                             <li>{{ item }}</li>
+                            {% endif %}
                             {% endfor %}
                         </ul>
                         {% else %}
@@ -112,4 +205,84 @@
     </div>
     {% endif %}
 </div>
+
+{% if plan %}
+<script>
+function regeneratePlan() {
+    var btn = document.getElementById('regen-plan-btn');
+    var icon = document.getElementById('regen-plan-icon');
+    var spinner = document.getElementById('regen-plan-spinner');
+    var label = document.getElementById('regen-plan-label');
+    var status = document.getElementById('regen-plan-status');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = 'Regenerating...';
+    status.innerHTML = '<div class="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm">This may take a minute...</div>';
+
+    fetch('/api/plans/generate?week_start={{ week_start_iso }}&force=true', { method: 'POST' })
+    .then(function(resp) {
+        if (resp.ok) {
+            status.innerHTML = '<div class="p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">Plan regenerated! Reloading...</div>';
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') !== -1) {
+                return resp.json().then(function(data) {
+                    status.innerHTML = '<div class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Error: ' + (data.detail || 'Unknown error') + '</div>';
+                });
+            } else {
+                status.innerHTML = '<div class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Error ' + resp.status + ': Server error.</div>';
+            }
+        }
+    })
+    .catch(function(err) {
+        status.innerHTML = '<div class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Network error: ' + err.message + '</div>';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        label.textContent = 'Regenerate';
+    });
+}
+</script>
+{% endif %}
+
+{% if not plan and has_availability %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('generate-btn');
+    var resultDiv = document.getElementById('generate-result');
+    btn.addEventListener('click', function() {
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+        resultDiv.innerHTML = '<span class="text-gray-500">This may take a minute...</span>';
+        fetch('/api/plans/generate?week_start={{ week_start_iso }}', { method: 'POST' })
+        .then(function(resp) {
+            var ct = resp.headers.get('content-type') || '';
+            if (resp.ok) {
+                window.location.reload();
+            } else if (ct.indexOf('application/json') !== -1) {
+                return resp.json().then(function(data) {
+                    resultDiv.innerHTML = '<span class="text-red-600 font-medium">Error: ' + (data.detail || 'Unknown error') + '</span>';
+                });
+            } else {
+                return resp.text().then(function(text) {
+                    console.error('Generate failed:', resp.status, text);
+                    resultDiv.innerHTML = '<span class="text-red-600 font-medium">Error ' + resp.status + ': Server error.</span>';
+                });
+            }
+        }).catch(function(err) {
+            console.error('Generate plan error:', err);
+            resultDiv.innerHTML = '<span class="text-red-600 font-medium">Network error: ' + err.message + '</span>';
+        }).finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Generate Plan';
+        });
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

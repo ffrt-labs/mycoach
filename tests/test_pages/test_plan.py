@@ -55,7 +55,28 @@ async def test_plan_page_with_sessions(client: AsyncClient) -> None:
             title="Upper Body",
             duration_minutes=60,
             notes="Compound focus",
-            details=json.dumps({"exercises": ["Bench Press", "Rows"]}),
+            details=json.dumps(
+                {
+                    "exercises": [
+                        {
+                            "name": "Bench Press",
+                            "sets": 3,
+                            "reps": "8-12",
+                            "rpe": 7,
+                            "rest_seconds": 90,
+                            "notes": "Eccentric",
+                        },
+                        {
+                            "name": "Rows",
+                            "sets": 3,
+                            "reps": "10-12",
+                            "rpe": 8,
+                            "rest_seconds": 75,
+                            "notes": "",
+                        },
+                    ]
+                }
+            ),
             completed=True,
         )
         s2 = PlannedSession(
@@ -153,9 +174,9 @@ async def test_plan_page_today_highlighted(client: AsyncClient) -> None:
         ps = PlannedSession(
             plan_id=plan.id,
             day_of_week=today.weekday(),
-            sport="padel",
-            title="Padel Drills",
-            duration_minutes=90,
+            sport="running",
+            title="Tempo Run",
+            duration_minutes=45,
             completed=False,
         )
         session.add(ps)
@@ -163,7 +184,7 @@ async def test_plan_page_today_highlighted(client: AsyncClient) -> None:
 
     resp = await client.get("/plan")
     assert resp.status_code == 200
-    assert "Padel Drills" in resp.text
+    assert "Tempo Run" in resp.text
     assert "Today" in resp.text
 
 

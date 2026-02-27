@@ -11,6 +11,167 @@
         </div>
     </div>
 
+    <!-- Weekly recap section -->
+    <div class="space-y-3">
+        <!-- Week picker -->
+        <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-600">Week:</label>
+            <select id="week-picker" onchange="changeWeek(this.value)"
+                class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {% for week in available_weeks %}
+                <option value="{{ week.iso }}" {% if week.iso == last_monday_iso %}selected{% endif %}>{{ week.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if weekly_recap %}
+        <div class="bg-blue-50 rounded-xl shadow-sm border border-blue-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-blue-700 uppercase tracking-wide">{{ selected_week_label }}</h2>
+                <button id="recap-btn" onclick="generateRecap(true)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg id="recap-icon" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <svg id="recap-spinner" class="h-3 w-3 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                    <span id="recap-label">Regenerate</span>
+                </button>
+            </div>
+            {% if recap_data %}
+            <!-- Week Summary -->
+            {% if recap_data.week_summary %}
+            <p class="text-blue-900 text-sm mb-4">{{ recap_data.week_summary }}</p>
+            {% endif %}
+
+            <!-- Adherence | Training Load | Recovery -->
+            {% if recap_data.adherence_analysis or recap_data.training_load_analysis or recap_data.recovery_assessment %}
+            <div class="grid grid-cols-3 gap-3 mb-4 border-t border-blue-200 pt-4">
+                {% if recap_data.adherence_analysis %}
+                <div>
+                    <h3 class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Adherence</h3>
+                    <p class="text-blue-800 text-xs">{{ recap_data.adherence_analysis }}</p>
+                </div>
+                {% endif %}
+                {% if recap_data.training_load_analysis %}
+                <div>
+                    <h3 class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Training Load</h3>
+                    <p class="text-blue-800 text-xs">{{ recap_data.training_load_analysis }}</p>
+                </div>
+                {% endif %}
+                {% if recap_data.recovery_assessment %}
+                <div>
+                    <h3 class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Recovery</h3>
+                    <p class="text-blue-800 text-xs">{{ recap_data.recovery_assessment }}</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Highlights | Concerns -->
+            {% if recap_data.performance_highlights or recap_data.areas_of_concern %}
+            <div class="grid grid-cols-2 gap-4 mb-4 border-t border-blue-200 pt-4">
+                {% if recap_data.performance_highlights %}
+                <div>
+                    <h3 class="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Highlights</h3>
+                    <ul class="text-blue-800 text-xs list-disc ml-4 space-y-1">
+                        {% for h in recap_data.performance_highlights %}
+                        <li>{{ h }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if recap_data.areas_of_concern %}
+                <div>
+                    <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Concerns</h3>
+                    <ul class="text-blue-800 text-xs list-disc ml-4 space-y-1">
+                        {% for c in recap_data.areas_of_concern %}
+                        <li>{{ c }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Next Week Recommendations -->
+            {% if recap_data.next_week_recommendations %}
+            <div class="border-t border-blue-200 pt-4 mb-3">
+                <h3 class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Next Week</h3>
+                <p class="text-blue-900 text-sm">{{ recap_data.next_week_recommendations }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Gym Coaching -->
+            {% if recap_data.gym_coaching %}
+            <div class="border-t border-blue-200 pt-4 mb-3">
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Strength Analysis</h3>
+                    <p class="text-amber-900 text-xs">{{ recap_data.gym_coaching }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Exercise Substitutions -->
+            {% if recap_data.exercise_substitutions %}
+            <div class="mb-3">
+                <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Exercise Substitutions</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for sub in recap_data.exercise_substitutions %}
+                    <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">{{ sub }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Cardio Coaching -->
+            {% if recap_data.cardio_coaching %}
+            <div class="mb-3">
+                <div class="bg-teal-50 border border-teal-200 rounded-lg p-3">
+                    <h3 class="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">Cardio Analysis</h3>
+                    <p class="text-teal-900 text-xs">{{ recap_data.cardio_coaching }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Coach Recommendations -->
+            {% if recap_data.coach_recommendations %}
+            <div class="mb-3">
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <h3 class="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">Coach Recommendations</h3>
+                    <ol class="text-purple-900 text-xs list-decimal ml-4 space-y-1">
+                        {% for rec in recap_data.coach_recommendations %}
+                        <li>{{ rec }}</li>
+                        {% endfor %}
+                    </ol>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Mesocycle Progress -->
+            {% if recap_data.mesocycle_progress %}
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-blue-600 uppercase tracking-wide">Mesocycle:</span>
+                <span class="text-xs text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">{{ recap_data.mesocycle_progress }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+            <div id="recap-status"></div>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{{ selected_week_label }}</h2>
+                <button id="recap-btn" onclick="generateRecap(false)"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg id="recap-icon" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    <svg id="recap-spinner" class="h-3.5 w-3.5 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                    <span id="recap-label">Generate Recap</span>
+                </button>
+            </div>
+            <p class="text-gray-400 text-sm">No recap for this week yet.</p>
+            <div id="recap-status"></div>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- Sport filter -->
     {% if available_sports %}
     <div class="flex gap-2 flex-wrap">
@@ -66,6 +227,19 @@
                         <div class="flex items-center gap-2 flex-shrink-0">
                             {% if card.has_analysis %}
                             <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Analyzed</span>
+                            <button onclick="analyzeActivity({{ card.activity.id }}, this, true)"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg class="h-3 w-3 analyze-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                <svg class="h-3 w-3 analyze-spinner animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                <span class="analyze-label">Re-analyze</span>
+                            </button>
+                            {% else %}
+                            <button onclick="analyzeActivity({{ card.activity.id }}, this, false)"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg class="h-3 w-3 analyze-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                <svg class="h-3 w-3 analyze-spinner animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                <span class="analyze-label">Analyze</span>
+                            </button>
                             {% endif %}
                             <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{{ card.activity.data_source }}</span>
                         </div>
@@ -130,4 +304,86 @@
 
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function changeWeek(isoDate) {
+    var url = '/history?recap_week=' + isoDate;
+    {% if sport_filter %}url += '&sport={{ sport_filter }}';{% endif %}
+    location.href = url;
+}
+
+function generateRecap(isRegenerate) {
+    var btn = document.getElementById('recap-btn');
+    var icon = document.getElementById('recap-icon');
+    var spinner = document.getElementById('recap-spinner');
+    var label = document.getElementById('recap-label');
+    var status = document.getElementById('recap-status');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = isRegenerate ? 'Regenerating...' : 'Generating...';
+
+    var url = '/api/coaching/weekly-recap/generate?week_start={{ last_monday_iso }}' + (isRegenerate ? '&force=true' : '');
+    fetch(url, { method: 'POST' })
+    .then(function(resp) {
+        if (resp.ok) {
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">Recap generated! Reloading...</div>';
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            return resp.json().then(function(d) {
+                status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Error: ' + (d.detail || 'Generation failed') + '</div>';
+            });
+        }
+    })
+    .catch(function(err) {
+        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Network error: ' + err.message + '</div>';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        label.textContent = isRegenerate ? 'Regenerate' : 'Generate Recap';
+    });
+}
+
+function analyzeActivity(activityId, btn, isReanalyze) {
+    var icon = btn.querySelector('.analyze-icon');
+    var spinner = btn.querySelector('.analyze-spinner');
+    var label = btn.querySelector('.analyze-label');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = isReanalyze ? 'Re-analyzing...' : 'Analyzing...';
+
+    var url = '/api/activities/' + activityId + '/analyze' + (isReanalyze ? '?force=true' : '');
+    fetch(url, { method: 'POST' })
+    .then(function(resp) {
+        if (resp.ok) {
+            label.textContent = 'Done!';
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            return resp.json().then(function(d) {
+                label.textContent = 'Error';
+                alert('Error: ' + (d.detail || 'Analysis failed'));
+            });
+        }
+    })
+    .catch(function(err) {
+        label.textContent = 'Error';
+        alert('Network error: ' + err.message);
+    })
+    .finally(function() {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        if (label.textContent !== 'Done!') {
+            label.textContent = isReanalyze ? 'Re-analyze' : 'Analyze';
+        }
+    });
+}
+</script>
 {% endblock %}

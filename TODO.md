@@ -201,10 +201,6 @@
   - [ ] Post-workout analysis (triggered after each sync if new activities)
   - [ ] Weekly plan reminder (Sunday evening)
   - [ ] Weekly recap generation (Sunday)
-- [ ] Implement sleep coaching
-  - [ ] `prompts/v1/sleep_coaching.txt` — sleep analysis template
-  - [ ] `generate_sleep_coaching()` in coaching engine
-  - [ ] `GET /api/coaching/sleep` endpoint
 - [ ] Implement weekly recap
   - [ ] `prompts/v1/weekly_recap.txt` — recap template
   - [ ] `generate_weekly_recap()` in coaching engine
@@ -301,3 +297,13 @@
   - [ ] docker-compose.yml (app + optional Caddy for HTTPS)
   - [ ] Deploy to VPS or home server
 - [ ] **VERIFY:** System runs reliably for 2+ weeks without manual intervention
+
+---
+
+## Post-MVP: Prompt & Coaching Improvements
+
+- [ ] Enrich activity list formatting in `_format_activities()` (prompt_builder.py)
+  - [ ] Currently only sends 4 fields (sport, title, start_time, duration_minutes) in list contexts
+  - [ ] Add avg_hr, max_hr, calories, training_effect_aerobic to activity summaries
+  - [ ] Affects: daily briefing, weekly recap, cardio plan prompts
+  - [ ] Gives LLM training-load awareness when reasoning over recent activity history

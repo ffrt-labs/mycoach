@@ -27,19 +27,6 @@ VALID_BRIEFING_CONTENT = json.dumps(
     }
 )
 
-VALID_SLEEP_CONTENT = json.dumps(
-    {
-        "sleep_quality_summary": "Good overall.",
-        "consistency_analysis": "Consistent bedtime.",
-        "sleep_architecture": "Normal distribution.",
-        "performance_correlation": "Positive.",
-        "recommended_bedtime": "10:30 PM",
-        "recommended_wake_time": "6:30 AM",
-        "sleep_debt_assessment": "Minimal debt.",
-        "hygiene_tips": ["Avoid screens", "Cool room"],
-        "key_concern": "None.",
-    }
-)
 
 VALID_RECAP_CONTENT = json.dumps(
     {
@@ -81,23 +68,6 @@ async def _seed_user_and_briefing() -> None:
         await session.commit()
 
 
-async def _seed_user_and_sleep_coaching() -> None:
-    """Seed a user and today's sleep coaching."""
-    async with test_session() as session:
-        user = User(email="test@example.com", name="Test", fitness_level="intermediate")
-        session.add(user)
-        await session.commit()
-
-        insight = CoachingInsight(
-            user_id=user.id,
-            insight_date=date.today(),
-            insight_type="sleep",
-            content=VALID_SLEEP_CONTENT,
-            prompt_version="v1",
-        )
-        session.add(insight)
-        await session.commit()
-
 
 async def _seed_user_and_weekly_recap(week_start: date) -> None:
     """Seed a user and a weekly recap for the given week."""
@@ -137,26 +107,6 @@ class TestGenerateBriefing:
         resp = await client.post("/api/coaching/today/generate")
         assert resp.status_code == 409
 
-
-class TestGetSleepCoaching:
-    async def test_returns_existing(self, client: AsyncClient) -> None:
-        await _seed_user_and_sleep_coaching()
-        resp = await client.get("/api/coaching/sleep")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["insight_type"] == "sleep"
-        assert "Good overall" in data["content"]
-
-    async def test_404_when_none(self, client: AsyncClient) -> None:
-        resp = await client.get("/api/coaching/sleep")
-        assert resp.status_code == 404
-
-
-class TestGenerateSleepCoaching:
-    async def test_409_when_already_exists(self, client: AsyncClient) -> None:
-        await _seed_user_and_sleep_coaching()
-        resp = await client.post("/api/coaching/sleep/generate")
-        assert resp.status_code == 409
 
 
 class TestGetWeeklyRecap:

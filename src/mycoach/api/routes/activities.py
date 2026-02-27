@@ -120,12 +120,15 @@ async def get_activity_analysis(
 @router.post("/{activity_id}/analyze", response_model=CoachingInsightRead)
 async def analyze_activity(
     activity_id: int,
+    force: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> CoachingInsight:
     """Trigger post-workout analysis for a completed activity."""
     engine = CoachingEngine()
     try:
-        insight = await engine.generate_post_workout_analysis(session, DEFAULT_USER_ID, activity_id)
+        insight = await engine.generate_post_workout_analysis(
+            session, DEFAULT_USER_ID, activity_id, force=force
+        )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

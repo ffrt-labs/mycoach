@@ -59,11 +59,7 @@ async def list_sport_profiles(
     session: AsyncSession = Depends(get_db),
 ) -> list[SportProfile]:
     """List all sport profiles."""
-    stmt = (
-        select(SportProfile)
-        .where(SportProfile.user_id == USER_ID)
-        .order_by(SportProfile.sport)
-    )
+    stmt = select(SportProfile).where(SportProfile.user_id == USER_ID).order_by(SportProfile.sport)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

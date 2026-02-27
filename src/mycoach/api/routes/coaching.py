@@ -41,21 +41,23 @@ async def get_today_briefing(
 
 @router.post("/today/generate", response_model=CoachingInsightRead)
 async def generate_today_briefing(
+    force: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> CoachingInsight:
     """Generate today's daily coaching briefing.
 
     Gathers health + activity data, calls the LLM, and stores the result.
-    Returns 409 if a briefing already exists for today.
+    Returns 409 if a briefing already exists for today (unless force=true).
     """
     engine = CoachingEngine()
     try:
-        insight = await engine.generate_daily_briefing(session, USER_ID)
+        insight = await engine.generate_daily_briefing(session, USER_ID, force=force)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return insight
+
 
 
 @router.get("/weekly-recap", response_model=CoachingInsightRead)
@@ -92,16 +94,19 @@ async def get_weekly_recap(
 @router.post("/weekly-recap/generate", response_model=CoachingInsightRead)
 async def generate_weekly_recap(
     week_start: date = Query(description="Monday of the week to recap"),
+    force: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> CoachingInsight:
     """Generate a weekly training recap.
 
     Analyzes plan adherence, activities, health trends, and mesocycle progress.
-    Returns 409 if a recap already exists for the given week.
+    Returns 409 if a recap already exists for the given week (unless force=true).
     """
     engine = CoachingEngine()
     try:
-        insight = await engine.generate_weekly_recap(session, USER_ID, week_start)
+        insight = await engine.generate_weekly_recap(
+            session, USER_ID, week_start, force=force
+        )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

@@ -1,0 +1,42 @@
+Adjust the weights, RPE, and volume for today's gym session based on last week's performance data. Do NOT redesign the workout — the exercises, sets, and rep ranges are fixed by the user's routine. Your job is to set appropriate targets.
+
+## Routine Day: {routine_day_name}
+
+### Exercises
+{routine_exercises}
+
+## Last Week's Logged Performance
+{last_week_performance}
+
+## Health Trends
+{health_trends}
+
+## Mesocycle Context
+{mesocycle_context}
+
+## Sport Profiles
+{sport_profiles}
+
+## Instructions
+- For each exercise, recommend a target weight (kg) and RPE based on last week's actual performance
+- If last week's data shows the user completed all reps at a given weight with RPE < 8, suggest a small increase (1-2.5kg upper body, 2.5-5kg lower body)
+- If RPE was high (9-10) or reps were not completed, keep or slightly reduce the weight
+- If this is a deload week, reduce weights by ~20% and RPE targets to 5-6
+- Consider health trends: poor sleep/recovery → conservative targets
+- Add coaching notes for form cues or technique reminders where helpful
+
+Respond with a JSON object matching this exact schema:
+{{
+  "exercises": [
+    {{
+      "exercise_name": "Exercise name (must match routine)",
+      "target_weight_kg": 80.0,
+      "target_rpe": 7,
+      "rest_seconds": 90,
+      "adjustment_rationale": "Brief explanation of why this weight/RPE was chosen",
+      "notes": "Optional form cues or technique notes"
+    }}
+  ],
+  "session_notes": "Overall session-level coaching notes",
+  "estimated_duration_minutes": 60
+}}

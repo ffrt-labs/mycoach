@@ -14,6 +14,15 @@ Provide a comprehensive weekly training recap for the past week.
 ## Mesocycle Status
 {mesocycle_context}
 
+## Previous Weeks' Plans (last 4 weeks)
+{plan_history}
+
+## Planned Routine
+{routine_summary}
+
+## Weekly Availability
+{availability}
+
 Based on this data, provide a comprehensive weekly recap analysis.
 
 Respond with a JSON object matching this exact schema:

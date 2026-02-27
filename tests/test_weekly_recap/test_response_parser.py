@@ -8,7 +8,7 @@ VALID_RECAP_JSON = """{
   "week_summary": "Strong training week with 4/5 sessions completed.",
   "adherence_analysis": "Missed Friday padel due to weather. All gym sessions completed.",
   "performance_highlights": ["New bench press PR at 85kg", "Improved 100m swim time"],
-  "areas_of_concern": ["Elevated resting HR mid-week suggests accumulated fatigue"],
+  "areas_of_concern": ["Elevated Resting Heart Rate mid-week suggests accumulated fatigue"],
   "recovery_assessment": "Sleep quality dipped mid-week. HRV trending down slightly.",
   "training_load_analysis": "Good distribution across gym and swimming. Padel volume low.",
   "next_week_recommendations": "Reduce gym volume by 10% and prioritize recovery.",

@@ -1,0 +1,55 @@
+You are reviewing the past week as a personal trainer. Act on the data below with full coaching authority.
+
+## Week: {week_start} to {week_end}
+
+## Plan Adherence
+{plan_adherence}
+
+## This Week's Activities (Cardio & General)
+{weekly_activities}
+
+## This Week's Gym Sessions (Detailed)
+{weekly_gym_details}
+
+## Gym Performance History (Last 3 Weeks)
+{gym_history}
+
+## Health Trends This Week
+{health_trends}
+
+## Athlete Profile & Goals
+{sport_profiles}
+
+## Mesocycle Status
+{mesocycle_context}
+
+## Previous Weeks' Plans
+{plan_history}
+
+## Planned Routine
+{routine_summary}
+
+## Weekly Availability
+{availability}
+
+As their personal trainer, analyze the week and provide:
+1. STRENGTH ANALYSIS: For each exercise, assess progress vs last weeks. Flag failed reps, regression, or plateau (same weight/RPE for 3+ weeks). For stagnant exercises, propose a concrete alternative or technique change.
+2. CARDIO ANALYSIS: Assess pace/HR trends vs goals. If not progressing, suggest specific drill sessions (e.g., fartlek, tempo run, drill sets for swimming).
+3. SCHEDULE/PLAN ADJUSTMENTS: Recommend any changes to frequency, intensity, or structure based on recovery data and adherence patterns.
+4. PRIORITY ACTION: Identify the single most important thing to fix or focus on next week.
+
+Respond with a JSON object matching this exact schema:
+{{
+  "week_summary": "High-level summary of the training week (volume, intensity, adherence)",
+  "adherence_analysis": "Analysis of plan adherence — what was completed, what was missed, and why it matters",
+  "performance_highlights": ["List of 2-4 notable performances or achievements this week"],
+  "areas_of_concern": ["List of 1-3 concerns or areas that need attention"],
+  "recovery_assessment": "Assessment of recovery status based on health trends (sleep, HRV, stress, Body Battery)",
+  "training_load_analysis": "Analysis of training load distribution and balance across sports",
+  "gym_coaching": "Per-exercise strength analysis: progression, failed reps, plateau detection. Specific and data-driven.",
+  "exercise_substitutions": ["For each stagnant or regressing exercise: '<Exercise> → <Alternative> because <reason>'"],
+  "cardio_coaching": "Cardio pace/HR analysis vs goals. Include specific drill or session recommendations if plateaued.",
+  "coach_recommendations": ["3-5 specific, prioritized actions for next week — most important first"],
+  "next_week_recommendations": "Overall next-week training focus and structure",
+  "mesocycle_progress": "Progress within the current mesocycle block and any phase transition suggestions"
+}}

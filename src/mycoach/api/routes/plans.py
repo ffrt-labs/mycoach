@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,7 @@ def _current_week_monday() -> date:
 @router.post("/generate", response_model=WeeklyPlanRead, status_code=201)
 async def generate_plan(
     week_start: date | None = None,
+    force: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> WeeklyPlan:
     """Generate a weekly training plan.
@@ -38,7 +39,7 @@ async def generate_plan(
     the LLM and produce a structured plan with individual sessions.
 
     Query param `week_start` must be a Monday. Defaults to next Monday.
-    Returns 409 if an active plan already exists for that week.
+    Returns 409 if an active plan already exists for that week (unless force=true).
     """
     if week_start is None:
         # Default to next Monday
@@ -48,7 +49,7 @@ async def generate_plan(
 
     engine = CoachingEngine()
     try:
-        plan = await engine.generate_weekly_plan(session, USER_ID, week_start)
+        plan = await engine.generate_weekly_plan(session, USER_ID, week_start, force=force)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

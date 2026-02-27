@@ -38,6 +38,7 @@ class GarminSyncResponse(BaseModel):
     activities_skipped: int
     activities_merged: int
     health_snapshots_created: int
+    health_snapshots_updated: int = 0
     errors: list[str]
 
 
@@ -116,6 +117,7 @@ async def sync_garmin(
         activities_skipped=result.activities_skipped,
         activities_merged=merge_result.merged,
         health_snapshots_created=result.health_snapshots_created,
+        health_snapshots_updated=result.health_snapshots_updated,
         errors=all_errors,
     )
 

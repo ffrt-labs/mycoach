@@ -22,7 +22,7 @@ GARMIN_SPORT_MAP: dict[str, str] = {
     "pool_swimming": "swimming",
     "strength_training": "gym",
     "cardio": "cardio",
-    "running": "cardio",
+    "running": "running",
     "cycling": "cardio",
     "walking": "cardio",
     "hiking": "cardio",
@@ -96,10 +96,12 @@ def map_health_snapshot(
     # HRV
     hrv_status_val = None
     hrv_7day_avg_val = None
+    hrv_status_text_val = None
     if hrv:
         hrv_summary = hrv.get("hrvSummary") or hrv
         hrv_status_val = _safe_float(hrv_summary.get("lastNightAvg"))
         hrv_7day_avg_val = _safe_float(hrv_summary.get("weeklyAvg"))
+        hrv_status_text_val = hrv_summary.get("status")
 
     # Sleep
     sleep_duration = None
@@ -125,6 +127,7 @@ def map_health_snapshot(
     # Body Battery
     bb_high = None
     bb_low = None
+    bb_morning = None
     if body_battery:
         bb_values = [_safe_int(b.get("charged")) for b in body_battery if b.get("charged")]
         bb_drain = [_safe_int(b.get("drained")) for b in body_battery if b.get("drained")]
@@ -132,6 +135,12 @@ def map_health_snapshot(
             bb_high = max(v for v in bb_values if v is not None) if any(bb_values) else None
         if bb_drain:
             bb_low = min(v for v in bb_drain if v is not None) if any(bb_drain) else None
+        # Morning value: first reading from bodyBatteryValuesArray
+        for b in body_battery:
+            arr = b.get("bodyBatteryValuesArray")
+            if arr and isinstance(arr, list) and len(arr) > 0:
+                bb_morning = _safe_int(arr[0][1]) if isinstance(arr[0], list) and len(arr[0]) > 1 else None
+                break
 
     # Stress
     avg_stress_val = None
@@ -146,9 +155,35 @@ def map_health_snapshot(
     # Training status / load
     t_load = None
     t_status = None
+    recovery_time_hrs = None
+    load_focus_val = None
     if training_status:
         t_load = _safe_float(training_status.get("trainingLoad"))
         t_status = training_status.get("trainingStatus")
+        # Extract load focus from mostRecentTrainingLoadBalance
+        tlb = training_status.get("mostRecentTrainingLoadBalance")
+        if isinstance(tlb, dict):
+            for _dev_id, balance in (tlb.get("metricsTrainingLoadBalanceDTOMap") or {}).items():
+                if isinstance(balance, dict) and balance.get("primaryTrainingDevice"):
+                    load_focus_val = json.dumps({
+                        "aerobic_low": balance.get("monthlyLoadAerobicLow"),
+                        "aerobic_high": balance.get("monthlyLoadAerobicHigh"),
+                        "anaerobic": balance.get("monthlyLoadAnaerobic"),
+                        "feedback": balance.get("trainingBalanceFeedbackPhrase"),
+                    })
+                    break
+        # Extract recovery time from mostRecentTrainingStatus
+        tsd = training_status.get("mostRecentTrainingStatus")
+        if isinstance(tsd, dict):
+            for _dev_id, status_data in (tsd.get("latestTrainingStatusData") or {}).items():
+                if isinstance(status_data, dict) and status_data.get("primaryTrainingDevice"):
+                    acwl = status_data.get("acuteTrainingLoadDTO") or {}
+                    # Use t_status from the detailed data if available
+                    if not t_status:
+                        ts_val = status_data.get("trainingStatus")
+                        if ts_val is not None:
+                            t_status = str(ts_val)
+                    break
 
     # VO2 max
     vo2 = None
@@ -200,6 +235,7 @@ def map_health_snapshot(
         avg_hr=avg_hr,
         hrv_status=hrv_status_val,
         hrv_7day_avg=hrv_7day_avg_val,
+        hrv_status_text=hrv_status_text_val,
         sleep_duration_minutes=sleep_duration,
         sleep_score=sleep_score,
         sleep_deep_minutes=sleep_deep,
@@ -208,11 +244,14 @@ def map_health_snapshot(
         sleep_awake_minutes=sleep_awake,
         body_battery_high=bb_high,
         body_battery_low=bb_low,
+        body_battery_morning=bb_morning,
         avg_stress=avg_stress_val,
         training_readiness=tr_score,
         training_load=t_load,
         training_status=t_status,
         vo2_max=vo2,
+        recovery_time_hours=recovery_time_hrs,
+        load_focus=load_focus_val,
         steps=steps,
         respiration_avg=resp_avg,
         spo2_avg=spo2_avg,
@@ -242,6 +281,12 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
     hr_zones_raw = raw.get("heartRateZones")
     hr_zones_json = json.dumps(hr_zones_raw) if hr_zones_raw else None
 
+    # Cadence: pick the right field based on sport
+    cadence = _safe_int(
+        raw.get("averageRunningCadenceInStepsPerMinute")
+        or raw.get("averageSwimCadenceInStrokesPerMinute")
+    )
+
     return Activity(
         user_id=user_id,
         sport=sport,
@@ -249,14 +294,21 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
         start_time=start or datetime.utcnow(),
         end_time=end,
         duration_minutes=duration_mins,
+        distance_meters=_safe_float(raw.get("distance")),
+        avg_speed_mps=_safe_float(raw.get("averageSpeed")),
         avg_hr=_safe_int(raw.get("averageHR")),
         max_hr=_safe_int(raw.get("maxHR")),
         calories=_safe_int(raw.get("calories")),
         hr_zones=hr_zones_json,
         training_effect_aerobic=_safe_float(raw.get("aerobicTrainingEffect")),
         training_effect_anaerobic=_safe_float(raw.get("anaerobicTrainingEffect")),
+        epoc=_safe_float(raw.get("activityTrainingLoad")),
+        recovery_time_minutes=_safe_int(raw.get("recoveryTime")),
+        avg_cadence=cadence,
+        avg_swolf=_safe_float(raw.get("averageSwolf")),
         data_source="garmin",
         garmin_activity_id=str(raw.get("activityId")) if raw.get("activityId") else None,
+        raw_data=json.dumps(raw, default=str),
         created_at=datetime.utcnow(),
     )
 
@@ -280,17 +332,47 @@ async def _activity_exists(session: AsyncSession, garmin_activity_id: str) -> bo
     return result.scalar_one_or_none() is not None
 
 
+_UPDATABLE_FIELDS = [
+    "resting_hr", "max_hr", "avg_hr", "hrv_status", "hrv_7day_avg",
+    "hrv_status_text",
+    "sleep_duration_minutes", "sleep_score", "sleep_deep_minutes",
+    "sleep_light_minutes", "sleep_rem_minutes", "sleep_awake_minutes",
+    "body_battery_high", "body_battery_low", "body_battery_morning",
+    "avg_stress",
+    "training_readiness", "training_load", "training_status", "vo2_max",
+    "recovery_time_hours", "load_focus",
+    "steps", "respiration_avg", "spo2_avg", "intensity_minutes", "raw_data",
+]
+
+
 async def import_health_snapshot(session: AsyncSession, snapshot: DailyHealthSnapshot) -> bool:
-    """Import a health snapshot, skipping if one already exists for that date.
+    """Import a health snapshot, or update an existing one with newer data.
+
+    Existing fields that are non-null are overwritten only when the incoming
+    snapshot also has a non-null value. Fields that were previously null get
+    filled in (e.g., sleep data arriving later in the day).
 
     Returns:
-        True if created, False if skipped (duplicate).
+        True if created, False if updated.
     """
-    if await _snapshot_exists(session, snapshot.user_id, snapshot.snapshot_date):
-        logger.debug("Snapshot for %s already exists, skipping", snapshot.snapshot_date)
-        return False
-    session.add(snapshot)
-    return True
+    stmt = select(DailyHealthSnapshot).where(
+        DailyHealthSnapshot.user_id == snapshot.user_id,
+        DailyHealthSnapshot.snapshot_date == snapshot.snapshot_date,
+    )
+    result = await session.execute(stmt)
+    existing = result.scalar_one_or_none()
+
+    if existing is None:
+        session.add(snapshot)
+        return True
+
+    # Update existing snapshot: fill nulls and refresh non-null values
+    for field in _UPDATABLE_FIELDS:
+        new_val = getattr(snapshot, field)
+        if new_val is not None:
+            setattr(existing, field, new_val)
+    logger.debug("Updated snapshot for %s with fresh data", snapshot.snapshot_date)
+    return False
 
 
 async def import_activities(

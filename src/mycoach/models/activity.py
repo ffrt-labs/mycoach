@@ -23,13 +23,22 @@ class Activity(Base):
     calories: Mapped[int | None] = mapped_column(default=None)
     hr_zones: Mapped[str | None] = mapped_column(Text, default=None)  # JSON
 
+    # Distance / pace from Garmin
+    distance_meters: Mapped[float | None] = mapped_column(Float, default=None)
+    avg_speed_mps: Mapped[float | None] = mapped_column(Float, default=None)
+
     # Training effect from Garmin
     training_effect_aerobic: Mapped[float | None] = mapped_column(Float, default=None)
     training_effect_anaerobic: Mapped[float | None] = mapped_column(Float, default=None)
+    epoc: Mapped[float | None] = mapped_column(Float, default=None)
+    recovery_time_minutes: Mapped[int | None] = mapped_column(default=None)
+    avg_cadence: Mapped[int | None] = mapped_column(default=None)
+    avg_swolf: Mapped[float | None] = mapped_column(Float, default=None)
 
     # Source tracking
     data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, merged
     garmin_activity_id: Mapped[str | None] = mapped_column(String(100), default=None, unique=True)
+    raw_data: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

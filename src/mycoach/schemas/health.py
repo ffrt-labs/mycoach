@@ -14,6 +14,7 @@ class DailyHealthSnapshotBase(BaseModel):
     # HRV
     hrv_status: float | None = None
     hrv_7day_avg: float | None = None
+    hrv_status_text: str | None = None
 
     # Sleep
     sleep_duration_minutes: int | None = None
@@ -26,6 +27,7 @@ class DailyHealthSnapshotBase(BaseModel):
     # Body Battery & Stress
     body_battery_high: int | None = None
     body_battery_low: int | None = None
+    body_battery_morning: int | None = None
     avg_stress: int | None = None
 
     # Training metrics
@@ -33,6 +35,8 @@ class DailyHealthSnapshotBase(BaseModel):
     training_load: float | None = None
     training_status: str | None = None
     vo2_max: float | None = None
+    recovery_time_hours: float | None = None
+    load_focus: str | None = None
 
     # Other
     steps: int | None = None

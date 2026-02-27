@@ -33,12 +33,18 @@ class ActivityBase(BaseModel):
     start_time: datetime
     end_time: datetime | None = None
     duration_minutes: int | None = None
+    distance_meters: float | None = None
+    avg_speed_mps: float | None = None
     avg_hr: int | None = None
     max_hr: int | None = None
     calories: int | None = None
     hr_zones: str | None = None
     training_effect_aerobic: float | None = None
     training_effect_anaerobic: float | None = None
+    epoc: float | None = None
+    recovery_time_minutes: int | None = None
+    avg_cadence: int | None = None
+    avg_swolf: float | None = None
     data_source: str = Field(max_length=20)
     garmin_activity_id: str | None = None
     notes: str | None = None

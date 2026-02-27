@@ -20,8 +20,10 @@ REQUIRED_COLUMNS = {
 EXPECTED_COLUMNS = REQUIRED_COLUMNS | {
     "superset_id",
     "exercise_notes",
+    "weight_kg",
     "weight_lbs",
     "reps",
+    "distance_km",
     "distance_miles",
     "duration_seconds",
     "rpe",
@@ -86,7 +88,13 @@ def _parse_optional_int(value: str) -> int | None:
 def _parse_datetime(value: str) -> datetime | None:
     if not value or not value.strip():
         return None
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%d %b %Y, %H:%M",
+        "%d %b %Y, %H:%M:%S",
+    ):
         try:
             return datetime.strptime(value.strip(), fmt)
         except ValueError:
@@ -147,14 +155,24 @@ def parse_hevy_csv(content: str) -> HevyParseResult:
         if set_type not in ("normal", "warmup", "dropset", "failure"):
             set_type = "normal"
 
-        # Convert units: lbs → kg, miles → meters
+        # Support both weight_kg (direct) and weight_lbs (converted) columns
+        weight_kg_raw = _parse_optional_float(row.get("weight_kg", ""))
         weight_lbs = _parse_optional_float(row.get("weight_lbs", ""))
-        weight_kg = round(weight_lbs * LBS_TO_KG, 2) if weight_lbs is not None else None
+        if weight_kg_raw is not None:
+            weight_kg = weight_kg_raw
+        elif weight_lbs is not None:
+            weight_kg = round(weight_lbs * LBS_TO_KG, 2)
+        else:
+            weight_kg = None
 
+        distance_km = _parse_optional_float(row.get("distance_km", ""))
         distance_miles = _parse_optional_float(row.get("distance_miles", ""))
-        distance_meters = (
-            round(distance_miles * MILES_TO_METERS, 1) if distance_miles is not None else None
-        )
+        if distance_km is not None:
+            distance_meters = round(distance_km * 1000, 1)
+        elif distance_miles is not None:
+            distance_meters = round(distance_miles * MILES_TO_METERS, 1)
+        else:
+            distance_meters = None
 
         rpe = _parse_optional_float(row.get("rpe", ""))
         if rpe is not None and not (1 <= rpe <= 10):

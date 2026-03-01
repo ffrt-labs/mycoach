@@ -135,17 +135,11 @@ def map_health_snapshot(
             bb_high = max(v for v in bb_values if v is not None) if any(bb_values) else None
         if bb_drain:
             bb_low = min(v for v in bb_drain if v is not None) if any(bb_drain) else None
-        # Morning value: first reading from bodyBatteryValuesArray
-        for b in body_battery:
-            arr = b.get("bodyBatteryValuesArray")
-            if arr and isinstance(arr, list) and len(arr) > 0:
-                bb_morning = _safe_int(arr[0][1]) if isinstance(arr[0], list) and len(arr[0]) > 1 else None
-                break
 
     # Stress
     avg_stress_val = None
     if stress:
-        avg_stress_val = _safe_int(stress.get("overallStressLevel"))
+        avg_stress_val = _safe_int(stress.get("avgStressLevel"))
 
     # Training readiness
     tr_score = None
@@ -155,7 +149,6 @@ def map_health_snapshot(
     # Training status / load
     t_load = None
     t_status = None
-    recovery_time_hrs = None
     load_focus_val = None
     if training_status:
         t_load = _safe_float(training_status.get("trainingLoad"))
@@ -177,7 +170,6 @@ def map_health_snapshot(
         if isinstance(tsd, dict):
             for _dev_id, status_data in (tsd.get("latestTrainingStatusData") or {}).items():
                 if isinstance(status_data, dict) and status_data.get("primaryTrainingDevice"):
-                    acwl = status_data.get("acuteTrainingLoadDTO") or {}
                     # Use t_status from the detailed data if available
                     if not t_status:
                         ts_val = status_data.get("trainingStatus")
@@ -194,6 +186,9 @@ def map_health_snapshot(
         elif isinstance(generic, list) and generic:
             vo2 = _safe_float(generic[0].get("vo2MaxValue"))
 
+    # Body battery morning (wake time value from stats)
+    bb_morning = _safe_int(stats.get("bodyBatteryAtWakeTime"))
+
     # Steps
     steps = _safe_int(stats.get("totalSteps"))
 
@@ -205,7 +200,7 @@ def map_health_snapshot(
     # SpO2
     spo2_avg = None
     if spo2:
-        spo2_avg = _safe_float(spo2.get("averageSpo2"))
+        spo2_avg = _safe_float(spo2.get("averageSpO2"))
 
     # Intensity minutes
     intensity = None
@@ -250,7 +245,7 @@ def map_health_snapshot(
         training_load=t_load,
         training_status=t_status,
         vo2_max=vo2,
-        recovery_time_hours=recovery_time_hrs,
+        recovery_time_hours=None,
         load_focus=load_focus_val,
         steps=steps,
         respiration_avg=resp_avg,

@@ -24,6 +24,7 @@ SAMPLE_STATS = {
     "averageHeartRate": 68,
     "totalSteps": 10234,
     "intensityMinutes": 45,
+    "bodyBatteryAtWakeTime": 72,
 }
 
 SAMPLE_SLEEP = {
@@ -45,10 +46,10 @@ SAMPLE_HRV = {
     }
 }
 
-SAMPLE_STRESS = {"overallStressLevel": 32}
+SAMPLE_STRESS = {"avgStressLevel": 32}
 
 SAMPLE_BODY_BATTERY = [
-    {"charged": 85, "drained": 20, "bodyBatteryValuesArray": [[1640000000000, 75]]},
+    {"charged": 85, "drained": 20},
     {"charged": 60, "drained": 45},
 ]
 
@@ -74,7 +75,7 @@ SAMPLE_MAX_METRICS = {"generic": {"vo2MaxValue": 48.5}}
 
 SAMPLE_RESPIRATION = {"avgWakingRespirationValue": 15.2}
 
-SAMPLE_SPO2 = {"averageSpo2": 97.5}
+SAMPLE_SPO2 = {"averageSpO2": 97.5}
 
 SAMPLE_ACTIVITY_RAW = {
     "activityId": 12345678,
@@ -151,7 +152,7 @@ class TestMapHealthSnapshot:
         assert snapshot.spo2_avg == 97.5
         assert snapshot.intensity_minutes == 45
         assert snapshot.hrv_status_text == "BALANCED"
-        assert snapshot.body_battery_morning == 75
+        assert snapshot.body_battery_morning == 72
         assert snapshot.load_focus is not None
         import json
         lf = json.loads(snapshot.load_focus)
@@ -175,7 +176,7 @@ class TestMapHealthSnapshot:
         assert snapshot.body_battery_high is None
         assert snapshot.vo2_max is None
         assert snapshot.hrv_status_text is None
-        assert snapshot.body_battery_morning is None
+        assert snapshot.body_battery_morning == 72
         assert snapshot.load_focus is None
 
     def test_empty_stats(self) -> None:

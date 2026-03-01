@@ -23,7 +23,7 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 
 _AVG_FIELDS = [
     "resting_hr", "hrv_status", "sleep_score", "sleep_duration_minutes",
-    "steps", "avg_stress", "body_battery_high", "training_readiness",
+    "steps", "avg_stress", "body_battery_morning", "training_readiness",
 ]
 
 

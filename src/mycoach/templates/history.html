@@ -226,7 +226,7 @@
                         </div>
                         <div class="flex items-center gap-2 flex-shrink-0">
                             {% if card.has_analysis %}
-                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Analyzed</span>
+                            <button onclick="toggleAnalysis({{ card.activity.id }})" class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors cursor-pointer">Analyzed</button>
                             <button onclick="analyzeActivity({{ card.activity.id }}, this, true)"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                 <svg class="h-3 w-3 analyze-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -278,6 +278,91 @@
                             </div>
                             {% endfor %}
                         </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Post-workout analysis panel -->
+                    {% if card.analysis_data %}
+                    <div id="analysis-{{ card.activity.id }}" class="analysis-panel hidden border-t border-purple-200 bg-purple-50 px-4 py-4">
+                        {% set ad = card.analysis_data %}
+
+                        <!-- Performance Summary -->
+                        {% if ad.performance_summary %}
+                        <p class="text-purple-900 text-sm mb-4">{{ ad.performance_summary }}</p>
+                        {% endif %}
+
+                        <!-- 3-col grid: Planned vs Actual | HR Analysis | Training Effect -->
+                        {% if ad.planned_vs_actual or ad.hr_analysis or ad.training_effect_assessment %}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 border-t border-purple-200 pt-4">
+                            {% if ad.planned_vs_actual %}
+                            <div>
+                                <h4 class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">Planned vs Actual</h4>
+                                <p class="text-purple-800 text-xs">{{ ad.planned_vs_actual }}</p>
+                            </div>
+                            {% endif %}
+                            {% if ad.hr_analysis %}
+                            <div>
+                                <h4 class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">HR Analysis</h4>
+                                <p class="text-purple-800 text-xs">{{ ad.hr_analysis }}</p>
+                            </div>
+                            {% endif %}
+                            {% if ad.training_effect_assessment %}
+                            <div>
+                                <h4 class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">Training Effect</h4>
+                                <p class="text-purple-800 text-xs">{{ ad.training_effect_assessment }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- 2-col grid: Highlights (green) | Areas for Improvement (amber) -->
+                        {% if ad.key_highlights or ad.areas_for_improvement %}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 border-t border-purple-200 pt-4">
+                            {% if ad.key_highlights %}
+                            <div>
+                                <h4 class="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Key Highlights</h4>
+                                <ul class="text-purple-800 text-xs list-disc ml-4 space-y-1">
+                                    {% for h in ad.key_highlights %}
+                                    <li>{{ h }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                            {% if ad.areas_for_improvement %}
+                            <div>
+                                <h4 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Areas for Improvement</h4>
+                                <ul class="text-purple-800 text-xs list-disc ml-4 space-y-1">
+                                    {% for a in ad.areas_for_improvement %}
+                                    <li>{{ a }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Performance Trends -->
+                        {% if ad.performance_trends %}
+                        <div class="border-t border-purple-200 pt-4 mb-3">
+                            <h4 class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">Performance Trends</h4>
+                            <p class="text-purple-900 text-xs">{{ ad.performance_trends }}</p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Next Session Recommendations -->
+                        {% if ad.next_session_recommendations %}
+                        <div class="border-t border-purple-200 pt-4 mb-3">
+                            <h4 class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">Next Session</h4>
+                            <p class="text-purple-900 text-xs">{{ ad.next_session_recommendations }}</p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Recovery Notes -->
+                        {% if ad.recovery_notes %}
+                        <div class="border-t border-purple-200 pt-3">
+                            <p class="text-purple-500 text-xs italic">{{ ad.recovery_notes }}</p>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -349,6 +434,26 @@ function generateRecap(isRegenerate) {
     });
 }
 
+function toggleAnalysis(activityId) {
+    var panel = document.getElementById('analysis-' + activityId);
+    if (panel) {
+        panel.classList.toggle('hidden');
+    }
+}
+
+// Auto-expand analysis panel from query param
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var expandId = params.get('expand');
+    if (expandId) {
+        var panel = document.getElementById('analysis-' + expandId);
+        if (panel) {
+            panel.classList.remove('hidden');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+})();
+
 function analyzeActivity(activityId, btn, isReanalyze) {
     var icon = btn.querySelector('.analyze-icon');
     var spinner = btn.querySelector('.analyze-spinner');
@@ -364,7 +469,9 @@ function analyzeActivity(activityId, btn, isReanalyze) {
     .then(function(resp) {
         if (resp.ok) {
             label.textContent = 'Done!';
-            setTimeout(function() { location.reload(); }, 1500);
+            var reloadUrl = new URL(window.location.href);
+            reloadUrl.searchParams.set('expand', activityId);
+            setTimeout(function() { location.href = reloadUrl.toString(); }, 1500);
         } else {
             return resp.json().then(function(d) {
                 label.textContent = 'Error';

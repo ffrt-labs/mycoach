@@ -252,7 +252,7 @@ function regeneratePlan() {
 
 {% if not plan and has_availability %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     var btn = document.getElementById('generate-btn');
     var resultDiv = document.getElementById('generate-result');
     btn.addEventListener('click', function() {
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.textContent = 'Generate Plan';
         });
     });
-});
+})();
 </script>
 {% endif %}
 {% endblock %}

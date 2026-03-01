@@ -107,200 +107,186 @@
     </div>
     {% endif %}
 
-    <!-- Health metrics grid -->
-    {% if avg_metrics %}
+    <!-- Health metrics grid — unified two-column cards -->
+    {% if health or yesterday_health or avg_metrics %}
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {# Resting Heart Rate — 7d avg primary #}
-        {% if avg_metrics.resting_hr is defined %}
+
+        {# --- Resting Heart Rate --- #}
+        {% set latest = health.resting_hr if (health and health.resting_hr is not none) else (yesterday_health.resting_hr if (yesterday_health and yesterday_health.resting_hr is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.resting_hr is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.resting_hr if (avg_metrics and avg_metrics.resting_hr is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if avg_metrics.resting_hr <= 60 %}bg-green-50 border-green-200
-            {% elif avg_metrics.resting_hr <= 75 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Resting Heart Rate</p>
-            <p class="text-xl font-bold text-gray-900">{{ avg_metrics.resting_hr }} <span class="text-xs font-normal text-gray-400">bpm avg</span></p>
-            {% if yesterday_health and yesterday_health.resting_hr is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ yesterday_health.resting_hr }} bpm</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {# HRV — prefer Garmin 7d avg #}
-        {% if avg_metrics.hrv_7day_avg is defined or avg_metrics.hrv_status is defined %}
-        {% set hrv_primary = avg_metrics.hrv_7day_avg if avg_metrics.hrv_7day_avg is defined else avg_metrics.hrv_status %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if hrv_primary >= 50 %}bg-green-50 border-green-200
-            {% elif hrv_primary >= 30 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">HRV</p>
-            <p class="text-xl font-bold text-gray-900">{{ (avg_metrics.hrv_7day_avg if avg_metrics.hrv_7day_avg is defined else avg_metrics.hrv_status) | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms avg</span></p>
-            {% if yesterday_health and yesterday_health.hrv_status is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ yesterday_health.hrv_status | round(0) | int }} ms</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {# Body Battery — yesterday primary (point-in-time) #}
-        {% if (yesterday_health and yesterday_health.body_battery_high is not none) or avg_metrics.body_battery_high is defined %}
-        {% set bb_primary = yesterday_health.body_battery_high if (yesterday_health and yesterday_health.body_battery_high is not none) else avg_metrics.body_battery_high %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if bb_primary >= 75 %}bg-green-50 border-green-200
-            {% elif bb_primary >= 40 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Body Battery</p>
-            {% if yesterday_health and yesterday_health.body_battery_high is not none %}
-            <p class="text-xl font-bold text-gray-900">{{ yesterday_health.body_battery_high }}<span class="text-xs font-normal text-gray-400">%</span></p>
-            {% if avg_metrics.body_battery_high is defined %}
-            <p class="text-xs text-gray-400 mt-0.5">7d avg: {{ avg_metrics.body_battery_high }}%</p>
-            {% endif %}
+            {% if color_val is not none %}{% if color_val <= 60 %}bg-green-50 border-green-200{% elif color_val <= 75 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Resting HR</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
             {% else %}
-            <p class="text-xl font-bold text-gray-900">{{ avg_metrics.body_battery_high }}<span class="text-xs font-normal text-gray-400">% avg</span></p>
+            <p class="text-lg font-bold text-gray-900">{{ avg }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">7d avg</p>
             {% endif %}
         </div>
         {% endif %}
-        {# Sleep Score — 7d avg primary #}
-        {% if avg_metrics.sleep_score is defined %}
+
+        {# --- HRV --- #}
+        {% set latest = health.hrv_status if (health and health.hrv_status is not none) else (yesterday_health.hrv_status if (yesterday_health and yesterday_health.hrv_status is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.hrv_status is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.hrv_7day_avg if (avg_metrics and avg_metrics.hrv_7day_avg is defined) else (avg_metrics.hrv_status if (avg_metrics and avg_metrics.hrv_status is defined) else none) %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if avg_metrics.sleep_score >= 75 %}bg-green-50 border-green-200
-            {% elif avg_metrics.sleep_score >= 50 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Sleep Score</p>
-            <p class="text-xl font-bold text-gray-900">{{ avg_metrics.sleep_score }} <span class="text-xs font-normal text-gray-400">avg</span></p>
-            {% if yesterday_health and yesterday_health.sleep_score is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ yesterday_health.sleep_score }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {# Sleep Duration — 7d avg primary #}
-        {% if avg_metrics.sleep_duration_minutes is defined %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if avg_metrics.sleep_duration_minutes >= 420 and avg_metrics.sleep_duration_minutes <= 540 %}bg-green-50 border-green-200
-            {% elif avg_metrics.sleep_duration_minutes >= 360 and avg_metrics.sleep_duration_minutes <= 600 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Sleep</p>
-            <p class="text-xl font-bold text-gray-900">{{ (avg_metrics.sleep_duration_minutes // 60) }}h {{ (avg_metrics.sleep_duration_minutes % 60) }}m <span class="text-xs font-normal text-gray-400">avg</span></p>
-            {% if yesterday_health and yesterday_health.sleep_duration_minutes is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ (yesterday_health.sleep_duration_minutes // 60) }}h {{ (yesterday_health.sleep_duration_minutes % 60) }}m</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {# Training Readiness — yesterday primary (point-in-time) #}
-        {% if (yesterday_health and yesterday_health.training_readiness is not none) or avg_metrics.training_readiness is defined %}
-        {% set tr_primary = yesterday_health.training_readiness if (yesterday_health and yesterday_health.training_readiness is not none) else avg_metrics.training_readiness %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if tr_primary >= 67 %}bg-green-50 border-green-200
-            {% elif tr_primary >= 34 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Readiness</p>
-            {% if yesterday_health and yesterday_health.training_readiness is not none %}
-            <p class="text-xl font-bold text-gray-900">{{ yesterday_health.training_readiness }}</p>
-            {% if avg_metrics.training_readiness is defined %}
-            <p class="text-xs text-gray-400 mt-0.5">7d avg: {{ avg_metrics.training_readiness }}</p>
-            {% endif %}
+            {% if color_val is not none %}{% if color_val >= 50 %}bg-green-50 border-green-200{% elif color_val >= 30 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">HRV</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
             {% else %}
-            <p class="text-xl font-bold text-gray-900">{{ avg_metrics.training_readiness }} <span class="text-xs font-normal text-gray-400">avg</span></p>
+            <p class="text-lg font-bold text-gray-900">{{ avg | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">7d avg</p>
             {% endif %}
         </div>
         {% endif %}
-        {# Steps — 7d avg primary #}
-        {% if avg_metrics.steps is defined %}
+
+        {# --- Body Battery (morning/wake-time value) --- #}
+        {% set latest = health.body_battery_morning if (health and health.body_battery_morning is not none) else (yesterday_health.body_battery_morning if (yesterday_health and yesterday_health.body_battery_morning is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.body_battery_morning is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.body_battery_morning if (avg_metrics and avg_metrics.body_battery_morning is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if avg_metrics.steps >= 8000 %}bg-green-50 border-green-200
-            {% elif avg_metrics.steps >= 5000 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Steps</p>
-            <p class="text-xl font-bold text-gray-900">{{ "{:,}".format(avg_metrics.steps) }} <span class="text-xs font-normal text-gray-400">avg</span></p>
-            {% if yesterday_health and yesterday_health.steps is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ "{:,}".format(yesterday_health.steps) }}</p>
+            {% if color_val is not none %}{% if color_val >= 75 %}bg-green-50 border-green-200{% elif color_val >= 40 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Body Battery</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ avg }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">7d avg</p>
             {% endif %}
         </div>
         {% endif %}
-        {# Avg Stress — 7d avg primary #}
-        {% if avg_metrics.avg_stress is defined %}
+
+        {# --- Sleep Score --- #}
+        {% set latest = health.sleep_score if (health and health.sleep_score is not none) else (yesterday_health.sleep_score if (yesterday_health and yesterday_health.sleep_score is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.sleep_score is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.sleep_score if (avg_metrics and avg_metrics.sleep_score is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if avg_metrics.avg_stress <= 25 %}bg-green-50 border-green-200
-            {% elif avg_metrics.avg_stress <= 50 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Avg Stress</p>
-            <p class="text-xl font-bold text-gray-900">{{ avg_metrics.avg_stress }} <span class="text-xs font-normal text-gray-400">avg</span></p>
-            {% if yesterday_health and yesterday_health.avg_stress is not none %}
-            <p class="text-xs text-gray-400 mt-0.5">Yesterday: {{ yesterday_health.avg_stress }}</p>
+            {% if color_val is not none %}{% if color_val >= 75 %}bg-green-50 border-green-200{% elif color_val >= 50 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Sleep Score</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
             {% endif %}
         </div>
         {% endif %}
-    </div>
-    {% elif health %}
-    {# Fallback: no 7-day data but today exists — show today's values #}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {% if health.resting_hr is not none %}
+
+        {# --- Sleep Duration --- #}
+        {% set latest = health.sleep_duration_minutes if (health and health.sleep_duration_minutes is not none) else (yesterday_health.sleep_duration_minutes if (yesterday_health and yesterday_health.sleep_duration_minutes is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.sleep_duration_minutes is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.sleep_duration_minutes if (avg_metrics and avg_metrics.sleep_duration_minutes is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if health.resting_hr <= 60 %}bg-green-50 border-green-200
-            {% elif health.resting_hr <= 75 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Resting Heart Rate</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.resting_hr }} <span class="text-xs font-normal text-gray-400">bpm</span></p>
+            {% if color_val is not none %}{% if color_val >= 420 and color_val <= 540 %}bg-green-50 border-green-200{% elif color_val >= 360 and color_val <= 600 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Sleep</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ (latest // 60) }}h {{ (latest % 60) }}m</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ (avg // 60) }}h {{ (avg % 60) }}m</p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ (latest // 60) }}h {{ (latest % 60) }}m</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ (avg // 60) }}h {{ (avg % 60) }}m</p><p class="text-xs text-gray-400">7d avg</p>
+            {% endif %}
         </div>
         {% endif %}
-        {% if health.hrv_status is not none %}
+
+        {# --- Training Readiness --- #}
+        {% set latest = health.training_readiness if (health and health.training_readiness is not none) else (yesterday_health.training_readiness if (yesterday_health and yesterday_health.training_readiness is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.training_readiness is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.training_readiness if (avg_metrics and avg_metrics.training_readiness is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if health.hrv_status >= 50 %}bg-green-50 border-green-200
-            {% elif health.hrv_status >= 30 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">HRV</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.hrv_status | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p>
+            {% if color_val is not none %}{% if color_val >= 67 %}bg-green-50 border-green-200{% elif color_val >= 34 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Readiness</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
+            {% endif %}
         </div>
         {% endif %}
-        {% if health.body_battery_high is not none %}
+
+        {# --- Steps --- #}
+        {% set latest = health.steps if (health and health.steps is not none) else (yesterday_health.steps if (yesterday_health and yesterday_health.steps is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.steps is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.steps if (avg_metrics and avg_metrics.steps is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if health.body_battery_high >= 75 %}bg-green-50 border-green-200
-            {% elif health.body_battery_high >= 40 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Body Battery</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.body_battery_high }}<span class="text-xs font-normal text-gray-400">%</span></p>
+            {% if color_val is not none %}{% if color_val >= 8000 %}bg-green-50 border-green-200{% elif color_val >= 5000 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Steps</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ "{:,}".format(latest) }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ "{:,}".format(avg) }}</p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ "{:,}".format(latest) }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ "{:,}".format(avg) }}</p><p class="text-xs text-gray-400">7d avg</p>
+            {% endif %}
         </div>
         {% endif %}
-        {% if health.sleep_score is not none %}
+
+        {# --- Avg Stress --- #}
+        {% set latest = health.avg_stress if (health and health.avg_stress is not none) else (yesterday_health.avg_stress if (yesterday_health and yesterday_health.avg_stress is not none) else none) %}
+        {% set latest_lbl = "Today" if (health and health.avg_stress is not none) else "Yesterday" %}
+        {% set avg = avg_metrics.avg_stress if (avg_metrics and avg_metrics.avg_stress is defined) else none %}
+        {% set color_val = latest if latest is not none else avg %}
+        {% if latest is not none or avg is not none %}
         <div class="rounded-lg shadow-sm border p-3
-            {% if health.sleep_score >= 75 %}bg-green-50 border-green-200
-            {% elif health.sleep_score >= 50 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Sleep Score</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.sleep_score }}</p>
+            {% if color_val is not none %}{% if color_val <= 25 %}bg-green-50 border-green-200{% elif color_val <= 50 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
+            <p class="text-xs text-gray-500 uppercase mb-1">Avg Stress</p>
+            {% if latest is not none and avg is not none %}
+            <div class="grid grid-cols-2 gap-1">
+                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
+                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
+            </div>
+            {% elif latest is not none %}
+            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
+            {% else %}
+            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
+            {% endif %}
         </div>
         {% endif %}
-        {% if health.sleep_duration_minutes is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if health.sleep_duration_minutes >= 420 and health.sleep_duration_minutes <= 540 %}bg-green-50 border-green-200
-            {% elif health.sleep_duration_minutes >= 360 and health.sleep_duration_minutes <= 600 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Sleep</p>
-            <p class="text-xl font-bold text-gray-900">{{ (health.sleep_duration_minutes // 60) }}h {{ (health.sleep_duration_minutes % 60) }}m</p>
-        </div>
-        {% endif %}
-        {% if health.training_readiness is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if health.training_readiness >= 67 %}bg-green-50 border-green-200
-            {% elif health.training_readiness >= 34 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Readiness</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.training_readiness }}</p>
-        </div>
-        {% endif %}
-        {% if health.steps is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if health.steps >= 8000 %}bg-green-50 border-green-200
-            {% elif health.steps >= 5000 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Steps</p>
-            <p class="text-xl font-bold text-gray-900">{{ "{:,}".format(health.steps) }}</p>
-        </div>
-        {% endif %}
-        {% if health.avg_stress is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if health.avg_stress <= 25 %}bg-green-50 border-green-200
-            {% elif health.avg_stress <= 50 %}bg-yellow-50 border-yellow-200
-            {% else %}bg-red-50 border-red-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase">Avg Stress</p>
-            <p class="text-xl font-bold text-gray-900">{{ health.avg_stress }}</p>
-        </div>
-        {% endif %}
+
     </div>
     {% else %}
     <div class="rounded-xl shadow-sm border border-gray-200 bg-white p-5">

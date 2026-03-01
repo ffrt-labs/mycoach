@@ -1,5 +1,6 @@
 """Activity history page — past workouts with details."""
 
+import contextlib
 import json
 from datetime import date, timedelta
 
@@ -70,17 +71,23 @@ async def history_page(
         for detail in details_result.scalars().all():
             gym_details.setdefault(detail.activity_id, []).append(detail)
 
-    # Check which activities have post-workout analyses
+    # Check which activities have post-workout analyses and fetch content
     activity_ids = [a.id for a in activities]
     analyzed_ids: set[int] = set()
+    analysis_data: dict[int, dict] = {}
     if activity_ids:
         analysis_result = await session.execute(
-            select(CoachingInsight.activity_id).where(
+            select(CoachingInsight).where(
                 CoachingInsight.insight_type == "post_workout",
                 CoachingInsight.activity_id.in_(activity_ids),
             )
         )
-        analyzed_ids = {row[0] for row in analysis_result.all() if row[0] is not None}
+        for insight in analysis_result.scalars().all():
+            if insight.activity_id is not None:
+                analyzed_ids.add(insight.activity_id)
+                if insight.content:
+                    with contextlib.suppress(json.JSONDecodeError, TypeError):
+                        analysis_data[insight.activity_id] = json.loads(insight.content)
 
     # Build activity cards data
     activity_cards: list[dict[str, object]] = []
@@ -105,6 +112,7 @@ async def history_page(
                 "activity": a,
                 "exercises": exercises,
                 "has_analysis": a.id in analyzed_ids,
+                "analysis_data": analysis_data.get(a.id),
                 "color": color,
                 "date_str": a.start_time.strftime("%b %d, %Y"),
                 "time_str": a.start_time.strftime("%H:%M"),
@@ -151,7 +159,9 @@ async def history_page(
             }
         )
 
-    selected_week_label = f"Week of {last_monday.strftime('%b')} {last_monday.day}, {last_monday.year}"
+    selected_week_label = (
+        f"Week of {last_monday.strftime('%b')} {last_monday.day}, {last_monday.year}"
+    )
 
     # Fetch weekly recap for the selected week
     recap_result = await session.execute(

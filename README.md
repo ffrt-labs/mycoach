@@ -176,7 +176,21 @@ Garmin API / Hevy CSV → Mappers → DB Models → Context Queries → Serializ
 ### Data Sources
 
 **Garmin Connect** (daily sync via `garminconnect` + `garth`):
-Docs: https://github.com/matin/garth?tab=readme-ov-file
+
+Two libraries work together: `garth` handles OAuth2 authentication and token persistence (`sources/garmin/auth.py`), while `garminconnect` uses those tokens to make raw REST API calls to Garmin Connect (`sources/garmin/client.py`). Note that `garth` also offers typed data classes (e.g., `garth.DailyBodyBatteryStress.get()`) that parse raw responses into Python objects with convenience properties — but we don't use those; we use `garminconnect`'s methods which return raw JSON dicts, giving us full access to all API fields including ones garth's typed classes don't surface (e.g., activity-linked Body Battery events, coaching feedback).
+
+- Docs (garth): https://garth.readthedocs.io/en/latest/api/data/
+- Docs (garminconnect): https://github.com/cyberjunky/python-garminconnect
+
+```
+garth.login() / garth.resume() → saves OAuth tokens to .garmin_tokens/
+    ↓
+garminconnect.Garmin().login(tokenstore=".garmin_tokens/") → loads tokens
+    ↓
+Garmin.get_body_battery(), get_stats(), etc. → raw JSON dicts
+    ↓
+mappers.py → extracts fields into DailyHealthSnapshot ORM model
+```
 
 | API Call | Metrics Collected |
 |----------|-------------------|

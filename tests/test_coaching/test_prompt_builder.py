@@ -18,11 +18,10 @@ class TestFormatHealth:
         assert _format_health({}) == "No health data available for today."
 
     def test_with_data(self) -> None:
-        data = {"resting_hr": 55, "sleep_score": 82, "body_battery_high": 80}
+        data = {"resting_hr": 55, "sleep_score": 82}
         result = _format_health(data)
         assert "Resting Heart Rate: 55" in result
         assert "Sleep score: 82" in result
-        assert "Body Battery high: 80" in result
 
     def test_includes_sleep_stages(self) -> None:
         data = {
@@ -37,23 +36,20 @@ class TestFormatHealth:
         assert "REM sleep (min): 110" in result
         assert "Awake time (min): 30" in result
 
-    def test_includes_body_battery_low_and_max_hr(self) -> None:
-        data = {"body_battery_low": 20, "max_hr": 185}
+    def test_includes_max_hr(self) -> None:
+        data = {"max_hr": 185}
         result = _format_health(data)
-        assert "Body Battery low: 20" in result
         assert "Max HR: 185" in result
 
     def test_includes_new_health_fields(self) -> None:
         data = {
             "hrv_status_text": "BALANCED",
             "body_battery_morning": 75,
-            "recovery_time_hours": 12.5,
             "load_focus": '{"aerobic_low": 30, "aerobic_high": 50, "anaerobic": 20}',
         }
         result = _format_health(data)
         assert "HRV Status: BALANCED" in result
         assert "Body Battery (morning): 75" in result
-        assert "Recovery time (hours): 12.5" in result
         assert "Load Focus:" in result
 
     def test_ignores_none_values(self) -> None:

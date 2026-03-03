@@ -41,3 +41,11 @@ class TestPostWorkoutResponseParsing:
         data["key_highlights"] = []
         with pytest.raises(ValueError, match="validation"):
             parse_response(json.dumps(data), PostWorkoutResponse)
+
+    def test_planned_vs_actual_optional(self) -> None:
+        import json
+
+        data = json.loads(VALID_JSON)
+        del data["planned_vs_actual"]
+        result = parse_response(json.dumps(data), PostWorkoutResponse)
+        assert result.planned_vs_actual is None

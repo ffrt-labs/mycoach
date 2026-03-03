@@ -35,6 +35,11 @@ class Activity(Base):
     avg_cadence: Mapped[int | None] = mapped_column(default=None)
     avg_swolf: Mapped[float | None] = mapped_column(Float, default=None)
 
+    # Swimming-specific metrics
+    moving_duration_seconds: Mapped[float | None] = mapped_column(Float, default=None)
+    fastest_split_100_seconds: Mapped[float | None] = mapped_column(Float, default=None)
+    avg_strokes_per_length: Mapped[float | None] = mapped_column(Float, default=None)
+
     # Source tracking
     data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, merged
     garmin_activity_id: Mapped[str | None] = mapped_column(String(100), default=None, unique=True)

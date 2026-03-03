@@ -1,5 +1,6 @@
 """Loads prompt templates and formats them with context data."""
 
+import json
 from datetime import date
 from importlib import resources
 from pathlib import Path
@@ -31,6 +32,68 @@ def get_system_prompt(version: str = "v1") -> str:
     return _load_template("system.txt", version)
 
 
+_TRAINING_STATUS_MAP = {
+    "0": "No Status",
+    "1": "Detraining",
+    "2": "Recovery",
+    "3": "Maintaining",
+    "4": "Productive",
+    "5": "Peaking",
+    "6": "Overreaching",
+    "7": "Unproductive",
+    "8": "Strained",
+}
+
+_LOAD_FOCUS_FEEDBACK_MAP = {
+    "AEROBIC_LOW_SHORTAGE": "Lacking low-aerobic training load",
+    "AEROBIC_HIGH_SHORTAGE": "Lacking high-aerobic training load",
+    "ANAEROBIC_SHORTAGE": "Lacking anaerobic training load",
+    "BALANCED": "Balanced training load",
+    "AEROBIC_LOW_SURPLUS": "Excess low-aerobic training load",
+    "AEROBIC_HIGH_SURPLUS": "Excess high-aerobic training load",
+    "ANAEROBIC_SURPLUS": "Excess anaerobic training load",
+    "LOW_LOAD": "Low overall training load",
+}
+
+
+def _format_training_status(val: Any) -> str:
+    """Format training_status from numeric or string Garmin value."""
+    s = str(val)
+    if s in _TRAINING_STATUS_MAP:
+        return _TRAINING_STATUS_MAP[s]
+    if s.isupper():
+        return s.replace("_", " ").title()
+    return s
+
+
+def _format_load_focus(val: Any) -> str:
+    """Parse load_focus JSON and format as readable string."""
+    if not val:
+        return str(val)
+    try:
+        data = json.loads(val) if isinstance(val, str) else val
+    except (json.JSONDecodeError, TypeError):
+        return str(val)
+    if not isinstance(data, dict):
+        return str(val)
+
+    parts = []
+    for key, label in [
+        ("aerobic_low", "Low aerobic"),
+        ("aerobic_high", "High aerobic"),
+        ("anaerobic", "Anaerobic"),
+    ]:
+        v = data.get(key)
+        if v is not None:
+            parts.append(f"{label} {v:.1f}")
+    result = ", ".join(parts)
+    feedback = data.get("feedback")
+    if feedback:
+        fb_text = _LOAD_FOCUS_FEEDBACK_MAP.get(feedback, feedback.replace("_", " ").title())
+        result += f". Feedback: {fb_text}"
+    return result
+
+
 def _format_health(snapshot: dict[str, Any]) -> str:
     if not snapshot:
         return "No health data available for today."
@@ -38,7 +101,7 @@ def _format_health(snapshot: dict[str, Any]) -> str:
     field_labels = {
         "resting_hr": "Resting Heart Rate",
         "avg_hr": "Avg HR",
-        "max_hr": "Max HR",
+        "max_hr": "Max HR (all day)",
         "hrv_status": "HRV",
         "hrv_7day_avg": "HRV 7-day avg",
         "sleep_duration_minutes": "Sleep duration (min)",
@@ -60,6 +123,10 @@ def _format_health(snapshot: dict[str, Any]) -> str:
     for key, label in field_labels.items():
         val = snapshot.get(key)
         if val is not None:
+            if key == "training_status":
+                val = _format_training_status(val)
+            elif key == "load_focus":
+                val = _format_load_focus(val)
             lines.append(f"- {label}: {val}")
     return "\n".join(lines) if lines else "No health data available for today."
 
@@ -88,20 +155,38 @@ def _format_activities(activities: list[dict[str, Any]]) -> str:
         if duration:
             extras.append(f"{duration} min")
         distance = a.get("distance_meters")
-        if distance:
-            if distance >= 1000:
-                extras.append(f"{distance / 1000:.1f}km")
-            else:
+        if sport == "swimming":
+            # Swimming-specific compact format
+            if distance:
                 extras.append(f"{distance:.0f}m")
-        avg_hr = a.get("avg_hr")
-        if avg_hr:
-            extras.append(f"avg HR {avg_hr}")
-        calories = a.get("calories")
-        if calories:
-            extras.append(f"{calories} cal")
-        te = a.get("training_effect_aerobic")
-        if te:
-            extras.append(f"TE {te}")
+                moving_secs = a.get("moving_duration_seconds")
+                pace_secs = moving_secs if moving_secs else (duration * 60 if duration else None)
+                if pace_secs and distance > 0:
+                    pace_per_100 = pace_secs / (distance / 100)
+                    extras.append(f"pace {_format_seconds_as_pace(pace_per_100)}/100m")
+            swolf = a.get("avg_swolf")
+            if swolf is not None:
+                extras.append(f"SWOLF {swolf}")
+            strokes = a.get("avg_strokes_per_length")
+            if strokes is not None:
+                extras.append(f"{strokes} str/len")
+            epoc = a.get("epoc")
+            if epoc is not None:
+                extras.append(f"load {epoc}")
+        else:
+            if distance:
+                extras.append(f"{distance:.0f}m")
+                if duration and distance > 0 and sport != "gym":
+                    extras.append(f"pace {_format_pace(distance, duration, sport)}")
+            avg_hr = a.get("avg_hr")
+            if avg_hr:
+                extras.append(f"avg HR {avg_hr}")
+            calories = a.get("calories")
+            if calories:
+                extras.append(f"{calories} cal")
+            te = a.get("training_effect_aerobic")
+            if te:
+                extras.append(f"TE {te}")
         detail = f" ({', '.join(extras)})" if extras else ""
         lines.append(f"- {start}: {title} [{sport}]{detail}")
     return "\n".join(lines)
@@ -230,8 +315,6 @@ def _format_hr_zones(hr_zones_json: str) -> str:
     Handles Garmin format: list of objects with zone/zoneNumber and
     minutes/secsInZone fields.
     """
-    import json
-
     try:
         zones = json.loads(hr_zones_json)
     except (json.JSONDecodeError, TypeError):
@@ -256,8 +339,84 @@ def _format_hr_zones(hr_zones_json: str) -> str:
     return ", ".join(parts) if parts else hr_zones_json
 
 
+def _format_seconds_as_pace(seconds: float) -> str:
+    """Format seconds into min:sec string."""
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{mins}:{secs:02d}"
+
+
+def _format_swimming_activity_detail(activity: dict[str, Any]) -> str:
+    """Format a swimming activity showing only the 10 key metrics."""
+    lines = []
+
+    # 1. Total distance
+    distance = activity.get("distance_meters")
+    if distance is not None:
+        lines.append(f"- Total distance: {distance:.0f}m")
+
+    # 2. Moving duration
+    moving_secs = activity.get("moving_duration_seconds")
+    if moving_secs is not None:
+        lines.append(f"- Moving duration: {_format_seconds_as_pace(moving_secs)}")
+
+    # 3. Average pace (from distance / moving_duration, or fallback to total duration)
+    pace_secs = moving_secs
+    if pace_secs is None:
+        dur_min = activity.get("duration_minutes")
+        if dur_min is not None:
+            pace_secs = dur_min * 60
+    if distance and pace_secs and distance > 0:
+        pace_per_100 = pace_secs / (distance / 100)
+        lines.append(f"- Avg pace: {_format_seconds_as_pace(pace_per_100)}/100m")
+
+    # 4. HR time in zones
+    hr_zones = activity.get("hr_zones")
+    if hr_zones:
+        lines.append(f"- HR time in zones: {_format_hr_zones(hr_zones)}")
+
+    # 5. Aerobic training effect
+    te = activity.get("training_effect_aerobic")
+    if te is not None:
+        lines.append(f"- Aerobic training effect: {te}")
+
+    # 6. Activity training load (epoc)
+    epoc = activity.get("epoc")
+    if epoc is not None:
+        lines.append(f"- Activity training load: {epoc}")
+
+    # 7. Rest vs active time ratio
+    dur_min = activity.get("duration_minutes")
+    if dur_min and moving_secs and moving_secs > 0:
+        total_secs = dur_min * 60
+        rest_secs = total_secs - moving_secs
+        ratio = rest_secs / moving_secs
+        rest_str = f"{rest_secs:.0f}s rest / {moving_secs:.0f}s active"
+        lines.append(f"- Rest/active ratio: {ratio:.2f} ({rest_str})")
+
+    # 8. Fastest 100m
+    fastest = activity.get("fastest_split_100_seconds")
+    if fastest is not None:
+        lines.append(f"- Fastest 100m: {_format_seconds_as_pace(fastest)}/100m")
+
+    # 9. Average SWOLF
+    swolf = activity.get("avg_swolf")
+    if swolf is not None:
+        lines.append(f"- Avg SWOLF: {swolf}")
+
+    # 10. Strokes per length
+    strokes = activity.get("avg_strokes_per_length")
+    if strokes is not None:
+        lines.append(f"- Strokes per length: {strokes}")
+
+    return "\n".join(lines) if lines else "No activity data."
+
+
 def _format_activity_detail(activity: dict[str, Any]) -> str:
     """Format a single activity with all available fields."""
+    sport = activity.get("sport", "unknown")
+    if sport == "swimming":
+        return _format_swimming_activity_detail(activity)
     lines = []
     field_labels = {
         "title": "Title",
@@ -266,15 +425,13 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
         "end_time": "End",
         "duration_minutes": "Duration (min)",
         "distance_meters": "Distance (m)",
-        "avg_speed_mps": "Avg speed (m/s)",
         "avg_hr": "Avg HR",
-        "max_hr": "Max HR",
+        "max_hr": "Max HR (activity)",
         "calories": "Calories",
         "training_effect_aerobic": "Aerobic training effect",
         "training_effect_anaerobic": "Anaerobic training effect",
         "epoc": "EPOC",
         "recovery_time_minutes": "Recovery time (min)",
-        "avg_cadence": "Avg cadence",
         "avg_swolf": "Avg SWOLF",
         "data_source": "Data source",
     }
@@ -282,6 +439,20 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
         val = activity.get(key)
         if val is not None:
             lines.append(f"- {label}: {val}")
+
+    # Computed pace (replaces raw avg_speed_mps)
+    distance = activity.get("distance_meters")
+    duration = activity.get("duration_minutes")
+    if distance and duration and distance > 0 and sport != "gym":
+        pace_label = "Avg pace (min/100m)" if sport == "swimming" else "Avg pace (min/km)"
+        lines.append(f"- {pace_label}: {_format_pace(distance, duration, sport)}")
+
+    # Sport-aware cadence label
+    cadence = activity.get("avg_cadence")
+    if cadence is not None and sport != "gym":
+        cadence_label = "Avg stroke rate (spm)" if sport == "swimming" else "Avg cadence (spm)"
+        lines.append(f"- {cadence_label}: {cadence}")
+
     hr_zones = activity.get("hr_zones")
     if hr_zones:
         lines.append(f"- HR zones: {_format_hr_zones(hr_zones)}")
@@ -332,6 +503,61 @@ def _format_planned_session(planned: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _build_post_workout_schema(sport: str, has_planned: bool) -> str:
+    """Build the JSON output schema for post-workout analysis, sport-aware."""
+    sport_rec = {
+        "swimming": "sets, distance, intensity, stroke technique focus",
+        "gym": "weights, volume, intensity adjustments",
+        "running": "distance, pace targets, interval structure",
+    }
+    rec_label = sport_rec.get(sport, "volume, intensity, technique adjustments")
+
+    # Schema fields as (key, description) pairs
+    schema: list[tuple[str, str]] = [
+        ("performance_summary", "Brief overall assessment of the workout quality and effort"),
+    ]
+    if has_planned:
+        schema.append((
+            "planned_vs_actual",
+            "Comparison to planned session — adherence, deviations, and why",
+        ))
+    schema.extend([
+        (
+            "performance_trends",
+            "How this session compares to recent similar workouts"
+            " — improvements, regressions, plateaus",
+        ),
+        (
+            "hr_analysis",
+            "Heart rate zone analysis and cardiovascular response"
+            " (or 'No HR data available')",
+        ),
+        (
+            "training_effect_assessment",
+            "Assessment of aerobic/anaerobic training effect"
+            " and what it means for adaptation",
+        ),
+        ("key_highlights", '["List of 2-4 specific positive highlights"]'),
+        ("areas_for_improvement", '["List of 1-3 areas to work on next"]'),
+        (
+            "next_session_recommendations",
+            f"Specific recommendations for next workout ({rec_label})",
+        ),
+        (
+            "recovery_notes",
+            "Post-workout recovery recommendations"
+            " based on effort level and health context",
+        ),
+    ])
+    lines = []
+    for key, desc in schema:
+        if desc.startswith("["):
+            lines.append(f'  "{key}": {desc}')
+        else:
+            lines.append(f'  "{key}": "{desc}"')
+    return "{{\n" + ",\n".join(lines) + "\n}}"
+
+
 def build_post_workout_prompt(
     *,
     activity: dict[str, Any],
@@ -342,14 +568,53 @@ def build_post_workout_prompt(
     version: str = "v1",
 ) -> str:
     """Build the user message for a post-workout analysis LLM call."""
-    template = _load_template("post_workout.txt", version)
-    return template.format(
-        activity_data=_format_activity_detail(activity),
-        gym_details=_format_gym_details(gym_details),
-        planned_session=_format_planned_session(planned_session),
-        similar_activities=_format_activities(similar_activities),
-        health_context=_format_health(health_context),
-    )
+    sport = activity.get("sport", "unknown")
+    has_planned = planned_session is not None
+
+    # Build training status label for glossary
+    ts_val = health_context.get("training_status")
+    ts_label = _format_training_status(ts_val) if ts_val else "Not available"
+
+    # Build sections conditionally
+    sections = [
+        "Analyze the following completed workout and provide a post-workout coaching analysis.",
+        "",
+        "## Glossary",
+        "- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.",
+        "- EPOC: excess post-exercise oxygen consumption."
+        " Indicates training load and recovery need.",
+        "- Training Effect: 1-2 minor, 2-3 maintaining,"
+        " 3-4 improving, 4-5 highly improving.",
+        f"- Training Status: {ts_label}",
+        "",
+        "## Completed Activity",
+        _format_activity_detail(activity),
+    ]
+
+    if gym_details:
+        sections.extend(["", "## Gym Workout Details", _format_gym_details(gym_details)])
+
+    if has_planned:
+        sections.extend(["", "## Planned Session", _format_planned_session(planned_session)])
+
+    sections.extend([
+        "",
+        "## Recent Similar Activities (last 5 of same sport)",
+        _format_activities(similar_activities),
+        "",
+        "## Today's Health Context",
+        _format_health(health_context),
+        "",
+        "Provide a detailed post-workout analysis."
+        + (" Compare actual performance to the planned session." if has_planned else "")
+        + " Identify performance trends by comparing to recent similar workouts."
+        + " Be specific about what went well and what to improve.",
+        "",
+        "Respond with a JSON object matching this exact schema:",
+        _build_post_workout_schema(sport, has_planned),
+    ])
+
+    return "\n".join(sections)
 
 
 
@@ -571,6 +836,9 @@ def activity_to_dict(activity: Any) -> dict[str, Any]:
         "recovery_time_minutes": activity.recovery_time_minutes,
         "avg_cadence": activity.avg_cadence,
         "avg_swolf": activity.avg_swolf,
+        "moving_duration_seconds": activity.moving_duration_seconds,
+        "fastest_split_100_seconds": activity.fastest_split_100_seconds,
+        "avg_strokes_per_length": activity.avg_strokes_per_length,
         "data_source": activity.data_source,
     }
 
@@ -717,12 +985,94 @@ def _format_cardio_slots(slots: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _format_health_trends_averaged(averaged: dict[str, Any]) -> str:
+    """Format averaged health trends as a concise single block."""
+    if not averaged:
+        return "No recent health data."
+    days = averaged.get("days_with_data", "?")
+    lines = [f"Based on {days} days of data:"]
+    metric_labels = {
+        "resting_hr": "Avg Resting HR",
+        "avg_hr": "Avg HR",
+        "hrv_status": "Avg HRV",
+        "sleep_duration_minutes": "Avg Sleep (min)",
+        "sleep_score": "Avg Sleep Score",
+        "avg_stress": "Avg Stress",
+        "training_readiness": "Avg Training Readiness",
+        "training_load": "Avg Training Load",
+        "body_battery_morning": "Avg Body Battery (morning)",
+        "vo2_max": "VO2 Max",
+        "training_status": "Training Status",
+        "hrv_status_text": "HRV Status",
+        "load_focus": "Load Focus",
+    }
+    for key, label in metric_labels.items():
+        val = averaged.get(key)
+        if val is not None:
+            if key == "training_status":
+                val = _format_training_status(val)
+            elif key == "load_focus":
+                val = _format_load_focus(val)
+            lines.append(f"- {label}: {val}")
+    return "\n".join(lines)
+
+
+def _format_last_week_training_log(activities: list[dict[str, Any]]) -> str:
+    """Format all last-week activities for the gym adjustment prompt.
+
+    Shows all sports. For gym activities with nested gym_details, shows set-level data.
+    """
+    if not activities:
+        return "No training logged last week."
+    parts = []
+    for a in activities:
+        sport = a.get("sport", "unknown")
+        title = a.get("title", "Untitled")
+        start = a.get("start_time", "?")
+        duration = a.get("duration_minutes")
+        extras: list[str] = []
+        if duration:
+            extras.append(f"{duration} min")
+        distance = a.get("distance_meters")
+        if distance:
+            extras.append(f"{distance:.0f}m")
+            if duration and distance > 0 and sport != "gym":
+                extras.append(f"pace {_format_pace(distance, duration, sport)}")
+        avg_hr = a.get("avg_hr")
+        if avg_hr:
+            extras.append(f"avg HR {avg_hr}")
+        detail = f" ({', '.join(extras)})" if extras else ""
+        parts.append(f"- {start}: {title} [{sport}]{detail}")
+
+        # Append gym set details if present
+        gym_details = a.get("gym_details")
+        if gym_details:
+            current_ex = ""
+            for d in gym_details:
+                ex = d.get("exercise_title", "Unknown")
+                if ex != current_ex:
+                    current_ex = ex
+                    parts.append(f"  **{ex}**")
+                w = d.get("weight_kg")
+                r = d.get("reps")
+                rpe = d.get("rpe")
+                set_parts = [f"    Set {d.get('set_index', '?')}:"]
+                if w is not None:
+                    set_parts.append(f"{w}kg")
+                if r is not None:
+                    set_parts.append(f"x{r}")
+                if rpe is not None:
+                    set_parts.append(f"RPE {rpe}")
+                parts.append(" ".join(set_parts))
+    return "\n".join(parts)
+
+
 def build_gym_adjustment_prompt(
     *,
     routine_day_name: str,
     routine_exercises: list[dict[str, Any]],
-    last_week_performance: list[dict[str, Any]],
-    health_trends: list[dict[str, Any]],
+    health_trends: dict[str, Any],
+    last_week_activities: list[dict[str, Any]] | None = None,
     mesocycle_context: str | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
     version: str = "v2",
@@ -732,8 +1082,8 @@ def build_gym_adjustment_prompt(
     return template.format(
         routine_day_name=routine_day_name,
         routine_exercises=_format_routine_exercises(routine_exercises),
-        last_week_performance=_format_gym_performance(last_week_performance),
-        health_trends=_format_health_trends(health_trends),
+        last_week_activities=_format_last_week_training_log(last_week_activities or []),
+        health_trends=_format_health_trends_averaged(health_trends),
         mesocycle_context=mesocycle_context
         or "No mesocycle configured. Use general progressive programming.",
         sport_profiles=_format_sport_profiles(sport_profiles or []),

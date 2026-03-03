@@ -5,10 +5,10 @@ Adjust the weights, RPE, and volume for today's gym session based on last week's
 ### Exercises
 {routine_exercises}
 
-## Last Week's Logged Performance
-{last_week_performance}
+## Last Week's Full Training Log
+{last_week_activities}
 
-## Health Trends
+## Health Summary (7-day avg)
 {health_trends}
 
 ## Mesocycle Context
@@ -22,7 +22,8 @@ Adjust the weights, RPE, and volume for today's gym session based on last week's
 - If last week's data shows the user completed all reps at a given weight with RPE < 8, suggest a small increase (1-2.5kg upper body, 2.5-5kg lower body)
 - If RPE was high (9-10) or reps were not completed, keep or slightly reduce the weight
 - If this is a deload week, reduce weights by ~20% and RPE targets to 5-6
-- Consider health trends: poor sleep/recovery → conservative targets
+- Consider health summary: poor sleep/recovery averages → conservative targets
+- Consider the full training log: high total volume across all sports → more conservative gym targets
 - Add coaching notes for form cues or technique reminders where helpful
 
 Respond with a JSON object matching this exact schema:

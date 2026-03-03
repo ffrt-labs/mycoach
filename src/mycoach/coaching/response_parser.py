@@ -28,7 +28,7 @@ class WeeklyPlanResponse(BaseModel):
 
 class PostWorkoutResponse(BaseModel):
     performance_summary: str
-    planned_vs_actual: str
+    planned_vs_actual: str | None = None
     performance_trends: str
     hr_analysis: str
     training_effect_assessment: str

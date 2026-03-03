@@ -274,6 +274,17 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
         end = start + timedelta(seconds=duration_secs)
 
     hr_zones_raw = raw.get("heartRateZones")
+    if not hr_zones_raw:
+        # Fall back to flat hrTimeInZone_* fields (common for swimming)
+        flat_zones = {}
+        for i in range(1, 6):
+            val = _safe_float(raw.get(f"hrTimeInZone_{i}"))
+            if val is not None:
+                flat_zones[i] = val
+        if flat_zones:
+            hr_zones_raw = [
+                {"zoneNumber": z, "secsInZone": secs} for z, secs in sorted(flat_zones.items())
+            ]
     hr_zones_json = json.dumps(hr_zones_raw) if hr_zones_raw else None
 
     # Cadence: pick the right field based on sport
@@ -301,6 +312,9 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
         recovery_time_minutes=_safe_int(raw.get("recoveryTime")),
         avg_cadence=cadence,
         avg_swolf=_safe_float(raw.get("averageSwolf")),
+        moving_duration_seconds=_safe_float(raw.get("movingDuration")),
+        fastest_split_100_seconds=_safe_float(raw.get("fastestSplit_100")),
+        avg_strokes_per_length=_safe_float(raw.get("avgStrokes")),
         data_source="garmin",
         garmin_activity_id=str(raw.get("activityId")) if raw.get("activityId") else None,
         raw_data=json.dumps(raw, default=str),

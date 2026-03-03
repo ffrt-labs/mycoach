@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import Base
@@ -8,6 +8,7 @@ from mycoach.database import Base
 
 class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
+    __table_args__ = (UniqueConstraint("user_id", "week_start"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

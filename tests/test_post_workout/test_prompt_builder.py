@@ -1,22 +1,11 @@
 """Tests for post-workout prompt builder functions."""
 
-from pathlib import Path
-
-import pytest
-
 from mycoach.coaching.prompt_builder import (
     _format_activity_detail,
     _format_gym_details,
     _format_planned_session,
     build_post_workout_prompt,
-    set_prompt_dir,
 )
-
-
-@pytest.fixture(autouse=True)
-def _use_real_prompts() -> None:
-    """Reset prompt dir to use real templates."""
-    set_prompt_dir(Path(__file__).parent.parent.parent / "src" / "mycoach" / "prompts")
 
 
 class TestFormatActivityDetail:
@@ -123,3 +112,29 @@ class TestBuildPostWorkoutPrompt:
         assert "Upper Body" in result
         assert "Bench Press" in result
         assert "performance_summary" in result
+
+    def test_swimming_post_workout_uses_swimming_formatter(self) -> None:
+        result = build_post_workout_prompt(
+            activity={
+                "title": "Morning Swim",
+                "sport": "swimming",
+                "distance_meters": 2400,
+                "moving_duration_seconds": 2700.0,
+                "duration_minutes": 60,
+                "training_effect_aerobic": 3.5,
+                "epoc": 92.0,
+                "avg_swolf": 38.0,
+                "avg_strokes_per_length": 16,
+                "fastest_split_100_seconds": 105.0,
+            },
+            gym_details=[],
+            planned_session=None,
+            similar_activities=[],
+            health_context={},
+        )
+        assert "Total distance: 2400m" in result
+        assert "Activity training load: 92.0" in result
+        assert "Avg SWOLF: 38.0" in result
+        assert "Strokes per length: 16" in result
+        # Activity section should use swimming labels, not generic "EPOC"
+        assert "- EPOC: 92.0" not in result

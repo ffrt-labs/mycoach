@@ -16,6 +16,7 @@ from mycoach.api.error_handlers import register_error_handlers
 from mycoach.api.pages.availability import router as availability_page_router
 from mycoach.api.pages.dashboard import router as dashboard_router
 from mycoach.api.pages.history import router as history_router
+from mycoach.api.pages.mesocycles import router as mesocycles_page_router
 from mycoach.api.pages.plan import router as plan_router
 from mycoach.api.pages.prompt_logs import router as prompt_logs_page_router
 from mycoach.api.pages.routine import router as routine_page_router
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(plan_router)
     app.include_router(routine_page_router)
     app.include_router(prompt_logs_page_router)
+    app.include_router(mesocycles_page_router)
     app.include_router(sport_profiles_page_router)
 
     @app.get("/api/system/status")

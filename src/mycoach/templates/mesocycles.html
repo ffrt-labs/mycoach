@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Mesocycles — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-20 sm:pb-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Mesocycles</h1>
+        <p class="text-sm text-gray-500">Configure periodized training blocks per sport.</p>
+    </div>
+
+    <!-- Feedback banner -->
+    <div id="feedback" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+    <!-- Existing configs -->
+    {% for cfg in configs %}
+    <div id="meso-{{ cfg.sport }}" class="rounded-xl shadow-sm border border-gray-200 bg-white overflow-hidden">
+        <div class="px-4 py-4 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 capitalize">{{ cfg.sport }}</h2>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if cfg.phase == 'build' %}bg-blue-100 text-blue-800
+                        {% elif cfg.phase == 'peak' %}bg-orange-100 text-orange-800
+                        {% else %}bg-green-100 text-green-800{% endif %}">
+                        {{ cfg.phase }}
+                    </span>
+                    <span class="text-xs text-gray-500">Week {{ cfg.current_week }}/{{ cfg.block_length_weeks }}</span>
+                    <button type="button" onclick="deleteMeso('{{ cfg.sport }}')"
+                        class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Delete mesocycle">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-xs text-gray-500">
+                Started {{ cfg.start_date.strftime('%Y-%m-%d') }}
+            </div>
+
+            <!-- Week progress bar -->
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="h-2 rounded-full
+                    {% if cfg.phase == 'build' %}bg-blue-500
+                    {% elif cfg.phase == 'peak' %}bg-orange-500
+                    {% else %}bg-green-500{% endif %}"
+                    style="width: {{ (cfg.current_week / cfg.block_length_weeks * 100)|round }}%"></div>
+            </div>
+
+            <form onsubmit="updateMeso(event, '{{ cfg.sport }}')" class="space-y-3">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Phase</label>
+                        <select name="phase" class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                            {% for p in ['build', 'peak', 'deload'] %}
+                            <option value="{{ p }}" {% if cfg.phase == p %}selected{% endif %}>{{ p|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Current Week</label>
+                        <input type="number" name="current_week" min="1" value="{{ cfg.current_week }}"
+                            class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Block Length</label>
+                        <input type="number" name="block_length_weeks" min="1" value="{{ cfg.block_length_weeks }}" disabled
+                            class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 bg-gray-50 text-gray-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Progression Rules</label>
+                    <textarea name="progression_rules" rows="2" placeholder='e.g. {"weight_increment_kg": 2.5}'
+                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">{{ cfg.progression_rules or '' }}</textarea>
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
+                    Update
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not configs %}
+    <div class="text-center py-12 text-gray-400">
+        <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <p class="font-medium">No mesocycles configured</p>
+        <p class="text-sm mt-1">Add your first training block below.</p>
+    </div>
+    {% endif %}
+
+    <!-- Add new mesocycle -->
+    {% if available_sports %}
+    <div class="rounded-xl shadow-sm border border-gray-200 border-dashed bg-white overflow-hidden">
+        <div class="px-4 py-4 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900">Add Mesocycle</h2>
+            <form id="add-form" onsubmit="createMeso(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Sport</label>
+                    <select name="sport" required class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                        {% for s in available_sports %}
+                        <option value="{{ s }}">{{ s|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Block Length (weeks)</label>
+                        <input type="number" name="block_length_weeks" min="1" value="4" required
+                            class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+                        <input type="date" name="start_date" required
+                            class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Phase</label>
+                    <select name="phase" class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="build" selected>Build</option>
+                        <option value="peak">Peak</option>
+                        <option value="deload">Deload</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Progression Rules</label>
+                    <textarea name="progression_rules" rows="2" placeholder='e.g. {"weight_increment_kg": 2.5}'
+                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                </div>
+                <button type="submit"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
+                    Add Mesocycle
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Default start_date to today
+document.addEventListener('DOMContentLoaded', function() {
+    var dateInput = document.querySelector('input[name="start_date"]');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+});
+
+function showFeedback(msg, ok) {
+    var el = document.getElementById('feedback');
+    el.textContent = msg;
+    el.className = 'rounded-lg px-4 py-3 text-sm font-medium ' +
+        (ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (ok) setTimeout(function() { location.reload(); }, 1500);
+}
+
+function formData(form) {
+    var data = {};
+    var fd = new FormData(form);
+    fd.forEach(function(val, key) { data[key] = val || null; });
+    return data;
+}
+
+function createMeso(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = formData(form);
+    // Ensure numeric fields are numbers
+    if (data.block_length_weeks) data.block_length_weeks = parseInt(data.block_length_weeks);
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    fetch('/api/mesocycles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).then(function(resp) {
+        if (resp.ok) {
+            showFeedback('Mesocycle added.', true);
+        } else {
+            return resp.json().then(function(d) {
+                showFeedback('Error: ' + (d.detail || 'Unknown error'), false);
+            });
+        }
+    }).catch(function(err) {
+        showFeedback('Network error: ' + err.message, false);
+    }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Add Mesocycle';
+    });
+}
+
+function updateMeso(e, sport) {
+    e.preventDefault();
+    var form = e.target;
+    var data = formData(form);
+    // Ensure numeric fields are numbers
+    if (data.current_week) data.current_week = parseInt(data.current_week);
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    fetch('/api/mesocycles/' + sport, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).then(function(resp) {
+        if (resp.ok) {
+            showFeedback('Mesocycle updated.', true);
+        } else {
+            return resp.json().then(function(d) {
+                showFeedback('Error: ' + (d.detail || 'Unknown error'), false);
+            });
+        }
+    }).catch(function(err) {
+        showFeedback('Network error: ' + err.message, false);
+    }).finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Update';
+    });
+}
+
+function deleteMeso(sport) {
+    if (!confirm('Delete the ' + sport + ' mesocycle?')) return;
+
+    fetch('/api/mesocycles/' + sport, { method: 'DELETE' })
+    .then(function(resp) {
+        if (resp.ok) {
+            showFeedback('Mesocycle deleted.', true);
+        } else {
+            return resp.json().then(function(d) {
+                showFeedback('Error: ' + (d.detail || 'Unknown error'), false);
+            });
+        }
+    }).catch(function(err) {
+        showFeedback('Network error: ' + err.message, false);
+    });
+}
+</script>
+{% endblock %}

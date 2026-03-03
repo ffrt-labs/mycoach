@@ -1,12 +1,23 @@
-Analyze the following completed workout and provide a post-workout coaching analysis.
+NOTE: This template is no longer used directly. The post-workout prompt is now
+built dynamically in prompt_builder.py:build_post_workout_prompt() to support
+conditional sections (glossary, gym details, planned session) and sport-aware
+output schema. This file is kept as a reference for the prompt structure.
+
+---
+
+## Glossary
+- SWOLF: swim efficiency = seconds per length + strokes per length. Lower = better.
+- EPOC: excess post-exercise oxygen consumption. Indicates training load and recovery need.
+- Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.
+- Training Status: {training_status_label}
 
 ## Completed Activity
 {activity_data}
 
-## Gym Workout Details (if gym session)
+## Gym Workout Details (conditional — only if gym session with data)
 {gym_details}
 
-## Planned Session (if available)
+## Planned Session (conditional — only if planned session exists)
 {planned_session}
 
 ## Recent Similar Activities (last 5 of same sport)
@@ -15,17 +26,10 @@ Analyze the following completed workout and provide a post-workout coaching anal
 ## Today's Health Context
 {health_context}
 
-Provide a detailed post-workout analysis. Compare actual performance to the planned session if available. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
+Provide a detailed post-workout analysis. Compare actual performance to the
+planned session (if available). Identify performance trends by comparing to
+recent similar workouts. Be specific about what went well and what to improve.
 
 Respond with a JSON object matching this exact schema:
-{{
-  "performance_summary": "Brief overall assessment of the workout quality and effort",
-  "planned_vs_actual": "Comparison to planned session — adherence, deviations, and why (or 'No planned session to compare')",
-  "performance_trends": "How this session compares to recent similar workouts — improvements, regressions, plateaus",
-  "hr_analysis": "Heart rate zone analysis and cardiovascular response (or 'No HR data available')",
-  "training_effect_assessment": "Assessment of aerobic/anaerobic training effect and what it means for adaptation",
-  "key_highlights": ["List of 2-4 specific positive highlights from the workout"],
-  "areas_for_improvement": ["List of 1-3 specific areas to work on in next similar session"],
-  "next_session_recommendations": "Specific recommendations for the next similar workout (weights, volume, intensity adjustments)",
-  "recovery_notes": "Post-workout recovery recommendations based on effort level and health context"
-}}
+(schema is built dynamically — planned_vs_actual omitted when no planned session,
+next_session_recommendations uses sport-aware labels)

@@ -135,9 +135,14 @@ async def get_plan_adherence_for_week(
     Returns a dict with total_sessions, completed_sessions, adherence_pct,
     and per-session breakdown. Returns None if no plan exists for the week.
     """
-    stmt = select(WeeklyPlan).where(
-        WeeklyPlan.user_id == user_id,
-        WeeklyPlan.week_start == week_start,
+    stmt = (
+        select(WeeklyPlan)
+        .where(
+            WeeklyPlan.user_id == user_id,
+            WeeklyPlan.week_start == week_start,
+        )
+        .order_by(WeeklyPlan.created_at.desc())
+        .limit(1)
     )
     result = await session.execute(stmt)
     plan = result.scalar_one_or_none()
@@ -416,6 +421,112 @@ async def get_last_week_gym_performance(
         }
         for d in detail_result.scalars().all()
     ]
+
+
+async def get_last_week_all_activities(
+    session: AsyncSession,
+    user_id: int,
+    week_start: date,
+) -> list[dict[str, Any]]:
+    """Get ALL activities from the previous week (all sports), with gym details nested.
+
+    Returns list of activity dicts. Gym activities include a 'gym_details' key
+    with set-level data.
+    """
+    prev_week_start = week_start - timedelta(days=7)
+    prev_week_end = week_start
+
+    stmt = (
+        select(Activity)
+        .where(
+            Activity.user_id == user_id,
+            Activity.start_time >= prev_week_start.isoformat(),
+            Activity.start_time < prev_week_end.isoformat(),
+        )
+        .order_by(Activity.start_time)
+    )
+    result = await session.execute(stmt)
+    activities = result.scalars().all()
+
+    output: list[dict[str, Any]] = []
+    for a in activities:
+        d = activity_to_dict(a)
+        if a.sport == "gym":
+            detail_stmt = (
+                select(GymWorkoutDetail)
+                .where(GymWorkoutDetail.activity_id == a.id)
+                .order_by(GymWorkoutDetail.exercise_title, GymWorkoutDetail.set_index)
+            )
+            detail_result = await session.execute(detail_stmt)
+            d["gym_details"] = [
+                {
+                    "exercise_title": det.exercise_title,
+                    "set_index": det.set_index,
+                    "weight_kg": det.weight_kg,
+                    "reps": det.reps,
+                    "rpe": det.rpe,
+                }
+                for det in detail_result.scalars().all()
+            ]
+        output.append(d)
+    return output
+
+
+async def get_health_trends_averaged(
+    session: AsyncSession, user_id: int, days: int = 7, today: date | None = None
+) -> dict[str, Any]:
+    """Get a 7-day averaged health summary instead of individual daily snapshots.
+
+    Computes averages for numeric fields, keeps latest value for text/status fields.
+    Returns a single dict with averaged metrics.
+    """
+    today = today or date.today()
+    since = today - timedelta(days=days)
+    stmt = (
+        select(DailyHealthSnapshot)
+        .where(
+            DailyHealthSnapshot.user_id == user_id,
+            DailyHealthSnapshot.snapshot_date >= since,
+            DailyHealthSnapshot.snapshot_date < today,
+        )
+        .order_by(DailyHealthSnapshot.snapshot_date.desc())
+    )
+    result = await session.execute(stmt)
+    snapshots = result.scalars().all()
+
+    if not snapshots:
+        return {}
+
+    numeric_fields = [
+        "resting_hr", "avg_hr", "hrv_status", "sleep_duration_minutes",
+        "sleep_score", "avg_stress", "training_readiness", "training_load",
+        "body_battery_morning",
+    ]
+    text_fields = ["training_status", "hrv_status_text", "load_focus"]
+    static_fields = ["vo2_max"]
+
+    averaged: dict[str, Any] = {"days_with_data": len(snapshots)}
+
+    # Compute averages for numeric fields
+    for field in numeric_fields:
+        values = [getattr(s, field) for s in snapshots if getattr(s, field, None) is not None]
+        if values:
+            averaged[field] = round(sum(values) / len(values), 1)
+
+    # Latest value for text/status fields (snapshots ordered desc, so [0] is latest)
+    latest = snapshots[0]
+    for field in text_fields:
+        val = getattr(latest, field, None)
+        if val is not None:
+            averaged[field] = val
+
+    # Latest for static fields
+    for field in static_fields:
+        val = getattr(latest, field, None)
+        if val is not None:
+            averaged[field] = val
+
+    return averaged
 
 
 async def get_last_week_cardio_performance(

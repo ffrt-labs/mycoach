@@ -17,8 +17,9 @@ from mycoach.coaching.context import (
     get_gym_details_for_week,
     get_gym_performance_history,
     get_health_trends,
+    get_health_trends_averaged,
+    get_last_week_all_activities,
     get_last_week_cardio_performance,
-    get_last_week_gym_performance,
     get_mesocycle_context,
     get_plan_adherence_for_week,
     get_recent_activities,
@@ -207,12 +208,23 @@ class CoachingEngine:
             logger.error("LLM call failed (%s): %s", response_model.__name__, error_msg)
 
             if llm_response is not None:
+                # If truncated, retry with doubled token budget
+                retry_tokens = max_tokens
+                if llm_response.stop_reason == "max_tokens":
+                    retry_tokens = max_tokens * 2
+                    logger.warning(
+                        "Response truncated (stop_reason=max_tokens, used %d tokens). "
+                        "Retrying with max_tokens=%d",
+                        llm_response.output_tokens,
+                        retry_tokens,
+                    )
+
                 try:
                     llm_response = self._llm.call(
                         system=system,
                         user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
                         model=model,
-                        max_tokens=max_tokens,
+                        max_tokens=retry_tokens,
                     )
                     parsed = parse_response(llm_response.content, response_model)
                     error_msg = None
@@ -258,13 +270,18 @@ class CoachingEngine:
         if not availability:
             raise ValueError(f"No availability slots set for week of {week_start}")
 
-        health_trends = await get_health_trends(session, user_id, days=7, today=week_start)
+        health_trends_avg = await get_health_trends_averaged(
+            session, user_id, days=7, today=week_start
+        )
         mesocycle_ctx = await get_mesocycle_context(session, user_id)
         system_prompt = get_system_prompt(PROMPT_VERSION)
 
-        # 2. Fetch routine + sport profiles
+        # 2. Fetch routine + sport profiles + last week's full training log
         routine = await get_active_routine(session, user_id)
         sport_profiles = await get_sport_profiles(session, user_id)
+        last_week_activities = await get_last_week_all_activities(
+            session, user_id, week_start
+        )
 
         # 3. Split slots by user-assigned sport
         gym_slots = [s for s in availability if s.get("sport") == "gym"]
@@ -291,20 +308,13 @@ class CoachingEngine:
         all_raw_outputs: list[str] = []
         summaries: list[str] = []
 
-        # 4. GYM TRACK — one LLM call per gym day (daily model, simpler task)
-        for slot in gym_slots:
-            routine_day = gym_day_map[slot["day_of_week"]]
-            exercise_names = [ex["exercise_name"] for ex in routine_day["exercises"]]
-
-            last_perf = await get_last_week_gym_performance(
-                session, user_id, exercise_names, week_start
-            )
-
+        # 4. GYM TRACK — one LLM call per routine day (not per gym slot)
+        for routine_day in sorted_routine_days:
             user_message = build_gym_adjustment_prompt(
                 routine_day_name=routine_day["name"],
                 routine_exercises=routine_day["exercises"],
-                last_week_performance=last_perf,
-                health_trends=health_trends,
+                health_trends=health_trends_avg,
+                last_week_activities=last_week_activities,
                 mesocycle_context=mesocycle_ctx,
                 sport_profiles=sport_profiles,
                 version=PROMPT_VERSION,
@@ -314,6 +324,7 @@ class CoachingEngine:
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.daily_model,
+                max_tokens=8192,
                 response_model=GymAdjustmentResponse,
             )
 
@@ -335,6 +346,12 @@ class CoachingEngine:
 
             if llm_response and llm_response.content:
                 all_raw_outputs.append(llm_response.content)
+
+            # Find matching gym slot for this routine day (for PlannedSession day_of_week)
+            matched_slot = next(
+                (s for s in gym_slots if gym_day_map.get(s["day_of_week"]) is routine_day),
+                None,
+            )
 
             if parsed is not None:
                 # Build details combining routine exercises + LLM adjustments
@@ -365,52 +382,57 @@ class CoachingEngine:
                     )
 
                 details = {"exercises": exercises_detail}
-                planned = PlannedSession(
-                    plan_id=plan.id,
-                    day_of_week=slot["day_of_week"],
-                    sport="gym",
-                    title=routine_day["name"],
-                    duration_minutes=parsed.estimated_duration_minutes,
-                    details=json.dumps(details),
-                    notes=parsed.session_notes,
-                    track="gym",
-                )
-                session.add(planned)
+                if matched_slot is not None:
+                    planned = PlannedSession(
+                        plan_id=plan.id,
+                        day_of_week=matched_slot["day_of_week"],
+                        sport="gym",
+                        title=routine_day["name"],
+                        duration_minutes=parsed.estimated_duration_minutes,
+                        details=json.dumps(details),
+                        notes=parsed.session_notes,
+                        track="gym",
+                    )
+                    session.add(planned)
             else:
                 logger.warning(
                     "Gym adjustment failed for %s, creating session from routine only",
                     routine_day["name"],
                 )
-                exercises_detail = [
-                    {
-                        "name": ex["exercise_name"],
-                        "sets": ex["sets"],
-                        "reps": ex["rep_range"],
-                        "notes": ex.get("notes"),
-                        "superset_group": ex.get("superset_group"),
-                    }
-                    for ex in routine_day["exercises"]
-                ]
-                planned = PlannedSession(
-                    plan_id=plan.id,
-                    day_of_week=slot["day_of_week"],
-                    sport="gym",
-                    title=routine_day["name"],
-                    duration_minutes=None,
-                    details=json.dumps({"exercises": exercises_detail}),
-                    notes="LLM adjustment failed — using base routine.",
-                    track="gym",
-                )
-                session.add(planned)
+                if matched_slot is not None:
+                    exercises_detail = [
+                        {
+                            "name": ex["exercise_name"],
+                            "sets": ex["sets"],
+                            "reps": ex["rep_range"],
+                            "notes": ex.get("notes"),
+                            "superset_group": ex.get("superset_group"),
+                        }
+                        for ex in routine_day["exercises"]
+                    ]
+                    planned = PlannedSession(
+                        plan_id=plan.id,
+                        day_of_week=matched_slot["day_of_week"],
+                        sport="gym",
+                        title=routine_day["name"],
+                        duration_minutes=None,
+                        details=json.dumps({"exercises": exercises_detail}),
+                        notes="LLM adjustment failed — using base routine.",
+                        track="gym",
+                    )
+                    session.add(planned)
 
         # 5. CARDIO TRACK — single LLM call (weekly model, creative task)
         if cardio_slots:
             last_cardio = await get_last_week_cardio_performance(session, user_id, week_start)
+            health_trends_list = await get_health_trends(
+                session, user_id, days=7, today=week_start
+            )
 
             user_message = build_cardio_plan_prompt(
                 cardio_slots=cardio_slots,
                 last_week_cardio=last_cardio,
-                health_trends=health_trends,
+                health_trends=health_trends_list,
                 mesocycle_context=mesocycle_ctx,
                 sport_profiles=sport_profiles,
                 version=PROMPT_VERSION,
@@ -685,33 +707,13 @@ class CoachingEngine:
         )
 
         # Call LLM (daily model for cost efficiency)
-        llm_response: LLMResponse | None = None
-        error_msg: str | None = None
-        parsed: WeeklyRecapResponse | None = None
-
-        try:
-            llm_response = self._llm.call(
-                system=system_prompt,
-                user_message=user_message,
-                model=self._llm.daily_model,
-            )
-            parsed = parse_response(llm_response.content, WeeklyRecapResponse)
-        except Exception as e:
-            error_msg = str(e)
-            logger.error("Weekly recap generation failed: %s", error_msg)
-
-            if llm_response is not None:
-                try:
-                    llm_response = self._llm.call(
-                        system=system_prompt,
-                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
-                        model=self._llm.daily_model,
-                    )
-                    parsed = parse_response(llm_response.content, WeeklyRecapResponse)
-                    error_msg = None
-                except Exception as retry_err:
-                    error_msg = f"Retry also failed: {retry_err}"
-                    logger.error("Weekly recap retry failed: %s", retry_err)
+        llm_response, parsed, error_msg = self._call_llm_with_retry(
+            system=system_prompt,
+            user_message=user_message,
+            model=self._llm.daily_model,
+            max_tokens=8192,
+            response_model=WeeklyRecapResponse,
+        )
 
         # Log the prompt call
         prompt_log = PromptLog(

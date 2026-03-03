@@ -76,6 +76,7 @@ class AnthropicClient(LLMClient):
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
+            stop_reason=response.stop_reason,
         )
 
     @property

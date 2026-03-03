@@ -24,6 +24,7 @@ class LLMResponse:
     output_tokens: int
     latency_ms: int
     estimated_cost_usd: float
+    stop_reason: str | None = None
 
 
 class LLMClient(ABC):

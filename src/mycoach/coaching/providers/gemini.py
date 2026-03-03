@@ -70,6 +70,12 @@ class GeminiClient(LLMClient):
             latency_ms,
         )
 
+        # Map Gemini finish reasons to a consistent stop_reason
+        finish_reason = None
+        if response.candidates and response.candidates[0].finish_reason:
+            raw = response.candidates[0].finish_reason.name
+            finish_reason = "max_tokens" if raw == "MAX_TOKENS" else raw.lower()
+
         return LLMResponse(
             content=content,
             model=model,
@@ -77,6 +83,7 @@ class GeminiClient(LLMClient):
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
+            stop_reason=finish_reason,
         )
 
     @property

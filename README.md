@@ -11,6 +11,7 @@ Built for a single technically-proficient user training across multiple sports (
 - **Daily coaching feedback** — Morning briefing with sleep assessment, recovery status, training readiness verdict, and workout adjustments
 - **Post-workout analysis** — Actual vs. planned comparison, HR zone analysis, training effect, and recommendations
 - **Progressive programming** — Mesocycle tracking (4-6 week blocks), auto-progression, and fatigue management
+- **Mesocycle management** — Configure periodized training blocks (build/peak/deload phases) per sport, with week tracking and progression rules that guide the AI's programming decisions
 - **PWA interface** — Mobile-first dashboard with HTMX for real-time interactivity
 - **Email delivery** — Weekly plans, daily briefings, post-workout reports, and weekly recaps
 
@@ -101,6 +102,46 @@ Export your workouts from the Hevy app (Profile > Settings > Export Workouts), t
 ```bash
 curl -X POST http://localhost:8000/api/sources/hevy/import \
   -F "file=@hevy_export.csv"
+```
+
+### Configuring Mesocycles
+
+Mesocycles are periodized training blocks (typically 4-6 weeks) that tell the AI coach where you are in your training cycle. Each sport can have one active mesocycle with three phases:
+
+| Phase | Purpose |
+|-------|---------|
+| **Build** | Progressive overload — increasing volume and intensity each week |
+| **Peak** | Highest intensity — performance testing and competition prep |
+| **Deload** | Reduced volume — recovery and adaptation before the next block |
+
+Navigate to `/mesocycles` in the PWA to create and manage mesocycles. For each sport, you configure:
+
+- **Block length** — how many weeks the cycle lasts (e.g., 4)
+- **Current week** — where you are in the block (e.g., week 3 of 4)
+- **Phase** — build, peak, or deload
+- **Start date** — when the block began
+- **Progression rules** — optional JSON with sport-specific parameters (e.g., `{"weight_increment_kg": 2.5}`)
+
+The mesocycle context is included in weekly plan generation prompts (`gym_adjustment` and `cardio_plan`). Without a mesocycle configured, the LLM falls back to general progressive programming. With one configured, it tailors volume, intensity, and exercise selection to your current phase and week position — e.g., pushing harder in build week 3 vs. cutting volume in a deload week.
+
+You can also manage mesocycles via the REST API:
+
+```bash
+# Create a mesocycle
+curl -X POST http://localhost:8000/api/mesocycles \
+  -H "Content-Type: application/json" \
+  -d '{"sport": "gym", "block_length_weeks": 4, "start_date": "2026-03-03", "phase": "build"}'
+
+# List all mesocycles
+curl http://localhost:8000/api/mesocycles
+
+# Update phase and week
+curl -X PUT http://localhost:8000/api/mesocycles/gym \
+  -H "Content-Type: application/json" \
+  -d '{"phase": "deload", "current_week": 4}'
+
+# Delete a mesocycle
+curl -X DELETE http://localhost:8000/api/mesocycles/gym
 ```
 
 ## Scripts
@@ -249,6 +290,8 @@ mappers.py → extracts fields into DailyHealthSnapshot ORM model
 - Routine: `name`, `is_active`
 - Day: `name`, `day_of_week` (optional — when null, the engine dynamically assigns days via interleaving), `order_index`
 - Exercise: `exercise_name`, `sets`, `rep_range`, `notes`
+
+**MesocycleConfig** — per-sport periodization: `sport`, `phase` (build/peak/deload), `block_length_weeks`, `current_week`, `start_date`, `progression_rules`
 
 **CardioGoal** — per-sport targets: `sport`, `weekly_target`, `fitness_goal`
 

@@ -1,5 +1,6 @@
 """Database queries that gather context data for prompt building."""
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
@@ -14,6 +15,8 @@ from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
 from mycoach.models.sport_profile import SportProfile
+
+logger = logging.getLogger(__name__)
 
 
 async def get_today_health(
@@ -157,8 +160,29 @@ async def get_plan_adherence_for_week(
     sessions_result = await session.execute(sessions_stmt)
     sessions = sessions_result.scalars().all()
 
+    # Cross-reference actual activities to detect completions missed by post-workout flow
+    activities_stmt = (
+        select(Activity)
+        .where(
+            Activity.user_id == user_id,
+            Activity.start_time >= week_start.isoformat(),
+            Activity.start_time < (week_start + timedelta(days=7)).isoformat(),
+        )
+    )
+    activities_result = await session.execute(activities_stmt)
+    activities = activities_result.scalars().all()
+
+    done_set: set[tuple[int, str]] = set()
+    for act in activities:
+        from datetime import datetime as dt
+
+        act_dt = dt.fromisoformat(act.start_time) if isinstance(act.start_time, str) else act.start_time
+        done_set.add((act_dt.date().weekday(), act.sport))
+
     total = len(sessions)
-    completed = sum(1 for s in sessions if s.completed)
+    completed = sum(
+        1 for s in sessions if s.completed or (s.day_of_week, s.sport) in done_set
+    )
     adherence_pct = round(completed / total * 100, 1) if total > 0 else 0.0
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -167,7 +191,7 @@ async def get_plan_adherence_for_week(
             "day": day_names[s.day_of_week],
             "sport": s.sport,
             "title": s.title,
-            "completed": s.completed,
+            "completed": s.completed or (s.day_of_week, s.sport) in done_set,
         }
         for s in sessions
     ]
@@ -540,7 +564,7 @@ async def get_last_week_cardio_performance(
         select(Activity)
         .where(
             Activity.user_id == user_id,
-            Activity.sport.in_(["swimming", "running", "cardio"]),
+            Activity.sport.in_(["swimming", "running", "padel", "cardio"]),
             Activity.start_time >= prev_week_start.isoformat(),
             Activity.start_time < prev_week_end.isoformat(),
         )
@@ -599,7 +623,7 @@ async def get_today_planned_sessions(
         .order_by(PlannedSession.id)
     )
     session_result = await session.execute(session_stmt)
-    return [
+    sessions = [
         {
             "title": s.title,
             "sport": s.sport,
@@ -610,6 +634,34 @@ async def get_today_planned_sessions(
         }
         for s in session_result.scalars().all()
     ]
+
+    # Cross-validate against current availability — filter out stale sessions
+    avail_stmt = select(WeeklyAvailability).where(
+        WeeklyAvailability.user_id == user_id,
+        WeeklyAvailability.week_start == week_start,
+        WeeklyAvailability.day_of_week == day_of_week,
+    )
+    avail_result = await session.execute(avail_stmt)
+    avail_sports = {a.sport for a in avail_result.scalars().all()}
+
+    if not avail_sports:
+        if sessions:
+            logger.warning(
+                "No availability for day %d but %d planned sessions exist — filtering all",
+                day_of_week,
+                len(sessions),
+            )
+        return []
+
+    filtered = [s for s in sessions if s["sport"] in avail_sports]
+    if len(filtered) < len(sessions):
+        dropped = [s["sport"] for s in sessions if s["sport"] not in avail_sports]
+        logger.warning(
+            "Filtered %d planned sessions due to availability mismatch: %s",
+            len(dropped),
+            dropped,
+        )
+    return filtered
 
 
 async def get_gym_details_for_week(

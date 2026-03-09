@@ -204,6 +204,15 @@ class TestGetTodayPlannedSessions:
                     track="gym",
                 )
             )
+            # Matching availability for Wednesday
+            session.add(
+                WeeklyAvailability(
+                    user_id=user.id,
+                    week_start=date(2024, 6, 10),
+                    day_of_week=2,
+                    sport="running",
+                )
+            )
             await session.commit()
 
             result = await get_today_planned_sessions(session, user.id, today)
@@ -219,6 +228,87 @@ class TestGetTodayPlannedSessions:
             await session.refresh(user)
 
             result = await get_today_planned_sessions(session, user.id, date(2024, 6, 12))
+            assert result == []
+
+    async def test_filters_sessions_against_availability(self) -> None:
+        """Sessions whose sport doesn't match current availability are filtered out."""
+        async with test_session() as session:
+            user = User(email="t@t.com", name="T", fitness_level="beginner")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            # Wednesday 2024-06-12, week_start = Monday 2024-06-10
+            today = date(2024, 6, 12)
+            week_start = date(2024, 6, 10)
+
+            # Plan has swimming on Wednesday
+            plan = WeeklyPlan(
+                user_id=user.id,
+                week_start=week_start,
+                prompt_version="v2",
+                status="active",
+            )
+            session.add(plan)
+            await session.flush()
+
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,  # Wednesday
+                    sport="swimming",
+                    title="Pool Swim",
+                    duration_minutes=45,
+                    track="cardio",
+                )
+            )
+
+            # But availability now says gym on Wednesday (user changed it)
+            session.add(
+                WeeklyAvailability(
+                    user_id=user.id,
+                    week_start=week_start,
+                    day_of_week=2,
+                    sport="gym",
+                )
+            )
+            await session.commit()
+
+            result = await get_today_planned_sessions(session, user.id, today)
+            assert result == []
+
+    async def test_returns_empty_when_no_availability(self) -> None:
+        """If no availability slot exists for today, return empty list."""
+        async with test_session() as session:
+            user = User(email="t@t.com", name="T", fitness_level="beginner")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            today = date(2024, 6, 12)
+            plan = WeeklyPlan(
+                user_id=user.id,
+                week_start=date(2024, 6, 10),
+                prompt_version="v2",
+                status="active",
+            )
+            session.add(plan)
+            await session.flush()
+
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,
+                    sport="running",
+                    title="Easy Run",
+                    duration_minutes=30,
+                    track="cardio",
+                )
+            )
+            await session.commit()
+
+            # No availability set at all
+            result = await get_today_planned_sessions(session, user.id, today)
             assert result == []
 
 

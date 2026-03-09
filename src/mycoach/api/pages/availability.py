@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -18,6 +18,12 @@ USER_ID = 1  # Single-user MVP
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
+def _current_monday(ref: date | None = None) -> date:
+    """Return the Monday of the current week relative to `ref` (default: today)."""
+    d = ref or date.today()
+    return d - timedelta(days=d.weekday())
+
+
 def _next_monday(ref: date | None = None) -> date:
     """Return the Monday of the next week relative to `ref` (default: today)."""
     d = ref or date.today()
@@ -29,16 +35,20 @@ def _next_monday(ref: date | None = None) -> date:
 async def availability_page(
     request: Request,
     session: AsyncSession = Depends(get_db),
+    week: str = Query("next", pattern="^(current|next)$"),
 ) -> HTMLResponse:
-    """Render the availability input page for the upcoming week."""
+    """Render the availability input page for the selected week."""
+    current_mon = _current_monday()
     next_mon = _next_monday()
+    target_monday = current_mon if week == "current" else next_mon
+    week_label = "this week" if week == "current" else "next week"
 
-    # Fetch existing slots for next week
+    # Fetch existing slots for target week
     result = await session.execute(
         select(WeeklyAvailability)
         .where(
             WeeklyAvailability.user_id == USER_ID,
-            WeeklyAvailability.week_start == next_mon,
+            WeeklyAvailability.week_start == target_monday,
         )
         .order_by(WeeklyAvailability.day_of_week)
     )
@@ -52,7 +62,7 @@ async def availability_page(
     # Build week days with dates
     week_days = []
     for i in range(7):
-        day_date = next_mon + timedelta(days=i)
+        day_date = target_monday + timedelta(days=i)
         existing = slots_by_day.get(i)
         week_days.append(
             {
@@ -69,9 +79,11 @@ async def availability_page(
         "availability.html",
         {
             "active_page": "availability",
-            "week_start": next_mon,
-            "week_start_str": next_mon.strftime("%b %d"),
-            "week_end_str": (next_mon + timedelta(days=6)).strftime("%b %d, %Y"),
+            "week": week,
+            "week_label": week_label,
+            "week_start": target_monday,
+            "week_start_str": target_monday.strftime("%b %d"),
+            "week_end_str": (target_monday + timedelta(days=6)).strftime("%b %d, %Y"),
             "week_days": week_days,
         },
     )

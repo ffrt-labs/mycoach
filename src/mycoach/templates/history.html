@@ -103,8 +103,17 @@
             {% if recap_data.gym_coaching %}
             <div class="border-t border-blue-200 pt-4 mb-3">
                 <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Strength Analysis</h3>
-                    <p class="text-amber-900 text-xs">{{ recap_data.gym_coaching|md_bold }}</p>
+                    <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">Strength Analysis</h3>
+                    {% for day in recap_data.gym_coaching %}
+                    <div class="{% if not loop.first %}mt-3 pt-3 border-t border-amber-200{% endif %}">
+                        <h4 class="text-sm font-semibold text-amber-800 mb-1">{{ day.day_label }}</h4>
+                        <ul class="text-amber-900 text-sm list-disc ml-4 space-y-1">
+                            {% for ex in day.exercises %}
+                            <li>{{ ex|md_bold }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
             {% endif %}
@@ -125,8 +134,14 @@
             {% if recap_data.cardio_coaching %}
             <div class="mb-3">
                 <div class="bg-teal-50 border border-teal-200 rounded-lg p-3">
-                    <h3 class="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">Cardio Analysis</h3>
-                    <p class="text-teal-900 text-xs">{{ recap_data.cardio_coaching|md_bold }}</p>
+                    <h3 class="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-3">Cardio Analysis</h3>
+                    {% for discipline in recap_data.cardio_coaching %}
+                    <div class="{% if not loop.first %}mt-3 pt-3 border-t border-teal-200{% endif %}">
+                        <h4 class="text-sm font-semibold text-teal-800 mb-1">{{ discipline.sport }}</h4>
+                        <p class="text-teal-900 text-sm mb-1">{{ discipline.analysis|md_bold }}</p>
+                        <p class="text-teal-700 text-sm italic">{{ discipline.recommendation|md_bold }}</p>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
             {% endif %}

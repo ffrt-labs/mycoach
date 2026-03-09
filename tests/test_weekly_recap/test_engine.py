@@ -21,9 +21,9 @@ VALID_RECAP_RESPONSE = """{
   "areas_of_concern": ["Elevated Resting Heart Rate mid-week"],
   "recovery_assessment": "Sleep quality dipped mid-week.",
   "training_load_analysis": "Good distribution across gym and swimming.",
-  "gym_coaching": "Bench press progressing well. Squat stagnating at 120kg for 3 weeks.",
+  "gym_coaching": [{"day_label": "Day 1 (Push)", "exercises": ["Bench press progressing well", "Squat stagnating at 120kg for 3 weeks"]}],
   "exercise_substitutions": ["Squat → Bulgarian Split Squat because plateau at 120kg"],
-  "cardio_coaching": "Swimming pace steady. Add one fartlek session next week.",
+  "cardio_coaching": [{"sport": "Swimming", "analysis": "Pace steady at 2:30/100m.", "recommendation": "Add one fartlek session next week."}],
   "coach_recommendations": ["Deload on squat", "Add fartlek swim", "Sleep earlier"],
   "next_week_recommendations": "Reduce gym volume by 10%.",
   "mesocycle_progress": "Week 3 of 4 in build phase."

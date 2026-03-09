@@ -23,9 +23,6 @@ You are reviewing the past week as a personal trainer. Act on the data below wit
 ## Mesocycle Status
 {mesocycle_context}
 
-## Previous Weeks' Plans
-{plan_history}
-
 ## Planned Routine
 {routine_summary}
 
@@ -46,9 +43,20 @@ Respond with a JSON object matching this exact schema:
   "areas_of_concern": ["List of 1-3 concerns or areas that need attention"],
   "recovery_assessment": "Assessment of recovery status based on health trends (sleep, HRV, stress, Body Battery)",
   "training_load_analysis": "Analysis of training load distribution and balance across sports",
-  "gym_coaching": "Per-exercise strength analysis: progression, failed reps, plateau detection. Specific and data-driven.",
+  "gym_coaching": [
+    {{
+      "day_label": "Day 1 (Session Name)",
+      "exercises": ["Exercise Name: Progression/plateau/regression analysis with data"]
+    }}
+  ],
   "exercise_substitutions": ["For each stagnant or regressing exercise: '<Exercise> → <Alternative> because <reason>'"],
-  "cardio_coaching": "Cardio pace/HR analysis vs goals. Include specific drill or session recommendations if plateaued.",
+  "cardio_coaching": [
+    {{
+      "sport": "Swimming",
+      "analysis": "Pace/HR/efficiency analysis with specific data points",
+      "recommendation": "Specific drill or session recommendation"
+    }}
+  ],
   "coach_recommendations": ["3-5 specific, prioritized actions for next week — most important first"],
   "next_week_recommendations": "Overall next-week training focus and structure",
   "mesocycle_progress": "Progress within the current mesocycle block and any phase transition suggestions"

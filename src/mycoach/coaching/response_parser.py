@@ -39,16 +39,27 @@ class PostWorkoutResponse(BaseModel):
 
 
 
+class GymDayCoaching(BaseModel):
+    day_label: str
+    exercises: list[str] = Field(min_length=1)
+
+
+class CardioDisciplineCoaching(BaseModel):
+    sport: str
+    analysis: str
+    recommendation: str
+
+
 class WeeklyRecapResponse(BaseModel):
     week_summary: str
     adherence_analysis: str
-    performance_highlights: list[str] = Field(min_length=2, max_length=4)
-    areas_of_concern: list[str] = Field(min_length=1, max_length=3)
+    performance_highlights: list[str] = Field(min_length=2, max_length=6)
+    areas_of_concern: list[str] = Field(min_length=1, max_length=5)
     recovery_assessment: str
     training_load_analysis: str
-    gym_coaching: str = ""
+    gym_coaching: list[GymDayCoaching] = Field(default_factory=list)
     exercise_substitutions: list[str] = Field(default_factory=list)
-    cardio_coaching: str = ""
+    cardio_coaching: list[CardioDisciplineCoaching] = Field(default_factory=list)
     coach_recommendations: list[str] = Field(default_factory=list)
     next_week_recommendations: str
     mesocycle_progress: str

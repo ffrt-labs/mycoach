@@ -14,9 +14,6 @@ Provide a comprehensive weekly training recap for the past week.
 ## Mesocycle Status
 {mesocycle_context}
 
-## Previous Weeks' Plans (last 4 weeks)
-{plan_history}
-
 ## Planned Routine
 {routine_summary}
 

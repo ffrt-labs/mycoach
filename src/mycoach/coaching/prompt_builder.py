@@ -260,7 +260,6 @@ def build_daily_briefing_prompt(
     health_trends: list[dict[str, Any]],
     recent_activities: list[dict[str, Any]],
     planned_workout: str | list[dict[str, Any]] | None = None,
-    sport_profiles: list[dict[str, Any]] | None = None,
     version: str = "v1",
 ) -> str:
     """Build the user message for a daily briefing LLM call."""
@@ -274,7 +273,6 @@ def build_daily_briefing_prompt(
         health_trends=_format_health_trends(health_trends),
         recent_activities=_format_activities(recent_activities),
         planned_workout=formatted_workout,
-        sport_profiles=_format_sport_profiles(sport_profiles or []),
     )
 
 
@@ -749,7 +747,6 @@ def build_weekly_recap_prompt(
     weekly_activities: list[dict[str, Any]],
     health_trends: list[dict[str, Any]],
     mesocycle_context: str | None = None,
-    plan_history: list[dict[str, Any]] | None = None,
     routine: dict[str, Any] | None = None,
     availability: list[dict[str, Any]] | None = None,
     weekly_gym_details: list[dict[str, Any]] | None = None,
@@ -772,7 +769,6 @@ def build_weekly_recap_prompt(
         health_trends=_format_health_trends(health_trends),
         mesocycle_context=mesocycle_context
         or "No mesocycle configured. Use general progressive programming.",
-        plan_history=_format_plan_history(plan_history or []),
         routine_summary=_format_routine_summary(routine),
         availability=_format_availability(availability or []),
         sport_profiles=_format_sport_profiles(sport_profiles or []),

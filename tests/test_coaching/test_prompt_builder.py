@@ -256,6 +256,15 @@ class TestBuildDailyBriefingPrompt:
         assert "No recent activities" in prompt
         assert "No planned workout" in prompt
 
+    def test_no_sport_profiles_section(self) -> None:
+        prompt = build_daily_briefing_prompt(
+            health_today={"resting_hr": 55},
+            health_trends=[],
+            recent_activities=[],
+            version="v2",
+        )
+        assert "Sport Profiles" not in prompt
+
 
 class TestFormatTrainingStatus:
     def test_numeric_values(self) -> None:

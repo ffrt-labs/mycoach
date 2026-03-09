@@ -23,7 +23,6 @@ from mycoach.coaching.context import (
     get_mesocycle_context,
     get_plan_adherence_for_week,
     get_recent_activities,
-    get_recent_plan_summaries,
     get_similar_activities,
     get_sport_profiles,
     get_today_health,
@@ -103,7 +102,6 @@ class CoachingEngine:
         health_trends = await get_health_trends(session, user_id, days=3, today=today)
         recent_activities = await get_recent_activities(session, user_id, days=3, today=today)
         planned_sessions = await get_today_planned_sessions(session, user_id, today)
-        sport_profiles = await get_sport_profiles(session, user_id)
 
         # Build prompts
         system_prompt = get_system_prompt(PROMPT_VERSION)
@@ -112,7 +110,6 @@ class CoachingEngine:
             health_trends=health_trends,
             recent_activities=recent_activities,
             planned_workout=planned_sessions if planned_sessions else None,
-            sport_profiles=sport_profiles,
             version=PROMPT_VERSION,
         )
 
@@ -222,7 +219,7 @@ class CoachingEngine:
                 try:
                     llm_response = self._llm.call(
                         system=system,
-                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
+                        user_message=user_message + f"\n\nIMPORTANT: Respond ONLY with valid JSON. Your previous response had this error: {error_msg}",
                         model=model,
                         max_tokens=retry_tokens,
                     )
@@ -261,7 +258,11 @@ class CoachingEngine:
         existing_plan = existing.scalar_one_or_none()
         if existing_plan is not None:
             if force:
-                existing_plan.status = "replaced"
+                await session.execute(
+                    delete(PlannedSession).where(PlannedSession.plan_id == existing_plan.id)
+                )
+                await session.delete(existing_plan)
+                await session.flush()
             else:
                 raise ValueError(f"Active plan already exists for week of {week_start}")
 
@@ -269,6 +270,11 @@ class CoachingEngine:
         availability = await get_availability_for_week(session, user_id, week_start)
         if not availability:
             raise ValueError(f"No availability slots set for week of {week_start}")
+        logger.info(
+            "Availability for week %s: %s",
+            week_start,
+            [(s["day_name"], s["sport"]) for s in availability],
+        )
 
         health_trends_avg = await get_health_trends_averaged(
             session, user_id, days=7, today=week_start
@@ -287,13 +293,8 @@ class CoachingEngine:
         gym_slots = [s for s in availability if s.get("sport") == "gym"]
         cardio_slots = [s for s in availability if s.get("sport") != "gym"]
 
-        # Map routine days to gym slots in order
         routine_days = routine["days"] if routine else []
         sorted_routine_days = sorted(routine_days, key=lambda d: d.get("order_index", 0))
-        gym_day_map: dict[int, dict] = {}
-        for i, slot in enumerate(gym_slots):
-            if i < len(sorted_routine_days):
-                gym_day_map[slot["day_of_week"]] = sorted_routine_days[i]
 
         # Create the plan record
         plan = WeeklyPlan(
@@ -308,8 +309,13 @@ class CoachingEngine:
         all_raw_outputs: list[str] = []
         summaries: list[str] = []
 
-        # 4. GYM TRACK — one LLM call per routine day (not per gym slot)
-        for routine_day in sorted_routine_days:
+        # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed)
+        for i, slot in enumerate(gym_slots):
+            if not sorted_routine_days:
+                logger.warning("No routine days defined, skipping gym slot day %d", slot["day_of_week"])
+                continue
+            routine_day = sorted_routine_days[i % len(sorted_routine_days)]
+
             user_message = build_gym_adjustment_prompt(
                 routine_day_name=routine_day["name"],
                 routine_exercises=routine_day["exercises"],
@@ -347,12 +353,6 @@ class CoachingEngine:
             if llm_response and llm_response.content:
                 all_raw_outputs.append(llm_response.content)
 
-            # Find matching gym slot for this routine day (for PlannedSession day_of_week)
-            matched_slot = next(
-                (s for s in gym_slots if gym_day_map.get(s["day_of_week"]) is routine_day),
-                None,
-            )
-
             if parsed is not None:
                 # Build details combining routine exercises + LLM adjustments
                 exercises_detail = []
@@ -382,45 +382,43 @@ class CoachingEngine:
                     )
 
                 details = {"exercises": exercises_detail}
-                if matched_slot is not None:
-                    planned = PlannedSession(
-                        plan_id=plan.id,
-                        day_of_week=matched_slot["day_of_week"],
-                        sport="gym",
-                        title=routine_day["name"],
-                        duration_minutes=parsed.estimated_duration_minutes,
-                        details=json.dumps(details),
-                        notes=parsed.session_notes,
-                        track="gym",
-                    )
-                    session.add(planned)
+                planned = PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=slot["day_of_week"],
+                    sport="gym",
+                    title=routine_day["name"],
+                    duration_minutes=parsed.estimated_duration_minutes,
+                    details=json.dumps(details),
+                    notes=parsed.session_notes,
+                    track="gym",
+                )
+                session.add(planned)
             else:
                 logger.warning(
                     "Gym adjustment failed for %s, creating session from routine only",
                     routine_day["name"],
                 )
-                if matched_slot is not None:
-                    exercises_detail = [
-                        {
-                            "name": ex["exercise_name"],
-                            "sets": ex["sets"],
-                            "reps": ex["rep_range"],
-                            "notes": ex.get("notes"),
-                            "superset_group": ex.get("superset_group"),
-                        }
-                        for ex in routine_day["exercises"]
-                    ]
-                    planned = PlannedSession(
-                        plan_id=plan.id,
-                        day_of_week=matched_slot["day_of_week"],
-                        sport="gym",
-                        title=routine_day["name"],
-                        duration_minutes=None,
-                        details=json.dumps({"exercises": exercises_detail}),
-                        notes="LLM adjustment failed — using base routine.",
-                        track="gym",
-                    )
-                    session.add(planned)
+                exercises_detail = [
+                    {
+                        "name": ex["exercise_name"],
+                        "sets": ex["sets"],
+                        "reps": ex["rep_range"],
+                        "notes": ex.get("notes"),
+                        "superset_group": ex.get("superset_group"),
+                    }
+                    for ex in routine_day["exercises"]
+                ]
+                planned = PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=slot["day_of_week"],
+                    sport="gym",
+                    title=routine_day["name"],
+                    duration_minutes=None,
+                    details=json.dumps({"exercises": exercises_detail}),
+                    notes="LLM adjustment failed — using base routine.",
+                    track="gym",
+                )
+                session.add(planned)
 
         # 5. CARDIO TRACK — single LLM call (weekly model, creative task)
         if cardio_slots:
@@ -467,17 +465,49 @@ class CoachingEngine:
 
             if parsed is not None:
                 summaries.append(parsed.weekly_summary)
+                # Match LLM sessions to slots by sport — don't trust LLM's day_of_week
+                # Group LLM sessions by sport for matching
+                llm_by_sport: dict[str, list] = {}
                 for s in parsed.sessions:
-                    planned = PlannedSession(
-                        plan_id=plan.id,
-                        day_of_week=s.day_of_week,
-                        sport=s.sport,
-                        title=s.title,
-                        duration_minutes=s.duration_minutes,
-                        details=json.dumps(s.details) if s.details else None,
-                        notes=s.notes,
-                        track="cardio",
-                    )
+                    llm_by_sport.setdefault(s.sport, []).append(s)
+
+                for slot in cardio_slots:
+                    sport = slot["sport"]
+                    candidates = llm_by_sport.get(sport, [])
+                    if candidates:
+                        s = candidates.pop(0)
+                        if s.day_of_week != slot["day_of_week"]:
+                            logger.warning(
+                                "LLM returned day_of_week=%d for %s, slot is day %d — using slot",
+                                s.day_of_week,
+                                sport,
+                                slot["day_of_week"],
+                            )
+                        planned = PlannedSession(
+                            plan_id=plan.id,
+                            day_of_week=slot["day_of_week"],
+                            sport=sport,
+                            title=s.title,
+                            duration_minutes=s.duration_minutes,
+                            details=json.dumps(s.details) if s.details else None,
+                            notes=s.notes,
+                            track="cardio",
+                        )
+                    else:
+                        logger.warning(
+                            "No LLM session for %s on day %d — creating placeholder",
+                            sport,
+                            slot["day_of_week"],
+                        )
+                        planned = PlannedSession(
+                            plan_id=plan.id,
+                            day_of_week=slot["day_of_week"],
+                            sport=sport,
+                            title=f"{sport.capitalize()} Session",
+                            duration_minutes=None,
+                            notes="LLM did not generate a session for this slot.",
+                            track="cardio",
+                        )
                     session.add(planned)
             else:
                 logger.error("Cardio plan generation failed: %s", error_msg)
@@ -486,8 +516,8 @@ class CoachingEngine:
                     planned = PlannedSession(
                         plan_id=plan.id,
                         day_of_week=slot["day_of_week"],
-                        sport="running",
-                        title="Cardio Session (plan generation failed)",
+                        sport=slot["sport"],
+                        title=f"{slot['sport'].capitalize()} Session (plan generation failed)",
                         duration_minutes=None,
                         notes="LLM plan generation failed — please reschedule.",
                         track="cardio",
@@ -680,9 +710,6 @@ class CoachingEngine:
         weekly_activities = await get_activities_for_week(session, user_id, week_start)
         health_trends = await get_health_trends(session, user_id, days=7, today=week_start)
         mesocycle_ctx = await get_mesocycle_context(session, user_id)
-        plan_history = await get_recent_plan_summaries(
-            session, user_id, weeks=4, before_date=week_start
-        )
         routine = await get_active_routine(session, user_id)
         availability = await get_availability_for_week(session, user_id, week_start)
         sport_profiles = await get_sport_profiles(session, user_id)
@@ -697,7 +724,6 @@ class CoachingEngine:
             weekly_activities=weekly_activities,
             health_trends=health_trends,
             mesocycle_context=mesocycle_ctx,
-            plan_history=plan_history,
             routine=routine,
             availability=availability,
             weekly_gym_details=weekly_gym_details,

@@ -45,6 +45,55 @@ class TestWeeklyRecapParser:
         import json
 
         data = json.loads(VALID_RECAP_JSON)
-        data["areas_of_concern"] = ["One", "Two", "Three", "Four"]
+        data["areas_of_concern"] = ["One", "Two", "Three", "Four", "Five", "Six"]
         with pytest.raises(ValueError, match="failed validation"):
             parse_response(json.dumps(data), WeeklyRecapResponse)
+
+    def test_structured_gym_coaching(self) -> None:
+        import json
+
+        data = json.loads(VALID_RECAP_JSON)
+        data["gym_coaching"] = [
+            {
+                "day_label": "Day 1 (Push)",
+                "exercises": [
+                    "Bench Press: Prog. 80kg×8 vs 77.5kg×8",
+                    "Lateral Raise: Plateau. 20kg×10 for 3 weeks",
+                ],
+            },
+            {
+                "day_label": "Day 2 (Pull)",
+                "exercises": ["Deadlift: Regressed. 120kg×4 vs 120kg×5"],
+            },
+        ]
+        result = parse_response(json.dumps(data), WeeklyRecapResponse)
+        assert len(result.gym_coaching) == 2
+        assert result.gym_coaching[0].day_label == "Day 1 (Push)"
+        assert len(result.gym_coaching[0].exercises) == 2
+        assert len(result.gym_coaching[1].exercises) == 1
+
+    def test_structured_cardio_coaching(self) -> None:
+        import json
+
+        data = json.loads(VALID_RECAP_JSON)
+        data["cardio_coaching"] = [
+            {
+                "sport": "Swimming",
+                "analysis": "1250m at 2:30/100m, SWOLF 53.",
+                "recommendation": "Add catch-up drill sets for stroke length.",
+            },
+            {
+                "sport": "Running",
+                "analysis": "6.6km at 6:48/km, avg HR 131.",
+                "recommendation": "Add 2-3 tempo segments within easy runs.",
+            },
+        ]
+        result = parse_response(json.dumps(data), WeeklyRecapResponse)
+        assert len(result.cardio_coaching) == 2
+        assert result.cardio_coaching[0].sport == "Swimming"
+        assert result.cardio_coaching[1].sport == "Running"
+
+    def test_empty_gym_and_cardio_defaults(self) -> None:
+        result = parse_response(VALID_RECAP_JSON, WeeklyRecapResponse)
+        assert result.gym_coaching == []
+        assert result.cardio_coaching == []

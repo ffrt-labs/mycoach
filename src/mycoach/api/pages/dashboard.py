@@ -111,7 +111,7 @@ async def dashboard(
             WeeklyPlan.status == "active",
         )
     )
-    plan = plan_result.scalar_one_or_none()
+    plan = plan_result.scalars().first()
 
     today_session = None
     today_session_details = None
@@ -122,7 +122,7 @@ async def dashboard(
                 PlannedSession.day_of_week == weekday_num,
             )
         )
-        today_session = session_result.scalar_one_or_none()
+        today_session = session_result.scalars().first()
         if today_session and today_session.details:
             try:
                 today_session_details = json.loads(today_session.details)

@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    container_name: mycoach
     restart: unless-stopped
     env_file: .env
     environment:
@@ -8,26 +9,35 @@ services:
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - app-data:/data
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
+    # Uncomment to reach the app directly on the LAN (e.g. for debugging).
+    # ports:
+    #   - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/system/status', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
-  # Optional: Caddy reverse proxy for automatic HTTPS
-  # Uncomment and set your domain to enable.
-  #
-  # caddy:
-  #   image: caddy:2-alpine
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy-data:/data
-  #     - caddy-config:/config
-  #   depends_on:
-  #     - app
+  # Cloudflare Tunnel — exposes the app publicly with no open ports.
+  # The public hostname -> http://app:8000 mapping is configured in the
+  # Cloudflare Zero Trust dashboard for this token's tunnel.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mycoach-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      app:
+        condition: service_healthy
 
 volumes:
   app-data:
-  # caddy-data:
-  # caddy-config:

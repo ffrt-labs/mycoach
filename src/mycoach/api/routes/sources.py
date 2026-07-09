@@ -13,6 +13,8 @@ from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.sources.garmin.source import GarminSource
+from mycoach.sources.hevy.api_client import HevyRateLimitError
+from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.hevy.mappers import import_hevy_workouts
 from mycoach.sources.merger import merge_garmin_hevy
@@ -39,6 +41,13 @@ class GarminSyncResponse(BaseModel):
     activities_merged: int
     health_snapshots_created: int
     health_snapshots_updated: int = 0
+    errors: list[str]
+
+
+class HevySyncResponse(BaseModel):
+    activities_created: int
+    activities_skipped: int
+    activities_merged: int
     errors: list[str]
 
 
@@ -77,6 +86,53 @@ async def import_hevy_csv(
         activities_merged=merge_result.merged,
         rows_parsed=parse_result.rows_parsed,
         rows_skipped=parse_result.rows_skipped,
+        errors=all_errors,
+    )
+
+
+@router.post("/sync/hevy", response_model=HevySyncResponse)
+async def sync_hevy(
+    session: AsyncSession = Depends(get_db),
+    days: int = Query(default=90, ge=1, le=365),
+) -> HevySyncResponse:
+    """Trigger a Hevy API sync to fetch workouts directly from hevyapp.com.
+
+    Fetches workouts created in the last N days (default 90). Deduplicates
+    against existing data and auto-merges with any Garmin gym activities.
+    """
+    source = HevyApiSource()
+
+    try:
+        authenticated = await source.authenticate()
+    except HevyRateLimitError as e:
+        retry_msg = f" Retry after {e.retry_after}s." if e.retry_after else ""
+        raise HTTPException(
+            status_code=429,
+            detail=f"Hevy rate-limited — too many login attempts.{retry_msg} Wait and try again.",
+        ) from e
+
+    if not authenticated:
+        raise HTTPException(
+            status_code=503,
+            detail="Hevy authentication failed. Check MYCOACH_HEVY_EMAIL / MYCOACH_HEVY_PASSWORD.",
+        )
+
+    since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    since = since - timedelta(days=days)
+
+    result = await source.fetch_and_import(session, DEFAULT_USER_ID, since=since)
+
+    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
+    await session.commit()
+
+    all_errors = list(result.errors or [])
+    if merge_result.errors:
+        all_errors.extend(merge_result.errors)
+
+    return HevySyncResponse(
+        activities_created=result.activities_created,
+        activities_skipped=result.activities_skipped,
+        activities_merged=merge_result.merged,
         errors=all_errors,
     )
 

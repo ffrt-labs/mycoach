@@ -681,6 +681,26 @@
       delete (1), delete not found (1), default skill level (1)
   - All 375 tests pass, ruff clean, mypy clean
 
+- [x] **Test coverage expansion (>80% on critical paths)**
+  - Added `pytest-cov` dev dependency for coverage measurement
+  - `tests/test_coaching/test_llm_client.py`: 8 new tests for `LLMClient`
+    - `_estimate_cost()`: known Sonnet model, known Opus model, unknown model fallback, zero tokens
+    - `LLMClient.call()`: returns LLMResponse with correct fields, explicit model override,
+      concatenates multiple text blocks, skips non-text blocks
+    - Properties: `daily_model` and `weekly_model` accessors
+    - Constructor: explicit API key override
+  - `tests/test_coaching/test_api.py`: Expanded from 3 to 14 tests
+    - Sleep coaching: GET existing (200), GET missing (404), POST duplicate (409)
+    - Weekly recap: GET existing (200), GET defaults to last week, GET missing (404),
+      GET non-Monday (422), GET specific week (200), POST duplicate (409), POST non-Monday (409)
+  - `tests/test_plans/test_api.py`: Expanded from 14 to 19 tests
+    - Mark session completed: success, with activity_id link, session not found (404), plan not found (404)
+    - Current plan with data: returns plan for current week's Monday
+  - Total coverage: 81% (up from 80%), 400 tests (up from 375)
+  - Key coverage improvements: `llm_client.py` 62%→100%, `coaching.py` routes 62%→95%,
+    `plans.py` routes 51%→85%
+  - All 400 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
-- [ ] Phase 8 (continued): testing
+- All Phase 8 tasks complete. MVP development finished.

@@ -214,3 +214,79 @@ class TestGeneratePlan:
     async def test_generate_non_monday_409(self, client: AsyncClient) -> None:
         resp = await client.post("/api/plans/generate?week_start=2024-06-12")
         assert resp.status_code == 409
+
+
+class TestMarkSessionCompleted:
+    async def test_mark_completed(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+
+        resp = await client.patch(f"/api/plans/{plan_id}/sessions/{session_ids[0]}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["completed"] is True
+        assert data["activity_id"] is None
+
+    async def test_mark_completed_with_activity_id(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+
+        resp = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id=42"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["completed"] is True
+        assert data["activity_id"] == 42
+
+    async def test_mark_session_not_found(self, client: AsyncClient) -> None:
+        async with test_session() as session:
+            _, plan_id, _ = await _seed_plan_with_multiple_sessions(session)
+
+        resp = await client.patch(f"/api/plans/{plan_id}/sessions/999")
+        assert resp.status_code == 404
+
+    async def test_mark_session_plan_not_found(self, client: AsyncClient) -> None:
+        resp = await client.patch("/api/plans/999/sessions/1")
+        assert resp.status_code == 404
+
+
+class TestGetCurrentPlanWithData:
+    async def test_returns_current_week_plan(self, client: AsyncClient) -> None:
+        """When a plan exists for current week's Monday, return it."""
+        from datetime import timedelta
+
+        today = date.today()
+        current_monday = today - timedelta(days=today.weekday())
+
+        async with test_session() as session:
+            user = User(email="t@t.com", name="T", fitness_level="intermediate")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            plan = WeeklyPlan(
+                user_id=user.id,
+                week_start=current_monday,
+                prompt_version="v1",
+                status="active",
+                summary="This week",
+            )
+            session.add(plan)
+            await session.flush()
+
+            ps = PlannedSession(
+                plan_id=plan.id,
+                day_of_week=0,
+                sport="gym",
+                title="Monday Gym",
+                duration_minutes=60,
+            )
+            session.add(ps)
+            await session.commit()
+
+        resp = await client.get("/api/plans/current")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["summary"] == "This week"
+        assert len(data["sessions"]) == 1

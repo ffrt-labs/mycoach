@@ -30,6 +30,7 @@ dependencies = [
     "aiosmtplib>=3.0.0",
     # Phase 8: Security
     "cryptography>=42.0.0",
+    "google-genai>=1.63.0",
 ]
 
 [dependency-groups]

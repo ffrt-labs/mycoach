@@ -1,10 +1,11 @@
-"""Tests for LLM client wrapper — cost estimation, call method, properties."""
+"""Tests for LLM client — abstract interface, factory, and Anthropic provider."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mycoach.coaching.llm_client import LLMClient, LLMResponse, _estimate_cost
+from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
+from mycoach.coaching.providers.anthropic import AnthropicClient, _estimate_cost
 
 
 class TestEstimateCost:
@@ -29,9 +30,9 @@ class TestEstimateCost:
         assert cost == 0.0
 
 
-class TestLLMClient:
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+class TestAnthropicClient:
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_call_returns_llm_response(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -55,7 +56,7 @@ class TestLLMClient:
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_cls.return_value = mock_client
 
-        client = LLMClient()
+        client = AnthropicClient()
         result = client.call(system="You are a coach.", user_message="Hello")
 
         assert isinstance(result, LLMResponse)
@@ -73,8 +74,8 @@ class TestLLMClient:
             messages=[{"role": "user", "content": "Hello"}],
         )
 
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_call_with_explicit_model(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -97,7 +98,7 @@ class TestLLMClient:
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_cls.return_value = mock_client
 
-        client = LLMClient()
+        client = AnthropicClient()
         result = client.call(
             system="System", user_message="Msg", model="claude-opus-4-6", max_tokens=8192
         )
@@ -110,8 +111,8 @@ class TestLLMClient:
             messages=[{"role": "user", "content": "Msg"}],
         )
 
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_call_concatenates_multiple_text_blocks(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -137,12 +138,12 @@ class TestLLMClient:
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_cls.return_value = mock_client
 
-        client = LLMClient()
+        client = AnthropicClient()
         result = client.call(system="Sys", user_message="Msg")
         assert result.content == "Part 1. Part 2."
 
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_call_skips_non_text_blocks(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -167,12 +168,12 @@ class TestLLMClient:
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_cls.return_value = mock_client
 
-        client = LLMClient()
+        client = AnthropicClient()
         result = client.call(system="Sys", user_message="Msg")
         assert result.content == "Only text"
 
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_daily_and_weekly_model_properties(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -182,12 +183,12 @@ class TestLLMClient:
         settings.claude_model_weekly = "claude-opus-4-6"
         mock_settings.return_value = settings
 
-        client = LLMClient()
+        client = AnthropicClient()
         assert client.daily_model == "claude-sonnet-4-5-20250929"
         assert client.weekly_model == "claude-opus-4-6"
 
-    @patch("mycoach.coaching.llm_client.get_settings")
-    @patch("mycoach.coaching.llm_client.anthropic.Anthropic")
+    @patch("mycoach.coaching.providers.anthropic.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
     def test_init_with_explicit_api_key(
         self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
     ) -> None:
@@ -197,5 +198,38 @@ class TestLLMClient:
         settings.claude_model_weekly = "claude-opus-4-6"
         mock_settings.return_value = settings
 
-        LLMClient(api_key="custom-key")
+        AnthropicClient(api_key="custom-key")
         mock_anthropic_cls.assert_called_once_with(api_key="custom-key")
+
+
+class TestGetLLMClient:
+    @patch("mycoach.config.get_settings")
+    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
+    def test_factory_returns_anthropic_by_default(
+        self,
+        mock_anthropic_cls: MagicMock,
+        mock_settings: MagicMock,
+    ) -> None:
+        settings = MagicMock()
+        settings.llm_provider = "anthropic"
+        settings.claude_api_key = "test-key"
+        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
+        settings.claude_model_weekly = "claude-opus-4-6"
+        mock_settings.return_value = settings
+
+        client = get_llm_client()
+        assert isinstance(client, AnthropicClient)
+
+    @patch("mycoach.config.get_settings")
+    def test_factory_raises_for_unknown_provider(self, mock_settings: MagicMock) -> None:
+        settings = MagicMock()
+        settings.llm_provider = "openai"
+        mock_settings.return_value = settings
+
+        with pytest.raises(ValueError, match="Unknown LLM provider"):
+            get_llm_client()
+
+    def test_llm_client_is_abstract(self) -> None:
+        """Cannot instantiate LLMClient directly."""
+        with pytest.raises(TypeError):
+            LLMClient()  # type: ignore[abstract]

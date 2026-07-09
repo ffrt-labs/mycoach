@@ -1,20 +1,17 @@
-"""Anthropic Claude API client wrapper with token tracking and cost estimation."""
+"""Abstract LLM client interface and shared types.
+
+All provider implementations (Anthropic, Gemini, etc.) must subclass LLMClient
+and implement the `call` method. The rest of the coaching engine depends only
+on this interface, making providers swappable via configuration.
+"""
+
+from __future__ import annotations
 
 import logging
-import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import anthropic
-
-from mycoach.config import get_settings
-
 logger = logging.getLogger(__name__)
-
-# Pricing per million tokens (as of 2025)
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
-    "claude-opus-4-6": {"input": 15.0, "output": 75.0},
-}
 
 
 @dataclass
@@ -29,21 +26,14 @@ class LLMResponse:
     estimated_cost_usd: float
 
 
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    pricing = MODEL_PRICING.get(model, {"input": 15.0, "output": 75.0})
-    return (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
+class LLMClient(ABC):
+    """Abstract base class for LLM provider clients.
 
+    Subclasses must implement ``call`` and expose ``daily_model`` / ``weekly_model``
+    properties so the coaching engine can select the appropriate model tier.
+    """
 
-class LLMClient:
-    """Wrapper around the Anthropic Python SDK."""
-
-    def __init__(self, api_key: str | None = None) -> None:
-        settings = get_settings()
-        self._api_key = api_key or settings.claude_api_key
-        self._client = anthropic.Anthropic(api_key=self._api_key)
-        self._model_daily = settings.claude_model_daily
-        self._model_weekly = settings.claude_model_weekly
-
+    @abstractmethod
     def call(
         self,
         *,
@@ -52,62 +42,49 @@ class LLMClient:
         model: str | None = None,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """Send a message to Claude and return the response with usage metadata.
+        """Send a prompt to the LLM and return the response with usage metadata.
 
         Args:
             system: System prompt (coaching persona + instructions).
             user_message: User-facing prompt with assembled context.
-            model: Model ID to use. Defaults to daily model.
+            model: Model ID override. Defaults to the provider's daily model.
             max_tokens: Maximum tokens in the response.
 
         Returns:
             LLMResponse with content and usage stats.
-
-        Raises:
-            anthropic.APIError: On API failures (after SDK-level retries).
         """
-        model = model or self._model_daily
-        start = time.monotonic()
-
-        response = self._client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user_message}],
-        )
-
-        latency_ms = int((time.monotonic() - start) * 1000)
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
-
-        content = ""
-        for block in response.content:
-            if block.type == "text":
-                content += block.text
-
-        cost = _estimate_cost(model, input_tokens, output_tokens)
-        logger.info(
-            "LLM call: model=%s input=%d output=%d cost=$%.4f latency=%dms",
-            model,
-            input_tokens,
-            output_tokens,
-            cost,
-            latency_ms,
-        )
-
-        return LLMResponse(
-            content=content,
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            latency_ms=latency_ms,
-            estimated_cost_usd=cost,
-        )
 
     @property
+    @abstractmethod
     def daily_model(self) -> str:
-        return self._model_daily
+        """Model ID used for routine daily tasks (cost-optimised)."""
 
     @property
+    @abstractmethod
     def weekly_model(self) -> str:
-        return self._model_weekly
+        """Model ID used for weekly plan generation (quality-optimised)."""
+
+
+def get_llm_client() -> LLMClient:
+    """Factory — returns the LLM client for the configured provider.
+
+    Reads ``MYCOACH_LLM_PROVIDER`` from settings and instantiates the
+    matching provider. Defaults to ``"anthropic"`` for backward compatibility.
+    """
+    from mycoach.config import get_settings
+
+    settings = get_settings()
+    provider = settings.llm_provider.lower()
+
+    if provider == "anthropic":
+        from mycoach.coaching.providers.anthropic import AnthropicClient
+
+        return AnthropicClient()
+    elif provider == "gemini":
+        from mycoach.coaching.providers.gemini import GeminiClient
+
+        return GeminiClient()
+    else:
+        raise ValueError(
+            f"Unknown LLM provider: '{provider}'. Supported providers: anthropic, gemini"
+        )

@@ -48,6 +48,10 @@ jobs:
 
           CLOUDFLARE_TUNNEL_TOKEN=${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           EOF
+          # Drop keys whose secret/var was left undefined — an empty value would
+          # override the app's default and break typed fields (int/float/bool)
+          # and the timezone, crashing Settings() at startup.
+          sed -i '/^[A-Za-z_][A-Za-z0-9_]*=$/d' .env
 
       - name: Build image
         run: docker compose build

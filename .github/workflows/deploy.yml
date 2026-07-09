@@ -45,8 +45,6 @@ jobs:
           MYCOACH_EMAIL_SMTP_USER=${{ secrets.MYCOACH_EMAIL_SMTP_USER }}
           MYCOACH_EMAIL_SMTP_PASSWORD=${{ secrets.MYCOACH_EMAIL_SMTP_PASSWORD }}
           MYCOACH_EMAIL_RESEND_API_KEY=${{ secrets.MYCOACH_EMAIL_RESEND_API_KEY }}
-
-          CLOUDFLARE_TUNNEL_TOKEN=${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           EOF
           # Drop keys whose secret/var was left undefined — an empty value would
           # override the app's default and break typed fields (int/float/bool)

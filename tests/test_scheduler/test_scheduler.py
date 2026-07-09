@@ -5,7 +5,7 @@ from mycoach.scheduler.scheduler import create_scheduler
 
 
 def test_create_scheduler_registers_all_jobs() -> None:
-    """Scheduler should register all 5 pipeline jobs."""
+    """Scheduler should register all 6 pipeline jobs."""
     settings = Settings(
         scheduler_timezone="UTC",
         scheduler_sync_hour=6,
@@ -21,6 +21,7 @@ def test_create_scheduler_registers_all_jobs() -> None:
 
     job_ids = {job.id for job in scheduler.get_jobs()}
     assert job_ids == {
+        "hevy_sync",
         "garmin_sync",
         "daily_briefing",
         "post_workout_analysis",

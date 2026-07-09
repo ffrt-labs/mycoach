@@ -39,3 +39,6 @@ workout_data.csv
 refactor_llm_data.md
 afk-ralph.sh
 ralph-once.sh
+
+# HAR captures (may contain auth tokens/cookies)
+*.har

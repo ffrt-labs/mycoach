@@ -728,6 +728,41 @@
     activity detail with formatted zones, activity detail without zones
   - All tests pass, mypy clean
 
+- [x] **Hevy API Integration (direct fetch instead of CSV upload)**
+  - `sources/hevy/api_client.py`: `HevyApiClient` with async httpx
+    - `login(email, password)` → POST `/auth/login`, stores `Authorization: Bearer <token>`
+    - `get_workout_count()`, `get_workouts_batch(index)`, `fetch_all_workouts(since)`
+    - Headers: `x-api-key: shelobs_hevy_web`, `hevy-platform: web`
+    - Cursor-based pagination via `index` field from last workout in each batch
+    - `since` filter: stops early when batch contains workouts older than cutoff
+    - 401 re-auth: re-calls `login()` and retries on token expiry
+  - `sources/hevy/api_parser.py`: `parse_api_workouts(json) → HevyParseResult`
+    - Maps API JSON (Unix timestamps, exercises/sets arrays) → `HevyWorkout`/`HevySet`
+    - Reuses CSV parser types → full reuse of `import_hevy_workouts()` from `mappers.py`
+    - Handles null weight_kg, RPE out-of-range, missing start_time
+  - `sources/hevy/api_source.py`: `HevyApiSource(DataSource)`
+    - Follows `GarminSource` pattern, `source_type = "hevy_api"`
+    - `authenticate()` → login, `fetch_and_import()` → fetch + parse + import + dedup
+    - Graceful error handling: fetch failure returns ImportResult with errors
+  - `config.py`: Added `hevy_email`, `hevy_password`, `scheduler_hevy_sync_hour/minute`
+  - `api/routes/sources.py`: `POST /api/sources/sync/hevy`
+    - Auth, fetch (default 90 days), import, auto-merge with Garmin
+    - 503 on auth failure; returns `HevySyncResponse` with created/skipped/merged/errors
+  - `scheduler/jobs.py`: `job_hevy_sync()` — syncs last 14 days, runs before Garmin sync
+  - `scheduler/scheduler.py`: Hevy sync registered as job 0 (runs at 5:30 AM by default)
+  - `sources/hevy/__init__.py`: Exports `HevyApiClient`, `HevyApiSource`, `parse_api_workouts`
+  - `templates/dashboard.html`: "Import Hevy" CSV button replaced with "Sync Hevy" HTMX button
+    - Calls `POST /api/sources/sync/hevy?days=30`, shows spinner + result toast
+  - 23 new tests in `tests/test_sources/test_hevy_api.py`:
+    - API parser (8): basic parse, sets detail, null weight, multiple workouts, invalid start,
+      ISO datetime, RPE out of range, empty list
+    - API client (7): login success, no credentials, missing token, workout count, batch,
+      single-page pagination, since filter
+    - HevyApiSource (5): authenticate success/failure, fetch+import, deduplication, fetch error
+    - API endpoint (3): success, 503 auth failure, days param
+  - All 489 tests pass, ruff clean, mypy clean
+
 ## Next Up
 
 - LLM Data Pipeline Refactor: investigate raw Garmin data for new field extraction (recovery_time, load_focus, body_battery_morning, hrv_status_text, epoc, avg_cadence, avg_swolf)
+- Note: Hevy login endpoint (`POST /auth/login`) was inferred — verify against live API and adjust if 401s occur

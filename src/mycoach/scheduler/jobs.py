@@ -26,6 +26,7 @@ from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession
 from mycoach.models.user import User
 from mycoach.sources.garmin.source import GarminSource
+from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.merger import merge_garmin_hevy
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,39 @@ async def _get_user_email_pref(pref_field: str) -> bool:
         if user is None:
             return False
         return bool(getattr(user, pref_field, False))
+
+
+def job_hevy_sync() -> None:
+    """Sync gym workouts from Hevy API (runs before Garmin so merge picks up new data)."""
+    logger.info("Scheduler: starting Hevy sync")
+    _run_async(_hevy_sync())
+
+
+async def _hevy_sync() -> None:
+    source = HevyApiSource()
+    try:
+        if not await source.authenticate():
+            logger.error("Scheduler: Hevy authentication failed")
+            return
+    except Exception:
+        logger.exception("Scheduler: Hevy authentication error")
+        return
+
+    async with async_session() as session:
+        try:
+            since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            since = since - timedelta(days=14)
+            result = await source.fetch_and_import(session, USER_ID, since=since)
+            merge_result = await merge_garmin_hevy(session, USER_ID)
+            await session.commit()
+            logger.info(
+                "Scheduler: Hevy sync complete — activities=%d, skipped=%d, merged=%d",
+                result.activities_created,
+                result.activities_skipped,
+                merge_result.merged,
+            )
+        except Exception:
+            logger.exception("Scheduler: Hevy sync failed")
 
 
 def job_garmin_sync() -> None:

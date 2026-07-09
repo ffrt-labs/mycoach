@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     garmin_password: str = ""
     garmin_token_dir: Path = Field(default=Path(".garmin_tokens"))
 
+    # Hevy
+    hevy_email: str = ""
+    hevy_password: str = ""
+
     # LLM Provider (anthropic, gemini)
     llm_provider: str = "anthropic"
 
@@ -64,6 +68,8 @@ class Settings(BaseSettings):
     scheduler_post_workout_minute: int = 0
     scheduler_weekly_plan_day: str = "sun"
     scheduler_weekly_plan_hour: int = 18
+    scheduler_hevy_sync_hour: int = 5
+    scheduler_hevy_sync_minute: int = 30
 
 
     @model_validator(mode="after")

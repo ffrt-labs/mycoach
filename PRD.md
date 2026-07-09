@@ -26,14 +26,25 @@
 - Scheduled daily fetch (default 6:00 AM) + manual trigger
 - Robust re-auth on token expiration
 
-**Hevy CSV Import (gym workout data):**
+**Hevy (gym workout data):**
+
+**Primary: Hevy API Sync (direct fetch):**
+- Via Hevy's internal web API (`api.hevyapp.com`) using username/password authentication
+- **Endpoints:** `GET /workout_count`, `GET /workouts_batch/{index}` (cursor-based pagination)
+- **Auth:** Login with email/password to get JWT token, sent as `Authorization: Bearer <token>` + `x-api-key: shelobs_hevy_web` + `hevy-platform: web`
+- **Sync modes:** Manual trigger (UI button) + scheduled auto-sync (daily, before Garmin sync)
+- **Data:** Full exercise detail per workout: sets, reps, weight_kg, RPE, muscle_group, exercise_template_id, duration, distance
+- **Features:** Incremental sync (only new workouts), deduplication by title+start_time, automatic Garmin merge after sync
+
+**Fallback: Hevy CSV Import:**
 - Via Hevy's free CSV export (no Pro subscription required)
-- **Workflow:** User exports CSV from Hevy app (Profile > Settings > Export Workouts), then uploads to MyCoach via PWA or drops in a watched folder
+- **Workflow:** User exports CSV from Hevy app (Profile > Settings > Export Workouts), then uploads to MyCoach via PWA
 - **CSV columns:** title, start_time, end_time, exercise_title, superset_id, exercise_notes, set_index, set_type, weight_lbs, reps, distance_miles, duration_seconds, rpe
 - **Import features:** Deduplication (skip already-imported workouts by date+title), incremental import (only process new rows), validation + error reporting
+
 - **Key benefit:** Detailed gym data (exact weights, reps, RPE per set) that Garmin's strength tracking doesn't capture accurately. Zero subscription cost.
 
-**Data merging strategy:** Garmin provides the biometric context (how the body responded — HR, calories, training effect), Hevy CSV provides the gym workout details (what was actually done — exercises, weights, reps). For gym sessions, Hevy data is the source of truth for exercise details; Garmin provides the HR/calorie overlay. The system matches gym activities by date/time overlap. For swimming and padel, Garmin is the sole source.
+**Data merging strategy:** Garmin provides the biometric context (how the body responded — HR, calories, training effect), Hevy provides the gym workout details (what was actually done — exercises, weights, reps). For gym sessions, Hevy data is the source of truth for exercise details; Garmin provides the HR/calorie overlay. The system matches gym activities by date/time overlap. For swimming and padel, Garmin is the sole source.
 
 ### 1.2 Weekly Workout Plan Generation
 - User inputs weekly availability (day + time + duration + preferred sport)
@@ -82,7 +93,7 @@
 | Web Framework | FastAPI + Uvicorn |
 | Database | SQLite (MVP) → PostgreSQL (future), via SQLAlchemy 2.0 + Alembic |
 | Garmin | `garminconnect` + `garth` |
-| Hevy | CSV import (free export from Hevy app) |
+| Hevy | API sync (web API) + CSV import fallback |
 | LLM | Anthropic Python SDK (Claude API) |
 | Scheduler | APScheduler |
 | Frontend | Jinja2 + HTMX + Tailwind CSS |
@@ -176,7 +187,8 @@ mycoach/
 ```
 POST /api/sources/sync                    # Trigger sync from all sources (Garmin auto-fetch)
 POST /api/sources/sync/garmin             # Trigger Garmin sync manually
-POST /api/sources/import/hevy             # Upload Hevy CSV file for import
+POST /api/sources/sync/hevy                # Sync workouts from Hevy API
+POST /api/sources/import/hevy             # Upload Hevy CSV file (fallback)
 GET  /api/sources/status                  # Connection status of all data sources
 GET  /api/health/today                    # Today's health snapshot
 GET  /api/health/trends?days=30           # Health trends
@@ -200,6 +212,7 @@ GET  /api/system/status                   # Health check
 | Risk | Mitigation |
 |------|-----------|
 | Garmin blocks unofficial API | Store data locally once fetched; begin official API application early |
+| Hevy internal API changes/blocks | CSV import remains as fallback; API client handles 401 re-auth; login endpoint discovery at startup |
 | Hevy CSV export format changes | Store raw CSV alongside parsed data; parser is simple to update if columns change |
 | LLM hallucinations in workout plans | Safety guardrails in prompts, output validation (RPE ranges, reasonable reps/sets) |
 | Auth token expiration | Robust re-auth via garth, alerting on failure |
@@ -219,6 +232,7 @@ GET  /api/system/status                   # Health check
   - **Google Health Connect** — Android health data aggregation
   - **Oura Ring** — sleep, readiness, activity, HRV (complements Garmin)
   - **Whoop** — strain, recovery, sleep (alternative wearable)
+- ~~**Hevy API direct sync** — replace manual CSV upload with direct API fetch from Hevy's web API. Username/password auth, scheduled + manual sync, CSV kept as fallback.~~
 - **Built-in gym workout logger** — replace Hevy CSV with a minimal PWA logger (exercise picker, sets/reps/weight input). Eliminates manual CSV export step.
 - **wger integration** — alternative: deploy open-source wger (self-hosted) and connect via REST API
 - Nutrition tracking integration

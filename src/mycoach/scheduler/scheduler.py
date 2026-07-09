@@ -1,6 +1,7 @@
 """APScheduler setup — configures and manages the background scheduler.
 
-The scheduler runs five jobs as part of the daily coaching pipeline:
+The scheduler runs six jobs as part of the daily coaching pipeline:
+0. Hevy sync (default 5:30 AM) — fetch gym workouts from Hevy API
 1. Garmin sync (default 6:00 AM) — fetch health + activity data
 2. Daily briefing (default 6:30 AM) — LLM-generated coaching for the day
 3. Post-workout analysis (default 7:00 AM) — analyze new activities after sync
@@ -16,6 +17,7 @@ from mycoach.config import Settings
 from mycoach.scheduler.jobs import (
     job_daily_briefing,
     job_garmin_sync,
+    job_hevy_sync,
     job_post_workout_analysis,
     job_weekly_plan,
     job_weekly_recap,
@@ -41,6 +43,17 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
     Jobs are not started — call scheduler.start() to begin execution.
     """
     scheduler = BackgroundScheduler(timezone=settings.scheduler_timezone)
+
+    # 0. Hevy sync — daily, before Garmin so merge picks up new Hevy data
+    scheduler.add_job(
+        job_hevy_sync,
+        "cron",
+        id="hevy_sync",
+        hour=settings.scheduler_hevy_sync_hour,
+        minute=settings.scheduler_hevy_sync_minute,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
 
     # 1. Garmin sync — daily (fetches health + activities, then auto-merges)
     scheduler.add_job(
@@ -101,8 +114,10 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
     )
 
     logger.info(
-        "Scheduler configured: sync=%02d:%02d, briefing=%02d:%02d, "
+        "Scheduler configured: hevy=%02d:%02d, sync=%02d:%02d, briefing=%02d:%02d, "
         "post_workout=%02d:%02d, plan=%s@%02d:00, recap=mon@07:00, tz=%s",
+        settings.scheduler_hevy_sync_hour,
+        settings.scheduler_hevy_sync_minute,
         settings.scheduler_sync_hour,
         settings.scheduler_sync_minute,
         settings.scheduler_briefing_hour,

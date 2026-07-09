@@ -1,0 +1,59 @@
+name: Deploy to home server
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  deploy:
+    name: Deployment
+    runs-on: self-hosted
+    steps:
+      - name: Setup PATH
+        run: echo "/usr/bin" >> $GITHUB_PATH
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write .env from secrets and vars
+        run: |
+          cat > .env <<'EOF'
+          MYCOACH_ENV=production
+          MYCOACH_DEBUG=false
+          MYCOACH_LOG_LEVEL=INFO
+          MYCOACH_TIMEZONE=${{ vars.MYCOACH_TIMEZONE }}
+          MYCOACH_API_TOKEN=${{ secrets.MYCOACH_API_TOKEN }}
+          MYCOACH_ENCRYPTION_KEY=${{ secrets.MYCOACH_ENCRYPTION_KEY }}
+
+          MYCOACH_GARMIN_EMAIL=${{ secrets.MYCOACH_GARMIN_EMAIL }}
+          MYCOACH_GARMIN_PASSWORD=${{ secrets.MYCOACH_GARMIN_PASSWORD }}
+          MYCOACH_HEVY_EMAIL=${{ secrets.MYCOACH_HEVY_EMAIL }}
+          MYCOACH_HEVY_PASSWORD=${{ secrets.MYCOACH_HEVY_PASSWORD }}
+
+          MYCOACH_LLM_PROVIDER=${{ vars.MYCOACH_LLM_PROVIDER }}
+          MYCOACH_CLAUDE_API_KEY=${{ secrets.MYCOACH_CLAUDE_API_KEY }}
+          MYCOACH_CLAUDE_MODEL_DAILY=${{ vars.MYCOACH_CLAUDE_MODEL_DAILY }}
+          MYCOACH_CLAUDE_MODEL_WEEKLY=${{ vars.MYCOACH_CLAUDE_MODEL_WEEKLY }}
+          MYCOACH_CLAUDE_MONTHLY_COST_CEILING=${{ vars.MYCOACH_CLAUDE_MONTHLY_COST_CEILING }}
+          MYCOACH_GEMINI_API_KEY=${{ secrets.MYCOACH_GEMINI_API_KEY }}
+
+          MYCOACH_EMAIL_ENABLED=${{ vars.MYCOACH_EMAIL_ENABLED }}
+          MYCOACH_EMAIL_FROM=${{ secrets.MYCOACH_EMAIL_FROM }}
+          MYCOACH_EMAIL_TO=${{ secrets.MYCOACH_EMAIL_TO }}
+          MYCOACH_EMAIL_SMTP_HOST=${{ vars.MYCOACH_EMAIL_SMTP_HOST }}
+          MYCOACH_EMAIL_SMTP_PORT=${{ vars.MYCOACH_EMAIL_SMTP_PORT }}
+          MYCOACH_EMAIL_SMTP_USER=${{ secrets.MYCOACH_EMAIL_SMTP_USER }}
+          MYCOACH_EMAIL_SMTP_PASSWORD=${{ secrets.MYCOACH_EMAIL_SMTP_PASSWORD }}
+          MYCOACH_EMAIL_RESEND_API_KEY=${{ secrets.MYCOACH_EMAIL_RESEND_API_KEY }}
+
+          CLOUDFLARE_TUNNEL_TOKEN=${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          EOF
+
+      - name: Build image
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d --force-recreate --remove-orphans
+
+      - name: Prune old images
+        run: docker image prune -f

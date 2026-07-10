@@ -5,53 +5,53 @@
 <div class="space-y-6 pb-20 sm:pb-6">
     <!-- Header -->
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">Set Availability</h1>
-        <p class="text-sm text-gray-500">{{ week_start_str }} — {{ week_end_str }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{{ week_start_str }} — {{ week_end_str }}</p>
+        <h1 class="text-2xl font-bold text-zinc-50 mt-0.5">Set Availability</h1>
     </div>
 
     <!-- Week tabs -->
-    <div class="flex rounded-lg border border-gray-200 overflow-hidden">
+    <div class="flex rounded-lg border border-white/[0.10] overflow-hidden">
         <a href="/availability?week=current"
             class="flex-1 text-center py-2 text-sm font-medium transition-colors
-            {% if week == 'current' %}bg-blue-700 text-white{% else %}bg-white text-gray-600 hover:bg-gray-50{% endif %}">
+            {% if week == 'current' %}bg-accent text-ink{% else %}bg-surface text-zinc-400 hover:bg-surface-raised{% endif %}">
             This Week
         </a>
         <a href="/availability?week=next"
-            class="flex-1 text-center py-2 text-sm font-medium transition-colors
-            {% if week == 'next' %}bg-blue-700 text-white{% else %}bg-white text-gray-600 hover:bg-gray-50{% endif %}">
+            class="flex-1 text-center py-2 text-sm font-medium transition-colors border-l border-white/[0.10]
+            {% if week == 'next' %}bg-accent text-ink{% else %}bg-surface text-zinc-400 hover:bg-surface-raised{% endif %}">
             Next Week
         </a>
     </div>
 
-    <p class="text-sm text-gray-600">
+    <p class="text-sm text-zinc-400">
         Select the days you can train {{ week_label }} and the sport for each session.
     </p>
 
     <!-- Availability form -->
     <form id="availability-form" method="post" class="space-y-3" hx-boost="false">
         {% for day in week_days %}
-        <div class="rounded-xl shadow-sm border border-gray-200 bg-white overflow-hidden">
+        <div class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
             <div class="px-4 py-3">
                 <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" name="day_{{ day.day_of_week }}_enabled"
-                        class="day-toggle h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        class="day-toggle h-5 w-5 rounded border-white/20 text-accent focus:ring-accent"
                         data-day="{{ day.day_of_week }}"
                         {% if day.slot %}checked{% endif %}>
                     <div class="flex items-center gap-3 flex-1">
                         <div class="w-10 text-center">
-                            <p class="text-xs uppercase font-semibold text-gray-500">{{ day.day_name[:3] }}</p>
-                            <p class="text-lg font-bold text-gray-700">{{ day.date.day }}</p>
+                            <p class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500">{{ day.day_name[:3] }}</p>
+                            <p class="text-lg font-bold font-mono text-zinc-300">{{ day.date.day }}</p>
                         </div>
-                        <span class="font-medium text-gray-900">{{ day.day_name }}</span>
+                        <span class="font-medium text-zinc-100">{{ day.day_name }}</span>
                     </div>
                 </label>
 
                 <!-- Slot inputs (shown when day is enabled) -->
                 <div id="slot-{{ day.day_of_week }}" class="mt-3 pl-11 {% if not day.slot %}hidden{% endif %}">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Sport</label>
+                        <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Sport</label>
                         <select name="day_{{ day.day_of_week }}_sport"
-                            class="w-full rounded-lg border-gray-300 text-sm px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                            class="w-full rounded-lg text-sm px-2 py-1.5">
                             {% for sport in ['gym', 'swimming', 'running', 'padel'] %}
                             <option value="{{ sport }}"
                                 {% if day.slot and day.slot.sport == sport %}selected{% endif %}
@@ -69,7 +69,7 @@
         <!-- Submit -->
         <div class="pt-2">
             <button type="submit" id="save-btn"
-                class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 px-4 rounded-xl transition-colors">
+                class="w-full bg-accent hover:bg-accent-soft text-ink font-semibold py-3 px-4 rounded-xl transition-colors">
                 Save Availability
             </button>
             <div id="save-result" class="mt-3 text-center text-sm"></div>
@@ -126,26 +126,26 @@
             if (resp.ok) {
                 if (ct.indexOf('application/json') !== -1) {
                     return resp.json().then(function(data) {
-                        resultDiv.innerHTML = '<span class="text-green-600 font-medium">Saved ' + data.length + ' slot(s) for {{ week_label }}.</span>';
+                        resultDiv.innerHTML = '<span class="text-emerald-400 font-medium">Saved ' + data.length + ' slot(s) for {{ week_label }}.</span>';
                     });
                 } else {
-                    resultDiv.innerHTML = '<span class="text-green-600 font-medium">Availability saved.</span>';
+                    resultDiv.innerHTML = '<span class="text-emerald-400 font-medium">Availability saved.</span>';
                 }
             } else {
                 if (ct.indexOf('application/json') !== -1) {
                     return resp.json().then(function(data) {
-                        resultDiv.innerHTML = '<span class="text-red-600 font-medium">Error: ' + (data.detail || 'Unknown error') + '</span>';
+                        resultDiv.innerHTML = '<span class="text-red-400 font-medium">Error: ' + (data.detail || 'Unknown error') + '</span>';
                     });
                 } else {
                     return resp.text().then(function(text) {
                         console.error('Save failed:', resp.status, text);
-                        resultDiv.innerHTML = '<span class="text-red-600 font-medium">Error ' + resp.status + ': Server error. Check console for details.</span>';
+                        resultDiv.innerHTML = '<span class="text-red-400 font-medium">Error ' + resp.status + ': Server error. Check console for details.</span>';
                     });
                 }
             }
         }).catch(function(err) {
             console.error('Availability save error:', err);
-            resultDiv.innerHTML = '<span class="text-red-600 font-medium">Network error: ' + err.message + '</span>';
+            resultDiv.innerHTML = '<span class="text-red-400 font-medium">Network error: ' + err.message + '</span>';
         }).finally(function() {
             btn.disabled = false;
             btn.textContent = 'Save Availability';

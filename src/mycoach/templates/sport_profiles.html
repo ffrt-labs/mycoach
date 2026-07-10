@@ -5,8 +5,9 @@
 <div class="space-y-6 pb-20 sm:pb-6">
     <!-- Header -->
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">Sport Profiles</h1>
-        <p class="text-sm text-gray-500">Set your skill level, goals, and preferences for each sport.</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Skill · goals · preferences</p>
+        <h1 class="text-2xl font-bold text-zinc-50 mt-0.5">Sport Profiles</h1>
+        <p class="text-sm text-zinc-400 mt-1">Set your skill level, goals, and preferences for each sport.</p>
     </div>
 
     <!-- Feedback banner -->
@@ -14,19 +15,19 @@
 
     <!-- Existing profiles -->
     {% for profile in profiles %}
-    <div id="profile-{{ profile.sport }}" class="rounded-xl shadow-sm border border-gray-200 bg-white overflow-hidden">
+    <div id="profile-{{ profile.sport }}" class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
         <div class="px-4 py-4 space-y-4">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 capitalize">{{ profile.sport }}</h2>
+                <h2 class="text-lg font-semibold text-zinc-50 capitalize">{{ profile.sport }}</h2>
                 <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        {% if profile.skill_level == 'beginner' %}bg-green-100 text-green-800
-                        {% elif profile.skill_level == 'advanced' %}bg-purple-100 text-purple-800
-                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wide
+                        {% if profile.skill_level == 'beginner' %}bg-emerald-500/15 text-emerald-300
+                        {% elif profile.skill_level == 'advanced' %}bg-purple-500/15 text-purple-300
+                        {% else %}bg-sky-500/15 text-sky-300{% endif %}">
                         {{ profile.skill_level }}
                     </span>
                     <button type="button" onclick="deleteProfile('{{ profile.sport }}')"
-                        class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Delete profile">
+                        class="text-zinc-500 hover:text-red-400 transition-colors p-1" title="Delete profile">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
@@ -36,30 +37,30 @@
 
             <form onsubmit="updateProfile(event, '{{ profile.sport }}')" class="space-y-3">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Skill Level</label>
-                    <select name="skill_level" class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Skill Level</label>
+                    <select name="skill_level" class="w-full rounded-lg text-sm px-3 py-2">
                         {% for lvl in ['beginner', 'intermediate', 'advanced'] %}
                         <option value="{{ lvl }}" {% if profile.skill_level == lvl %}selected{% endif %}>{{ lvl|capitalize }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Goals</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Goals</label>
                     <textarea name="goals" rows="2" placeholder="e.g. Improve endurance, build muscle..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">{{ profile.goals or '' }}</textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2">{{ profile.goals or '' }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Preferences</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Preferences</label>
                     <textarea name="preferences" rows="2" placeholder="e.g. Prefer morning sessions, no heavy squats..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">{{ profile.preferences or '' }}</textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2">{{ profile.preferences or '' }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Benchmarks</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Benchmarks</label>
                     <textarea name="benchmarks" rows="2" placeholder="e.g. Bench press 80kg, 100m swim 1:30..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">{{ profile.benchmarks or '' }}</textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2 font-mono">{{ profile.benchmarks or '' }}</textarea>
                 </div>
                 <button type="submit"
-                    class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
+                    class="w-full bg-accent hover:bg-accent-soft text-ink font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
                     Update Profile
                 </button>
             </form>
@@ -68,54 +69,54 @@
     {% endfor %}
 
     {% if not profiles %}
-    <div class="text-center py-12 text-gray-400">
-        <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="text-center py-12 text-zinc-500">
+        <svg class="w-12 h-12 mx-auto mb-3 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
         </svg>
-        <p class="font-medium">No sport profiles yet</p>
+        <p class="font-medium text-zinc-300">No sport profiles yet</p>
         <p class="text-sm mt-1">Add your first sport below to get started.</p>
     </div>
     {% endif %}
 
     <!-- Add new profile -->
     {% if available_sports %}
-    <div class="rounded-xl shadow-sm border border-gray-200 border-dashed bg-white overflow-hidden">
+    <div class="rounded-xl border border-white/[0.12] border-dashed bg-surface overflow-hidden">
         <div class="px-4 py-4 space-y-4">
-            <h2 class="text-lg font-semibold text-gray-900">Add Sport</h2>
+            <h2 class="text-lg font-semibold text-zinc-50">Add Sport</h2>
             <form id="add-form" onsubmit="createProfile(event)" class="space-y-3">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Sport</label>
-                    <select name="sport" required class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Sport</label>
+                    <select name="sport" required class="w-full rounded-lg text-sm px-3 py-2">
                         {% for s in available_sports %}
                         <option value="{{ s }}">{{ s|capitalize }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Skill Level</label>
-                    <select name="skill_level" class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Skill Level</label>
+                    <select name="skill_level" class="w-full rounded-lg text-sm px-3 py-2">
                         <option value="beginner">Beginner</option>
                         <option value="intermediate" selected>Intermediate</option>
                         <option value="advanced">Advanced</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Goals</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Goals</label>
                     <textarea name="goals" rows="2" placeholder="e.g. Improve endurance, build muscle..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Preferences</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Preferences</label>
                     <textarea name="preferences" rows="2" placeholder="e.g. Prefer morning sessions, no heavy squats..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Benchmarks</label>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Benchmarks</label>
                     <textarea name="benchmarks" rows="2" placeholder="e.g. Bench press 80kg, 100m swim 1:30..."
-                        class="w-full rounded-lg border-gray-300 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        class="w-full rounded-lg text-sm px-3 py-2 font-mono"></textarea>
                 </div>
                 <button type="submit"
-                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
+                    class="w-full bg-accent hover:bg-accent-soft text-ink font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
                     Add Sport Profile
                 </button>
             </form>
@@ -129,8 +130,7 @@ function showFeedback(msg, ok) {
     var el = document.getElementById('feedback');
     el.textContent = msg;
     el.className = 'rounded-lg px-4 py-3 text-sm font-medium ' +
-        (ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200');
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        (ok ? 'bg-emerald-500/[0.08] text-emerald-300 border border-emerald-500/25' : 'bg-red-500/[0.08] text-red-300 border border-red-500/25');
     if (ok) setTimeout(function() { location.reload(); }, 1500);
 }
 

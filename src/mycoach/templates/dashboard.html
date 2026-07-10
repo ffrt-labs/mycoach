@@ -21,10 +21,41 @@
                 class="font-semibold text-xs text-zinc-400 hover:text-accent-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <span id="hevy-label">&#8635; Hevy</span>
             </button>
+            <form id="hevy-csv-form" hx-post="/api/sources/import/hevy" hx-encoding="multipart/form-data"
+                hx-swap="none" hx-trigger="change from:#hevy-csv-input" class="inline-flex items-center">
+                <label class="cursor-pointer font-semibold text-xs text-zinc-400 hover:text-accent-soft transition-colors">
+                    <span id="hevy-csv-label">&#8593; Import CSV</span>
+                    <input id="hevy-csv-input" type="file" name="file" accept=".csv" class="hidden">
+                </label>
+            </form>
         </div>
     </div>
     <div id="sync-status"></div>
     <div id="hevy-status"></div>
+    <div id="hevy-csv-status"></div>
+
+    <!-- Hevy connection recovery (collapsed by default) -->
+    <details id="hevy-token-details" class="mt-2">
+        <summary class="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer select-none">
+            Hevy sync failing? Update refresh token
+        </summary>
+        <div class="mt-3 max-w-[560px] space-y-2">
+            <p class="text-xs text-zinc-500 leading-relaxed">
+                Log into <span class="font-mono">hevy.com</span>, open DevTools &rarr; Network, find the
+                <span class="font-mono">POST /auth/refresh_token</span> (or <span class="font-mono">/login</span>)
+                response, and paste its <span class="font-mono">refresh_token</span> value here. Takes effect on the next sync.
+            </p>
+            <div class="flex items-center gap-2">
+                <input id="hevy-token-input" type="password" placeholder="Paste refresh_token"
+                    class="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50">
+                <button id="hevy-token-save" onclick="saveHevyToken()"
+                    class="shrink-0 font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="hevy-token-label">Save</span>
+                </button>
+            </div>
+            <div id="hevy-token-status"></div>
+        </div>
+    </details>
 
     {% if briefing %}
     <!-- ===== Verdict hero ===== -->
@@ -220,12 +251,79 @@
             status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
             setTimeout(function() { location.reload(); }, 2000);
         } else {
-            var detail = evt.detail.xhr.status === 503 ? 'Hevy authentication failed. Check credentials.' : 'Sync failed.';
+            var detail = 'Sync failed.';
+            if (evt.detail.xhr.status === 503) {
+                try { detail = JSON.parse(evt.detail.xhr.responseText).detail || detail; } catch (e) {}
+                document.getElementById('hevy-token-details').open = true;
+            }
             status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">' + detail + '</div>';
-            setTimeout(function() { status.innerHTML = ''; }, 5000);
+            setTimeout(function() { status.innerHTML = ''; }, 8000);
         }
     });
 })();
+
+// --- Hevy CSV import (htmx multipart) ---
+(function() {
+    var form = document.getElementById('hevy-csv-form');
+    var input = document.getElementById('hevy-csv-input');
+    var label = document.getElementById('hevy-csv-label');
+    var status = document.getElementById('hevy-csv-status');
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.elt !== form) return;
+        label.textContent = 'Importing…';
+    });
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.elt !== form) return;
+        label.innerHTML = '&#8593; Import CSV';
+        input.value = '';  // allow re-uploading the same file
+        if (evt.detail.successful) {
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            var parts = [];
+            if (data.activities_created) parts.push(data.activities_created + ' created');
+            if (data.activities_skipped) parts.push(data.activities_skipped + ' already imported');
+            if (data.activities_merged) parts.push(data.activities_merged + ' merged');
+            var msg = parts.length ? 'Imported: ' + parts.join(', ') : 'No new workouts found';
+            if (data.errors && data.errors.length) msg += ' · ' + data.errors.length + ' row error(s)';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
+            if (data.activities_created) setTimeout(function() { location.reload(); }, 2000);
+        } else {
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">CSV import failed. Make sure it\'s a Hevy workout export.</div>';
+            setTimeout(function() { status.innerHTML = ''; }, 6000);
+        }
+    });
+})();
+
+function saveHevyToken() {
+    var btn = document.getElementById('hevy-token-save');
+    var label = document.getElementById('hevy-token-label');
+    var input = document.getElementById('hevy-token-input');
+    var status = document.getElementById('hevy-token-status');
+    var token = (input.value || '').trim();
+    if (!token) {
+        status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-amber-300 text-xs">Paste a refresh token first.</div>';
+        return;
+    }
+    btn.disabled = true; label.textContent = 'Saving…';
+    fetch('/api/sources/hevy/refresh-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: token })
+    })
+    .then(function(resp) {
+        if (resp.ok) {
+            input.value = '';
+            status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-xs">Token saved. Try the Hevy sync again.</div>';
+        } else {
+            return resp.json().then(function(d) {
+                status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-xs">Error: ' + (d.detail || 'Save failed') + '</div>';
+            });
+        }
+    })
+    .catch(function(err) {
+        status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-xs">Network error: ' + err.message + '</div>';
+    })
+    .finally(function() { btn.disabled = false; label.textContent = 'Save'; });
+}
 
 function generateBriefing() {
     var btn = document.getElementById('briefing-btn');

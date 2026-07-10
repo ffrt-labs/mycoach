@@ -1,7 +1,13 @@
 """Hevy API client — authenticates via Hevy's internal web API and fetches workouts."""
 
+import fcntl
 import logging
+import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -19,9 +25,26 @@ class HevyRateLimitError(Exception):
             msg += f" Retry after: {retry_after}s."
         super().__init__(msg)
 
+
 HEVY_API_BASE = "https://api.hevyapp.com"
 HEVY_LOGIN_API_KEY = "with_great_power"
 HEVY_WEB_API_KEY = "shelobs_hevy_web"
+REFRESH_TOKEN_FILENAME = "refresh_token.txt"
+REFRESH_LOCK_FILENAME = "refresh_token.lock"
+
+
+def save_refresh_token(token_dir: Path, token: str) -> None:
+    """Atomically persist a Hevy refresh token to ``<token_dir>/refresh_token.txt``.
+
+    Writes to a temp file and ``os.replace``s it into place so a crash or
+    concurrent redeploy can never leave a truncated/half-written token behind.
+    Usable without an authenticated client (e.g. the manual re-seed endpoint).
+    """
+    path = token_dir / REFRESH_TOKEN_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{REFRESH_TOKEN_FILENAME}.{os.getpid()}.tmp")
+    tmp.write_text(token.strip())
+    os.replace(tmp, path)
 
 
 class HevyApiClient:
@@ -29,11 +52,27 @@ class HevyApiClient:
 
     Fetches workout data using the same API the Hevy web app uses.
     Handles login, cursor-based pagination, and 401 re-authentication.
+
+    Hevy's /login endpoint requires solving a Google reCAPTCHA challenge, which
+    only a real browser can do — this client can't call it. Instead it uses
+    /auth/refresh_token (no reCAPTCHA) to mint fresh access tokens from a
+    refresh_token obtained once via a manual browser login. Refresh tokens
+    rotate on use, so the new one is persisted to token_dir for next time.
+    Email/password /login is kept as a fallback for completeness, but will
+    fail with a real account until reCAPTCHA is solved out-of-band.
     """
 
-    def __init__(self, email: str = "", password: str = "") -> None:
+    def __init__(
+        self,
+        email: str = "",
+        password: str = "",
+        refresh_token: str = "",
+        token_dir: Path | None = None,
+    ) -> None:
         self._email = email
         self._password = password
+        self._configured_refresh_token = refresh_token
+        self._token_dir = token_dir
         self._auth_token: str | None = None
         self._http = httpx.AsyncClient(
             base_url=HEVY_API_BASE,
@@ -45,8 +84,51 @@ class HevyApiClient:
             timeout=30.0,
         )
 
+    def _refresh_token_path(self) -> Path | None:
+        return self._token_dir / REFRESH_TOKEN_FILENAME if self._token_dir else None
+
+    def _load_refresh_token(self) -> str:
+        path = self._refresh_token_path()
+        if path and path.exists():
+            return path.read_text().strip()
+        return self._configured_refresh_token
+
+    def _save_refresh_token(self, token: str) -> None:
+        if self._token_dir is None:
+            return
+        save_refresh_token(self._token_dir, token)
+
+    @contextmanager
+    def _refresh_lock(self) -> Iterator[None]:
+        """Serialize the load→refresh→save sequence across processes/threads.
+
+        The refresh token is single-use and rotates on every refresh, so a
+        scheduled sync and a manual sync running concurrently would otherwise
+        race to consume the same token and invalidate it. An exclusive
+        ``flock`` makes the second caller wait, then re-read the freshly
+        rotated token inside the lock. No token_dir (e.g. unit tests) → no-op.
+        """
+        if self._token_dir is None:
+            yield
+            return
+        self._token_dir.mkdir(parents=True, exist_ok=True)
+        lock_path = self._token_dir / REFRESH_LOCK_FILENAME
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
     async def login(self, email: str | None = None, password: str | None = None) -> bool:
-        """Authenticate with Hevy and store the auth token for subsequent requests."""
+        """Authenticate with Hevy and store the auth token for subsequent requests.
+
+        Tries the reCAPTCHA-free refresh_token flow first, falling back to
+        email/password /login (which requires reCAPTCHA and will fail headless).
+        """
+        if await self.refresh():
+            return True
+
         email = email or self._email
         password = password or self._password
         if not email or not password:
@@ -70,9 +152,7 @@ class HevyApiClient:
             data = resp.json()
             # API may return token under different key names
             self._auth_token = (
-                data.get("auth_token")
-                or data.get("token")
-                or data.get("access_token")
+                data.get("auth_token") or data.get("token") or data.get("access_token")
             )
             if self._auth_token:
                 self._http.headers["x-api-key"] = HEVY_WEB_API_KEY
@@ -104,6 +184,60 @@ class HevyApiClient:
             return False
         except Exception:
             logger.exception("Hevy login failed")
+            return False
+
+    async def refresh(self) -> bool:
+        """Mint a fresh access token from a stored refresh_token.
+
+        Unlike /login, this endpoint doesn't require reCAPTCHA. Returns False
+        without making a request if no refresh_token is configured or persisted.
+        """
+        with self._refresh_lock():
+            return await self._refresh_locked()
+
+    async def _refresh_locked(self) -> bool:
+        refresh_token = self._load_refresh_token()
+        if not refresh_token:
+            return False
+
+        try:
+            import json as json_mod
+
+            resp = await self._http.post(
+                "/auth/refresh_token",
+                content=json_mod.dumps({"refresh_token": refresh_token}),
+                headers={
+                    "content-type": "application/json",
+                    "x-api-key": HEVY_WEB_API_KEY,
+                    "hevy-platform": "web",
+                    "x-client-time": f"{time.time():.3f}",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            self._auth_token = (
+                data.get("auth_token") or data.get("token") or data.get("access_token")
+            )
+            if not self._auth_token:
+                logger.error("Hevy refresh response missing auth token: %s", list(data.keys()))
+                return False
+
+            self._http.headers["x-api-key"] = HEVY_WEB_API_KEY
+            self._http.headers["auth-token"] = self._auth_token
+            new_refresh_token = data.get("refresh_token")
+            if new_refresh_token:
+                self._save_refresh_token(new_refresh_token)
+            logger.info("Hevy token refresh successful")
+            return True
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "Hevy token refresh failed: HTTP %s — body: %r",
+                e.response.status_code,
+                e.response.text[:500] or "(empty)",
+            )
+            return False
+        except Exception:
+            logger.exception("Hevy token refresh failed")
             return False
 
     async def get_workout_count(self) -> int:

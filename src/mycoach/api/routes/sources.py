@@ -8,12 +8,13 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.config import get_settings
 from mycoach.database import get_db
 from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.sources.garmin.source import GarminSource
-from mycoach.sources.hevy.api_client import HevyRateLimitError
+from mycoach.sources.hevy.api_client import HevyRateLimitError, save_refresh_token
 from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.hevy.mappers import import_hevy_workouts
@@ -114,7 +115,10 @@ async def sync_hevy(
     if not authenticated:
         raise HTTPException(
             status_code=503,
-            detail="Hevy authentication failed. Check MYCOACH_HEVY_EMAIL / MYCOACH_HEVY_PASSWORD.",
+            detail=(
+                "Hevy sync failed — the refresh token is expired or revoked. "
+                "Paste a fresh refresh token below, or import a Hevy CSV export instead."
+            ),
         )
 
     since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -135,6 +139,28 @@ async def sync_hevy(
         activities_merged=merge_result.merged,
         errors=all_errors,
     )
+
+
+class HevyRefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/hevy/refresh-token")
+async def set_hevy_refresh_token(payload: HevyRefreshTokenRequest) -> dict[str, str]:
+    """Persist a fresh Hevy refresh token captured from a browser session.
+
+    Recovery path when the stored token expires/rotates out of sync: the next
+    sync reads the token file first (see HevyApiClient._load_refresh_token), so
+    this takes effect immediately without a restart.
+    """
+    token = payload.refresh_token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="refresh_token is required.")
+
+    settings = get_settings()
+    save_refresh_token(settings.hevy_token_dir, token)
+    logger.info("Hevy refresh token updated via re-seed endpoint")
+    return {"status": "ok"}
 
 
 @router.post("/sync/garmin", response_model=GarminSyncResponse)

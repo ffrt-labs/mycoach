@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     # Hevy
     hevy_email: str = ""
     hevy_password: str = ""
+    hevy_refresh_token: str = ""
+    hevy_token_dir: Path = Field(default=Path(".hevy_tokens"))
 
     # LLM Provider (anthropic, gemini)
     llm_provider: str = "anthropic"

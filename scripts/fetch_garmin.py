@@ -24,8 +24,9 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-import garth
 from garminconnect import Garmin
+
+from mycoach.sources.garmin.auth import GarminAuth
 
 TOKEN_DIR = Path(__file__).parent.parent / ".garmin_tokens"
 
@@ -46,20 +47,13 @@ ENDPOINTS = [
 
 
 def connect() -> Garmin:
-    if not TOKEN_DIR.exists():
-        print(f"[ERROR] Token directory not found: {TOKEN_DIR}", file=sys.stderr)
-        print("Run the app first to authenticate and save tokens.", file=sys.stderr)
-        sys.exit(1)
-
+    auth = GarminAuth(token_dir=TOKEN_DIR)
+    api = Garmin(email=auth.email, password=auth.password)
     try:
-        garth.resume(str(TOKEN_DIR))
-        _ = garth.client.username
+        api.login(tokenstore=str(TOKEN_DIR))
     except Exception as e:
-        print(f"[ERROR] Could not resume Garmin session: {e}", file=sys.stderr)
+        print(f"[ERROR] Could not connect to Garmin: {e}", file=sys.stderr)
         sys.exit(1)
-
-    api = Garmin()
-    api.login(tokenstore=str(TOKEN_DIR))
     print(f"[OK] Connected to Garmin Connect")
     return api
 

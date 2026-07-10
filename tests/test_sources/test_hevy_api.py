@@ -1,12 +1,14 @@
 """Tests for Hevy API client, parser, source, and sync endpoint."""
 
 from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
-from mycoach.sources.hevy.api_client import HevyApiClient, HevyRateLimitError
+from mycoach.sources.hevy.api_client import HevyApiClient, HevyRateLimitError, save_refresh_token
 from mycoach.sources.hevy.api_parser import parse_api_workouts
 from mycoach.sources.hevy.api_source import HevyApiSource
 
@@ -460,3 +462,77 @@ async def test_sync_hevy_endpoint_days_param(client) -> None:
     # Verify since was passed (fetch_and_import was called with since kwarg)
     call_kwargs = mock_source.fetch_and_import.call_args
     assert call_kwargs is not None
+
+
+# ---------------------------------------------------------------------------
+# Refresh token persistence + re-seed
+# ---------------------------------------------------------------------------
+
+
+def test_save_refresh_token_strips_and_writes_atomically(tmp_path: Path) -> None:
+    save_refresh_token(tmp_path, "  tok-abc  ")
+
+    assert (tmp_path / "refresh_token.txt").read_text() == "tok-abc"
+    # No leftover temp files from the atomic write
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_load_refresh_token_file_wins_over_seed(tmp_path: Path) -> None:
+    save_refresh_token(tmp_path, "tok-from-file")
+    client = HevyApiClient(refresh_token="seed-token", token_dir=tmp_path)
+
+    assert client._load_refresh_token() == "tok-from-file"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rotates_and_persists_token(tmp_path: Path) -> None:
+    """A successful refresh mints an access token and persists the rotated token."""
+    save_refresh_token(tmp_path, "old-refresh")
+    client = HevyApiClient(token_dir=tmp_path)
+
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"auth_token": "acc-1", "refresh_token": "new-refresh"}
+
+    with patch.object(client._http, "post", new=AsyncMock(return_value=mock_resp)):
+        ok = await client.refresh()
+
+    assert ok is True
+    assert client._auth_token == "acc-1"
+    assert client._http.headers.get("auth-token") == "acc-1"
+    assert (tmp_path / "refresh_token.txt").read_text() == "new-refresh"
+
+
+@pytest.mark.asyncio
+async def test_refresh_no_token_returns_false(tmp_path: Path) -> None:
+    client = HevyApiClient(token_dir=tmp_path)
+    assert await client.refresh() is False
+
+
+@pytest.mark.asyncio
+async def test_set_hevy_refresh_token_endpoint(client, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mycoach.api.routes.sources.get_settings",
+        lambda: SimpleNamespace(hevy_token_dir=tmp_path),
+    )
+
+    resp = await client.post(
+        "/api/sources/hevy/refresh-token", json={"refresh_token": "  new-token  "}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    assert (tmp_path / "refresh_token.txt").read_text() == "new-token"
+
+
+@pytest.mark.asyncio
+async def test_set_hevy_refresh_token_empty_rejected(client, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mycoach.api.routes.sources.get_settings",
+        lambda: SimpleNamespace(hevy_token_dir=tmp_path),
+    )
+
+    resp = await client.post("/api/sources/hevy/refresh-token", json={"refresh_token": "   "})
+
+    assert resp.status_code == 400
+    assert not (tmp_path / "refresh_token.txt").exists()

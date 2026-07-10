@@ -27,6 +27,10 @@ garmin_tokens/
 # Garmin raw API data (personal health data)
 garmin-api-data/
 
+# Hevy tokens
+hevy_tokens/
+.hevy_tokens/
+
 # SQLite WAL files
 *.db-shm
 *.db-wal

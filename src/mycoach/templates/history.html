@@ -210,6 +210,12 @@
         <svg class="w-12 h-12 mx-auto text-zinc-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <p class="text-zinc-500 text-sm">No activities yet.</p>
         <p class="text-zinc-600 text-xs mt-1">Sync from Garmin or import a Hevy CSV to get started.</p>
+        <label class="inline-flex items-center gap-1.5 mt-4 cursor-pointer font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg">
+            <span id="hevy-csv-label">&#8593; Import Hevy CSV</span>
+            <input id="hevy-csv-input" type="file" accept=".csv" class="hidden" onchange="importHevyCsv(this)">
+        </label>
+        <p class="text-zinc-600 text-[11px] mt-2">Hevy app &rarr; Settings &rarr; Export &amp; Backup &rarr; Export Workouts</p>
+        <div id="hevy-csv-status" class="max-w-[420px] mx-auto"></div>
     </div>
     {% else %}
 
@@ -408,6 +414,36 @@
 
 {% block scripts %}
 <script>
+function importHevyCsv(input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var label = document.getElementById('hevy-csv-label');
+    var status = document.getElementById('hevy-csv-status');
+    label.textContent = 'Importing…';
+
+    var form = new FormData();
+    form.append('file', file);
+    fetch('/api/sources/import/hevy', { method: 'POST', body: form })
+    .then(function(resp) {
+        if (!resp.ok) throw new Error('Import failed (' + resp.status + ')');
+        return resp.json();
+    })
+    .then(function(data) {
+        var parts = [];
+        if (data.activities_created) parts.push(data.activities_created + ' created');
+        if (data.activities_skipped) parts.push(data.activities_skipped + ' already imported');
+        if (data.activities_merged) parts.push(data.activities_merged + ' merged');
+        var msg = parts.length ? 'Imported: ' + parts.join(', ') : 'No new workouts found';
+        if (data.errors && data.errors.length) msg += ' · ' + data.errors.length + ' row error(s)';
+        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
+        if (data.activities_created) setTimeout(function() { location.reload(); }, 2000);
+    })
+    .catch(function(err) {
+        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">' + err.message + ". Make sure it's a Hevy workout export.</div>";
+    })
+    .finally(function() { label.innerHTML = '&#8593; Import Hevy CSV'; input.value = ''; });
+}
+
 function changeWeek(isoDate) {
     var url = '/history?recap_week=' + isoDate;
     {% if sport_filter %}url += '&sport={{ sport_filter }}';{% endif %}

@@ -26,6 +26,8 @@ class HevyApiSource(DataSource):
         self._client = client or HevyApiClient(
             email=settings.hevy_email,
             password=settings.hevy_password,
+            refresh_token=settings.hevy_refresh_token,
+            token_dir=settings.hevy_token_dir,
         )
 
     @property

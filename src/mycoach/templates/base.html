@@ -1,31 +1,94 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#1e40af">
+    <meta name="theme-color" content="#070707">
     <meta name="description" content="MyCoach — AI-powered personal fitness coaching">
     <link rel="manifest" href="/static/manifest.json">
     <title>{% block title %}MyCoach{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    },
+                    colors: {
+                        // Amber accent (matches design: #fb923c === orange-400)
+                        accent: {
+                            DEFAULT: '#fb923c',
+                            soft: '#fdba74',
+                        },
+                        // Surfaces layered on the near-black page
+                        surface: {
+                            DEFAULT: '#131417',
+                            raised: '#1c1d20',
+                        },
+                        ink: '#070707',
+                    },
+                },
+            },
+        };
+    </script>
     <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        /* Design tokens that Tailwind utilities can't express inline.
+           The app is dark by default — near-black page, IBM Plex type,
+           amber accent, hairline dividers. */
+        html, body { background: #070707; }
+        body {
+            font-family: '"IBM Plex Sans"', ui-sans-serif, system-ui, sans-serif;
+            color: #c9c9cd;
+            -webkit-font-smoothing: antialiased;
+        }
+        ::selection { background: rgba(251, 146, 60, .3); }
+        a { color: #fdba74; }
+        a:hover { color: #fed7aa; }
+        /* Dark form controls (Tailwind Preflight is absent on the CDN build,
+           so normalize inputs/selects/textareas to the dark palette here). */
+        input, select, textarea {
+            background-color: #131417;
+            border: 1px solid rgba(255, 255, 255, .10);
+            color: #e7e5e4;
+        }
+        input::placeholder, textarea::placeholder { color: #57575c; }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(251, 146, 60, .55);
+            box-shadow: 0 0 0 2px rgba(251, 146, 60, .18);
+        }
+        select option { background: #131417; color: #e7e5e4; }
+        input[type="checkbox"] { accent-color: #fb923c; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+        /* Numeric/mono readouts */
+        .tabular { font-variant-numeric: tabular-nums; }
+    </style>
 </head>
 <body class="h-full" hx-boost="true">
     <!-- Navigation -->
-    <nav class="bg-blue-800 text-white shadow-lg">
+    <nav class="sticky top-0 z-40 bg-ink/90 backdrop-blur border-b border-white/[0.08]">
         <div class="max-w-5xl mx-auto px-4">
             <div class="flex items-center justify-between h-14">
-                <a href="/" class="text-lg font-bold tracking-tight">MyCoach</a>
-                <div class="flex gap-4 text-sm">
-                    <a href="/" class="hover:text-blue-200 {% if active_page == 'dashboard' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Dashboard</a>
-                    <a href="/plan" class="hover:text-blue-200 {% if active_page == 'plan' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Plan</a>
-                    <a href="/availability" class="hover:text-blue-200 {% if active_page == 'availability' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Availability</a>
-                    <a href="/routine" class="hover:text-blue-200 {% if active_page == 'routine' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Routine</a>
-                    <a href="/sport-profiles" class="hover:text-blue-200 {% if active_page == 'sport_profiles' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Sports</a>
-                    <a href="/mesocycles" class="hover:text-blue-200 {% if active_page == 'mesocycles' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Meso</a>
-                    <a href="/history" class="hover:text-blue-200 {% if active_page == 'history' %}text-white font-semibold{% else %}text-blue-300{% endif %}">History</a>
-                    <a href="/prompt-logs" class="hover:text-blue-200 {% if active_page == 'prompt_logs' %}text-white font-semibold{% else %}text-blue-300{% endif %}">Logs</a>
+                <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-50">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-accent"></span>
+                    MyCoach
+                </a>
+                <div class="hidden sm:flex gap-5 text-sm">
+                    <a href="/" class="hover:text-accent-soft transition-colors {% if active_page == 'dashboard' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Dashboard</a>
+                    <a href="/plan" class="hover:text-accent-soft transition-colors {% if active_page == 'plan' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Plan</a>
+                    <a href="/availability" class="hover:text-accent-soft transition-colors {% if active_page == 'availability' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Availability</a>
+                    <a href="/routine" class="hover:text-accent-soft transition-colors {% if active_page == 'routine' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Routine</a>
+                    <a href="/sport-profiles" class="hover:text-accent-soft transition-colors {% if active_page == 'sport_profiles' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Sports</a>
+                    <a href="/mesocycles" class="hover:text-accent-soft transition-colors {% if active_page == 'mesocycles' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Meso</a>
+                    <a href="/history" class="hover:text-accent-soft transition-colors {% if active_page == 'history' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">History</a>
+                    <a href="/prompt-logs" class="hover:text-accent-soft transition-colors {% if active_page == 'prompt_logs' %}text-accent font-semibold{% else %}text-zinc-400{% endif %}">Logs</a>
                 </div>
             </div>
         </div>
@@ -37,29 +100,29 @@
     </main>
 
     <!-- Bottom nav (mobile) -->
-    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 sm:hidden z-50">
+    <nav class="fixed bottom-0 inset-x-0 bg-ink/95 backdrop-blur border-t border-white/[0.08] sm:hidden z-50">
         <div class="flex justify-around py-2">
-            <a href="/" class="flex flex-col items-center text-xs {% if active_page == 'dashboard' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/" class="flex flex-col items-center text-[11px] {% if active_page == 'dashboard' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                 Home
             </a>
-            <a href="/plan" class="flex flex-col items-center text-xs {% if active_page == 'plan' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/plan" class="flex flex-col items-center text-[11px] {% if active_page == 'plan' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 Plan
             </a>
-            <a href="/availability" class="flex flex-col items-center text-xs {% if active_page == 'availability' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/availability" class="flex flex-col items-center text-[11px] {% if active_page == 'availability' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 Schedule
             </a>
-            <a href="/history" class="flex flex-col items-center text-xs {% if active_page == 'history' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/history" class="flex flex-col items-center text-[11px] {% if active_page == 'history' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 History
             </a>
-            <a href="/mesocycles" class="flex flex-col items-center text-xs {% if active_page == 'mesocycles' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/mesocycles" class="flex flex-col items-center text-[11px] {% if active_page == 'mesocycles' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Meso
             </a>
-            <a href="/prompt-logs" class="flex flex-col items-center text-xs {% if active_page == 'prompt_logs' %}text-blue-700{% else %}text-gray-500{% endif %}">
+            <a href="/prompt-logs" class="flex flex-col items-center text-[11px] {% if active_page == 'prompt_logs' %}text-accent{% else %}text-zinc-500{% endif %}">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Logs
             </a>

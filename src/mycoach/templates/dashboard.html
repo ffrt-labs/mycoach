@@ -2,417 +2,226 @@
 {% block title %}Dashboard — MyCoach{% endblock %}
 
 {% block content %}
-<div class="space-y-6 pb-20 sm:pb-6">
-    <!-- Date header -->
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">{{ today_str }}</h1>
-            <p class="text-sm text-gray-500">{{ weekday }}</p>
+<div class="pb-20 sm:pb-6">
+
+    <!-- Header row -->
+    <div class="flex items-center justify-between gap-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+            Today's readiness · {{ weekday }} {{ today_str }}
         </div>
-        <div class="flex items-center gap-2">
-            <button
-                id="sync-btn"
-                hx-post="/api/sources/sync/garmin?days=2"
-                hx-swap="none"
-                class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <svg id="sync-icon" class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-                <svg id="sync-spinner" class="h-4 w-4 animate-spin hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                <span id="sync-label">Sync Garmin</span>
+        <div class="flex items-center gap-4">
+            {% if garmin_last_sync %}
+            <span class="text-xs font-mono text-zinc-600 hidden sm:inline">Synced {{ garmin_last_sync.strftime('%H:%M') }}</span>
+            {% endif %}
+            <button id="sync-btn" hx-post="/api/sources/sync/garmin?days=2" hx-swap="none"
+                class="font-semibold text-xs text-zinc-400 hover:text-accent-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <span id="sync-label">&#8635; Sync Garmin</span>
             </button>
-            <button
-                id="hevy-btn"
-                hx-post="/api/sources/sync/hevy?days=30"
-                hx-swap="none"
-                class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <svg id="hevy-icon" class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-                <svg id="hevy-spinner" class="h-4 w-4 animate-spin hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                <span id="hevy-label">Sync Hevy</span>
+            <button id="hevy-btn" hx-post="/api/sources/sync/hevy?days=30" hx-swap="none"
+                class="font-semibold text-xs text-zinc-400 hover:text-accent-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <span id="hevy-label">&#8635; Hevy</span>
             </button>
         </div>
     </div>
-    {% if garmin_last_sync %}
-    <p class="text-xs text-gray-400 text-right">Last synced: {{ garmin_last_sync.strftime('%b %d, %H:%M') }}</p>
-    {% endif %}
     <div id="sync-status"></div>
     <div id="hevy-status"></div>
 
-    <!-- Readiness card (from daily briefing) -->
     {% if briefing %}
-    <div class="rounded-xl shadow-sm border p-5
-        {% if briefing_data.readiness_verdict == 'go_hard' %}bg-green-50 border-green-200
-        {% elif briefing_data.readiness_verdict == 'moderate' %}bg-yellow-50 border-yellow-200
-        {% elif briefing_data.readiness_verdict == 'active_recovery' %}bg-orange-50 border-orange-200
-        {% elif briefing_data.readiness_verdict == 'rest' %}bg-red-50 border-red-200
-        {% else %}bg-white border-gray-200{% endif %}">
-        <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Today's Readiness</h2>
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full
-                    {% if briefing_data.readiness_verdict == 'go_hard' %}bg-green-200 text-green-800
-                    {% elif briefing_data.readiness_verdict == 'moderate' %}bg-yellow-200 text-yellow-800
-                    {% elif briefing_data.readiness_verdict == 'active_recovery' %}bg-orange-200 text-orange-800
-                    {% elif briefing_data.readiness_verdict == 'rest' %}bg-red-200 text-red-800
-                    {% else %}bg-gray-200 text-gray-800{% endif %}">
-                    {{ briefing_data.readiness_verdict | replace('_', ' ') | title }}
-                </span>
-                <button id="regen-briefing-btn" onclick="regenerateBriefing()"
-                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg id="regen-briefing-icon" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    <svg id="regen-briefing-spinner" class="h-3 w-3 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                    <span id="regen-briefing-label">Regenerate</span>
-                </button>
-            </div>
-        </div>
-        {% if briefing_data.recovery_status %}
-        <p class="text-gray-700 text-sm">{{ briefing_data.recovery_status }}</p>
-        {% endif %}
-        {% if briefing_data.workout_adjustments %}
-        <p class="text-gray-600 text-sm mt-2"><strong>Adjustments:</strong> {{ briefing_data.workout_adjustments }}</p>
-        {% endif %}
-        {% if briefing_data.sleep_recommendation %}
-        <p class="text-gray-600 text-sm mt-2"><strong>Sleep:</strong> {{ briefing_data.sleep_recommendation }}</p>
-        {% endif %}
-        <div id="regen-briefing-status"></div>
+    <!-- ===== Verdict hero ===== -->
+    <div class="mt-8">
+        <h1 class="font-bold tracking-[-0.02em] text-zinc-50 capitalize" style="font-size:clamp(56px,10vw,116px);line-height:0.9;">
+            {{ briefing_data.readiness_verdict | replace('_', ' ') if briefing_data.readiness_verdict else 'Ready' }}
+        </h1>
+        <div class="h-[5px] w-[200px] bg-accent rounded mt-5"></div>
     </div>
+    <div class="flex items-start gap-5 mt-4">
+        <p class="text-[17px] leading-relaxed text-zinc-400 max-w-[600px]">
+            {% if health and health.training_readiness is not none %}Readiness <span class="text-zinc-50 font-semibold">{{ health.training_readiness }} / 100</span>. {% endif %}{{ briefing_data.recovery_status }}
+        </p>
+        <button id="regen-briefing-btn" onclick="regenerateBriefing()"
+            class="ml-auto shrink-0 font-semibold text-xs text-zinc-500 hover:text-accent-soft transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+            <span id="regen-briefing-label">&#8635; Regenerate briefing</span>
+        </button>
+    </div>
+    <div id="regen-briefing-status"></div>
     {% else %}
-    <div class="rounded-xl shadow-sm border border-gray-200 bg-white p-5">
-        <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Today's Readiness</h2>
-            <button id="briefing-btn" onclick="generateBriefing()"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg id="briefing-icon" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
-                <svg id="briefing-spinner" class="h-3.5 w-3.5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                <span id="briefing-label">Generate Briefing</span>
-            </button>
+    <!-- ===== No briefing yet ===== -->
+    <div class="mt-8">
+        <h1 class="font-bold tracking-[-0.02em] text-zinc-300" style="font-size:clamp(48px,8vw,88px);line-height:0.95;">Awaiting briefing</h1>
+        <div class="h-[5px] w-[200px] bg-white/[0.12] rounded mt-5"></div>
+    </div>
+    <div class="flex items-center gap-5 mt-4">
+        <p class="text-[17px] leading-relaxed text-zinc-500 max-w-[600px]">No daily briefing generated yet. Sync your Garmin data, then generate today's read.</p>
+        <button id="briefing-btn" onclick="generateBriefing()"
+            class="ml-auto shrink-0 font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-5 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+            <span id="briefing-label">Generate briefing</span>
+        </button>
+    </div>
+    <div id="briefing-status"></div>
+    {% endif %}
+
+    <!-- ===== Hero metrics ===== -->
+    {% if health or yesterday_health %}
+
+    {# Build the four hero metrics, skipping any with no data #}
+    {% set src = health if health else yesterday_health %}
+    {% set hero = namespace(items=[]) %}
+
+    {# Body Battery #}
+    {% set v = src.body_battery_morning if src.body_battery_morning is not none else none %}
+    {% set av = avg_metrics.body_battery_morning if (avg_metrics and avg_metrics.body_battery_morning is defined) else none %}
+    {% if v is not none %}{% set hero.items = hero.items + [{'v': v, 'u': '', 'k': 'Body Battery', 'sub': ('7d ' ~ av) if av is not none else ''}] %}{% endif %}
+
+    {# HRV #}
+    {% set v = src.hrv_status if src.hrv_status is not none else none %}
+    {% set av = (avg_metrics.hrv_7day_avg if (avg_metrics and avg_metrics.hrv_7day_avg is defined) else (avg_metrics.hrv_status if (avg_metrics and avg_metrics.hrv_status is defined) else none)) %}
+    {% if v is not none %}{% set hero.items = hero.items + [{'v': (v | round(0) | int), 'u': 'ms', 'k': 'HRV', 'sub': ('7d ' ~ (av | round(0) | int)) if av is not none else ''}] %}{% endif %}
+
+    {# Sleep score + duration #}
+    {% set v = src.sleep_score if src.sleep_score is not none else none %}
+    {% set dur = src.sleep_duration_minutes if src.sleep_duration_minutes is not none else none %}
+    {% if v is not none %}{% set hero.items = hero.items + [{'v': v, 'u': '', 'k': 'Sleep', 'sub': (((dur // 60) ~ 'h ' ~ ('%02d' % (dur % 60)) ~ 'm')) if dur is not none else ''}] %}{% endif %}
+
+    {# Resting HR #}
+    {% set v = src.resting_hr if src.resting_hr is not none else none %}
+    {% set av = avg_metrics.resting_hr if (avg_metrics and avg_metrics.resting_hr is defined) else none %}
+    {% if v is not none %}{% set hero.items = hero.items + [{'v': v, 'u': 'bpm', 'k': 'Resting HR', 'sub': ('7d ' ~ av) if av is not none else ''}] %}{% endif %}
+
+    {% if hero.items %}
+    <div class="grid grid-cols-2 md:grid-cols-4 my-10 border-t border-b border-white/[0.09]">
+        {% for m in hero.items %}
+        <div class="py-6 pr-6 {% if not loop.first %}md:pl-6{% endif %} {% if not loop.last %}md:border-r border-white/[0.09]{% endif %} {% if loop.index0 % 2 == 1 %}pl-6 md:pl-6{% endif %} {% if loop.index0 < 2 %}border-b md:border-b-0 border-white/[0.09]{% endif %}">
+            <div class="font-mono text-zinc-50" style="font-size:40px;line-height:1;">{{ m.v }}{% if m.u %}<span class="text-[18px] text-zinc-500">{{ m.u }}</span>{% endif %}</div>
+            <div class="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500 mt-1.5">{{ m.k }}{% if m.sub %} · {{ m.sub }}{% endif %}</div>
         </div>
-        <p class="text-gray-400 text-sm">No daily briefing yet. Sync your Garmin data and generate one.</p>
-        <div id="briefing-status"></div>
+        {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Health metrics grid — unified two-column cards -->
-    {% if health or yesterday_health or avg_metrics %}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    {# Sub metrics row #}
+    {% set sub = namespace(items=[]) %}
+    {% set v = src.training_readiness if src.training_readiness is not none else none %}
+    {% set av = avg_metrics.training_readiness if (avg_metrics and avg_metrics.training_readiness is defined) else none %}
+    {% if v is not none %}{% set sub.items = sub.items + [{'v': v, 'k': 'Readiness', 'sub': av}] %}{% endif %}
+    {% set v = src.steps if src.steps is not none else none %}
+    {% set av = avg_metrics.steps if (avg_metrics and avg_metrics.steps is defined) else none %}
+    {% if v is not none %}{% set sub.items = sub.items + [{'v': "{:,}".format(v), 'k': 'Steps', 'sub': ("{:,}".format(av)) if av is not none else none}] %}{% endif %}
+    {% set v = src.avg_stress if src.avg_stress is not none else none %}
+    {% set av = avg_metrics.avg_stress if (avg_metrics and avg_metrics.avg_stress is defined) else none %}
+    {% if v is not none %}{% set sub.items = sub.items + [{'v': v, 'k': 'Avg Stress', 'sub': av}] %}{% endif %}
 
-        {# --- Resting Heart Rate --- #}
-        {% set latest = health.resting_hr if (health and health.resting_hr is not none) else (yesterday_health.resting_hr if (yesterday_health and yesterday_health.resting_hr is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.resting_hr is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.resting_hr if (avg_metrics and avg_metrics.resting_hr is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val <= 60 %}bg-green-50 border-green-200{% elif color_val <= 75 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Resting HR</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg }} <span class="text-xs font-normal text-gray-400">bpm</span></p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
+    {% if sub.items %}
+    <div class="flex flex-wrap gap-y-4 mb-11">
+        {% for m in sub.items %}
+        <div class="flex-1 min-w-[140px] pr-6 {% if not loop.first %}pl-6 border-l border-white/[0.09]{% endif %}">
+            <div class="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500">{{ m.k }}</div>
+            <div class="font-mono text-zinc-300 mt-1.5" style="font-size:20px;">{{ m.v }}{% if m.sub is not none %} <span class="text-[12px] text-zinc-600">7d {{ m.sub }}</span>{% endif %}</div>
         </div>
-        {% endif %}
-
-        {# --- HRV --- #}
-        {% set latest = health.hrv_status if (health and health.hrv_status is not none) else (yesterday_health.hrv_status if (yesterday_health and yesterday_health.hrv_status is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.hrv_status is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.hrv_7day_avg if (avg_metrics and avg_metrics.hrv_7day_avg is defined) else (avg_metrics.hrv_status if (avg_metrics and avg_metrics.hrv_status is defined) else none) %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 50 %}bg-green-50 border-green-200{% elif color_val >= 30 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">HRV</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg | round(0) | int }} <span class="text-xs font-normal text-gray-400">ms</span></p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Body Battery (morning/wake-time value) --- #}
-        {% set latest = health.body_battery_morning if (health and health.body_battery_morning is not none) else (yesterday_health.body_battery_morning if (yesterday_health and yesterday_health.body_battery_morning is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.body_battery_morning is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.body_battery_morning if (avg_metrics and avg_metrics.body_battery_morning is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 75 %}bg-green-50 border-green-200{% elif color_val >= 40 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Body Battery</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg }}<span class="text-xs font-normal text-gray-400">%</span></p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Sleep Score --- #}
-        {% set latest = health.sleep_score if (health and health.sleep_score is not none) else (yesterday_health.sleep_score if (yesterday_health and yesterday_health.sleep_score is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.sleep_score is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.sleep_score if (avg_metrics and avg_metrics.sleep_score is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 75 %}bg-green-50 border-green-200{% elif color_val >= 50 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Sleep Score</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Sleep Duration --- #}
-        {% set latest = health.sleep_duration_minutes if (health and health.sleep_duration_minutes is not none) else (yesterday_health.sleep_duration_minutes if (yesterday_health and yesterday_health.sleep_duration_minutes is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.sleep_duration_minutes is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.sleep_duration_minutes if (avg_metrics and avg_metrics.sleep_duration_minutes is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 420 and color_val <= 540 %}bg-green-50 border-green-200{% elif color_val >= 360 and color_val <= 600 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Sleep</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ (latest // 60) }}h {{ (latest % 60) }}m</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ (avg // 60) }}h {{ (avg % 60) }}m</p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ (latest // 60) }}h {{ (latest % 60) }}m</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ (avg // 60) }}h {{ (avg % 60) }}m</p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Training Readiness --- #}
-        {% set latest = health.training_readiness if (health and health.training_readiness is not none) else (yesterday_health.training_readiness if (yesterday_health and yesterday_health.training_readiness is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.training_readiness is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.training_readiness if (avg_metrics and avg_metrics.training_readiness is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 67 %}bg-green-50 border-green-200{% elif color_val >= 34 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Readiness</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Steps --- #}
-        {% set latest = health.steps if (health and health.steps is not none) else (yesterday_health.steps if (yesterday_health and yesterday_health.steps is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.steps is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.steps if (avg_metrics and avg_metrics.steps is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val >= 8000 %}bg-green-50 border-green-200{% elif color_val >= 5000 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Steps</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ "{:,}".format(latest) }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ "{:,}".format(avg) }}</p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ "{:,}".format(latest) }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ "{:,}".format(avg) }}</p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# --- Avg Stress --- #}
-        {% set latest = health.avg_stress if (health and health.avg_stress is not none) else (yesterday_health.avg_stress if (yesterday_health and yesterday_health.avg_stress is not none) else none) %}
-        {% set latest_lbl = "Today" if (health and health.avg_stress is not none) else "Yesterday" %}
-        {% set avg = avg_metrics.avg_stress if (avg_metrics and avg_metrics.avg_stress is defined) else none %}
-        {% set color_val = latest if latest is not none else avg %}
-        {% if latest is not none or avg is not none %}
-        <div class="rounded-lg shadow-sm border p-3
-            {% if color_val is not none %}{% if color_val <= 25 %}bg-green-50 border-green-200{% elif color_val <= 50 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}{% else %}bg-white border-gray-200{% endif %}">
-            <p class="text-xs text-gray-500 uppercase mb-1">Avg Stress</p>
-            {% if latest is not none and avg is not none %}
-            <div class="grid grid-cols-2 gap-1">
-                <div><p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p></div>
-                <div><p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p></div>
-            </div>
-            {% elif latest is not none %}
-            <p class="text-lg font-bold text-gray-900">{{ latest }}</p><p class="text-xs text-gray-400">{{ latest_lbl }}</p>
-            {% else %}
-            <p class="text-lg font-bold text-gray-900">{{ avg }}</p><p class="text-xs text-gray-400">7d avg</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-    </div>
-    {% else %}
-    <div class="rounded-xl shadow-sm border border-gray-200 bg-white p-5">
-        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Health Metrics</h2>
-        <p class="text-gray-400 text-sm">No health data for today. Sync your Garmin to see metrics.</p>
+        {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Today's planned workout -->
-    {% if today_session %}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Today's Workout</h2>
+    {% else %}
+    <div class="my-10 border-t border-b border-white/[0.09] py-8">
+        <p class="text-sm text-zinc-500">No health metrics for today. Sync your Garmin to populate readiness data.</p>
+    </div>
+    {% endif %}
+
+    <!-- ===== The read / Today ===== -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+        {% if briefing %}
+        <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">The read</div>
+            <p class="text-[15px] leading-[1.7] text-zinc-300">
+                {% if briefing_data.workout_adjustments %}{{ briefing_data.workout_adjustments }}{% endif %}
+                {% if briefing_data.sleep_recommendation %} {{ briefing_data.sleep_recommendation }}{% endif %}
+                {% if not briefing_data.workout_adjustments and not briefing_data.sleep_recommendation %}{{ briefing_data.recovery_status }}{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Today</div>
+            {% if today_session %}
+            <div class="text-[22px] font-semibold text-zinc-50">{{ today_session.title }}</div>
+            <div class="font-mono text-sm text-zinc-500 mt-1.5">
+                <span class="capitalize">{{ today_session.sport }}</span>{% if today_session.duration_minutes %} · {{ today_session.duration_minutes }} min{% endif %}{% if today_session_details and today_session_details.exercises %} · {{ today_session_details.exercises | length }} exercises{% endif %}
+            </div>
+            {% if today_session.notes %}
+            <p class="text-sm text-zinc-400 mt-2 leading-relaxed">{{ today_session.notes }}</p>
+            {% endif %}
             {% if today_session.completed %}
-            <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-200 text-green-800">Done</span>
+            <span class="inline-block mt-4 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300">Completed</span>
             {% else %}
-            <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">Planned</span>
+            <a href="/plan" class="inline-block mt-5 font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-5 py-3 rounded-lg">Start session &rarr;</a>
+            {% endif %}
+            {% elif plan %}
+            <div class="text-[22px] font-semibold text-zinc-300">Rest day</div>
+            <p class="text-sm text-zinc-500 mt-1.5">No session planned for today. Recover well.</p>
+            {% else %}
+            <div class="text-[22px] font-semibold text-zinc-300">No plan yet</div>
+            <p class="text-sm text-zinc-500 mt-1.5">No plan for this week. <a href="/plan" class="text-accent-soft hover:underline">Generate one</a>.</p>
             {% endif %}
         </div>
-        <h3 class="text-lg font-semibold text-gray-900">{{ today_session.title }}</h3>
-        <div class="flex items-center gap-3 mt-1 text-sm text-gray-500">
-            <span class="capitalize">{{ today_session.sport }}</span>
-            {% if today_session.duration_minutes %}
-            <span>{{ today_session.duration_minutes }} min</span>
-            {% endif %}
-        </div>
-        {% if today_session.notes %}
-        <p class="text-gray-600 text-sm mt-2">{{ today_session.notes }}</p>
-        {% endif %}
-        {% if today_session_details and today_session_details.exercises %}
-        <div class="mt-3 space-y-2">
-            {% for ex in today_session_details.exercises %}
-            <div class="flex items-start gap-3 py-2 {% if not loop.last %}border-b border-gray-100{% endif %}">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                <div class="flex-1 min-w-0">
-                    <p class="font-medium text-sm text-gray-900">{{ ex.name }}</p>
-                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-500">
-                        <span>{{ ex.sets }} sets x {{ ex.reps }}</span>
-                        {% if ex.target_weight_kg %}<span class="font-semibold text-gray-700">{{ ex.target_weight_kg }}kg</span>{% endif %}
-                        {% if ex.rpe %}<span>RPE {{ ex.rpe }}</span>{% endif %}
-                        {% if ex.rest_seconds %}<span>{{ ex.rest_seconds }}s rest</span>{% endif %}
-                    </div>
-                    {% if ex.notes %}
-                    <p class="text-xs text-gray-400 mt-0.5">{{ ex.notes }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% elif today_session_details %}
-        <div class="mt-3 text-sm text-gray-700 space-y-1">
-            {% for key, value in today_session_details.items() %}
-            {% if value %}
-            <div>
-                <span class="font-medium capitalize">{{ key | replace('_', ' ') }}:</span>
-                {% if value is mapping %}
-                <ul class="ml-4 list-disc text-gray-600">
-                    {% for k, v in value.items() %}
-                    <li><span class="font-medium">{{ k }}:</span> {{ v }}</li>
-                    {% endfor %}
-                </ul>
-                {% elif value is iterable and value is not string %}
-                <ul class="ml-4 list-disc text-gray-600">
-                    {% for item in value %}
-                    <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                {{ value }}
-                {% endif %}
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
-    {% elif plan %}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Today's Workout</h2>
-        <p class="text-gray-400 text-sm">No session planned for today. Enjoy your rest day!</p>
-    </div>
-    {% else %}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Today's Workout</h2>
-        <p class="text-gray-400 text-sm">No plan for this week. <a href="/plan" class="text-blue-600 hover:underline">Generate one</a>.</p>
-    </div>
-    {% endif %}
 
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// --- Garmin sync (htmx) ---
 (function() {
-    const btn = document.getElementById('sync-btn');
-    const icon = document.getElementById('sync-icon');
-    const spinner = document.getElementById('sync-spinner');
-    const label = document.getElementById('sync-label');
-    const status = document.getElementById('sync-status');
-
-    function setLoading(on) {
-        btn.disabled = on;
-        icon.classList.toggle('hidden', on);
-        spinner.classList.toggle('hidden', !on);
-        label.textContent = on ? 'Syncing...' : 'Sync Garmin';
-    }
-
+    var btn = document.getElementById('sync-btn');
+    var label = document.getElementById('sync-label');
+    var status = document.getElementById('sync-status');
     document.body.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.elt === btn) setLoading(true);
+        if (evt.detail.elt !== btn) return;
+        btn.disabled = true; label.textContent = 'Syncing…';
     });
-
     document.body.addEventListener('htmx:afterRequest', function(evt) {
         if (evt.detail.elt !== btn) return;
-        setLoading(false);
+        btn.disabled = false; label.innerHTML = '&#8635; Sync Garmin';
         if (evt.detail.successful) {
-            const data = JSON.parse(evt.detail.xhr.responseText);
-            const parts = [];
-        if (data.health_snapshots_created) parts.push(`${data.health_snapshots_created} new snapshots`);
-        if (data.health_snapshots_updated) parts.push(`${data.health_snapshots_updated} updated`);
-        if (data.activities_created) parts.push(`${data.activities_created} activities`);
-        const msg = parts.length ? 'Synced: ' + parts.join(', ') : 'Already up to date';
-            status.innerHTML = '<div class="mt-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">' + msg + '</div>';
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            var parts = [];
+            if (data.health_snapshots_created) parts.push(data.health_snapshots_created + ' new');
+            if (data.health_snapshots_updated) parts.push(data.health_snapshots_updated + ' updated');
+            if (data.activities_created) parts.push(data.activities_created + ' activities');
+            var msg = parts.length ? 'Synced: ' + parts.join(', ') : 'Already up to date';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
             setTimeout(function() { location.reload(); }, 2000);
         } else {
-            const detail = evt.detail.xhr.status === 503 ? 'Garmin authentication failed.' : 'Sync failed.';
-            status.innerHTML = '<div class="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">' + detail + '</div>';
+            var detail = evt.detail.xhr.status === 503 ? 'Garmin authentication failed.' : 'Sync failed.';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">' + detail + '</div>';
+            setTimeout(function() { status.innerHTML = ''; }, 5000);
+        }
+    });
+})();
+
+// --- Hevy sync (htmx) ---
+(function() {
+    var btn = document.getElementById('hevy-btn');
+    var label = document.getElementById('hevy-label');
+    var status = document.getElementById('hevy-status');
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.elt !== btn) return;
+        btn.disabled = true; label.textContent = 'Syncing…';
+    });
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.elt !== btn) return;
+        btn.disabled = false; label.innerHTML = '&#8635; Hevy';
+        if (evt.detail.successful) {
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            var parts = [];
+            if (data.activities_created) parts.push(data.activities_created + ' created');
+            if (data.activities_merged) parts.push(data.activities_merged + ' merged');
+            var msg = parts.length ? 'Synced: ' + parts.join(', ') : 'Already up to date';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
+            setTimeout(function() { location.reload(); }, 2000);
+        } else {
+            var detail = evt.detail.xhr.status === 503 ? 'Hevy authentication failed. Check credentials.' : 'Sync failed.';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">' + detail + '</div>';
             setTimeout(function() { status.innerHTML = ''; }, 5000);
         }
     });
@@ -420,111 +229,49 @@
 
 function generateBriefing() {
     var btn = document.getElementById('briefing-btn');
-    var icon = document.getElementById('briefing-icon');
-    var spinner = document.getElementById('briefing-spinner');
     var label = document.getElementById('briefing-label');
     var status = document.getElementById('briefing-status');
-
-    btn.disabled = true;
-    icon.classList.add('hidden');
-    spinner.classList.remove('hidden');
-    label.textContent = 'Generating...';
-
+    btn.disabled = true; label.textContent = 'Generating…';
     fetch('/api/coaching/today/generate', { method: 'POST' })
     .then(function(resp) {
         if (resp.ok) {
-            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">Briefing generated! Reloading...</div>';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">Briefing generated! Reloading…</div>';
             setTimeout(function() { location.reload(); }, 1500);
         } else if (resp.status === 409) {
-            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">Briefing already exists. Reloading...</div>';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-amber-300 text-sm">Briefing already exists. Reloading…</div>';
             setTimeout(function() { location.reload(); }, 1500);
         } else {
             return resp.json().then(function(d) {
-                status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Error: ' + (d.detail || 'Generation failed') + '</div>';
+                status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">Error: ' + (d.detail || 'Generation failed') + '</div>';
             });
         }
     })
     .catch(function(err) {
-        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Network error: ' + err.message + '</div>';
+        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">Network error: ' + err.message + '</div>';
     })
-    .finally(function() {
-        btn.disabled = false;
-        icon.classList.remove('hidden');
-        spinner.classList.add('hidden');
-        label.textContent = 'Generate Briefing';
-    });
+    .finally(function() { btn.disabled = false; label.textContent = 'Generate briefing'; });
 }
 
 function regenerateBriefing() {
     var btn = document.getElementById('regen-briefing-btn');
-    var icon = document.getElementById('regen-briefing-icon');
-    var spinner = document.getElementById('regen-briefing-spinner');
     var label = document.getElementById('regen-briefing-label');
     var status = document.getElementById('regen-briefing-status');
-
-    btn.disabled = true;
-    icon.classList.add('hidden');
-    spinner.classList.remove('hidden');
-    label.textContent = 'Regenerating...';
-
+    btn.disabled = true; label.textContent = 'Regenerating…';
     fetch('/api/coaching/today/generate?force=true', { method: 'POST' })
     .then(function(resp) {
         if (resp.ok) {
-            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">Briefing regenerated! Reloading...</div>';
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">Briefing regenerated! Reloading…</div>';
             setTimeout(function() { location.reload(); }, 1500);
         } else {
             return resp.json().then(function(d) {
-                status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Error: ' + (d.detail || 'Generation failed') + '</div>';
+                status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">Error: ' + (d.detail || 'Generation failed') + '</div>';
             });
         }
     })
     .catch(function(err) {
-        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">Network error: ' + err.message + '</div>';
+        status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">Network error: ' + err.message + '</div>';
     })
-    .finally(function() {
-        btn.disabled = false;
-        icon.classList.remove('hidden');
-        spinner.classList.add('hidden');
-        label.textContent = 'Regenerate';
-    });
+    .finally(function() { btn.disabled = false; label.innerHTML = '&#8635; Regenerate briefing'; });
 }
-
-(function() {
-    const btn = document.getElementById('hevy-btn');
-    const icon = document.getElementById('hevy-icon');
-    const spinner = document.getElementById('hevy-spinner');
-    const label = document.getElementById('hevy-label');
-    const status = document.getElementById('hevy-status');
-
-    function setLoading(on) {
-        btn.disabled = on;
-        icon.classList.toggle('hidden', on);
-        spinner.classList.toggle('hidden', !on);
-        label.textContent = on ? 'Syncing...' : 'Sync Hevy';
-    }
-
-    document.body.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.elt === btn) setLoading(true);
-    });
-
-    document.body.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.elt !== btn) return;
-        setLoading(false);
-        if (evt.detail.successful) {
-            const data = JSON.parse(evt.detail.xhr.responseText);
-            const parts = [];
-            if (data.activities_created) parts.push(data.activities_created + ' created');
-            if (data.activities_merged) parts.push(data.activities_merged + ' merged');
-            const msg = parts.length ? 'Synced: ' + parts.join(', ') : 'Already up to date';
-            status.innerHTML = '<div class="mt-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">' + msg + '</div>';
-            setTimeout(function() { location.reload(); }, 2000);
-        } else {
-            const detail = evt.detail.xhr.status === 503 ? 'Hevy authentication failed. Check credentials.' : 'Sync failed.';
-            status.innerHTML = '<div class="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">' + detail + '</div>';
-            setTimeout(function() { status.innerHTML = ''; }, 5000);
-        }
-    });
-})();
-
 </script>
 {% endblock %}

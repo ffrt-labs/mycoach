@@ -1,14 +1,141 @@
-/* MyCoach custom styles — extends Tailwind CDN */
+/* MyCoach — dark IBM Plex design system.
+   Most styling is inline per screen; this file holds the reset, base colors,
+   nav responsiveness, hover states (replacing dc-runtime style-hover), and
+   shared dark form controls for the CRUD screens. */
+
+/* ---------- reset + base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #070707; }
+body {
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #c9c9cd;
+}
+a { color: #fdba74; text-decoration: none; }
+a:hover { color: #fed7aa; }
+::selection { background: rgba(251, 146, 60, .3); }
 
 /* Smooth page transitions with HTMX boost */
-.htmx-settling {
-    opacity: 0.8;
-    transition: opacity 150ms ease-in;
+.htmx-settling { opacity: 0.8; transition: opacity 150ms ease-in; }
+
+/* Utility relied on by page scripts (formerly from Tailwind) */
+.hidden { display: none !important; }
+.spin { display: inline-block; animation: mc-spin 0.8s linear infinite; }
+@keyframes mc-spin { to { transform: rotate(360deg); } }
+
+/* ---------- layout ---------- */
+.app-main { max-width: 1180px; margin: 0 auto; padding: 44px 40px 96px; }
+
+/* ---------- top nav ---------- */
+.nav-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(7, 7, 7, .9); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.nav-inner {
+    max-width: 1180px; margin: 0 auto; padding: 0 40px;
+    display: flex; align-items: center; justify-content: space-between; height: 62px;
+}
+.nav-links { display: flex; align-items: flex-end; gap: 24px; }
+.nav-link {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font: 600 13px 'IBM Plex Sans'; color: #9a9aa2; text-decoration: none;
+}
+.nav-link .nav-underline {
+    display: block; height: 2px; margin-top: 9px; border-radius: 2px; background: transparent;
+}
+.nav-link:hover { color: #fdba74; }
+.nav-link.is-active { color: #fb923c; }
+.nav-link.is-active .nav-underline { background: #fb923c; }
+
+/* ---------- bottom nav (mobile) ---------- */
+.nav-bottom { display: none; }
+
+@media (max-width: 767px) {
+    .app-main { padding: 26px 18px 92px; }
+    .nav-links { display: none; }
+    .nav-bottom {
+        display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+        background: rgba(7, 7, 7, .96); backdrop-filter: blur(12px);
+        border-top: 1px solid rgba(255, 255, 255, .08);
+        padding: 7px 8px; gap: 2px; overflow-x: auto;
+    }
+    .nav-bottom .nav-link {
+        flex: 1 0 auto; text-align: center; white-space: nowrap;
+        font: 600 11px 'IBM Plex Sans'; padding: 6px 9px; border-radius: 8px;
+    }
+    .nav-bottom .nav-link .nav-underline { display: none; }
+    .nav-bottom .nav-link.is-active { background: rgba(251, 146, 60, .14); }
+    /* scale down oversized display type */
+    .display-xl { font-size: clamp(56px, 16vw, 116px) !important; }
+    .display-lg { font-size: clamp(44px, 13vw, 104px) !important; }
+    .display-md { font-size: clamp(40px, 11vw, 72px) !important; }
+    /* stack multi-column blocks */
+    .stack-mobile { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .row-scroll { overflow-x: auto; }
 }
 
-/* Bottom nav spacer on mobile */
-@media (max-width: 639px) {
-    body {
-        padding-bottom: 4rem;
-    }
+/* ---------- buttons (hover replaces dc-runtime style-hover) ---------- */
+.btn-accent {
+    font: 700 14px 'IBM Plex Sans'; color: #0a0b0d; background: #fb923c;
+    border: none; padding: 12px 22px; border-radius: 11px; cursor: pointer;
+    transition: background 120ms ease;
 }
+.btn-accent:hover { background: #fda860; }
+.btn-accent:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-ghost {
+    font: 600 12px 'IBM Plex Sans'; color: #a1a1aa;
+    background: none; border: none; cursor: pointer; transition: color 120ms ease;
+}
+.btn-ghost:hover { color: #fdba74; }
+.btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-danger {
+    font: 600 12px 'IBM Plex Sans'; color: #8a8a8f;
+    background: none; border: none; cursor: pointer; padding: 4px; transition: color 120ms ease;
+}
+.btn-danger:hover { color: #e57373; }
+
+.btn-dashed {
+    width: 100%; font: 600 13px 'IBM Plex Sans'; color: #71717a;
+    background: none; border: 1px dashed rgba(255, 255, 255, .15);
+    border-radius: 11px; padding: 14px 0; cursor: pointer; transition: color 120ms ease, border-color 120ms ease;
+}
+.btn-dashed:hover { color: #fdba74; border-color: rgba(251, 146, 60, .4); }
+
+/* ---------- dark form controls ---------- */
+.field {
+    width: 100%; background: #111113; border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 9px; padding: 10px 12px; color: #e4e4e7;
+    font: 500 14px 'IBM Plex Sans'; outline: none; transition: border-color 120ms ease;
+}
+.field:focus { border-color: #fb923c; }
+.field:disabled { opacity: .55; cursor: not-allowed; }
+.field::placeholder { color: #57575c; }
+select.field { appearance: none; -webkit-appearance: none; cursor: pointer; }
+textarea.field { resize: vertical; line-height: 1.5; }
+.field-label {
+    display: block; font: 600 10px 'IBM Plex Sans'; letter-spacing: .1em;
+    text-transform: uppercase; color: #6b7280; margin-bottom: 6px;
+}
+
+/* checkbox styled as the design's rounded box */
+.check-box {
+    width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid rgba(255, 255, 255, .2);
+    background: transparent; display: flex; align-items: center; justify-content: center;
+    color: #0a0b0d; font: 700 13px 'IBM Plex Mono'; flex-shrink: 0; cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.check-box.is-on { border-color: #fb923c; background: #fb923c; }
+
+/* support for the md_bold Jinja filter's output (bulleted lists + bold) */
+ul.list-disc { list-style: disc; margin: 4px 0 0 18px; }
+ul.space-y-1 > li + li { margin-top: 4px; }
+.md-body strong { color: #fafafa; font-weight: 600; }
+
+/* status / feedback banners */
+.banner { border-radius: 10px; padding: 12px 14px; font: 500 13px 'IBM Plex Sans'; }
+.banner-info { background: rgba(251, 146, 60, .1); border: 1px solid rgba(251, 146, 60, .25); color: #fdba74; }
+.banner-ok { background: rgba(134, 201, 154, .1); border: 1px solid rgba(134, 201, 154, .3); color: #86c99a; }
+.banner-err { background: rgba(229, 115, 115, .1); border: 1px solid rgba(229, 115, 115, .3); color: #e57373; }

@@ -71,7 +71,9 @@ SAMPLE_TRAINING_STATUS = {
     },
 }
 
-SAMPLE_MAX_METRICS = {"generic": {"vo2MaxValue": 48.5}}
+# Real shape confirmed from a live Garmin payload: a list of daily records,
+# not a bare dict.
+SAMPLE_MAX_METRICS = [{"generic": {"vo2MaxValue": 48.5}}]
 
 SAMPLE_RESPIRATION = {"avgWakingRespirationValue": 15.2}
 
@@ -211,6 +213,28 @@ class TestMapHealthSnapshot:
         assert snapshot.training_load is None
         assert snapshot.respiration_avg is None
         assert snapshot.spo2_avg is None
+
+    def test_max_metrics_empty_list_no_data_that_day(self) -> None:
+        """Garmin returns [] (not a crash-worthy shape) when there's no vo2
+        data for the queried day — must yield None, not raise."""
+        snapshot = map_health_snapshot(
+            user_id=1,
+            snapshot_date=date(2024, 6, 10),
+            stats=SAMPLE_STATS,
+            max_metrics=[],
+        )
+        assert snapshot.vo2_max is None
+
+    def test_max_metrics_dict_shape_still_supported(self) -> None:
+        """Defensive fallback: a bare dict (in case some account/version
+        returns one directly) should still be handled without crashing."""
+        snapshot = map_health_snapshot(
+            user_id=1,
+            snapshot_date=date(2024, 6, 10),
+            stats=SAMPLE_STATS,
+            max_metrics={"generic": {"vo2MaxValue": 51.2}},
+        )
+        assert snapshot.vo2_max == 51.2
 
     def test_list_shaped_nested_fields_ignored(self) -> None:
         """A top-level dict whose nested substructure is a list (e.g. Garmin's

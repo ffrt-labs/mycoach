@@ -97,7 +97,8 @@ class GarminSource(DataSource):
 
         Each API call is wrapped individually so partial data is still captured.
         """
-        stats = self._safe_call(self._client.get_stats, day) or {}
+        raw_stats = self._safe_call(self._client.get_stats, day)
+        stats = raw_stats if isinstance(raw_stats, dict) else {}
         sleep = self._safe_call(self._client.get_sleep_data, day)
         hrv = self._safe_call(self._client.get_hrv_data, day)
         stress = self._safe_call(self._client.get_stress_data, day)

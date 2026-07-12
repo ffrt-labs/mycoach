@@ -189,6 +189,29 @@ class TestMapHealthSnapshot:
         assert snapshot.resting_hr is None
         assert snapshot.steps is None
 
+    def test_list_shaped_responses_ignored(self) -> None:
+        """Garmin sometimes returns a list instead of a dict for 'today' fields
+        (e.g. training readiness before it's finalized); mapping must not crash."""
+        snapshot = map_health_snapshot(
+            user_id=1,
+            snapshot_date=date(2024, 6, 10),
+            stats=SAMPLE_STATS,
+            hrv=[],
+            sleep=[],
+            stress=[{"unexpected": "shape"}],
+            training_readiness=[],
+            training_status=[],
+            respiration=[],
+            spo2=[],
+        )
+        assert snapshot.hrv_status is None
+        assert snapshot.sleep_duration_minutes is None
+        assert snapshot.avg_stress is None
+        assert snapshot.training_readiness is None
+        assert snapshot.training_load is None
+        assert snapshot.respiration_avg is None
+        assert snapshot.spo2_avg is None
+
 
 # ── Activity Mapper Tests ────────────────────────────────────────────
 
@@ -379,6 +402,59 @@ class TestGarminSource:
 
         source = GarminSource(client=mock_client)
         assert await source.authenticate() is False
+
+    async def test_missing_user_returns_clean_error(self, setup_db) -> None:  # type: ignore[no-untyped-def]
+        """No profile created yet -> a clean error, not an FK crash."""
+        from tests.conftest import test_session
+
+        mock_client = MagicMock()
+        source = GarminSource(client=mock_client)
+
+        async with test_session() as session:
+            result = await source.fetch_and_import(
+                session, user_id=999, since=datetime(2024, 6, 10)
+            )
+
+        assert result.health_snapshots_created == 0
+        assert result.errors is not None
+        assert "No profile found" in result.errors[0]
+        mock_client.get_stats.assert_not_called()
+
+    async def test_health_fetch_error_does_not_poison_session(self, setup_db) -> None:  # type: ignore[no-untyped-def]
+        """A failure mapping one day's health data must not break later commits."""
+        from tests.conftest import test_session
+
+        mock_client = MagicMock()
+        mock_client.get_stats.return_value = SAMPLE_STATS
+        mock_client.get_sleep_data.return_value = None
+        mock_client.get_hrv_data.return_value = None
+        mock_client.get_stress_data.return_value = None
+        mock_client.get_body_battery.return_value = None
+        # Force a mapping failure via a non-dict, non-list value (raises inside mapping).
+        mock_client.get_training_readiness.return_value = SAMPLE_TRAINING_READINESS
+        mock_client.get_training_status.return_value = SAMPLE_TRAINING_STATUS
+        mock_client.get_max_metrics.return_value = None
+        mock_client.get_respiration_data.return_value = None
+        mock_client.get_spo2_data.return_value = None
+        mock_client.get_activities_by_date.return_value = [SAMPLE_ACTIVITY_RAW]
+
+        source = GarminSource(client=mock_client)
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            await session.commit()
+
+            with patch(
+                "mycoach.sources.garmin.source.import_health_snapshot",
+                side_effect=[Exception("boom"), True],
+            ):
+                result = await source.fetch_and_import(
+                    session, user.id, since=datetime(2024, 6, 10)
+                )
+
+            # The second day (and the activities import) still commit successfully.
+            assert result.activities_created == 1
+            assert any("Health fetch failed" in e for e in (result.errors or []))
 
 
 # ── API Endpoint Tests ───────────────────────────────────────────────

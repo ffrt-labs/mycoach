@@ -97,7 +97,7 @@ def map_health_snapshot(
     hrv_status_val = None
     hrv_7day_avg_val = None
     hrv_status_text_val = None
-    if hrv:
+    if isinstance(hrv, dict):
         hrv_summary = hrv.get("hrvSummary") or hrv
         hrv_status_val = _safe_float(hrv_summary.get("lastNightAvg"))
         hrv_7day_avg_val = _safe_float(hrv_summary.get("weeklyAvg"))
@@ -110,7 +110,7 @@ def map_health_snapshot(
     sleep_light = None
     sleep_rem = None
     sleep_awake = None
-    if sleep:
+    if isinstance(sleep, dict):
         daily_sleep = sleep.get("dailySleepDTO") or sleep
         sleep_duration_secs = _safe_int(daily_sleep.get("sleepTimeSeconds"))
         sleep_duration = sleep_duration_secs // 60 if sleep_duration_secs else None
@@ -138,19 +138,19 @@ def map_health_snapshot(
 
     # Stress
     avg_stress_val = None
-    if stress:
+    if isinstance(stress, dict):
         avg_stress_val = _safe_int(stress.get("avgStressLevel"))
 
     # Training readiness
     tr_score = None
-    if training_readiness:
+    if isinstance(training_readiness, dict):
         tr_score = _safe_int(training_readiness.get("score"))
 
     # Training status / load
     t_load = None
     t_status = None
     load_focus_val = None
-    if training_status:
+    if isinstance(training_status, dict):
         t_load = _safe_float(training_status.get("trainingLoad"))
         t_status = training_status.get("trainingStatus")
         # Extract load focus from mostRecentTrainingLoadBalance
@@ -194,12 +194,12 @@ def map_health_snapshot(
 
     # Respiration
     resp_avg = None
-    if respiration:
+    if isinstance(respiration, dict):
         resp_avg = _safe_float(respiration.get("avgWakingRespirationValue"))
 
     # SpO2
     spo2_avg = None
-    if spo2:
+    if isinstance(spo2, dict):
         spo2_avg = _safe_float(spo2.get("averageSpO2"))
 
     # Intensity minutes

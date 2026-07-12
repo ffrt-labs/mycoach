@@ -86,5 +86,18 @@ class Settings(BaseSettings):
             self.scheduler_timezone = self.timezone
         return self
 
+    @model_validator(mode="after")
+    def _require_llm_provider_key(self) -> "Settings":
+        provider = self.llm_provider.lower()
+        if provider == "anthropic" and not self.claude_api_key:
+            raise ValueError(
+                "MYCOACH_LLM_PROVIDER=anthropic but MYCOACH_CLAUDE_API_KEY is not set."
+            )
+        if provider == "gemini" and not self.gemini_api_key:
+            raise ValueError(
+                "MYCOACH_LLM_PROVIDER=gemini but MYCOACH_GEMINI_API_KEY is not set."
+            )
+        return self
+
 def get_settings() -> Settings:
     return Settings()

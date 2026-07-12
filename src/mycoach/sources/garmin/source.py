@@ -58,10 +58,13 @@ class GarminSource(DataSource):
             start_date = end_date - timedelta(days=7)
 
         # Fetch health snapshots day by day
+        empty_health_days: list[date] = []
         current = start_date
         while current <= end_date:
             try:
-                snapshot = self._fetch_health_for_day(user_id, current)
+                snapshot, has_data = self._fetch_health_for_day(user_id, current)
+                if not has_data:
+                    empty_health_days.append(current)
                 created = await import_health_snapshot(session, snapshot)
                 if created:
                     result.health_snapshots_created += 1
@@ -72,6 +75,12 @@ class GarminSource(DataSource):
                 errors.append(f"Health fetch failed for {current}: {e}")
                 logger.warning("Health fetch failed for %s: %s", current, e)
             current += timedelta(days=1)
+
+        if empty_health_days:
+            errors.append(
+                f"{len(empty_health_days)} day(s) synced with no usable Garmin health data: "
+                f"{', '.join(str(d) for d in empty_health_days)}"
+            )
 
         # Fetch activities for the date range
         try:
@@ -92,7 +101,7 @@ class GarminSource(DataSource):
             result.errors = errors
         return result
 
-    def _fetch_health_for_day(self, user_id: int, day: date) -> DailyHealthSnapshot:
+    def _fetch_health_for_day(self, user_id: int, day: date) -> tuple[DailyHealthSnapshot, bool]:
         """Fetch all health data for a single day and build a snapshot.
 
         Each API call is wrapped individually so partial data is still captured.
@@ -109,7 +118,26 @@ class GarminSource(DataSource):
         respiration = self._safe_call(self._client.get_respiration_data, day)
         spo2 = self._safe_call(self._client.get_spo2_data, day)
 
-        return map_health_snapshot(
+        field_status = {
+            "stats": bool(stats),
+            "sleep": isinstance(sleep, dict),
+            "hrv": isinstance(hrv, dict),
+            "stress": isinstance(stress, dict),
+            "body_battery": isinstance(body_battery, list),
+            "training_readiness": isinstance(training_readiness, dict),
+            "training_status": isinstance(training_status, dict),
+            "max_metrics": bool(max_metrics),
+            "respiration": isinstance(respiration, dict),
+            "spo2": isinstance(spo2, dict),
+        }
+        if not any(field_status.values()):
+            logger.warning(
+                "Garmin health fetch for %s: no usable fields at all — %s", day, field_status
+            )
+        elif not all(field_status.values()):
+            logger.info("Garmin health fetch for %s: partial data — %s", day, field_status)
+
+        snapshot = map_health_snapshot(
             user_id=user_id,
             snapshot_date=day,
             stats=stats,
@@ -123,12 +151,13 @@ class GarminSource(DataSource):
             respiration=respiration,
             spo2=spo2,
         )
+        return snapshot, any(field_status.values())
 
     @staticmethod
     def _safe_call(func: Any, *args: Any) -> Any:
         """Call a Garmin API method, returning None on failure."""
         try:
             return func(*args)
-        except Exception:
-            logger.debug("Garmin API call %s failed", func.__name__, exc_info=True)
+        except Exception as e:
+            logger.warning("Garmin API call %s failed: %s", func.__name__, e)
             return None

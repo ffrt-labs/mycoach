@@ -99,9 +99,10 @@ def map_health_snapshot(
     hrv_status_text_val = None
     if isinstance(hrv, dict):
         hrv_summary = hrv.get("hrvSummary") or hrv
-        hrv_status_val = _safe_float(hrv_summary.get("lastNightAvg"))
-        hrv_7day_avg_val = _safe_float(hrv_summary.get("weeklyAvg"))
-        hrv_status_text_val = hrv_summary.get("status")
+        if isinstance(hrv_summary, dict):
+            hrv_status_val = _safe_float(hrv_summary.get("lastNightAvg"))
+            hrv_7day_avg_val = _safe_float(hrv_summary.get("weeklyAvg"))
+            hrv_status_text_val = hrv_summary.get("status")
 
     # Sleep
     sleep_duration = None
@@ -112,25 +113,29 @@ def map_health_snapshot(
     sleep_awake = None
     if isinstance(sleep, dict):
         daily_sleep = sleep.get("dailySleepDTO") or sleep
-        sleep_duration_secs = _safe_int(daily_sleep.get("sleepTimeSeconds"))
-        sleep_duration = sleep_duration_secs // 60 if sleep_duration_secs else None
-        sleep_score = _safe_int(daily_sleep.get("sleepScores", {}).get("overall", {}).get("value"))
-        sleep_deep_secs = _safe_int(daily_sleep.get("deepSleepSeconds"))
-        sleep_deep = sleep_deep_secs // 60 if sleep_deep_secs else None
-        sleep_light_secs = _safe_int(daily_sleep.get("lightSleepSeconds"))
-        sleep_light = sleep_light_secs // 60 if sleep_light_secs else None
-        sleep_rem_secs = _safe_int(daily_sleep.get("remSleepSeconds"))
-        sleep_rem = sleep_rem_secs // 60 if sleep_rem_secs else None
-        sleep_awake_secs = _safe_int(daily_sleep.get("awakeSleepSeconds"))
-        sleep_awake = sleep_awake_secs // 60 if sleep_awake_secs else None
+        if isinstance(daily_sleep, dict):
+            sleep_duration_secs = _safe_int(daily_sleep.get("sleepTimeSeconds"))
+            sleep_duration = sleep_duration_secs // 60 if sleep_duration_secs else None
+            sleep_scores = daily_sleep.get("sleepScores")
+            overall = sleep_scores.get("overall") if isinstance(sleep_scores, dict) else None
+            sleep_score = _safe_int(overall.get("value")) if isinstance(overall, dict) else None
+            sleep_deep_secs = _safe_int(daily_sleep.get("deepSleepSeconds"))
+            sleep_deep = sleep_deep_secs // 60 if sleep_deep_secs else None
+            sleep_light_secs = _safe_int(daily_sleep.get("lightSleepSeconds"))
+            sleep_light = sleep_light_secs // 60 if sleep_light_secs else None
+            sleep_rem_secs = _safe_int(daily_sleep.get("remSleepSeconds"))
+            sleep_rem = sleep_rem_secs // 60 if sleep_rem_secs else None
+            sleep_awake_secs = _safe_int(daily_sleep.get("awakeSleepSeconds"))
+            sleep_awake = sleep_awake_secs // 60 if sleep_awake_secs else None
 
     # Body Battery
     bb_high = None
     bb_low = None
     bb_morning = None
     if body_battery:
-        bb_values = [_safe_int(b.get("charged")) for b in body_battery if b.get("charged")]
-        bb_drain = [_safe_int(b.get("drained")) for b in body_battery if b.get("drained")]
+        bb_entries = [b for b in body_battery if isinstance(b, dict)]
+        bb_values = [_safe_int(b.get("charged")) for b in bb_entries if b.get("charged")]
+        bb_drain = [_safe_int(b.get("drained")) for b in bb_entries if b.get("drained")]
         if bb_values:
             bb_high = max(v for v in bb_values if v is not None) if any(bb_values) else None
         if bb_drain:

@@ -212,6 +212,33 @@ class TestMapHealthSnapshot:
         assert snapshot.respiration_avg is None
         assert snapshot.spo2_avg is None
 
+    def test_list_shaped_nested_fields_ignored(self) -> None:
+        """A top-level dict whose nested substructure is a list (e.g. Garmin's
+        'today' dailySleepDTO/hrvSummary before it's finalized) must not crash."""
+        snapshot = map_health_snapshot(
+            user_id=1,
+            snapshot_date=date(2024, 6, 10),
+            stats=SAMPLE_STATS,
+            hrv={"hrvSummary": [{"unexpected": "shape"}]},
+            sleep={"dailySleepDTO": [{"unexpected": "shape"}]},
+            body_battery=[{"charged": 80}, ["not", "a", "dict"], {"drained": 10}],
+        )
+        assert snapshot.hrv_status is None
+        assert snapshot.sleep_duration_minutes is None
+        assert snapshot.body_battery_high == 80
+        assert snapshot.body_battery_low == 10
+
+    def test_sleep_scores_non_dict_ignored(self) -> None:
+        """dailySleepDTO.sleepScores can also come back non-dict; must not crash."""
+        snapshot = map_health_snapshot(
+            user_id=1,
+            snapshot_date=date(2024, 6, 10),
+            stats=SAMPLE_STATS,
+            sleep={"dailySleepDTO": {"sleepTimeSeconds": 28800, "sleepScores": []}},
+        )
+        assert snapshot.sleep_duration_minutes == 480
+        assert snapshot.sleep_score is None
+
 
 # ── Activity Mapper Tests ────────────────────────────────────────────
 

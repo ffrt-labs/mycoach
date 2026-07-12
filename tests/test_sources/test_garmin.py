@@ -396,6 +396,36 @@ class TestGarminSource:
             assert result.activities_created == 1
             assert result.health_snapshots_created >= 1
 
+    async def test_list_shaped_stats_for_today_does_not_crash(self, setup_db) -> None:  # type: ignore[no-untyped-def]
+        """Garmin's daily-stats endpoint can return a non-empty list instead of
+        a dict for 'today' before it's finalized; the day must be skipped, not crash."""
+        from tests.conftest import test_session
+
+        mock_client = MagicMock()
+        mock_client.get_stats.return_value = [{"unexpected": "shape"}]
+        mock_client.get_sleep_data.return_value = None
+        mock_client.get_hrv_data.return_value = None
+        mock_client.get_stress_data.return_value = None
+        mock_client.get_body_battery.return_value = None
+        mock_client.get_training_readiness.return_value = None
+        mock_client.get_training_status.return_value = None
+        mock_client.get_max_metrics.return_value = None
+        mock_client.get_respiration_data.return_value = None
+        mock_client.get_spo2_data.return_value = None
+        mock_client.get_activities_by_date.return_value = []
+
+        source = GarminSource(client=mock_client)
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            await session.commit()
+
+            since = datetime(2024, 6, 10)
+            result = await source.fetch_and_import(session, user.id, since=since)
+
+            assert result.health_snapshots_created >= 1
+            assert result.errors is None
+
     async def test_auth_failure(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         mock_client = MagicMock()
         mock_client.connect.return_value = False

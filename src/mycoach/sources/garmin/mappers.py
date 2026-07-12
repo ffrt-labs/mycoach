@@ -79,7 +79,7 @@ def map_health_snapshot(
     body_battery: list[dict[str, Any]] | None = None,
     training_readiness: dict[str, Any] | None = None,
     training_status: dict[str, Any] | None = None,
-    max_metrics: dict[str, Any] | None = None,
+    max_metrics: list[dict[str, Any]] | dict[str, Any] | None = None,
     respiration: dict[str, Any] | None = None,
     spo2: dict[str, Any] | None = None,
 ) -> DailyHealthSnapshot:
@@ -182,14 +182,16 @@ def map_health_snapshot(
                             t_status = str(ts_val)
                     break
 
-    # VO2 max
+    # VO2 max — get_max_metrics returns a list of daily records (one per queried
+    # day), each shaped like {"generic": {"vo2MaxValue": ...}, ...}.
     vo2 = None
-    if max_metrics:
-        generic = max_metrics.get("generic") or max_metrics
+    day_metrics: Any = max_metrics
+    if isinstance(max_metrics, list) and max_metrics:
+        day_metrics = max_metrics[0]
+    if isinstance(day_metrics, dict):
+        generic = day_metrics.get("generic")
         if isinstance(generic, dict):
             vo2 = _safe_float(generic.get("vo2MaxValue"))
-        elif isinstance(generic, list) and generic:
-            vo2 = _safe_float(generic[0].get("vo2MaxValue"))
 
     # Body battery morning (wake time value from stats)
     bb_morning = _safe_int(stats.get("bodyBatteryAtWakeTime"))

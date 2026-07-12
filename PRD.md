@@ -233,8 +233,8 @@ GET  /api/system/status                   # Health check
   - **Oura Ring** — sleep, readiness, activity, HRV (complements Garmin)
   - **Whoop** — strain, recovery, sleep (alternative wearable)
 - ~~**Hevy API direct sync** — replace manual CSV upload with direct API fetch from Hevy's web API. Username/password auth, scheduled + manual sync, CSV kept as fallback.~~
-- **Built-in gym workout logger** — replace Hevy CSV with a minimal PWA logger (exercise picker, sets/reps/weight input). Eliminates manual CSV export step.
-- **wger integration** — alternative: deploy open-source wger (self-hosted) and connect via REST API
+- ~~**Built-in gym workout logger** — replace Hevy CSV with a minimal PWA logger.~~ → planned as the offline companion PWA in **§11**.
+- ~~**wger integration** — deploy self-hosted wger and connect via REST API.~~ Rejected (too bloated); OpenLift also rejected (not self-hostable yet). See **§11**.
 - Nutrition tracking integration
 - Interactive AI chat for ad-hoc coaching questions
 - Native push notifications
@@ -255,3 +255,81 @@ GET  /api/system/status                   # Health check
 7. **Phase 6:** Open PWA on mobile, navigate all screens, verify data renders correctly
 8. **Phase 7:** Verify emails arrive in inbox with correct formatting
 9. **Phase 8:** Run full test suite (`pytest`), verify >80% coverage on critical paths
+
+---
+
+## 11. Open Workout Ingestion & Offline Companion Logger
+
+> Supersedes the struck-through "Hevy API direct sync" and the "Built-in gym workout logger" /
+> "wger integration" items in §9. Planned feature — not yet implemented.
+
+### 11.1 Context / Why
+
+Hevy's unofficial web API is fundamentally fragile: refreshing an access token requires a
+still-valid (~15-min) access token sent as `Authorization: Bearer`, and the only way to obtain one
+is a reCAPTCHA-gated `/login` that no headless server can call. Reliable hands-off auto-sync is
+therefore impossible without a keep-alive hack that breaks on any outage.
+
+Evaluated open-source replacements and rejected both: **wger** (too bloated — diet/nutrition/health,
+we only want lifting) and **OpenLift** (not viable yet — backend not open-sourced, self-hosting
+"coming soon", hosted-only undocumented GraphQL API). Decision: **build from scratch.**
+
+Hard constraint: **MyCoach is homelab/LAN-only and must stay non-externally accessible.** So logging
+cannot happen "in the app" from the gym (that would require exposing MyCoach externally). Instead we
+log **offline on the phone** and sync to MyCoach over the home LAN.
+
+### 11.2 Goals
+
+- Make MyCoach **open to any workout source** via a canonical ingestion schema + a single
+  authenticated push endpoint (companion app, scripts, iOS Shortcuts, future apps).
+- Provide a **standalone offline-first companion PWA** (served by MyCoach on the LAN, vanilla JS)
+  that logs lifts fully offline at the gym and pushes to MyCoach when back on home WiFi.
+- **Retire** the Hevy web-API auto-sync; keep the reliable **Hevy CSV import** as a fallback.
+- Full data ownership, zero third-party API fragility, no external exposure of MyCoach.
+
+### 11.3 Data Model changes
+
+- **Activity.external_id** (new, String, nullable, indexed) — source-native/stable id for robust
+  deduplication. Dedup key: `(user_id, data_source, external_id)` when present, else fall back to
+  `(title, start_time)`.
+- **Activity.data_source** gains value `"logger"` (companion app). Garmin merge (§1.1) generalized
+  to overlay HR/calories onto gym activities where `data_source in ("hevy", "logger")`.
+
+### 11.4 Canonical ingestion schema (source-agnostic)
+
+`WorkoutImport { external_id, source, title, sport="gym", start_time, end_time, notes, sets[] }`
+with `WorkoutSetImport { exercise_title, superset_id, exercise_notes, set_index, set_type,
+weight_kg, reps, distance_meters, duration_seconds, rpe }` — a promotion of today's Hevy
+intermediate dataclasses. A generic `import_workouts(session, user_id, workouts, source)` maps these
+to `Activity` + `GymWorkoutDetail`. The Hevy CSV parser is refactored to emit this schema.
+
+### 11.5 Endpoints
+
+- `POST /api/sources/import/workouts` — **universal push**, body `WorkoutImportBatch`, guarded by an
+  API-key dependency (`X-API-Key` vs `MYCOACH_API_TOKEN`). Imports + auto-merges with Garmin.
+- `GET /api/logger/exercises` — distinct exercise titles from the user's history (offline
+  autocomplete source for the companion app).
+- `GET /logger` — serves the standalone companion PWA (own manifest, service worker, icon).
+- Kept: `POST /api/sources/import/hevy` (CSV). Removed: `POST /api/sources/sync/hevy`,
+  `POST /api/sources/hevy/refresh-token`, Hevy scheduler jobs.
+
+### 11.6 Companion PWA (offline-first, LAN)
+
+Vanilla JS + Tailwind + service worker + IndexedDB, **gym-only**. Install once at home (own app
+icon); log sessions fully offline at the gym; edit/delete allowed while unsynced (read-only after
+sync); auto-push unsynced sessions (each tagged with a client UUID = `external_id`) to the universal
+endpoint when MyCoach is reachable on the LAN. Free-text exercise entry with autocomplete cached
+locally. API key entered once and stored in localStorage.
+
+**Prerequisite — HTTPS / secure context:** Service workers (hence offline caching) only register in
+a secure context (HTTPS or `localhost`). A plain `http://<lan-ip>:8000` is non-secure and offline
+mode will not work, especially on iOS. MyCoach must therefore be fronted by **Caddy over HTTPS on
+the LAN** (see `Caddyfile.example`) — a real domain pointed at the LAN IP, or a local CA cert (e.g.
+mkcert) trusted on the phone. This is what makes "log at the gym with no signal, sync at home" work.
+
+### 11.7 Verification
+
+Tests for `import_workouts` (dedup by external_id + fallback), the push endpoint (API-key
+rejection + idempotent re-post), refactored Hevy CSV path, generalized merge, and the Alembic
+migration. End-to-end: install `/logger` on a phone, airplane-mode log a session, re-enable WiFi,
+confirm auto-sync into `/history`.

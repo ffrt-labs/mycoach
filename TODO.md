@@ -307,3 +307,57 @@
   - [ ] Add avg_hr, max_hr, calories, training_effect_aerobic to activity summaries
   - [ ] Affects: daily briefing, weekly recap, cardio plan prompts
   - [ ] Gives LLM training-load awareness when reasoning over recent activity history
+
+---
+
+## Phase 9: Open Workout Ingestion + Offline Companion Logger
+
+> See PRD §11. Replaces Hevy web-API auto-sync with a canonical ingestion layer + a standalone
+> offline-first companion PWA (LAN-only). Keeps Hevy CSV import.
+
+### 9.0 Retire Hevy web-API auto-sync (keep CSV)
+
+- [ ] Discard the uncommitted pair-based/keep-alive Hevy work in the working tree
+- [ ] Remove `sources/hevy/api_client.py`, `api_source.py`, `api_parser.py`
+- [ ] Remove routes `POST /api/sources/sync/hevy` and `POST /api/sources/hevy/refresh-token`
+- [ ] Remove scheduler `hevy_sync` (+ keepalive) jobs from `scheduler/scheduler.py` + `jobs.py`
+- [ ] Remove Hevy sync button + token re-seed UI from `templates/dashboard.html`
+- [ ] Remove Hevy token/refresh/keepalive settings from `config.py`, `.env.example`, `docker-compose.yml`
+- [ ] Keep `sources/hevy/csv_parser.py` + the CSV import route + dashboard/history CSV controls
+
+### 9.1 Canonical ingestion layer
+
+- [ ] `sources/workout_import.py` — `WorkoutImport` + `WorkoutSetImport` dataclasses (source-agnostic)
+- [ ] `schemas/workout_import.py` — Pydantic `WorkoutImportBatch` request model
+- [ ] `sources/importer.py::import_workouts(session, user_id, workouts, source)` — generic mapper → `Activity` + `GymWorkoutDetail`
+- [ ] Alembic migration: add `Activity.external_id` (String, nullable, indexed)
+- [ ] Dedup by `(user_id, data_source, external_id)` when present, else `(title, start_time)`
+- [ ] Refactor `sources/hevy/csv_parser.py` to emit `WorkoutImport` (source `"hevy"`); route calls `import_workouts`; delete `hevy/mappers.py`
+- [ ] Generalize `sources/merger.py` to merge gym activities where `data_source in ("hevy", "logger")`
+
+### 9.2 Universal push endpoint + API-key auth
+
+- [ ] `api/deps.py::require_api_key` — verify `X-API-Key` header against `settings.api_token`
+- [ ] `POST /api/sources/import/workouts` — body `WorkoutImportBatch`, guarded, imports + auto-merges
+- [ ] `GET /api/logger/exercises` — distinct `exercise_title`s from user's `GymWorkoutDetail`
+- [ ] Tests: API-key rejection (401), valid batch counts, idempotent re-post (dedup)
+
+### 9.3 Offline-first companion PWA (served on LAN)
+
+- [ ] **Serve over HTTPS on the LAN (prerequisite for offline PWA)** — service workers only register
+      in a secure context (HTTPS or `localhost`); a plain `http://<lan-ip>:8000` is non-secure and
+      offline caching will NOT work (esp. iOS). Front MyCoach with Caddy (see `Caddyfile.example`)
+      using either a real domain pointed at the LAN IP or a local CA cert (e.g. mkcert) trusted on
+      the phone. Verify `navigator.serviceWorker.register()` succeeds on the phone before building the rest.
+- [ ] `api/pages/logger.py` + `templates/logger/index.html` — standalone shell at `GET /logger`
+- [ ] `static/logger/manifest.json` — own name / `start_url=/logger` / icons (reuse existing)
+- [ ] `static/logger/sw.js` — service worker caching the app shell (offline), scoped to `/logger`
+- [ ] `static/logger/app.js` — logging UI (vanilla JS + Tailwind), gym-only
+  - [ ] Start session (title + auto start_time) → add exercises (free-text + autocomplete)
+  - [ ] Add sets (weight, reps, set_type, RPE, notes); finish session
+  - [ ] Edit/delete unsynced sessions; read-only once synced
+  - [ ] Local session history + per-session sync status
+- [ ] IndexedDB: queue sessions (client UUID = `external_id`, `synced` flag) + cached exercise list
+- [ ] Sync: on load/online/"Sync now" → POST unsynced as `WorkoutImportBatch` (source `"logger"`); mark synced on 200; silent no-op when unreachable
+- [ ] API-key settings field (stored in localStorage); document setting `MYCOACH_API_TOKEN`
+- [ ] **VERIFY:** install `/logger` on phone → airplane-mode log a session → re-enable WiFi → auto-syncs into `/history`

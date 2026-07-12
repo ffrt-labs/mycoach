@@ -395,6 +395,8 @@ class TestGarminSource:
             assert result.source_type == "garmin"
             assert result.activities_created == 1
             assert result.health_snapshots_created >= 1
+            # All fields populated for every day -> no "no usable data" flag.
+            assert result.errors is None
 
     async def test_list_shaped_stats_for_today_does_not_crash(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         """Garmin's daily-stats endpoint can return a non-empty list instead of
@@ -424,7 +426,9 @@ class TestGarminSource:
             result = await source.fetch_and_import(session, user.id, since=since)
 
             assert result.health_snapshots_created >= 1
-            assert result.errors is None
+            # Every field ended up empty/non-dict -> flagged, but no crash.
+            assert result.errors is not None
+            assert any("no usable Garmin health data" in e for e in result.errors)
 
     async def test_auth_failure(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         mock_client = MagicMock()

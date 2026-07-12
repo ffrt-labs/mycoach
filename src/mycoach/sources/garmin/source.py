@@ -4,9 +4,11 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.user import User
 from mycoach.sources.base import DataSource, ImportResult
 from mycoach.sources.garmin.client import GarminClient
 from mycoach.sources.garmin.mappers import (
@@ -42,6 +44,13 @@ class GarminSource(DataSource):
         result = ImportResult(source_type="garmin")
         errors: list[str] = []
 
+        user_exists = await session.execute(select(User.id).where(User.id == user_id))
+        if user_exists.scalar_one_or_none() is None:
+            result.errors = [
+                f"No profile found for user_id={user_id}. Create one at /api/profile first."
+            ]
+            return result
+
         end_date = date.today()
         if since:
             start_date = since.date() if isinstance(since, datetime) else since
@@ -59,6 +68,7 @@ class GarminSource(DataSource):
                 else:
                     result.health_snapshots_updated += 1
             except Exception as e:
+                await session.rollback()
                 errors.append(f"Health fetch failed for {current}: {e}")
                 logger.warning("Health fetch failed for %s: %s", current, e)
             current += timedelta(days=1)
@@ -72,6 +82,7 @@ class GarminSource(DataSource):
             if act_result.errors:
                 errors.extend(act_result.errors)
         except Exception as e:
+            await session.rollback()
             errors.append(f"Activities fetch failed: {e}")
             logger.warning("Activities fetch failed: %s", e)
 

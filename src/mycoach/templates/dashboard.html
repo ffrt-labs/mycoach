@@ -37,14 +37,17 @@
     <!-- Hevy connection recovery (collapsed by default) -->
     <details id="hevy-token-details" class="mt-2">
         <summary class="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer select-none">
-            Hevy sync failing? Update refresh token
+            Hevy sync failing? Re-seed tokens
         </summary>
         <div class="mt-3 max-w-[560px] space-y-2">
             <p class="text-xs text-zinc-500 leading-relaxed">
-                Log into <span class="font-mono">hevy.com</span>, open DevTools &rarr; Network, find the
-                <span class="font-mono">POST /auth/refresh_token</span> (or <span class="font-mono">/login</span>)
-                response, and paste its <span class="font-mono">refresh_token</span> value here. Takes effect on the next sync.
+                Log into <span class="font-mono">hevy.com</span>, open DevTools &rarr; Network, click the
+                <span class="font-mono">refresh_token</span> request &rarr; <span class="font-mono">Response</span>,
+                and paste both <span class="font-mono">access_token</span> and <span class="font-mono">refresh_token</span>
+                from that JSON here. Takes effect on the next sync; then the app keeps them alive automatically.
             </p>
+            <input id="hevy-access-input" type="password" placeholder="Paste access_token"
+                class="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50">
             <div class="flex items-center gap-2">
                 <input id="hevy-token-input" type="password" placeholder="Paste refresh_token"
                     class="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-accent/50">
@@ -296,23 +299,25 @@
 function saveHevyToken() {
     var btn = document.getElementById('hevy-token-save');
     var label = document.getElementById('hevy-token-label');
+    var accessInput = document.getElementById('hevy-access-input');
     var input = document.getElementById('hevy-token-input');
     var status = document.getElementById('hevy-token-status');
+    var access = (accessInput.value || '').trim();
     var token = (input.value || '').trim();
-    if (!token) {
-        status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-amber-300 text-xs">Paste a refresh token first.</div>';
+    if (!access || !token) {
+        status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-amber-300 text-xs">Paste both access_token and refresh_token first.</div>';
         return;
     }
     btn.disabled = true; label.textContent = 'Saving…';
     fetch('/api/sources/hevy/refresh-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: token })
+        body: JSON.stringify({ access_token: access, refresh_token: token })
     })
     .then(function(resp) {
         if (resp.ok) {
-            input.value = '';
-            status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-xs">Token saved. Try the Hevy sync again.</div>';
+            accessInput.value = ''; input.value = '';
+            status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-xs">Tokens saved. Try the Hevy sync again.</div>';
         } else {
             return resp.json().then(function(d) {
                 status.innerHTML = '<div class="mt-2 p-2 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-xs">Error: ' + (d.detail || 'Save failed') + '</div>';

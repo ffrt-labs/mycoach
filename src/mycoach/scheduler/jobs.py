@@ -26,6 +26,7 @@ from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession
 from mycoach.models.user import User
 from mycoach.sources.garmin.source import GarminSource
+from mycoach.sources.hevy.api_client import HevyRateLimitError
 from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.merger import merge_garmin_hevy
 
@@ -89,6 +90,35 @@ async def _hevy_sync() -> None:
             )
         except Exception:
             logger.exception("Scheduler: Hevy sync failed")
+
+
+def job_hevy_keepalive() -> None:
+    """Refresh the Hevy token pair to keep the chain alive between daily syncs.
+
+    Hevy access tokens expire ~15 min and refreshing one requires a still-valid
+    access token, so the token chain dies if left untouched longer than that.
+    This lightweight job (no data fetch) refreshes on a short interval so the
+    daily sync always has a live pair. If it fails, the chain has lapsed and a
+    fresh browser-captured pair must be re-seeded.
+    """
+    _run_async(_hevy_keepalive())
+
+
+async def _hevy_keepalive() -> None:
+    source = HevyApiSource()
+    try:
+        if await source.authenticate():
+            logger.debug("Hevy keep-alive: token refreshed")
+        else:
+            logger.warning(
+                "Hevy keep-alive: refresh failed — token chain has lapsed; re-seed a fresh pair"
+            )
+    except HevyRateLimitError as e:
+        logger.warning("Hevy keep-alive: rate-limited — %s", e)
+    except Exception:
+        logger.exception("Hevy keep-alive error")
+    finally:
+        await source.close()
 
 
 def job_garmin_sync() -> None:

@@ -17,6 +17,7 @@ from mycoach.config import Settings
 from mycoach.scheduler.jobs import (
     job_daily_briefing,
     job_garmin_sync,
+    job_hevy_keepalive,
     job_hevy_sync,
     job_post_workout_analysis,
     job_weekly_plan,
@@ -54,6 +55,20 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
         misfire_grace_time=3600,
         replace_existing=True,
     )
+
+    # 0b. Hevy token keep-alive — refresh the pair every N min so the ~15-min
+    # access-token chain never lapses between daily syncs.
+    if settings.scheduler_hevy_keepalive_minutes > 0:
+        scheduler.add_job(
+            job_hevy_keepalive,
+            "interval",
+            id="hevy_keepalive",
+            minutes=settings.scheduler_hevy_keepalive_minutes,
+            misfire_grace_time=300,
+            coalesce=True,
+            max_instances=1,
+            replace_existing=True,
+        )
 
     # 1. Garmin sync — daily (fetches health + activities, then auto-merges)
     scheduler.add_job(

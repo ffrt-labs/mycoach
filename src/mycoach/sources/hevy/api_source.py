@@ -26,6 +26,7 @@ class HevyApiSource(DataSource):
         self._client = client or HevyApiClient(
             email=settings.hevy_email,
             password=settings.hevy_password,
+            access_token=settings.hevy_access_token,
             refresh_token=settings.hevy_refresh_token,
             token_dir=settings.hevy_token_dir,
         )
@@ -35,8 +36,12 @@ class HevyApiSource(DataSource):
         return "hevy_api"
 
     async def authenticate(self) -> bool:
-        """Authenticate with Hevy. Raises HevyRateLimitError on 429."""
+        """Authenticate with Hevy (refresh the token pair). Raises HevyRateLimitError on 429."""
         return await self._client.login()
+
+    async def close(self) -> None:
+        """Release the underlying HTTP client."""
+        await self._client.close()
 
     async def fetch_and_import(
         self, session: AsyncSession, user_id: int, since: datetime | None = None

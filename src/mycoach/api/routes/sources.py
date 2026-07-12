@@ -14,7 +14,7 @@ from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.sources.garmin.source import GarminSource
-from mycoach.sources.hevy.api_client import HevyRateLimitError, save_refresh_token
+from mycoach.sources.hevy.api_client import HevyRateLimitError, save_tokens
 from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.hevy.mappers import import_hevy_workouts
@@ -141,25 +141,30 @@ async def sync_hevy(
     )
 
 
-class HevyRefreshTokenRequest(BaseModel):
+class HevyTokenSeedRequest(BaseModel):
+    access_token: str
     refresh_token: str
 
 
 @router.post("/hevy/refresh-token")
-async def set_hevy_refresh_token(payload: HevyRefreshTokenRequest) -> dict[str, str]:
-    """Persist a fresh Hevy refresh token captured from a browser session.
+async def set_hevy_tokens(payload: HevyTokenSeedRequest) -> dict[str, str]:
+    """Seed a fresh Hevy token pair captured from a browser session.
 
-    Recovery path when the stored token expires/rotates out of sync: the next
-    sync reads the token file first (see HevyApiClient._load_refresh_token), so
-    this takes effect immediately without a restart.
+    Hevy's refresh call needs BOTH the current access token (sent as a Bearer
+    header) and the rotating refresh token, so both are required. Recovery path
+    when the chain lapses: the next sync/keep-alive reads the token file first
+    (see HevyApiClient._load_tokens), so this takes effect without a restart.
     """
-    token = payload.refresh_token.strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="refresh_token is required.")
+    access_token = payload.access_token.strip()
+    refresh_token = payload.refresh_token.strip()
+    if not access_token or not refresh_token:
+        raise HTTPException(
+            status_code=400, detail="Both access_token and refresh_token are required."
+        )
 
     settings = get_settings()
-    save_refresh_token(settings.hevy_token_dir, token)
-    logger.info("Hevy refresh token updated via re-seed endpoint")
+    save_tokens(settings.hevy_token_dir, access_token, refresh_token)
+    logger.info("Hevy token pair seeded via re-seed endpoint")
     return {"status": "ok"}
 
 

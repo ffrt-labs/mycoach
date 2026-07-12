@@ -1,5 +1,6 @@
 """Tests for Hevy API client, parser, source, and sync endpoint."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from mycoach.sources.hevy.api_client import HevyApiClient, HevyRateLimitError, save_refresh_token
+from mycoach.sources.hevy.api_client import HevyApiClient, HevyRateLimitError, save_tokens
 from mycoach.sources.hevy.api_parser import parse_api_workouts
 from mycoach.sources.hevy.api_source import HevyApiSource
 
@@ -137,59 +138,54 @@ def test_parse_api_workouts_empty() -> None:
 
 
 @pytest.mark.asyncio
-async def test_client_login_success() -> None:
-    from mycoach.sources.hevy.api_client import HEVY_LOGIN_API_KEY, HEVY_WEB_API_KEY
-
-    client = HevyApiClient(email="test@example.com", password="secret")
+async def test_client_login_delegates_to_refresh() -> None:
+    """login() authenticates via the refresh flow (no headless password login)."""
+    client = HevyApiClient(access_token="acc0", refresh_token="ref0")
 
     mock_resp = MagicMock()
-    mock_resp.status_code = 200
     mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"auth_token": "tok123"}
+    mock_resp.json.return_value = {"access_token": "acc1", "refresh_token": "ref1"}
 
-    captured_kwargs: dict = {}
+    captured: dict = {}
 
     async def mock_post(url, **kwargs):  # type: ignore[no-untyped-def]
-        captured_kwargs.update(kwargs)
+        captured["url"] = url
+        captured.update(kwargs)
         return mock_resp
 
     with patch.object(client._http, "post", new=mock_post):
         result = await client.login()
 
     assert result is True
-    assert client._auth_token == "tok123"
-    assert client._http.headers.get("auth-token") == "tok123"
-    # Login must use the login API key, not the web key
-    assert captured_kwargs["headers"]["x-api-key"] == HEVY_LOGIN_API_KEY
-    # After login, web API key is set for subsequent data requests
-    assert client._http.headers.get("x-api-key") == HEVY_WEB_API_KEY
+    assert captured["url"] == "/auth/refresh_token"
+    # Refresh must send the current access token as a Bearer header
+    assert captured["headers"]["authorization"] == "Bearer acc0"
+    # New access token becomes the Bearer for subsequent data requests
+    assert client._http.headers.get("authorization") == "Bearer acc1"
 
 
 @pytest.mark.asyncio
-async def test_client_login_no_credentials() -> None:
+async def test_client_refresh_no_tokens() -> None:
     client = HevyApiClient()
-    result = await client.login()
-    assert result is False
+    assert await client.refresh() is False
 
 
 @pytest.mark.asyncio
-async def test_client_login_missing_token_in_response() -> None:
-    client = HevyApiClient(email="test@example.com", password="secret")
+async def test_client_refresh_missing_tokens_in_response() -> None:
+    client = HevyApiClient(access_token="acc0", refresh_token="ref0")
 
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"user_id": "123"}
+    mock_resp.json.return_value = {"user_id": "123"}  # no tokens
 
     with patch.object(client._http, "post", new=AsyncMock(return_value=mock_resp)):
-        result = await client.login()
-
-    assert result is False
+        assert await client.refresh() is False
 
 
 @pytest.mark.asyncio
-async def test_client_login_rate_limited() -> None:
-    """429 response raises HevyRateLimitError with retry_after info."""
-    client = HevyApiClient(email="test@example.com", password="secret")
+async def test_client_refresh_rate_limited() -> None:
+    """429 during refresh raises HevyRateLimitError with retry_after info."""
+    client = HevyApiClient(access_token="acc0", refresh_token="ref0")
 
     mock_resp = MagicMock()
     mock_resp.status_code = 429
@@ -203,32 +199,10 @@ async def test_client_login_rate_limited() -> None:
         patch.object(client._http, "post", new=AsyncMock(return_value=mock_resp)),
         pytest.raises(HevyRateLimitError) as exc_info,
     ):
-        await client.login()
+        await client.refresh()
 
     assert exc_info.value.retry_after == "60"
     assert "429" in str(exc_info.value)
-
-
-@pytest.mark.asyncio
-async def test_client_login_rate_limited_no_retry_after() -> None:
-    """429 without retry-after header still raises with None retry_after."""
-    client = HevyApiClient(email="test@example.com", password="secret")
-
-    mock_resp = MagicMock()
-    mock_resp.status_code = 429
-    mock_resp.headers = {}
-    mock_resp.text = "Too Many Requests"
-    mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "429", request=MagicMock(), response=mock_resp
-    )
-
-    with (
-        patch.object(client._http, "post", new=AsyncMock(return_value=mock_resp)),
-        pytest.raises(HevyRateLimitError) as exc_info,
-    ):
-        await client.login()
-
-    assert exc_info.value.retry_after is None
 
 
 @pytest.mark.asyncio
@@ -465,74 +439,101 @@ async def test_sync_hevy_endpoint_days_param(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Refresh token persistence + re-seed
+# Token-pair persistence + re-seed
 # ---------------------------------------------------------------------------
 
 
-def test_save_refresh_token_strips_and_writes_atomically(tmp_path: Path) -> None:
-    save_refresh_token(tmp_path, "  tok-abc  ")
+def test_save_tokens_strips_and_writes_atomically(tmp_path: Path) -> None:
+    save_tokens(tmp_path, "  acc-abc  ", "  ref-xyz  ", expires_at="2026-01-01T00:00:00Z")
 
-    assert (tmp_path / "refresh_token.txt").read_text() == "tok-abc"
+    data = json.loads((tmp_path / "tokens.json").read_text())
+    assert data["access_token"] == "acc-abc"
+    assert data["refresh_token"] == "ref-xyz"
+    assert data["expires_at"] == "2026-01-01T00:00:00Z"
     # No leftover temp files from the atomic write
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-def test_load_refresh_token_file_wins_over_seed(tmp_path: Path) -> None:
-    save_refresh_token(tmp_path, "tok-from-file")
-    client = HevyApiClient(refresh_token="seed-token", token_dir=tmp_path)
+def test_load_tokens_file_wins_over_seed(tmp_path: Path) -> None:
+    save_tokens(tmp_path, "acc-file", "ref-file")
+    client = HevyApiClient(access_token="acc-seed", refresh_token="ref-seed", token_dir=tmp_path)
 
-    assert client._load_refresh_token() == "tok-from-file"
+    assert client._load_tokens() == ("acc-file", "ref-file")
 
 
 @pytest.mark.asyncio
-async def test_refresh_rotates_and_persists_token(tmp_path: Path) -> None:
-    """A successful refresh mints an access token and persists the rotated token."""
-    save_refresh_token(tmp_path, "old-refresh")
+async def test_refresh_sends_bearer_and_persists_pair(tmp_path: Path) -> None:
+    """Refresh sends the access token as Bearer and persists the rotated pair."""
+    save_tokens(tmp_path, "acc-0", "ref-0")
     client = HevyApiClient(token_dir=tmp_path)
 
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"auth_token": "acc-1", "refresh_token": "new-refresh"}
+    mock_resp.json.return_value = {
+        "access_token": "acc-1",
+        "refresh_token": "ref-1",
+        "expires_at": "2026-01-01T00:15:00Z",
+    }
+    captured: dict = {}
 
-    with patch.object(client._http, "post", new=AsyncMock(return_value=mock_resp)):
+    async def mock_post(url, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return mock_resp
+
+    with patch.object(client._http, "post", new=mock_post):
         ok = await client.refresh()
 
     assert ok is True
-    assert client._auth_token == "acc-1"
-    assert client._http.headers.get("auth-token") == "acc-1"
-    assert (tmp_path / "refresh_token.txt").read_text() == "new-refresh"
+    # Sent the *old* access token as Bearer
+    assert captured["headers"]["authorization"] == "Bearer acc-0"
+    # New access token applied for data requests
+    assert client._http.headers.get("authorization") == "Bearer acc-1"
+    # Rotated pair persisted
+    data = json.loads((tmp_path / "tokens.json").read_text())
+    assert data == {
+        "access_token": "acc-1",
+        "refresh_token": "ref-1",
+        "expires_at": "2026-01-01T00:15:00Z",
+    }
 
 
 @pytest.mark.asyncio
-async def test_refresh_no_token_returns_false(tmp_path: Path) -> None:
-    client = HevyApiClient(token_dir=tmp_path)
+async def test_refresh_requires_both_tokens(tmp_path: Path) -> None:
+    # Only a refresh token, no access token -> cannot build the Bearer header
+    client = HevyApiClient(refresh_token="ref-only", token_dir=tmp_path)
     assert await client.refresh() is False
 
 
 @pytest.mark.asyncio
-async def test_set_hevy_refresh_token_endpoint(client, tmp_path: Path, monkeypatch) -> None:
+async def test_seed_hevy_tokens_endpoint(client, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "mycoach.api.routes.sources.get_settings",
         lambda: SimpleNamespace(hevy_token_dir=tmp_path),
     )
 
     resp = await client.post(
-        "/api/sources/hevy/refresh-token", json={"refresh_token": "  new-token  "}
+        "/api/sources/hevy/refresh-token",
+        json={"access_token": "  acc-new  ", "refresh_token": "  ref-new  "},
     )
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
-    assert (tmp_path / "refresh_token.txt").read_text() == "new-token"
+    data = json.loads((tmp_path / "tokens.json").read_text())
+    assert data == {"access_token": "acc-new", "refresh_token": "ref-new"}
 
 
 @pytest.mark.asyncio
-async def test_set_hevy_refresh_token_empty_rejected(client, tmp_path: Path, monkeypatch) -> None:
+async def test_seed_hevy_tokens_missing_field_rejected(client, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "mycoach.api.routes.sources.get_settings",
         lambda: SimpleNamespace(hevy_token_dir=tmp_path),
     )
 
-    resp = await client.post("/api/sources/hevy/refresh-token", json={"refresh_token": "   "})
+    # refresh_token present but access_token blank -> rejected
+    resp = await client.post(
+        "/api/sources/hevy/refresh-token",
+        json={"access_token": "   ", "refresh_token": "ref-new"},
+    )
 
     assert resp.status_code == 400
-    assert not (tmp_path / "refresh_token.txt").exists()
+    assert not (tmp_path / "tokens.json").exists()

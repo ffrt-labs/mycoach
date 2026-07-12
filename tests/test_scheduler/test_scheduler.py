@@ -5,7 +5,7 @@ from mycoach.scheduler.scheduler import create_scheduler
 
 
 def test_create_scheduler_registers_all_jobs() -> None:
-    """Scheduler should register all 6 pipeline jobs."""
+    """Scheduler should register all pipeline jobs, including the Hevy keep-alive."""
     settings = Settings(
         scheduler_timezone="UTC",
         scheduler_sync_hour=6,
@@ -22,12 +22,21 @@ def test_create_scheduler_registers_all_jobs() -> None:
     job_ids = {job.id for job in scheduler.get_jobs()}
     assert job_ids == {
         "hevy_sync",
+        "hevy_keepalive",
         "garmin_sync",
         "daily_briefing",
         "post_workout_analysis",
         "weekly_plan",
         "weekly_recap",
     }
+
+
+def test_create_scheduler_keepalive_disabled() -> None:
+    """Setting the keep-alive interval to 0 omits the keep-alive job."""
+    settings = Settings(scheduler_timezone="UTC", scheduler_hevy_keepalive_minutes=0)
+    scheduler = create_scheduler(settings)
+    job_ids = {job.id for job in scheduler.get_jobs()}
+    assert "hevy_keepalive" not in job_ids
 
 
 def test_create_scheduler_uses_configured_timezone() -> None:

@@ -30,9 +30,11 @@ class Settings(BaseSettings):
     garmin_password: str = ""
     garmin_token_dir: Path = Field(default=Path(".garmin_tokens"))
 
-    # Hevy
+    # Hevy — refresh needs BOTH the access token (Bearer) and the rotating
+    # refresh token; seed the pair once from a browser login (see .env.example).
     hevy_email: str = ""
     hevy_password: str = ""
+    hevy_access_token: str = ""
     hevy_refresh_token: str = ""
     hevy_token_dir: Path = Field(default=Path(".hevy_tokens"))
 
@@ -72,6 +74,10 @@ class Settings(BaseSettings):
     scheduler_weekly_plan_hour: int = 18
     scheduler_hevy_sync_hour: int = 5
     scheduler_hevy_sync_minute: int = 30
+    # Hevy access tokens expire ~15 min, and refreshing needs a still-valid one,
+    # so a keep-alive job refreshes the pair on this interval to keep the chain
+    # alive between daily syncs. 0 disables the keep-alive.
+    scheduler_hevy_keepalive_minutes: int = 10
 
 
     @model_validator(mode="after")

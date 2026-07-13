@@ -41,7 +41,10 @@ class Activity(Base):
     avg_strokes_per_length: Mapped[float | None] = mapped_column(Float, default=None)
 
     # Source tracking
-    data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, merged
+    data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, logger, merged
+    # Source-native stable id (e.g. the offline logger's client UUID) for robust
+    # deduplication. Dedup: (user_id, data_source, external_id) when present.
+    external_id: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
     garmin_activity_id: Mapped[str | None] = mapped_column(String(100), default=None, unique=True)
     raw_data: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)

@@ -8,16 +8,15 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.config import get_settings
+from mycoach.api.deps import require_api_key
 from mycoach.database import get_db
 from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.schemas.data_source import DataSourceStatus
+from mycoach.schemas.workout_import import WorkoutImportBatch
 from mycoach.sources.garmin.source import GarminSource
-from mycoach.sources.hevy.api_client import HevyRateLimitError, save_tokens
-from mycoach.sources.hevy.api_source import HevyApiSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
-from mycoach.sources.hevy.mappers import import_hevy_workouts
+from mycoach.sources.importer import import_workouts
 from mycoach.sources.merger import merge_garmin_hevy
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -45,16 +44,51 @@ class GarminSyncResponse(BaseModel):
     errors: list[str]
 
 
-class HevySyncResponse(BaseModel):
+class MergeResponse(BaseModel):
+    activities_merged: int
+    errors: list[str]
+
+
+class WorkoutImportResponse(BaseModel):
     activities_created: int
     activities_skipped: int
     activities_merged: int
     errors: list[str]
 
 
-class MergeResponse(BaseModel):
-    activities_merged: int
-    errors: list[str]
+@router.post(
+    "/import/workouts",
+    response_model=WorkoutImportResponse,
+    dependencies=[Depends(require_api_key)],
+)
+async def import_workouts_endpoint(
+    batch: WorkoutImportBatch,
+    session: AsyncSession = Depends(get_db),
+) -> WorkoutImportResponse:
+    """Universal workout push endpoint (API-key guarded).
+
+    Accepts a batch of canonical workouts from any external source — the offline
+    companion logger, scripts, iOS Shortcuts — deduplicates them, and auto-merges
+    with any overlapping Garmin gym activities. Idempotent: re-posting the same
+    workouts (matched by external_id, else title+start_time) creates nothing new.
+    """
+    import_result = await import_workouts(
+        session, DEFAULT_USER_ID, batch.to_dataclasses(), source=batch.source
+    )
+
+    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
+    await session.commit()
+
+    all_errors = list(import_result.errors or [])
+    if merge_result.errors:
+        all_errors.extend(merge_result.errors)
+
+    return WorkoutImportResponse(
+        activities_created=import_result.activities_created,
+        activities_skipped=import_result.activities_skipped,
+        activities_merged=merge_result.merged,
+        errors=all_errors,
+    )
 
 
 @router.post("/import/hevy", response_model=HevyImportResponse)
@@ -71,7 +105,10 @@ async def import_hevy_csv(
     csv_text = content.decode("utf-8-sig")  # handle BOM from some exports
 
     parse_result = parse_hevy_csv(csv_text)
-    import_result = await import_hevy_workouts(session, DEFAULT_USER_ID, parse_result)
+    import_result = await import_workouts(
+        session, DEFAULT_USER_ID, parse_result.workouts, source="hevy"
+    )
+    import_result.errors = list(parse_result.errors) + (import_result.errors or [])
 
     # Auto-merge with any existing Garmin gym activities
     merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
@@ -89,83 +126,6 @@ async def import_hevy_csv(
         rows_skipped=parse_result.rows_skipped,
         errors=all_errors,
     )
-
-
-@router.post("/sync/hevy", response_model=HevySyncResponse)
-async def sync_hevy(
-    session: AsyncSession = Depends(get_db),
-    days: int = Query(default=90, ge=1, le=365),
-) -> HevySyncResponse:
-    """Trigger a Hevy API sync to fetch workouts directly from hevyapp.com.
-
-    Fetches workouts created in the last N days (default 90). Deduplicates
-    against existing data and auto-merges with any Garmin gym activities.
-    """
-    source = HevyApiSource()
-
-    try:
-        authenticated = await source.authenticate()
-    except HevyRateLimitError as e:
-        retry_msg = f" Retry after {e.retry_after}s." if e.retry_after else ""
-        raise HTTPException(
-            status_code=429,
-            detail=f"Hevy rate-limited — too many login attempts.{retry_msg} Wait and try again.",
-        ) from e
-
-    if not authenticated:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Hevy sync failed — the refresh token is expired or revoked. "
-                "Paste a fresh refresh token below, or import a Hevy CSV export instead."
-            ),
-        )
-
-    since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    since = since - timedelta(days=days)
-
-    result = await source.fetch_and_import(session, DEFAULT_USER_ID, since=since)
-
-    merge_result = await merge_garmin_hevy(session, DEFAULT_USER_ID)
-    await session.commit()
-
-    all_errors = list(result.errors or [])
-    if merge_result.errors:
-        all_errors.extend(merge_result.errors)
-
-    return HevySyncResponse(
-        activities_created=result.activities_created,
-        activities_skipped=result.activities_skipped,
-        activities_merged=merge_result.merged,
-        errors=all_errors,
-    )
-
-
-class HevyTokenSeedRequest(BaseModel):
-    access_token: str
-    refresh_token: str
-
-
-@router.post("/hevy/refresh-token")
-async def set_hevy_tokens(payload: HevyTokenSeedRequest) -> dict[str, str]:
-    """Seed a fresh Hevy token pair captured from a browser session.
-
-    Hevy's refresh call needs BOTH the current access token (sent as a Bearer
-    header) and the rotating refresh token, so both are required. Recovery path
-    when the chain lapses: the next sync/keep-alive reads the token file first
-    (see HevyApiClient._load_tokens), so this takes effect without a restart.
-    """
-    access_token = payload.access_token.strip()
-    refresh_token = payload.refresh_token.strip()
-    if not access_token or not refresh_token:
-        raise HTTPException(
-            status_code=400, detail="Both access_token and refresh_token are required."
-        )
-
-    settings = get_settings()
-    save_tokens(settings.hevy_token_dir, access_token, refresh_token)
-    logger.info("Hevy token pair seeded via re-seed endpoint")
-    return {"status": "ok"}
 
 
 @router.post("/sync/garmin", response_model=GarminSyncResponse)

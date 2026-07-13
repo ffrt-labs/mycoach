@@ -1,4 +1,4 @@
-"""Tests for Hevy CSV parser, mappers, and import endpoint."""
+"""Tests for the Hevy CSV parser, the generic importer, and the import endpoint."""
 
 import pytest
 from sqlalchemy import select
@@ -6,7 +6,7 @@ from sqlalchemy import select
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.user import User
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
-from mycoach.sources.hevy.mappers import import_hevy_workouts
+from mycoach.sources.importer import import_workouts
 
 # ── Sample CSV data ──────────────────────────────────────────────────
 
@@ -145,7 +145,8 @@ class TestImportHevyWorkouts:
 
         parse_result = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            result = await import_hevy_workouts(session, user.id, parse_result)
+            result = await import_workouts(session, user.id, parse_result.workouts, source="hevy")
+            await session.commit()
 
         assert result.activities_created == 2
         assert result.activities_skipped == 0
@@ -162,7 +163,8 @@ class TestImportHevyWorkouts:
 
         parse_result = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            await import_hevy_workouts(session, user.id, parse_result)
+            await import_workouts(session, user.id, parse_result.workouts, source="hevy")
+            await session.commit()
 
         async with test_session() as session:
             details = (await session.execute(select(GymWorkoutDetail))).scalars().all()
@@ -176,13 +178,15 @@ class TestImportHevyWorkouts:
 
         parse_result = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            result1 = await import_hevy_workouts(session, user.id, parse_result)
+            result1 = await import_workouts(session, user.id, parse_result.workouts, source="hevy")
+            await session.commit()
         assert result1.activities_created == 2
 
         # Import same data again
         parse_result2 = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            result2 = await import_hevy_workouts(session, user.id, parse_result2)
+            result2 = await import_workouts(session, user.id, parse_result2.workouts, source="hevy")
+            await session.commit()
         assert result2.activities_created == 0
         assert result2.activities_skipped == 2
 
@@ -197,7 +201,8 @@ class TestImportHevyWorkouts:
 
         parse_result = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            await import_hevy_workouts(session, user.id, parse_result)
+            await import_workouts(session, user.id, parse_result.workouts, source="hevy")
+            await session.commit()
 
         async with test_session() as session:
             activity = (await session.execute(select(Activity))).scalars().first()
@@ -212,13 +217,15 @@ class TestImportHevyWorkouts:
         # Import one workout
         parse1 = parse_hevy_csv(MINIMAL_CSV)
         async with test_session() as session:
-            result1 = await import_hevy_workouts(session, user.id, parse1)
+            result1 = await import_workouts(session, user.id, parse1.workouts, source="hevy")
+            await session.commit()
         assert result1.activities_created == 1
 
         # Import full CSV (different workouts)
         parse2 = parse_hevy_csv(SAMPLE_CSV)
         async with test_session() as session:
-            result2 = await import_hevy_workouts(session, user.id, parse2)
+            result2 = await import_workouts(session, user.id, parse2.workouts, source="hevy")
+            await session.commit()
         assert result2.activities_created == 2
         assert result2.activities_skipped == 0
 

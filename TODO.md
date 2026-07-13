@@ -1,6 +1,75 @@
 # MyCoach — Development TODO
 
+---
+
+## 🧭 Next Steps (current roadmap) — start here
+
+> Codebase audit (2026-07-12) confirmed **Phases 0–8 are implemented and
+> functional** — the daily morning digest and weekly recap pipelines already run
+> end-to-end (scheduler → coaching engine → email). The checklists for those
+> phases below are kept for history; the real remaining work is ordered here.
+>
+> Priority chosen: **verify automation first → gym logger → cleanup.**
+
+### Step 1 — Verify & harden the automation (do first)
+
+- [ ] End-to-end verify the **daily** pipeline: manually trigger `garmin_sync`
+      then `daily_briefing` (via `POST /api/system/scheduler/trigger/{job}` or a
+      script) and confirm a real briefing email lands in the inbox.
+- [ ] End-to-end verify the **weekly recap**: trigger `weekly_recap`, confirm the
+      `weekly_recap.html` email arrives with adherence + health trends + AI tips.
+- [ ] Confirm `.env` is set for real delivery: `MYCOACH_EMAIL_ENABLED=true`,
+      `MYCOACH_EMAIL_FROM`, `MYCOACH_EMAIL_TO`, and either
+      `MYCOACH_EMAIL_RESEND_API_KEY` or the `MYCOACH_EMAIL_SMTP_*` set.
+- [ ] Confirm per-user email prefs on the `User` row are enabled
+      (`email_daily_briefing`, `email_weekly_recap`, `email_weekly_plan`,
+      `email_post_workout`) — jobs silently skip sending when these are false.
+- [ ] Make the **weekly-recap schedule config-driven** (currently hardcoded to
+      Mon 07:00 in `scheduler/scheduler.py:120-129`): add
+      `scheduler_weekly_recap_day` / `scheduler_weekly_recap_hour` /
+      `scheduler_weekly_recap_minute` to `config.py` + `.env.example`, mirroring
+      the existing `scheduler_weekly_plan_*` pattern, and use them in the job.
+- [ ] Un-hardcode the `weekly_plan` minute (`scheduler.py:114`, currently `0`):
+      add `scheduler_weekly_plan_minute` to `config.py` + `.env.example`.
+
+### Step 2 — Retire Hevy web-API auto-sync (keep CSV)
+
+→ Execute **Phase 9 §9.0** below. The web-API sync + keepalive hack is fragile;
+remove it, keep the reliable Hevy CSV import as the fallback source.
+
+### Step 3 — Canonical ingestion layer
+
+→ Execute **Phase 9 §9.1** below (`WorkoutImport`/`WorkoutSetImport`,
+`import_workouts`, `Activity.external_id` migration, refactor Hevy CSV to emit the
+canonical schema, generalize the Garmin merge).
+
+### Step 4 — Universal push endpoint + API-key auth
+
+→ Execute **Phase 9 §9.2** below (`require_api_key`,
+`POST /api/sources/import/workouts`, `GET /api/logger/exercises`).
+
+### Step 5 — Offline companion logger PWA
+
+→ Execute **Phase 9 §9.3** below. **HTTPS/Caddy on the LAN is the prerequisite**
+(service workers need a secure context). This is the user's #1 feature: log lifts
+offline at the gym, auto-sync at home.
+
+### Step 6 — PWA polish (lower priority)
+
+- [ ] Settings page (`/settings`): Garmin/Hevy connection status, CSV upload,
+      email preference toggles. (No settings UI exists today — API-only.)
+- [ ] Dedicated workout-detail page (gym set details are currently inlined in the
+      History page rather than a per-workout view).
+- [ ] Add missing icon assets `static/icon-192.png` / `icon-512.png` (referenced
+      by `manifest.json` but not present).
+- [ ] Fix stale `manifest.json` colors (`theme_color` `#1e40af`,
+      `background_color` `#f9fafb`) to match the near-black/amber app theme.
+
+---
+
 ## Phase 0: Foundation (Week 1)
+
+> ✅ **COMPLETE** — implemented and functional (codebase audit 2026-07-12).
 
 - [ ] Initialize project with `pyproject.toml` using `uv`
   - [ ] Define dependencies: fastapi, uvicorn, sqlalchemy, alembic, pydantic, pydantic-settings
@@ -71,6 +140,8 @@
 
 ## Phase 1: Data Sources (Week 2)
 
+> ✅ **COMPLETE** — Garmin sync + Hevy CSV import + merge all working (audit 2026-07-12).
+
 - [ ] Implement `sources/base.py` — abstract DataSource interface
 - [ ] Implement Garmin source
   - [ ] `sources/garmin/auth.py` — garth-based authentication, token persistence, re-auth
@@ -104,6 +175,8 @@
 
 ## Phase 2: Coaching Core (Week 3)
 
+> ✅ **COMPLETE** — LLM client, prompt builder, parser, daily briefing all real (audit 2026-07-12).
+
 - [ ] Implement `coaching/llm_client.py` — Anthropic SDK wrapper
   - [ ] API call with retries and error handling
   - [ ] Model selection (sonnet vs opus based on prompt type)
@@ -135,6 +208,8 @@
 ---
 
 ## Phase 3: Weekly Plans (Week 4)
+
+> ✅ **COMPLETE** — two-track (gym adjustment + cardio plan) generation live (audit 2026-07-12).
 
 - [ ] Implement availability management
   - [ ] `POST /api/availability` — set weekly availability
@@ -168,6 +243,8 @@
 
 ## Phase 4: Post-Workout Analysis (Week 5)
 
+> ✅ **COMPLETE** — `generate_post_workout_analysis` + session linking live (audit 2026-07-12).
+
 - [ ] Write prompt template
   - [ ] `prompts/v1/post_workout.txt` — post-workout analysis
 - [ ] Implement activity detection (new activities since last sync)
@@ -192,6 +269,9 @@
 
 ## Phase 5: Automation (Week 5-6)
 
+> ✅ **COMPLETE** — APScheduler + all pipeline jobs + weekly recap live (audit 2026-07-12).
+> Remaining tweaks (config-drive the recap schedule) tracked in **Step 1** above.
+
 - [ ] Implement `scheduler/scheduler.py` — APScheduler setup
   - [ ] In-process scheduler with configurable timezone
   - [ ] Job persistence (survive restarts)
@@ -215,6 +295,10 @@
 ---
 
 ## Phase 6: PWA Frontend (Week 6-7)
+
+> ✅ **MOSTLY COMPLETE** — 8 data-backed pages + base layout + SW/manifest live
+> (audit 2026-07-12). Remaining gaps (settings page, workout-detail page, icon
+> assets, manifest colors) tracked in **Step 6** above.
 
 - [ ] Set up Jinja2 template rendering in FastAPI
 - [ ] Create base layout (`templates/base.html`)
@@ -245,6 +329,10 @@
 
 ## Phase 7: Email Delivery (Week 7-8)
 
+> ✅ **COMPLETE** — Resend + SMTP backends, all 4 templates, per-user prefs,
+> triggers wired into scheduler jobs (audit 2026-07-12). End-to-end delivery
+> verification tracked in **Step 1** above.
+
 - [ ] Set up email service (Resend API or SMTP)
 - [ ] Create HTML email templates (responsive, email-client compatible)
   - [ ] `email/templates/weekly_plan.html`
@@ -266,6 +354,9 @@
 ---
 
 ## Phase 8: Polish & Hardening (Week 8-9)
+
+> ✅ **LARGELY COMPLETE** — error handling, credential encryption, logging,
+> profile/sport-profile APIs, testing all present (audit 2026-07-12).
 
 - [ ] Error handling
   - [ ] Global exception handler in FastAPI
@@ -314,10 +405,15 @@
 
 > See PRD §11. Replaces Hevy web-API auto-sync with a canonical ingestion layer + a standalone
 > offline-first companion PWA (LAN-only). Keeps Hevy CSV import.
+>
+> **This is the active roadmap** — §9.0 = Step 2, §9.1 = Step 3, §9.2 = Step 4,
+> §9.3 = Step 5 (see top of file). Do Step 1 (verify automation) first.
 
 ### 9.0 Retire Hevy web-API auto-sync (keep CSV)
 
-- [ ] Discard the uncommitted pair-based/keep-alive Hevy work in the working tree
+> Note: the pair-based/keep-alive Hevy work is now committed and live (`hevy_sync`
+> + `hevy_keepalive` scheduler jobs run). This step removes it.
+
 - [ ] Remove `sources/hevy/api_client.py`, `api_source.py`, `api_parser.py`
 - [ ] Remove routes `POST /api/sources/sync/hevy` and `POST /api/sources/hevy/refresh-token`
 - [ ] Remove scheduler `hevy_sync` (+ keepalive) jobs from `scheduler/scheduler.py` + `jobs.py`

@@ -115,6 +115,42 @@ class TestMergeGarminHevy:
             assert details[0].activity_id == merged.id
 
     @pytest.mark.asyncio
+    async def test_merge_logger_source_activity(self, user: User) -> None:
+        """Offline-logger gym activities also get the Garmin HR/calorie overlay."""
+        from tests.conftest import test_session
+
+        start = datetime(2024, 6, 10, 9, 0)
+
+        async with test_session() as session:
+            logger_act = Activity(
+                user_id=user.id,
+                sport="gym",
+                title="Push Day",
+                start_time=start,
+                end_time=start + timedelta(hours=1),
+                duration_minutes=60,
+                data_source="logger",
+                external_id="uuid-1",
+            )
+            garmin = _make_garmin_activity(user.id, "g123", start + timedelta(minutes=5))
+            session.add_all([logger_act, garmin])
+            await session.commit()
+
+        async with test_session() as session:
+            result = await merge_garmin_hevy(session, user.id)
+            await session.commit()
+
+        assert result.merged == 1
+
+        async with test_session() as session:
+            merged = (
+                await session.execute(select(Activity).where(Activity.data_source == "merged"))
+            ).scalar_one()
+            assert merged.title == "Push Day"  # logger title preserved
+            assert merged.external_id == "uuid-1"  # external_id preserved through merge
+            assert merged.avg_hr == 135  # Garmin overlay applied
+
+    @pytest.mark.asyncio
     async def test_no_merge_when_no_overlap(self, user: User) -> None:
         from tests.conftest import test_session
 

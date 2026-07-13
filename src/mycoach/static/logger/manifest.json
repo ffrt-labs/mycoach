@@ -1,0 +1,19 @@
+{
+    "name": "MyCoach Logger",
+    "short_name": "Logger",
+    "description": "Log lifts offline at the gym, sync at home.",
+    "start_url": "/logger",
+    "scope": "/logger",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#070707",
+    "theme_color": "#070707",
+    "icons": [
+        {
+            "src": "/static/logger/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

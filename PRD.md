@@ -12,6 +12,30 @@
 
 ---
 
+## Current Status (2026-07)
+
+Codebase audit confirmed the MVP backend is **built and functional**, not stubs:
+
+- ✅ **Daily morning digest** — scheduler runs Garmin sync → daily briefing →
+  email, end-to-end (`scheduler/`, `coaching/engine.py`, `email/sender.py`).
+- ✅ **Weekly recap** — Monday job generates a full review (adherence, health
+  trends, gym history, sport goals) with AI tips for the coming week, emailed.
+- ✅ **Weekly plan generation** (two-track gym + cardio), **post-workout analysis**.
+- ✅ **Email** — Resend + SMTP backends, all templates, per-user prefs.
+- ✅ **PWA** — 8 data-backed pages, base layout (Tailwind + HTMX), SW + manifest.
+
+**Remaining work (roadmap order — see `TODO.md`):**
+
+1. **Verify & harden automation** — confirm the daily/weekly emails actually fire
+   end-to-end; make the weekly-recap schedule config-driven (currently hardcoded).
+2. **Retire the fragile Hevy web-API auto-sync** (keep the CSV import) — see §11 / §9.
+3. **Canonical ingestion layer** + universal push endpoint (API-key auth) — see §11.
+4. **Offline companion gym logger PWA** (the #1 remaining user feature) — log lifts
+   offline at the gym, auto-sync at home over the LAN; needs HTTPS/Caddy — see §11.
+5. **PWA polish** — settings page, dedicated workout-detail page, icon assets.
+
+---
+
 ## 1. Core Features (MVP)
 
 ### 1.1 Multi-Source Data Ingestion
@@ -168,17 +192,28 @@ mycoach/
 
 ## 6. Development Phases
 
-| Phase | Scope | Duration |
-|-------|-------|----------|
-| **0: Foundation** | Project scaffolding, FastAPI, SQLAlchemy, Alembic, config, health check | Week 1 |
-| **1: Data Sources** | Garmin auth + fetch + mappers, Hevy CSV parser + import, data merging, manual sync endpoint | Week 2 |
-| **2: Coaching Core** | LLM client, prompt builder, response parser, daily briefing | Week 3 |
-| **3: Weekly Plans** | Availability input, mesocycle tracking, sport modules, plan generation | Week 4 |
-| **4: Post-Workout** | Activity analysis, plan adherence tracking | Week 5 |
-| **5: Automation** | Scheduler, weekly recap, ~~post-workout auto-analysis~~, full daily pipeline | Week 5-6 |
-| **6: PWA Frontend** | Dashboard, plan view, availability input, history, settings, service worker | Week 6-7 |
-| **7: Email** | Email templates, send triggers, email preferences | Week 7-8 |
-| **8: Polish** | ~~Error handling~~, ~~encryption~~, ~~logging~~, ~~profile API~~, ~~sport profile API~~, ~~testing~~, ~~deployment~~ | Week 8-9 |
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **0: Foundation** | Project scaffolding, FastAPI, SQLAlchemy, Alembic, config, health check | ✅ Done |
+| **1: Data Sources** | Garmin auth + fetch + mappers, Hevy CSV parser + import, data merging, manual sync endpoint | ✅ Done |
+| **2: Coaching Core** | LLM client, prompt builder, response parser, daily briefing | ✅ Done |
+| **3: Weekly Plans** | Availability input, mesocycle tracking, sport modules, plan generation | ✅ Done |
+| **4: Post-Workout** | Activity analysis, plan adherence tracking | ✅ Done |
+| **5: Automation** | Scheduler, weekly recap, ~~post-workout auto-analysis~~, full daily pipeline | ✅ Done |
+| **6: PWA Frontend** | Dashboard, plan view, availability input, history, ~~settings~~, service worker | 🟡 Mostly (no settings/workout-detail page, missing icons) |
+| **7: Email** | Email templates, send triggers, email preferences | ✅ Done |
+| **8: Polish** | ~~Error handling~~, ~~encryption~~, ~~logging~~, ~~profile API~~, ~~sport profile API~~, ~~testing~~, ~~deployment~~ | ✅ Done |
+
+**Current roadmap (remaining work — see `TODO.md` "Next Steps"):**
+
+| Step | Scope |
+|------|-------|
+| **1: Verify automation** | Confirm daily digest + weekly recap fire end-to-end into inbox; make weekly-recap schedule config-driven |
+| **2: Retire Hevy web-API sync** | Remove fragile web-API sync + keepalive; keep Hevy CSV import (§11 / §9.0) |
+| **3: Canonical ingestion** | Source-agnostic `WorkoutImport` schema + `import_workouts` + `Activity.external_id` (§11 / §9.1) |
+| **4: Universal push endpoint** | `POST /api/sources/import/workouts` + API-key auth (§11 / §9.2) |
+| **5: Offline gym logger PWA** | Standalone offline-first `/logger`, LAN sync, HTTPS/Caddy (§11 / §9.3) |
+| **6: PWA polish** | Settings page, workout-detail page, icon assets, manifest colors |
 
 ---
 

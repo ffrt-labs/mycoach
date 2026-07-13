@@ -1,4 +1,7 @@
 const CACHE_NAME = "mycoach-v1";
+// Only purge this SW's own caches on activate. `mycoach-logger-*` belongs to the
+// logger SW on the same origin — deleting it here would evict its offline shell.
+const CACHE_PREFIX = "mycoach-v";
 const PRECACHE_URLS = ["/", "/static/css/app.css", "/static/js/app.js"];
 
 self.addEventListener("install", (event) => {
@@ -11,7 +14,11 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+            Promise.all(
+                keys
+                    .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME)
+                    .map((k) => caches.delete(k))
+            )
         )
     );
     self.clients.claim();

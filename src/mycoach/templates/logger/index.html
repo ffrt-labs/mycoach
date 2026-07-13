@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+    <meta name="theme-color" content="#070707">
+    <meta name="description" content="Log lifts offline at the gym, sync at home.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Logger">
+    <link rel="manifest" href="/static/logger/manifest.json">
+    <link rel="apple-touch-icon" href="/static/logger/icon.svg">
+    <title>MyCoach Logger</title>
+    <!-- Web font is progressive enhancement; app.css has system fallbacks for offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/logger/app.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar__title">MyCoach&nbsp;Logger</div>
+        <button id="sync-chip" class="chip" type="button" aria-live="polite">
+            <span class="chip__dot"></span><span id="sync-chip-text">Idle</span>
+        </button>
+    </header>
+
+    <main class="app" id="view"><!-- rendered by app.js --></main>
+
+    <div class="actionbar" id="actionbar" hidden>
+        <div class="actionbar__inner" id="actionbar-inner"></div>
+    </div>
+
+    <script src="/static/logger/app.js"></script>
+</body>
+</html>

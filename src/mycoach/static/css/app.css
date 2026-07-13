@@ -18,8 +18,9 @@ a:hover { color: #fed7aa; }
 /* Smooth page transitions with HTMX boost */
 .htmx-settling { opacity: 0.8; transition: opacity 150ms ease-in; }
 
-/* Utility relied on by page scripts (formerly from Tailwind) */
-.hidden { display: none !important; }
+/* Utility relied on by page scripts (Tailwind's own `.hidden` handles this;
+   an app-level `.hidden { !important }` here would override the nav's
+   responsive `hidden sm:flex` and hide it at every width). */
 .spin { display: inline-block; animation: mc-spin 0.8s linear infinite; }
 @keyframes mc-spin { to { transform: rotate(360deg); } }
 

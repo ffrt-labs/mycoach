@@ -1,9 +1,9 @@
-"""Merge Garmin and Hevy gym activities by date/time overlap.
+"""Merge Garmin and gym-source (Hevy CSV / offline logger) activities by overlap.
 
-For gym sessions, Hevy CSV is the source of truth for exercise details (sets,
-reps, weights, RPE). Garmin provides the HR/calorie/training-effect overlay.
-This module matches activities from both sources by time overlap and merges
-them into a single "merged" activity.
+For gym sessions, the gym source (Hevy CSV or the offline companion logger) is
+the source of truth for exercise details (sets, reps, weights, RPE). Garmin
+provides the HR/calorie/training-effect overlay. This module matches activities
+from both by time overlap and merges them into a single "merged" activity.
 """
 
 import logging
@@ -49,11 +49,11 @@ async def merge_garmin_hevy(session: AsyncSession, user_id: int) -> MergeResult:
     result = MergeResult()
     errors: list[str] = []
 
-    # Get all unmerged Hevy gym activities
+    # Get all unmerged gym-source activities (Hevy CSV or offline logger)
     hevy_stmt = select(Activity).where(
         Activity.user_id == user_id,
         Activity.sport == "gym",
-        Activity.data_source == "hevy",
+        Activity.data_source.in_(("hevy", "logger")),
     )
     hevy_result = await session.execute(hevy_stmt)
     hevy_activities = list(hevy_result.scalars().all())

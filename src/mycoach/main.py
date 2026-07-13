@@ -18,6 +18,7 @@ from mycoach.api.error_handlers import register_error_handlers
 from mycoach.api.pages.availability import router as availability_page_router
 from mycoach.api.pages.dashboard import router as dashboard_router
 from mycoach.api.pages.history import router as history_router
+from mycoach.api.pages.logger import router as logger_page_router
 from mycoach.api.pages.mesocycles import router as mesocycles_page_router
 from mycoach.api.pages.plan import router as plan_router
 from mycoach.api.pages.prompt_logs import router as prompt_logs_page_router
@@ -29,6 +30,7 @@ from mycoach.api.routes.coaching import router as coaching_router
 from mycoach.api.routes.credentials import router as credentials_router
 from mycoach.api.routes.email_preferences import router as email_prefs_router
 from mycoach.api.routes.health import router as health_router
+from mycoach.api.routes.logger import router as logger_router
 from mycoach.api.routes.mesocycles import router as mesocycles_router
 from mycoach.api.routes.plans import router as plans_router
 from mycoach.api.routes.profile import router as profile_router
@@ -148,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(credentials_router)
     app.include_router(email_prefs_router)
     app.include_router(health_router)
+    app.include_router(logger_router)
     app.include_router(mesocycles_router)
     app.include_router(plans_router)
     app.include_router(profile_router)
@@ -159,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(availability_page_router)
     app.include_router(dashboard_router)
     app.include_router(history_router)
+    app.include_router(logger_page_router)
     app.include_router(plan_router)
     app.include_router(routine_page_router)
     app.include_router(prompt_logs_page_router)

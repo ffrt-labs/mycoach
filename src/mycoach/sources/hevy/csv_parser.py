@@ -1,9 +1,11 @@
-"""Parse Hevy CSV workout exports into structured data."""
+"""Parse Hevy CSV workout exports into the canonical WorkoutImport schema."""
 
 import csv
 import io
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
 
 LBS_TO_KG = 0.45359237
 MILES_TO_METERS = 1609.344
@@ -31,36 +33,10 @@ EXPECTED_COLUMNS = REQUIRED_COLUMNS | {
 
 
 @dataclass
-class HevySet:
-    """A single set parsed from a Hevy CSV row."""
-
-    exercise_title: str
-    set_index: int
-    set_type: str
-    superset_id: int | None = None
-    exercise_notes: str | None = None
-    weight_kg: float | None = None
-    reps: int | None = None
-    distance_meters: float | None = None
-    duration_seconds: int | None = None
-    rpe: float | None = None
-
-
-@dataclass
-class HevyWorkout:
-    """A workout parsed from a Hevy CSV export (group of rows with same title+start_time)."""
-
-    title: str
-    start_time: datetime
-    end_time: datetime | None
-    sets: list[HevySet] = field(default_factory=list)
-
-
-@dataclass
 class HevyParseResult:
     """Result of parsing a Hevy CSV file."""
 
-    workouts: list[HevyWorkout] = field(default_factory=list)
+    workouts: list[WorkoutImport] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     rows_parsed: int = 0
     rows_skipped: int = 0
@@ -127,7 +103,7 @@ def parse_hevy_csv(content: str) -> HevyParseResult:
         return result
 
     # Group rows into workouts by (title, start_time)
-    workouts_map: dict[tuple[str, str], HevyWorkout] = {}
+    workouts_map: dict[tuple[str, str], WorkoutImport] = {}
 
     for row_num, row in enumerate(reader, start=2):  # row 1 is header
         title = row.get("title", "").strip()
@@ -179,7 +155,7 @@ def parse_hevy_csv(content: str) -> HevyParseResult:
             result.errors.append(f"Row {row_num}: RPE {rpe} out of range 1-10, ignoring")
             rpe = None
 
-        hevy_set = HevySet(
+        workout_set = WorkoutSetImport(
             exercise_title=exercise_title,
             set_index=set_index,
             set_type=set_type,
@@ -195,13 +171,13 @@ def parse_hevy_csv(content: str) -> HevyParseResult:
         workout_key = (title, start_time_str)
         if workout_key not in workouts_map:
             end_time = _parse_datetime(row.get("end_time", ""))
-            workouts_map[workout_key] = HevyWorkout(
+            workouts_map[workout_key] = WorkoutImport(
                 title=title,
                 start_time=start_time,
                 end_time=end_time,
             )
 
-        workouts_map[workout_key].sets.append(hevy_set)
+        workouts_map[workout_key].sets.append(workout_set)
         result.rows_parsed += 1
 
     result.workouts = list(workouts_map.values())

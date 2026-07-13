@@ -7,9 +7,6 @@ services:
     environment:
       MYCOACH_DB_URL: sqlite+aiosqlite:////data/mycoach.db
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
-      # Persist on the volume so the rotating Hevy refresh token survives
-      # redeploys (otherwise each deploy reverts to the stale env seed).
-      MYCOACH_HEVY_TOKEN_DIR: /data/hevy_tokens
     volumes:
       - app-data:/data
     # Published on the host so the app is reachable across the LAN at

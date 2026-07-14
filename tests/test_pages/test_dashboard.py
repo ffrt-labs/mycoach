@@ -30,8 +30,8 @@ async def test_dashboard_empty(client: AsyncClient) -> None:
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert "MyCoach" in resp.text
-    assert "No health data for today" in resp.text
-    assert "No daily briefing yet" in resp.text
+    assert "No health metrics for today" in resp.text
+    assert "No daily briefing generated yet" in resp.text
 
 
 async def test_dashboard_with_health(client: AsyncClient) -> None:
@@ -85,7 +85,8 @@ async def test_dashboard_with_briefing(client: AsyncClient) -> None:
 
     resp = await client.get("/")
     assert resp.status_code == 200
-    assert "Go Hard" in resp.text
+    # Template emits "go hard" and relies on a CSS `capitalize` class for display casing.
+    assert "go hard" in resp.text
     assert "Fully recovered" in resp.text
     assert "7.5 hours tonight" in resp.text
 

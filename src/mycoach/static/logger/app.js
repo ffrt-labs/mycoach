@@ -10,6 +10,7 @@
     // ── Config ──────────────────────────────────────────────────────
     var API_IMPORT = "/api/sources/import/workouts";
     var API_EXERCISES = "/api/logger/exercises";
+    var API_ROUTINES = "/api/logger/routines";
     var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
 
@@ -76,7 +77,7 @@
     function setMeta(k, v) { return tx("meta", "readwrite").then(function (s) { return reqP(s.put({ key: k, value: v })); }); }
 
     // ── State ───────────────────────────────────────────────────────
-    var state = { activeId: null, exerciseCache: [] };
+    var state = { activeId: null, exerciseCache: [], routine: null };
 
     // ── Sync-status chip ────────────────────────────────────────────
     function setChip(kind, text) {
@@ -112,6 +113,12 @@
             d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     }
     function totalSets(s) { return s.exercises.reduce(function (n, e) { return n + e.sets.length; }, 0); }
+    /* "8-10" -> 8; a bare number or anything unparseable falls through to null. */
+    function repRangeLowerBound(repRange) {
+        if (!repRange) return null;
+        var m = /^\s*(\d+)/.exec(repRange);
+        return m ? parseInt(m[1], 10) : null;
+    }
 
     /* Flatten a stored session to the canonical WorkoutImport payload. */
     function toPayload(s) {
@@ -123,6 +130,7 @@
                     exercise_notes: ex.notes || null,
                     set_index: i + 1,
                     set_type: set.set_type || "normal",
+                    superset_id: ex.superset_group != null ? ex.superset_group : null,
                     weight_kg: set.weight_kg,
                     reps: set.reps,
                     rpe: set.rpe,
@@ -187,6 +195,14 @@
             .catch(function () {});
     }
 
+    function pullRoutine() {
+        if (!apiKey() || !navigator.onLine) return;
+        fetch(API_ROUTINES, { headers: { "X-API-Key": apiKey() } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { state.routine = d; setMeta("routine", d); if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render(); })
+            .catch(function () {});
+    }
+
     // ── Rendering: Home ─────────────────────────────────────────────
     function render() {
         state.activeId = null;
@@ -199,6 +215,11 @@
         view.appendChild(
             el("button", { class: "btn btn--primary btn--block", style: "margin-top:22px", onclick: startSession }, ["＋ Start session"])
         );
+        if (state.routine && state.routine.days && state.routine.days.length) {
+            view.appendChild(
+                el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openRoutinePicker }, ["Start from routine"])
+            );
+        }
         view.appendChild(
             el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openSettings }, ["Settings"])
         );
@@ -245,6 +266,44 @@
         var h = d.getHours();
         var part = h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening";
         return part + " Session";
+    }
+
+    function openRoutinePicker() {
+        var days = (state.routine && state.routine.days) || [];
+        var sorted = days.slice().sort(function (a, b) { return a.order_index - b.order_index; });
+        openSheet("Start from routine", sorted.map(function (day) {
+            var meta = day.exercises.length + (day.exercises.length === 1 ? " exercise" : " exercises");
+            return el("button", { class: "session-row", onclick: function () { closeSheet(); startFromRoutineDay(day); } }, [
+                el("span", {}, [
+                    el("div", { class: "session-row__title", text: day.name }),
+                    el("div", { class: "session-row__meta", text: meta }),
+                ]),
+            ]);
+        }));
+    }
+
+    function startFromRoutineDay(day) {
+        var now = new Date();
+        var s = {
+            id: uuid(),
+            title: day.name,
+            start_time: now.toISOString(),
+            end_time: null,
+            notes: null,
+            exercises: day.exercises.slice().sort(function (a, b) { return a.order_index - b.order_index; }).map(function (e) {
+                return {
+                    title: e.exercise_name,
+                    notes: e.notes || null,
+                    sets: [],
+                    target_sets: e.sets,
+                    rep_range: e.rep_range,
+                    superset_group: e.superset_group,
+                };
+            }),
+            synced: false,
+            created_at: now.toISOString(),
+        };
+        putSession(s).then(function () { openSession(s.id); refreshChip(); });
     }
 
     function openSession(id) {
@@ -299,10 +358,12 @@
     }
 
     function exerciseCard(s, ex, exIdx, ro) {
+        var meta = ex.sets.length + (ex.sets.length === 1 ? " set" : " sets");
+        if (ex.target_sets) meta += "  ·  Target " + ex.target_sets + " × " + ex.rep_range;
         var head = el("div", { class: "card__head" }, [
             el("div", {}, [
                 el("p", { class: "exercise-title", text: ex.title }),
-                el("div", { class: "exercise-meta", text: ex.sets.length + (ex.sets.length === 1 ? " set" : " sets") }),
+                el("div", { class: "exercise-meta", text: meta }),
             ]),
             ro ? null : el("button", { class: "iconbtn", onclick: function () { ex.remove = true; s.exercises.splice(exIdx, 1); putSession(s).then(function () { renderSession(s); }); } }, ["Remove"]),
         ]);
@@ -378,8 +439,9 @@
 
     function openAddSet(s, ex) {
         var prev = ex.sets.length ? ex.sets[ex.sets.length - 1] : null;
+        var repsDefault = prev && prev.reps != null ? prev.reps : (!prev ? repRangeLowerBound(ex.rep_range) : null);
         var weight = el("input", { class: "input mono", type: "number", inputmode: "decimal", step: "0.5", min: "0", placeholder: "kg", value: prev && prev.weight_kg != null ? prev.weight_kg : "" });
-        var reps = el("input", { class: "input mono", type: "number", inputmode: "numeric", min: "0", placeholder: "reps", value: prev && prev.reps != null ? prev.reps : "" });
+        var reps = el("input", { class: "input mono", type: "number", inputmode: "numeric", min: "0", placeholder: "reps", value: repsDefault != null ? repsDefault : "" });
         var rpe = el("input", { class: "input mono", type: "number", inputmode: "decimal", step: "0.5", min: "1", max: "10", placeholder: "RPE (optional)" });
         var chosenType = "normal";
         var segButtons = SET_TYPES.map(function (t) {
@@ -430,6 +492,7 @@
                 closeSheet();
                 toast("Saved");
                 pullExercises();
+                pullRoutine();
                 syncNow(true);
             } }, ["Save"]),
             el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: function () { closeSheet(); syncNow(true); } }, ["Sync now"]),
@@ -449,10 +512,14 @@
 
     // ── Boot ────────────────────────────────────────────────────────
     $("sync-chip").addEventListener("click", function () { syncNow(true); });
-    window.addEventListener("online", function () { refreshChip(); syncNow(false); });
+    window.addEventListener("online", function () { refreshChip(); syncNow(false); pullRoutine(); });
     window.addEventListener("offline", refreshChip);
 
     getMeta("exercises").then(function (list) { if (list) state.exerciseCache = list; });
+    getMeta("routine").then(function (r) {
+        state.routine = r;
+        if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
+    });
 
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("/logger/sw.js", { scope: "/logger" }).catch(function (e) {
@@ -462,5 +529,6 @@
 
     render();
     pullExercises();
+    pullRoutine();
     syncNow(false);
 })();

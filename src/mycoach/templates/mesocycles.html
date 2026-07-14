@@ -145,12 +145,12 @@
 
 <script>
 // Default start_date to today
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     var dateInput = document.querySelector('input[name="start_date"]');
     if (dateInput && !dateInput.value) {
         dateInput.value = new Date().toISOString().split('T')[0];
     }
-});
+})();
 
 function showFeedback(msg, ok) {
     var el = document.getElementById('feedback');

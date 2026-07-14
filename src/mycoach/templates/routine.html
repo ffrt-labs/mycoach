@@ -94,7 +94,7 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     var container = document.getElementById('days-container');
     var supersetColors = ['a', 'b', 'c', 'd'];
     var supersetLabels = ['A', 'B', 'C', 'D'];
@@ -311,6 +311,6 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.textContent = 'Save Routine';
         });
     });
-});
+})();
 </script>
 {% endblock %}

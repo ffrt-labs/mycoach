@@ -92,7 +92,7 @@ async def test_history_page_sport_filter(client: AsyncClient) -> None:
     # "Swim" title should not appear as an activity card (it's in the filter chips though)
     assert "1 activity" in resp.text
     # Only gym activity card present
-    assert resp.text.count("font-semibold text-gray-900 truncate") == 1
+    assert resp.text.count("font-semibold text-zinc-50 truncate") == 1
 
 
 async def test_history_page_gym_details(client: AsyncClient) -> None:

@@ -2,7 +2,10 @@
    with no signal at the gym. Scoped to /logger (see Service-Worker-Allowed
    header set by the /logger/sw.js route). */
 
-const CACHE = "mycoach-logger-v1";
+const CACHE = "mycoach-logger-v2";
+// Only purge this SW's own caches on activate — never the main app's
+// `mycoach-v*` caches, which live on the same origin.
+const CACHE_PREFIX = "mycoach-logger-";
 const SHELL = [
     "/logger",
     "/static/logger/app.css",
@@ -19,7 +22,11 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+            Promise.all(
+                keys
+                    .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE)
+                    .map((k) => caches.delete(k))
+            )
         )
     );
     self.clients.claim();

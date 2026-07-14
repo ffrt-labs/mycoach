@@ -144,6 +144,55 @@ curl -X PUT http://localhost:8000/api/mesocycles/gym \
 curl -X DELETE http://localhost:8000/api/mesocycles/gym
 ```
 
+## Deployment: HTTPS for the logger PWA
+
+`docker-compose.yml` runs MyCoach behind Caddy, which terminates HTTPS. This is required for
+the `/logger` offline gym logger: service workers (and the "Install app" prompt) only register
+in a secure context, and plain `http://<server-ip>:8000` doesn't qualify.
+
+**This only ever needs to be valid on your LAN.** Both install and sync happen at home — you log
+offline at the gym with no network at all, then sync automatically once you're back on home
+Wi-Fi. So the setup below uses DNS-01 challenges (Cloudflare) to get a real, browser-trusted
+cert with **zero inbound ports opened to the internet** — the server never becomes
+internet-facing.
+
+### One-time setup
+
+1. **Cloudflare DNS record:** create an `A` record, e.g. `mycoach.yourdomain.com` → your
+   server's LAN IP (e.g. `192.168.1.50`), with the proxy **off** ("DNS only" / grey cloud). An
+   orange-cloud (proxied) record resolves to Cloudflare's edge, not your LAN, and won't work.
+2. **Static IP for the server:** set a static DHCP lease on your router so the server's LAN IP
+   never changes out from under that A record.
+3. **Cloudflare API token:** create one scoped to `Zone:DNS:Edit` on that single zone only — not
+   your Global API Key.
+4. Set `MYCOACH_DOMAIN` and `CLOUDFLARE_API_TOKEN` in `.env` (see `.env.example`).
+
+### If you already have unsynced sessions in the logger
+
+Switching to HTTPS changes the origin (`http://<ip>:8000` → `https://<domain>`), and IndexedDB
+is scoped per-origin — anything unsynced on the old origin becomes invisible to the new one.
+**Before cutting over:** open `/logger` on the old origin, finish any in-progress session, tap
+the sync chip, and confirm it reads "All synced". Note a session only syncs once it has an end
+time, so an unfinished one won't sync — finish it first.
+
+### Bring it up
+
+```bash
+docker compose up -d --build
+docker compose logs -f caddy   # watch the DNS-01 challenge solve and the cert get issued
+curl -v https://mycoach.yourdomain.com/api/system/status   # confirm from any LAN machine
+```
+
+### Install on Android
+
+On your phone, on home Wi-Fi, open `https://mycoach.yourdomain.com/logger` in Chrome → menu →
+**Install app**. Then open Settings in the logger, paste your `MYCOACH_API_TOKEN`, and hit
+**Sync now** once to confirm the key works.
+
+To verify the offline flow end-to-end: put the phone in airplane mode, open the installed app,
+log a session, finish it, then re-enable Wi-Fi at home and confirm it auto-syncs and shows up
+in `/history`.
+
 ## Scripts
 
 ### Fetch raw Garmin data
@@ -205,6 +254,8 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 | `MYCOACH_CLAUDE_MODEL_WEEKLY` | Model for weekly plans (default: Opus) |
 | `MYCOACH_CLAUDE_MONTHLY_COST_CEILING` | Monthly API spend limit (default: $30) |
 | `MYCOACH_EMAIL_ENABLED` | Enable email delivery |
+| `MYCOACH_DOMAIN` | Domain Caddy serves HTTPS on (see [Deployment](#deployment-https-for-the-logger-pwa)) |
+| `CLOUDFLARE_API_TOKEN` | Scoped `Zone:DNS:Edit` token for Caddy's DNS-01 challenge |
 
 ## Data Pipeline
 

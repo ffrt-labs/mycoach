@@ -9,10 +9,13 @@ services:
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - app-data:/data
-    # Published on the host so the app is reachable across the LAN at
-    # http://<server-ip>:8000
+    # Bound to localhost only — Caddy (below) is the sole way in from the
+    # LAN, over HTTPS. Keeps a cleartext HTTP path from ever existing
+    # alongside the HTTPS one (which would be a second origin and could leak
+    # MYCOACH_API_TOKEN). `curl localhost:8000` still works from the host
+    # itself for debugging.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test:
         - CMD
@@ -24,5 +27,30 @@ services:
       start_period: 20s
       retries: 3
 
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    container_name: mycoach-caddy
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - app
+    # Published on the host so the app is reachable across the LAN at
+    # https://<MYCOACH_DOMAIN>. Only ever needs to resolve/route on the LAN —
+    # see Caddyfile and README for the DNS-01 + grey-cloud DNS setup.
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Must persist: holds the issued cert. Let's Encrypt allows only 5
+      # duplicate certs per domain per week — losing this volume repeatedly
+      # can exhaust that limit.
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   app-data:
+  caddy-data:
+  caddy-config:

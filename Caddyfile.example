@@ -1,4 +1,0 @@
-# Replace with your domain or use localhost for local dev
-your-domain.example.com {
-    reverse_proxy app:8000
-}

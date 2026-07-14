@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     scheduler_post_workout_minute: int = 0
     scheduler_weekly_plan_day: str = "sun"
     scheduler_weekly_plan_hour: int = 18
+    scheduler_weekly_plan_minute: int = 0
+    scheduler_weekly_recap_day: str = "mon"
+    scheduler_weekly_recap_hour: int = 7
+    scheduler_weekly_recap_minute: int = 0
 
     @model_validator(mode="after")
     def _default_scheduler_timezone(self) -> "Settings":

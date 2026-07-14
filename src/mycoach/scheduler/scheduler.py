@@ -86,26 +86,27 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
         id="weekly_plan",
         day_of_week=plan_day,
         hour=settings.scheduler_weekly_plan_hour,
-        minute=0,
+        minute=settings.scheduler_weekly_plan_minute,
         misfire_grace_time=3600,
         replace_existing=True,
     )
 
-    # 5. Weekly recap — Monday morning (after the week ends)
+    # 5. Weekly recap — once per week (default Monday morning, after the week ends)
+    recap_day = DAY_MAP.get(settings.scheduler_weekly_recap_day.lower(), "mon")
     scheduler.add_job(
         job_weekly_recap,
         "cron",
         id="weekly_recap",
-        day_of_week="mon",
-        hour=7,
-        minute=0,
+        day_of_week=recap_day,
+        hour=settings.scheduler_weekly_recap_hour,
+        minute=settings.scheduler_weekly_recap_minute,
         misfire_grace_time=3600,
         replace_existing=True,
     )
 
     logger.info(
         "Scheduler configured: sync=%02d:%02d, briefing=%02d:%02d, "
-        "post_workout=%02d:%02d, plan=%s@%02d:00, recap=mon@07:00, tz=%s",
+        "post_workout=%02d:%02d, plan=%s@%02d:%02d, recap=%s@%02d:%02d, tz=%s",
         settings.scheduler_sync_hour,
         settings.scheduler_sync_minute,
         settings.scheduler_briefing_hour,
@@ -114,6 +115,10 @@ def create_scheduler(settings: Settings) -> BackgroundScheduler:
         settings.scheduler_post_workout_minute,
         plan_day,
         settings.scheduler_weekly_plan_hour,
+        settings.scheduler_weekly_plan_minute,
+        recap_day,
+        settings.scheduler_weekly_recap_hour,
+        settings.scheduler_weekly_recap_minute,
         settings.scheduler_timezone,
     )
 

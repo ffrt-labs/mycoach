@@ -174,3 +174,11 @@ async def test_dashboard_static_files(client: AsyncClient) -> None:
     assert manifest_resp.status_code == 200
     manifest = manifest_resp.json()
     assert manifest["name"] == "MyCoach"
+
+    icon_192_resp = await client.get("/static/icon-192.png")
+    assert icon_192_resp.status_code == 200
+    assert icon_192_resp.headers["content-type"] == "image/png"
+
+    icon_512_resp = await client.get("/static/icon-512.png")
+    assert icon_512_resp.status_code == 200
+    assert icon_512_resp.headers["content-type"] == "image/png"

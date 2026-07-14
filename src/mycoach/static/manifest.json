@@ -4,8 +4,8 @@
     "description": "AI-powered personal fitness coaching",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#f9fafb",
-    "theme_color": "#1e40af",
+    "background_color": "#070707",
+    "theme_color": "#070707",
     "icons": [
         {
             "src": "/static/icon-192.png",

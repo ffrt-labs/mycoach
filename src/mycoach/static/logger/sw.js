@@ -2,7 +2,7 @@
    with no signal at the gym. Scoped to /logger (see Service-Worker-Allowed
    header set by the /logger/sw.js route). */
 
-const CACHE = "mycoach-logger-v1";
+const CACHE = "mycoach-logger-v2";
 // Only purge this SW's own caches on activate — never the main app's
 // `mycoach-v*` caches, which live on the same origin.
 const CACHE_PREFIX = "mycoach-logger-";

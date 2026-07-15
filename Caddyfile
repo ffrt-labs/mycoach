@@ -10,8 +10,8 @@
 # CLOUDFLARE_API_TOKEN.
 
 {$MYCOACH_DOMAIN} {
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    reverse_proxy app:8000
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy app:8000
 }

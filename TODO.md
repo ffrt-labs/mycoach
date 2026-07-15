@@ -442,9 +442,10 @@ offline at the gym, auto-sync at home.
 
 - [ ] **Serve over HTTPS on the LAN (prerequisite for offline PWA)** — service workers only register
       in a secure context (HTTPS or `localhost`); a plain `http://<lan-ip>:8000` is non-secure and
-      offline caching will NOT work (esp. iOS). Front MyCoach with Caddy (see `Caddyfile.example`)
-      using either a real domain pointed at the LAN IP or a local CA cert (e.g. mkcert) trusted on
-      the phone. Verify `navigator.serviceWorker.register()` succeeds on the phone before building the rest.
+      offline caching will NOT work (esp. iOS). Provided by the separate `homelab-edge` repo — one
+      shared Caddy container + wildcard cert (DNS-01 via Cloudflare) fronting every app on the home
+      server, joined over a shared Docker network. Verify `navigator.serviceWorker.register()`
+      succeeds on the phone once deployed.
 - [ ] `api/pages/logger.py` + `templates/logger/index.html` — standalone shell at `GET /logger`
 - [ ] `static/logger/manifest.json` — own name / `start_url=/logger` / icons (reuse existing)
 - [ ] `static/logger/sw.js` — service worker caching the app shell (offline), scoped to `/logger`

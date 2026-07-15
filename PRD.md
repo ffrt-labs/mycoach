@@ -358,9 +358,10 @@ locally. API key entered once and stored in localStorage.
 
 **Prerequisite — HTTPS / secure context:** Service workers (hence offline caching) only register in
 a secure context (HTTPS or `localhost`). A plain `http://<lan-ip>:8000` is non-secure and offline
-mode will not work, especially on iOS. MyCoach must therefore be fronted by **Caddy over HTTPS on
-the LAN** (see `Caddyfile.example`) — a real domain pointed at the LAN IP, or a local CA cert (e.g.
-mkcert) trusted on the phone. This is what makes "log at the gym with no signal, sync at home" work.
+mode will not work, especially on iOS. MyCoach must therefore be fronted by HTTPS on the LAN —
+provided by the separate `homelab-edge` repo (one shared Caddy + wildcard cert for every app on
+the home server, not something MyCoach configures itself). This is what makes "log at the gym
+with no signal, sync at home" work.
 
 ### 11.7 Verification
 

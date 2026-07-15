@@ -1,5 +1,5 @@
 services:
-  app:
+  mycoach:
     build: .
     container_name: mycoach
     restart: unless-stopped
@@ -9,13 +9,14 @@ services:
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - app-data:/data
-    # Bound to localhost only — Caddy (below) is the sole way in from the
-    # LAN, over HTTPS. Keeps a cleartext HTTP path from ever existing
-    # alongside the HTTPS one (which would be a second origin and could leak
-    # MYCOACH_API_TOKEN). `curl localhost:8000` still works from the host
-    # itself for debugging.
+    # Bound to localhost only, purely for debugging (`curl localhost:8000`
+    # when SSH'd into the box). The real path in is the shared homelab-edge
+    # Caddy, reverse-proxying over the `edge` network below by service name
+    # — this port is never how the LAN or the PWA reach the app.
     ports:
       - "127.0.0.1:8000:8000"
+    networks:
+      - edge
     healthcheck:
       test:
         - CMD
@@ -27,36 +28,15 @@ services:
       start_period: 20s
       retries: 3
 
-  caddy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-    container_name: mycoach-caddy
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      - app
-    # Published on the host so the app is reachable across the LAN at
-    # https://<MYCOACH_DOMAIN>. Only ever needs to resolve/route on the LAN —
-    # see Caddyfile and README for the DNS-01 + grey-cloud DNS setup.
-    #
-    # Port 80 deliberately not published: we use DNS-01 for cert issuance
-    # (a Cloudflare DNS TXT record, not an HTTP challenge), so Caddy never
-    # needs an inbound port-80 listener. Publishing it only bought us
-    # automatic http:// -> https:// redirects, which isn't worth a host
-    # port conflict with whatever else may be running on the box (as one
-    # was, on this project's home server).
-    ports:
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Must persist: holds the issued cert. Let's Encrypt allows only 5
-      # duplicate certs per domain per week — losing this volume repeatedly
-      # can exhaust that limit.
-      - caddy-data:/data
-      - caddy-config:/config
+networks:
+  # Shared with every other app on the home server plus the homelab-edge
+  # Caddy container, which is the only thing with a published host port
+  # (443) and the sole way in from the LAN. Created by homelab-edge's own
+  # deploy (see that repo) — must already exist before this compose file
+  # runs, or `docker compose up` fails with "network edge declared as
+  # external, but could not be found".
+  edge:
+    external: true
 
 volumes:
   app-data:
-  caddy-data:
-  caddy-config:

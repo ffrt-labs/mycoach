@@ -39,8 +39,14 @@ services:
     # Published on the host so the app is reachable across the LAN at
     # https://<MYCOACH_DOMAIN>. Only ever needs to resolve/route on the LAN —
     # see Caddyfile and README for the DNS-01 + grey-cloud DNS setup.
+    #
+    # Port 80 deliberately not published: we use DNS-01 for cert issuance
+    # (a Cloudflare DNS TXT record, not an HTTP challenge), so Caddy never
+    # needs an inbound port-80 listener. Publishing it only bought us
+    # automatic http:// -> https:// redirects, which isn't worth a host
+    # port conflict with whatever else may be running on the box (as one
+    # was, on this project's home server).
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

@@ -4,18 +4,25 @@
 
 ## 🧭 Next Steps (current roadmap) — start here
 
-> Codebase audit (2026-07-12) confirmed **Phases 0–8 are implemented and
-> functional** — the daily morning digest and weekly recap pipelines already run
-> end-to-end (scheduler → coaching engine → email). The checklists for those
-> phases below are kept for history; the real remaining work is ordered here.
+> Codebase audit (2026-07-12, re-verified 2026-07-16) confirmed **Phases 0–8 are
+> implemented and functional** — the daily morning digest and weekly recap
+> pipelines already run end-to-end (scheduler → coaching engine → email). The
+> checklists for those phases below are kept for history; the real remaining
+> work is ordered here.
 >
 > Priority chosen: **verify automation first → gym logger → cleanup.**
+>
+> **2026-07-16 re-audit:** Steps 2–5 (Phase 9 §9.0–§9.3) were found fully
+> implemented — this file had gone stale. Marked done below. Step 1's two
+> schedule-config items were also already done (`6e14572`). The
+> `POST /api/system/scheduler/trigger/{job}` endpoint Step 1 depends on has now
+> been added (`api/routes/system.py`), unblocking end-to-end verification.
 
 ### Step 1 — Verify & harden the automation (do first)
 
 - [ ] End-to-end verify the **daily** pipeline: manually trigger `garmin_sync`
-      then `daily_briefing` (via `POST /api/system/scheduler/trigger/{job}` or a
-      script) and confirm a real briefing email lands in the inbox.
+      then `daily_briefing` (via `POST /api/system/scheduler/trigger/{job}`,
+      API-key guarded) and confirm a real briefing email lands in the inbox.
 - [ ] End-to-end verify the **weekly recap**: trigger `weekly_recap`, confirm the
       `weekly_recap.html` email arrives with adherence + health trends + AI tips.
 - [ ] Confirm `.env` is set for real delivery: `MYCOACH_EMAIL_ENABLED=true`,
@@ -24,35 +31,38 @@
 - [ ] Confirm per-user email prefs on the `User` row are enabled
       (`email_daily_briefing`, `email_weekly_recap`, `email_weekly_plan`,
       `email_post_workout`) — jobs silently skip sending when these are false.
-- [ ] Make the **weekly-recap schedule config-driven** (currently hardcoded to
-      Mon 07:00 in `scheduler/scheduler.py:120-129`): add
-      `scheduler_weekly_recap_day` / `scheduler_weekly_recap_hour` /
-      `scheduler_weekly_recap_minute` to `config.py` + `.env.example`, mirroring
-      the existing `scheduler_weekly_plan_*` pattern, and use them in the job.
-- [ ] Un-hardcode the `weekly_plan` minute (`scheduler.py:114`, currently `0`):
-      add `scheduler_weekly_plan_minute` to `config.py` + `.env.example`.
 
-### Step 2 — Retire Hevy web-API auto-sync (keep CSV)
+> ✅ Done: weekly-recap schedule and weekly-plan minute are config-driven
+> (`scheduler_weekly_recap_day/_hour/_minute`, `scheduler_weekly_plan_minute` in
+> `config.py` + `.env.example`, wired in `scheduler/scheduler.py`) — `6e14572`.
 
-→ Execute **Phase 9 §9.0** below. The web-API sync + keepalive hack is fragile;
-remove it, keep the reliable Hevy CSV import as the fallback source.
+### Step 2 — Retire Hevy web-API auto-sync (keep CSV) — ✅ Done
 
-### Step 3 — Canonical ingestion layer
+Phase 9 §9.0 complete: `sources/hevy/api_client.py` / `api_source.py` /
+`api_parser.py` removed, no `/sync/hevy` or `/hevy/refresh-token` routes, no
+`hevy_sync`/`hevy_keepalive` scheduler jobs, no Hevy sync UI on the dashboard.
+Hevy CSV import remains as the fallback source.
 
-→ Execute **Phase 9 §9.1** below (`WorkoutImport`/`WorkoutSetImport`,
-`import_workouts`, `Activity.external_id` migration, refactor Hevy CSV to emit the
-canonical schema, generalize the Garmin merge).
+### Step 3 — Canonical ingestion layer — ✅ Done
 
-### Step 4 — Universal push endpoint + API-key auth
+Phase 9 §9.1 complete: `sources/workout_import.py` (`WorkoutImport` /
+`WorkoutSetImport`), `sources/importer.py::import_workouts`,
+`Activity.external_id` (migrated), Hevy CSV parser refactored to emit the
+canonical schema, `sources/merger.py` generalized to merge `data_source in
+("hevy", "logger")`.
 
-→ Execute **Phase 9 §9.2** below (`require_api_key`,
-`POST /api/sources/import/workouts`, `GET /api/logger/exercises`).
+### Step 4 — Universal push endpoint + API-key auth — ✅ Done
 
-### Step 5 — Offline companion logger PWA
+Phase 9 §9.2 complete: `api/deps.py::require_api_key`,
+`POST /api/sources/import/workouts`, `GET /api/logger/exercises`, plus
+`GET /api/logger/routines` (prefill support not originally scoped).
 
-→ Execute **Phase 9 §9.3** below. **HTTPS/Caddy on the LAN is the prerequisite**
-(service workers need a secure context). This is the user's #1 feature: log lifts
-offline at the gym, auto-sync at home.
+### Step 5 — Offline companion logger PWA — ✅ Done
+
+Phase 9 §9.3 complete: `/logger` served with its own manifest/service
+worker/icons, HTTPS provided by the separate `homelab-edge` reverse-proxy repo.
+Offline log → LAN sync flow implemented; end-to-end phone verification still
+pending an actual home-server deploy (tracked outside this file).
 
 ### Step 6 — PWA polish (lower priority)
 
@@ -60,10 +70,17 @@ offline at the gym, auto-sync at home.
       email preference toggles. (No settings UI exists today — API-only.)
 - [ ] Dedicated workout-detail page (gym set details are currently inlined in the
       History page rather than a per-workout view).
-- [ ] Add missing icon assets `static/icon-192.png` / `icon-512.png` (referenced
-      by `manifest.json` but not present).
-- [ ] Fix stale `manifest.json` colors (`theme_color` `#1e40af`,
-      `background_color` `#f9fafb`) to match the near-black/amber app theme.
+- [ ] Fix the main app's service worker registration scope: `static/js/app.js`
+      registers `/static/sw.js` with no explicit `scope`, so it defaults to
+      `/static/` and can never control `/`, `/plan`, `/history`, etc. — offline
+      mode on the main PWA is currently a no-op. The `/logger` PWA
+      (`api/pages/logger.py`) shows the working pattern: serve `sw.js` from a
+      dedicated route with a `Service-Worker-Allowed` header at the intended
+      scope. Bump the cache version as part of the same change so a stale-shell
+      bug isn't introduced the moment the SW starts actually controlling pages.
+
+> ✅ Done: icon assets (`static/icon-192.png`/`icon-512.png`) and manifest
+> colors were already fixed.
 
 ---
 

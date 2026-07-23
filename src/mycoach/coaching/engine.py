@@ -29,6 +29,7 @@ from mycoach.coaching.context import (
     get_today_planned_sessions,
     link_activity_to_planned_session,
 )
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
     build_cardio_plan_prompt,
@@ -95,7 +96,7 @@ class CoachingEngine:
                     )
                 )
             else:
-                raise ValueError(f"Daily briefing already exists for {today}")
+                raise PipelineSkip(f"Daily briefing already exists for {today}")
 
         # Gather context
         health_today = await get_today_health(session, user_id, today)
@@ -264,12 +265,12 @@ class CoachingEngine:
                 await session.delete(existing_plan)
                 await session.flush()
             else:
-                raise ValueError(f"Active plan already exists for week of {week_start}")
+                raise PipelineSkip(f"Active plan already exists for week of {week_start}")
 
         # 1. Gather shared context
         availability = await get_availability_for_week(session, user_id, week_start)
         if not availability:
-            raise ValueError(f"No availability slots set for week of {week_start}")
+            raise PipelineSkip(f"No availability slots set for week of {week_start}")
         logger.info(
             "Availability for week %s: %s",
             week_start,
@@ -566,7 +567,7 @@ class CoachingEngine:
                     )
                 )
             else:
-                raise ValueError(
+                raise PipelineSkip(
                     f"Post-workout analysis already exists for activity {activity_id}"
                 )
 
@@ -703,7 +704,7 @@ class CoachingEngine:
                     )
                 )
             else:
-                raise ValueError(f"Weekly recap already exists for week of {week_start}")
+                raise PipelineSkip(f"Weekly recap already exists for week of {week_start}")
 
         # Gather context
         plan_adherence = await get_plan_adherence_for_week(session, user_id, week_start)

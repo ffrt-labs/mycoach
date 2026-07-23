@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -123,7 +124,7 @@ class TestGeneratePostWorkoutAnalysis:
             engine = CoachingEngine(llm_client=mock_llm)
             await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
-            with pytest.raises(ValueError, match="already exists"):
+            with pytest.raises(PipelineSkip, match="already exists"):
                 await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
     async def test_activity_not_found_raises(self) -> None:

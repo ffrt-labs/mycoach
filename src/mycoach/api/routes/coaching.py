@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.database import get_db
 from mycoach.models.coaching import CoachingInsight
 from mycoach.schemas.coaching import CoachingInsightRead
@@ -52,7 +53,7 @@ async def generate_today_briefing(
     engine = CoachingEngine()
     try:
         insight = await engine.generate_daily_briefing(session, USER_ID, force=force)
-    except ValueError as e:
+    except (PipelineSkip, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
@@ -107,7 +108,7 @@ async def generate_weekly_recap(
         insight = await engine.generate_weekly_recap(
             session, USER_ID, week_start, force=force
         )
-    except ValueError as e:
+    except (PipelineSkip, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None

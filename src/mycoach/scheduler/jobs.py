@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.config import get_settings
 from mycoach.database import async_session
 from mycoach.email.sender import (
@@ -44,6 +45,21 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
         loop.close()
 
 
+def _run_job(label: str, coro) -> None:  # type: ignore[no-untyped-def]
+    """Run a pipeline coroutine, translating its outcome into a log line.
+
+    A ``PipelineSkip`` is a deliberate no-op and logged at info level. Every
+    other exception is a real failure and logged at error level. This is the
+    skip-versus-failure boundary the rest of the pipeline keys on.
+    """
+    try:
+        _run_async(coro)
+    except PipelineSkip as e:
+        logger.info("Scheduler: %s skipped — %s", label, e)
+    except Exception:
+        logger.exception("Scheduler: %s failed", label)
+
+
 async def _get_user_email_pref(pref_field: str) -> bool:
     """Check if user has a specific email preference enabled."""
     settings = get_settings()
@@ -63,64 +79,51 @@ def job_garmin_sync() -> None:
     Fetches the last 2 days of data to handle timezone edge cases and overnight sync.
     """
     logger.info("Scheduler: starting Garmin sync")
-    _run_async(_garmin_sync())
+    _run_job("Garmin sync", _garmin_sync())
 
 
 async def _garmin_sync() -> None:
     source = GarminSource()
-    try:
-        if not await source.authenticate():
-            logger.error("Scheduler: Garmin authentication failed")
-            return
-    except Exception:
-        logger.exception("Scheduler: Garmin authentication error")
-        return
+    if not await source.authenticate():
+        raise RuntimeError("Garmin authentication failed")
 
     async with async_session() as session:
-        try:
-            since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-            since = since - timedelta(days=2)
-            result = await source.fetch_and_import(session, USER_ID, since=since)
-            merge_result = await merge_garmin_hevy(session, USER_ID)
-            await session.commit()
-            logger.info(
-                "Scheduler: Garmin sync complete — health=%d, activities=%d, merged=%d",
-                result.health_snapshots_created,
-                result.activities_created,
-                merge_result.merged,
-            )
-        except Exception:
-            logger.exception("Scheduler: Garmin sync failed")
+        since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        since = since - timedelta(days=2)
+        result = await source.fetch_and_import(session, USER_ID, since=since)
+        merge_result = await merge_garmin_hevy(session, USER_ID)
+        await session.commit()
+        logger.info(
+            "Scheduler: Garmin sync complete — health=%d, activities=%d, merged=%d",
+            result.health_snapshots_created,
+            result.activities_created,
+            merge_result.merged,
+        )
 
 
 def job_daily_briefing() -> None:
     """Generate the daily coaching briefing."""
     logger.info("Scheduler: generating daily briefing")
-    _run_async(_daily_briefing())
+    _run_job("daily briefing", _daily_briefing())
 
 
 async def _daily_briefing() -> None:
     engine = CoachingEngine()
     async with async_session() as session:
-        try:
-            insight = await engine.generate_daily_briefing(session, USER_ID)
-            logger.info("Scheduler: daily briefing generated")
+        insight = await engine.generate_daily_briefing(session, USER_ID)
+        logger.info("Scheduler: daily briefing generated")
 
-            if await _get_user_email_pref("email_daily_briefing"):
-                content = json.loads(insight.content)
-                send_daily_briefing(content)
-                logger.info("Scheduler: daily briefing email sent")
-        except ValueError as e:
-            logger.info("Scheduler: daily briefing skipped — %s", e)
-        except Exception:
-            logger.exception("Scheduler: daily briefing failed")
+        if await _get_user_email_pref("email_daily_briefing"):
+            content = json.loads(insight.content)
+            send_daily_briefing(content)
+            logger.info("Scheduler: daily briefing email sent")
 
 
 
 def job_weekly_plan() -> None:
     """Generate the weekly training plan (runs Sunday evening for next week)."""
     logger.info("Scheduler: generating weekly plan")
-    _run_async(_weekly_plan())
+    _run_job("weekly plan", _weekly_plan())
 
 
 async def _weekly_plan() -> None:
@@ -132,44 +135,39 @@ async def _weekly_plan() -> None:
     next_monday = today + timedelta(days=days_until_monday)
 
     async with async_session() as session:
-        try:
-            plan = await engine.generate_weekly_plan(session, USER_ID, next_monday)
-            logger.info("Scheduler: weekly plan generated for %s", next_monday)
+        plan = await engine.generate_weekly_plan(session, USER_ID, next_monday)
+        logger.info("Scheduler: weekly plan generated for %s", next_monday)
 
-            if await _get_user_email_pref("email_weekly_plan"):
-                result = await session.execute(
-                    select(PlannedSession)
-                    .where(PlannedSession.plan_id == plan.id)
-                    .order_by(PlannedSession.day_of_week)
-                )
-                sessions = result.scalars().all()
-                session_dicts = [
-                    {
-                        "day_name": DAY_NAMES[s.day_of_week],
-                        "title": s.title,
-                        "sport": s.sport,
-                        "duration_minutes": s.duration_minutes,
-                        "notes": s.notes,
-                        "details": json.loads(s.details) if s.details else None,
-                    }
-                    for s in sessions
-                ]
-                send_weekly_plan(
-                    summary=plan.summary or "",
-                    sessions=session_dicts,
-                    week_start=str(next_monday),
-                )
-                logger.info("Scheduler: weekly plan email sent")
-        except ValueError as e:
-            logger.info("Scheduler: weekly plan skipped — %s", e)
-        except Exception:
-            logger.exception("Scheduler: weekly plan generation failed")
+        if await _get_user_email_pref("email_weekly_plan"):
+            result = await session.execute(
+                select(PlannedSession)
+                .where(PlannedSession.plan_id == plan.id)
+                .order_by(PlannedSession.day_of_week)
+            )
+            sessions = result.scalars().all()
+            session_dicts = [
+                {
+                    "day_name": DAY_NAMES[s.day_of_week],
+                    "title": s.title,
+                    "sport": s.sport,
+                    "duration_minutes": s.duration_minutes,
+                    "notes": s.notes,
+                    "details": json.loads(s.details) if s.details else None,
+                }
+                for s in sessions
+            ]
+            send_weekly_plan(
+                summary=plan.summary or "",
+                sessions=session_dicts,
+                week_start=str(next_monday),
+            )
+            logger.info("Scheduler: weekly plan email sent")
 
 
 def job_weekly_recap() -> None:
     """Generate the weekly recap (runs Monday morning for the previous week)."""
     logger.info("Scheduler: generating weekly recap")
-    _run_async(_weekly_recap())
+    _run_job("weekly recap", _weekly_recap())
 
 
 async def _weekly_recap() -> None:
@@ -178,18 +176,13 @@ async def _weekly_recap() -> None:
     last_monday = today - timedelta(days=today.weekday() + 7)
 
     async with async_session() as session:
-        try:
-            insight = await engine.generate_weekly_recap(session, USER_ID, last_monday)
-            logger.info("Scheduler: weekly recap generated for week of %s", last_monday)
+        insight = await engine.generate_weekly_recap(session, USER_ID, last_monday)
+        logger.info("Scheduler: weekly recap generated for week of %s", last_monday)
 
-            if await _get_user_email_pref("email_weekly_recap"):
-                content = json.loads(insight.content)
-                send_weekly_recap(content, week_start=str(last_monday))
-                logger.info("Scheduler: weekly recap email sent")
-        except ValueError as e:
-            logger.info("Scheduler: weekly recap skipped — %s", e)
-        except Exception:
-            logger.exception("Scheduler: weekly recap generation failed")
+        if await _get_user_email_pref("email_weekly_recap"):
+            content = json.loads(insight.content)
+            send_weekly_recap(content, week_start=str(last_monday))
+            logger.info("Scheduler: weekly recap email sent")
 
 
 def job_post_workout_analysis() -> None:
@@ -199,7 +192,7 @@ def job_post_workout_analysis() -> None:
     an existing CoachingInsight, generates analysis for each, and sends email.
     """
     logger.info("Scheduler: starting post-workout analysis scan")
-    _run_async(_post_workout_analysis())
+    _run_job("post-workout analysis", _post_workout_analysis())
 
 
 async def _post_workout_analysis() -> None:
@@ -230,13 +223,14 @@ async def _post_workout_analysis() -> None:
         activities = list(result.scalars().all())
 
         if not activities:
-            logger.info("Scheduler: no new activities to analyze")
-            return
+            raise PipelineSkip("no new activities to analyse")
 
         logger.info("Scheduler: found %d activities to analyze", len(activities))
         send_email = await _get_user_email_pref("email_post_workout")
 
         for activity in activities:
+            # Per-activity resilience: one activity's skip or failure must not
+            # abort the batch. A whole-batch skip (no activities) is raised above.
             try:
                 insight = await engine.generate_post_workout_analysis(
                     session, USER_ID, activity.id
@@ -253,7 +247,7 @@ async def _post_workout_analysis() -> None:
                     logger.info(
                         "Scheduler: post-workout email sent for activity %d", activity.id
                     )
-            except ValueError as e:
+            except PipelineSkip as e:
                 logger.info(
                     "Scheduler: post-workout analysis skipped for activity %d — %s",
                     activity.id,

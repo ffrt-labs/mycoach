@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.prompt_log import PromptLog
@@ -107,7 +108,7 @@ class TestGenerateDailyBriefing:
             engine = CoachingEngine(llm_client=mock_llm)
             await engine.generate_daily_briefing(session, user_id, today)
 
-            with pytest.raises(ValueError, match="already exists"):
+            with pytest.raises(PipelineSkip, match="already exists"):
                 await engine.generate_daily_briefing(session, user_id, today)
 
     async def test_llm_failure_raises_and_logs(self) -> None:

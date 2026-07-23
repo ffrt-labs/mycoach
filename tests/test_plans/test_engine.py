@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession
@@ -272,7 +273,7 @@ class TestGenerateWeeklyPlan:
             engine = CoachingEngine(llm_client=mock_llm)
             await engine.generate_weekly_plan(session, user_id, week_start)
 
-            with pytest.raises(ValueError, match="already exists"):
+            with pytest.raises(PipelineSkip, match="already exists"):
                 await engine.generate_weekly_plan(session, user_id, week_start)
 
     async def test_no_availability_raises(self) -> None:
@@ -285,7 +286,7 @@ class TestGenerateWeeklyPlan:
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
 
-            with pytest.raises(ValueError, match="No availability"):
+            with pytest.raises(PipelineSkip, match="No availability"):
                 await engine.generate_weekly_plan(session, user.id, date(2024, 6, 10))
 
     async def test_non_monday_raises(self) -> None:

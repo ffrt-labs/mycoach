@@ -4,7 +4,7 @@
 
 **Problem:** Personal trainers are expensive and not always available. Generic fitness apps lack deep personalization. Users who train across multiple sports (gym, swimming, padel) have no single system that understands all their training holistically, adapts to their biometric data (sleep, HRV, stress, recovery), and provides progressive programming.
 
-**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with Claude API, and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
+**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with a configurable LLM provider (currently Gemini; Claude also supported), and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
 
 **Target user (MVP):** Single technically-proficient user training gym + swimming + padel, wearing a Garmin watch 24/7, logging gym workouts in Hevy (free tier).
 
@@ -118,7 +118,7 @@ Codebase audit confirmed the MVP backend is **built and functional**, not stubs:
 | Database | SQLite (MVP) → PostgreSQL (future), via SQLAlchemy 2.0 + Alembic |
 | Garmin | `garminconnect` + `garth` |
 | Hevy | API sync (web API) + CSV import fallback |
-| LLM | Anthropic Python SDK (Claude API) |
+| LLM | Provider-configurable (`MYCOACH_LLM_PROVIDER`) — Gemini (in use) or Claude/Anthropic |
 | Scheduler | APScheduler |
 | Frontend | Jinja2 + HTMX + Tailwind CSS |
 | Email | Resend API or SMTP |
@@ -181,12 +181,13 @@ mycoach/
 ## 5. LLM Integration Strategy
 
 - **Prompt architecture:** System prompt (coaching persona) + context assembly (data from DB) + structured output (JSON with Pydantic validation)
-- **Model strategy:** Sonnet for daily briefings (cheaper/faster), Opus for weekly plan generation (better reasoning)
+- **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **Gemini is the provider currently in use** (`gemini-2.5-flash` daily, `gemini-2.5-pro` weekly); **Claude/Anthropic remains fully supported** as an alternative (`claude-sonnet-4-5` daily, `claude-opus-4-6` weekly). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
+- **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. This dual-model split applies to both providers (Gemini Flash → Pro, Claude Sonnet → Opus).
 - **Token budget management:** Raw Garmin data summarized into compact representations before prompting. Rolling context windows (7 days for plans, 3 days for dailies)
 - **Prompt versioning:** Templates in `prompts/v1/`, `v2/`, etc. PromptLog tracks which version produced each output.
 - **Response validation:** JSON parsed → Pydantic validated → retry once on failure → fallback to text
 
-**Estimated monthly cost:** ~$20-30/month for a single user
+**Estimated monthly cost:** Provider-dependent for a single user. The ~$20-30/month ceiling (`MYCOACH_CLAUDE_MONTHLY_COST_CEILING`) reflects the Claude/Anthropic configuration; Gemini (the provider currently in use) is typically lower for the same workload. Track actual spend via `PromptLog`.
 
 ---
 
@@ -251,7 +252,7 @@ GET  /api/system/status                   # Health check
 | Hevy CSV export format changes | Store raw CSV alongside parsed data; parser is simple to update if columns change |
 | LLM hallucinations in workout plans | Safety guardrails in prompts, output validation (RPE ranges, reasonable reps/sets) |
 | Auth token expiration | Robust re-auth via garth, alerting on failure |
-| Claude API cost overruns | Token budget tracking, monthly ceiling, cheaper models for routine tasks |
+| LLM API cost overruns | Token budget tracking, monthly ceiling, cheaper models for routine tasks; provider switchable to lower-cost option |
 | Scope creep | Strict phase-gating, each phase has a clear milestone |
 
 ---

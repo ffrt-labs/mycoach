@@ -38,7 +38,7 @@ from mycoach.api.routes.routines import router as routines_router
 from mycoach.api.routes.sources import router as sources_router
 from mycoach.api.routes.sport_profiles import router as sport_profiles_router
 from mycoach.api.routes.system import router as system_router
-from mycoach.config import get_settings
+from mycoach.config import announce_email_config, get_settings
 from mycoach.database import Base, engine
 from mycoach.logging_config import setup_logging
 from mycoach.scheduler.scheduler import create_scheduler
@@ -98,6 +98,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     setup_logging(settings.log_level)
+    announce_email_config(settings)
     app = FastAPI(
         title="MyCoach",
         version="0.1.0",

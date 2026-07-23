@@ -134,8 +134,20 @@ def test_send_email_disabled() -> None:
 
 
 def test_send_email_no_backend() -> None:
-    """Returns False when no backend is configured."""
-    settings = _make_settings(email_resend_api_key="", email_smtp_host="")
+    """send_email stays safe even if it somehow sees enabled-but-backendless config.
+
+    Startup validation now makes this state unconstructable via ``Settings(...)``
+    (see tests/test_config.py), so ``model_construct`` is used to bypass the
+    validator and exercise ``send_email``'s defensive fallback branch directly.
+    """
+    settings = Settings.model_construct(
+        email_enabled=True,
+        email_from="coach@example.com",
+        email_to="user@example.com",
+        email_resend_api_key="",
+        email_smtp_host="",
+        env="test",
+    )
     result = send_email("user@example.com", "Subject", "<p>Hi</p>", settings)
     assert result is False
 

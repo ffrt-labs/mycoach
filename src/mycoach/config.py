@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -93,6 +96,44 @@ class Settings(BaseSettings):
                 "MYCOACH_LLM_PROVIDER=gemini but MYCOACH_GEMINI_API_KEY is not set."
             )
         return self
+
+    @model_validator(mode="after")
+    def _require_email_config_when_enabled(self) -> "Settings":
+        """Refuse to boot with email switched on but unable to actually send.
+
+        The global email flag short-circuits every per-user preference check, so
+        an enabled-but-unsendable configuration is silently mute in production.
+        Fail fast instead: demand a resolvable backend and a recipient.
+        """
+        if not self.email_enabled:
+            return self
+        if not (self.email_resend_api_key or self.email_smtp_host):
+            raise ValueError(
+                "MYCOACH_EMAIL_ENABLED is true but no email backend is configured: "
+                "set MYCOACH_EMAIL_RESEND_API_KEY or MYCOACH_EMAIL_SMTP_HOST."
+            )
+        if not self.email_to:
+            raise ValueError(
+                "MYCOACH_EMAIL_ENABLED is true but no recipient is configured: "
+                "set MYCOACH_EMAIL_TO."
+            )
+        return self
+
+
+def announce_email_config(settings: Settings) -> None:
+    """Announce email delivery status loudly at startup.
+
+    A fully-configured, enabled setup is validated at construction time. When
+    email is switched off that is a legitimate choice, but it must be surfaced
+    prominently rather than silently assumed — this is the class of mistake that
+    left the app mute for its entire history.
+    """
+    if not settings.email_enabled:
+        logger.warning(
+            "EMAIL IS DISABLED (MYCOACH_EMAIL_ENABLED is false) — "
+            "no coaching emails will be sent."
+        )
+
 
 def get_settings() -> Settings:
     return Settings()

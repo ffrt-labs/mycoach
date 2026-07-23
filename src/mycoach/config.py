@@ -87,14 +87,18 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _require_llm_provider_key(self) -> "Settings":
         provider = self.llm_provider.lower()
-        if provider == "anthropic" and not self.claude_api_key:
+        required_keys = {
+            "anthropic": ("MYCOACH_CLAUDE_API_KEY", self.claude_api_key),
+            "gemini": ("MYCOACH_GEMINI_API_KEY", self.gemini_api_key),
+        }
+        if provider not in required_keys:
             raise ValueError(
-                "MYCOACH_LLM_PROVIDER=anthropic but MYCOACH_CLAUDE_API_KEY is not set."
+                f"MYCOACH_LLM_PROVIDER={self.llm_provider!r} is not a recognized provider; "
+                f"expected one of {sorted(required_keys)}."
             )
-        if provider == "gemini" and not self.gemini_api_key:
-            raise ValueError(
-                "MYCOACH_LLM_PROVIDER=gemini but MYCOACH_GEMINI_API_KEY is not set."
-            )
+        key_env, key_value = required_keys[provider]
+        if not key_value:
+            raise ValueError(f"MYCOACH_LLM_PROVIDER={provider} but {key_env} is not set.")
         return self
 
     @model_validator(mode="after")

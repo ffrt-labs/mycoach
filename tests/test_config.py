@@ -37,6 +37,11 @@ def test_gemini_provider_with_key_is_valid() -> None:
     assert settings.llm_provider == "gemini"
 
 
+def test_unknown_provider_fails() -> None:
+    with pytest.raises(ValueError, match="MYCOACH_LLM_PROVIDER"):
+        Settings(llm_provider="openai", claude_api_key="sk-test", gemini_api_key="test-key")
+
+
 # --- Email startup validation ---------------------------------------------
 
 

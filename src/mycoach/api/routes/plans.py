@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.database import get_db
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.schemas.plan import (
@@ -50,7 +51,7 @@ async def generate_plan(
     engine = CoachingEngine()
     try:
         plan = await engine.generate_weekly_plan(session, USER_ID, week_start, force=force)
-    except ValueError as e:
+    except (PipelineSkip, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None

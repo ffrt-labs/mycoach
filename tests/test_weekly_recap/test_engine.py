@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
+from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -105,7 +106,7 @@ class TestGenerateWeeklyRecap:
             engine = CoachingEngine(llm_client=mock_llm)
             await engine.generate_weekly_recap(session, user_id, week_start)
 
-            with pytest.raises(ValueError, match="already exists"):
+            with pytest.raises(PipelineSkip, match="already exists"):
                 await engine.generate_weekly_recap(session, user_id, week_start)
 
     async def test_non_monday_raises(self) -> None:

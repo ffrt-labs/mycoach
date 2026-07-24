@@ -3,41 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>{% block title %}MyCoach{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f3f4f6; color: #1f2937; }
-  .container { max-width: 600px; margin: 0 auto; background: #ffffff; }
-  .header { background-color: #1e40af; color: #ffffff; padding: 20px 24px; }
-  .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-  .header p { margin: 4px 0 0; font-size: 13px; color: #bfdbfe; }
-  .content { padding: 24px; }
-  .footer { padding: 16px 24px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
-  .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-  .card h3 { margin: 0 0 8px; font-size: 15px; color: #1e40af; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-  .badge-green { background: #dcfce7; color: #166534; }
-  .badge-yellow { background: #fef9c3; color: #854d0e; }
-  .badge-red { background: #fee2e2; color: #991b1b; }
-  .badge-blue { background: #dbeafe; color: #1e40af; }
-  .metric { display: inline-block; text-align: center; padding: 8px 12px; }
-  .metric-value { font-size: 20px; font-weight: 700; color: #111827; }
-  .metric-label { font-size: 11px; color: #6b7280; text-transform: uppercase; }
-  ul { padding-left: 20px; }
-  li { margin-bottom: 4px; }
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { margin:0; padding:0; background:#f0efec; -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; }
+  table { border-collapse:collapse; }
+  img { border:0; line-height:100%; }
+  a { text-decoration:none; }
+
+  .wrap { width:100%; background:#f0efec; padding:26px 0; }
+  .email { max-width:420px; margin:0 auto; background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:16px; overflow:hidden; }
+  .px { padding-left:24px; padding-right:24px; }
+
+  .hd-b { border-bottom:1px solid rgba(0,0,0,.08); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:3px; background:#ea6d1f; vertical-align:middle; margin-right:9px; }
+  .brand { font:700 15px 'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#18191b; vertical-align:middle; }
+  .hd-meta { font:400 11px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#78716c; }
+
+  .eyebrow { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#78716c; }
+  .sec { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#78716c; }
+  .verdict { font:700 46px/1 'IBM Plex Sans',-apple-system,sans-serif; letter-spacing:-.02em; color:#18191b; }
+  .rule { width:120px; height:5px; border-radius:3px; background:#ea6d1f; font-size:0; line-height:0; }
+  .lead { font:400 15px/1.55 'IBM Plex Sans',sans-serif; color:#52525b; }
+  .p { font:400 14px/1.7 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .strong { color:#18191b; font-weight:600; }
+
+  .block-b { border-top:1px solid rgba(0,0,0,.08); }
+  .mrow { border-bottom:1px solid rgba(0,0,0,.06); }
+  .mlabel { font:500 13px 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .msub { font:400 11px 'IBM Plex Mono',monospace; color:#a1a1aa; }
+  .mval { font:600 17px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#18191b; text-align:right; white-space:nowrap; }
+  .munit { font-size:12px; color:#a1a1aa; }
+
+  .coach { background:rgba(234,109,31,.07); border:1px solid rgba(234,109,31,.28); border-radius:10px; }
+  .coach-k { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#c2560f; }
+  .coach-t { font:400 14px/1.55 'IBM Plex Sans',sans-serif; color:#7c4a26; }
+
+  .li { font:400 14px/1.5 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .mk-plus { font:600 14px 'IBM Plex Mono',monospace; color:#c2560f; }
+  .mk-arrow { font:600 14px 'IBM Plex Mono',monospace; color:#9ca3af; }
+
+  .badge { display:inline-block; font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.03em; padding:4px 10px; border-radius:999px; }
+  .b-amber { background:rgba(234,109,31,.10); color:#c2560f; }
+  .b-emerald { background:rgba(5,150,105,.12); color:#047857; }
+  .b-sky { background:rgba(2,132,199,.12); color:#0369a1; }
+  .b-zinc { background:rgba(0,0,0,.06); color:#52525b; }
+
+  .cta { display:block; text-align:center; font:700 15px 'IBM Plex Sans',sans-serif; color:#ffffff !important; background:#ea6d1f; padding:15px 0; border-radius:12px; }
+
+  .ft { border-top:1px solid rgba(0,0,0,.08); background:#faf9f7; }
+  .ft-t { font:400 12px/1.6 'IBM Plex Sans',sans-serif; color:#a1a1aa; }
+  .ft-t a { color:#78716c; }
+
+  @media (prefers-color-scheme: dark) {
+    body, .wrap { background:#08090a !important; }
+    .email { background:#0b0c0e !important; border-color:rgba(255,255,255,.08) !important; }
+    .hd-b, .block-b, .ft { border-color:rgba(255,255,255,.08) !important; }
+    .ft { background:#0a0b0c !important; }
+    .brand, .verdict, .strong, .mval { color:#fafafa !important; }
+    .hd-meta, .eyebrow, .sec, .mk-arrow, .msub, .munit { color:#6b7280 !important; }
+    .lead, .mlabel { color:#a1a1aa !important; }
+    .p, .li { color:#c9c9cd !important; }
+    .rule { background:#fb923c !important; }
+    .coach { background:rgba(251,146,60,.09) !important; border-color:rgba(251,146,60,.22) !important; }
+    .coach-k, .mk-plus { color:#fb923c !important; }
+    .coach-t { color:#e4c9ac !important; }
+    .mrow { border-color:rgba(255,255,255,.06) !important; }
+    .b-amber { background:rgba(251,146,60,.13) !important; color:#fdba74 !important; }
+    .b-emerald { background:rgba(16,185,129,.15) !important; color:#6ee7b7 !important; }
+    .b-sky { background:rgba(56,189,248,.15) !important; color:#7dd3fc !important; }
+    .b-zinc { background:rgba(255,255,255,.08) !important; color:#a1a1aa !important; }
+    .cta { background:#fb923c !important; color:#0a0b0d !important; }
+    .ft-t { color:#57575c !important; }
+    .ft-t a { color:#78716c !important; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <h1>MyCoach</h1>
-    <p>{% block subtitle %}{% endblock %}</p>
-  </div>
-  <div class="content">
-    {% block content %}{% endblock %}
-  </div>
-  <div class="footer">
-    MyCoach &mdash; AI-powered personal fitness coaching
-  </div>
+<div class="wrap">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" class="email" width="420" cellpadding="0" cellspacing="0" border="0" align="center">
+
+          <!-- Header -->
+          <tr>
+            <td class="px hd-b" style="padding-top:18px;padding-bottom:18px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align:middle;"><span class="dot"></span><span class="brand">MyCoach</span></td>
+                  <td class="hd-meta" style="text-align:right;vertical-align:middle;">{% block subtitle %}{% endblock %}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {% block content %}{% endblock %}
+
+          <!-- Footer -->
+          <tr>
+            <td class="ft px" style="padding-top:18px;padding-bottom:22px;">
+              <div class="ft-t">MyCoach &mdash; AI-powered personal fitness coaching.</div>
+              <div class="ft-t" style="margin-top:6px;"><a href="{{ manage_url|default('#') }}">Manage emails</a> &middot; <a href="{{ unsubscribe_url|default('#') }}">Unsubscribe</a></div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </div>
 </body>
 </html>

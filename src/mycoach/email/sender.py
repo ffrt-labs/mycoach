@@ -30,6 +30,33 @@ def _render_template(template_name: str, context: dict) -> str:  # type: ignore[
     return template.render(**context)
 
 
+# Display label/unit for each DailyBriefingKeyMetrics field, in the order
+# emails should show them. Keys absent or None are skipped.
+_KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
+    "body_battery": ("Body Battery", ""),
+    "hrv_status": ("HRV Status", ""),
+    "sleep_score": ("Sleep Score", ""),
+    "training_readiness": ("Training Readiness", ""),
+    "resting_hr": ("Resting HR", "bpm"),
+}
+
+
+def _format_key_metrics(key_metrics: dict) -> list[dict]:  # type: ignore[type-arg]
+    """Turn the raw DailyBriefingKeyMetrics fields into display-ready rows."""
+    rows = []
+    for key, (label, unit) in _KEY_METRICS_DISPLAY.items():
+        value = key_metrics.get(key)
+        if value is None:
+            continue
+        rows.append({"label": label, "value": value, "unit": unit})
+    return rows
+
+
+def _dashboard_url(settings: Settings) -> str:
+    """Build the dashboard link used for every email's CTA button."""
+    return f"{settings.app_base_url}/dashboard"
+
+
 def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> bool:
     """Send email using Resend API."""
     resend.api_key = settings.email_resend_api_key
@@ -95,7 +122,13 @@ def send_daily_briefing(content: dict, settings: Settings | None = None) -> bool
     """Send the daily coaching briefing email."""
     if settings is None:
         settings = get_settings()
-    html = _render_template("daily_briefing.html", {"briefing": content})
+    briefing = dict(content)
+    if briefing.get("key_metrics"):
+        briefing["key_metrics"] = _format_key_metrics(briefing["key_metrics"])
+    html = _render_template(
+        "daily_briefing.html",
+        {"briefing": briefing, "dashboard_url": _dashboard_url(settings)},
+    )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
 
 
@@ -110,7 +143,12 @@ def send_weekly_plan(
         settings = get_settings()
     html = _render_template(
         "weekly_plan.html",
-        {"summary": summary, "sessions": sessions, "week_start": week_start},
+        {
+            "summary": summary,
+            "sessions": sessions,
+            "week_start": week_start,
+            "dashboard_url": _dashboard_url(settings),
+        },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Plan", html, settings)
 
@@ -120,7 +158,12 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
     if settings is None:
         settings = get_settings()
     html = _render_template(
-        "post_workout.html", {"analysis": content, "activity_title": activity_title}
+        "post_workout.html",
+        {
+            "analysis": content,
+            "activity_title": activity_title,
+            "dashboard_url": _dashboard_url(settings),
+        },
     )
     return send_email(
         settings.email_to, f"MyCoach — Post-Workout: {activity_title}", html, settings
@@ -132,5 +175,8 @@ def send_weekly_recap(content: dict, week_start: str, settings: Settings | None 
     """Send weekly recap email."""
     if settings is None:
         settings = get_settings()
-    html = _render_template("weekly_recap.html", {"recap": content, "week_start": week_start})
+    html = _render_template(
+        "weekly_recap.html",
+        {"recap": content, "week_start": week_start, "dashboard_url": _dashboard_url(settings)},
+    )
     return send_email(settings.email_to, "MyCoach — Weekly Recap", html, settings)

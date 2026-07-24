@@ -1,66 +1,102 @@
 {% extends "base.html" %}
 {% block title %}Post-Workout Analysis{% endblock %}
-{% block subtitle %}Post-Workout Analysis &mdash; {{ activity_title }}{% endblock %}
+{% block subtitle %}Post-workout{% endblock %}
 {% block content %}
-<div class="card">
-  <h3>Performance Summary</h3>
-  <p>{{ analysis.performance_summary }}</p>
-</div>
+
+<!-- Activity title + performance summary -->
+<tr>
+  <td class="px" style="padding-top:26px;padding-bottom:18px;">
+    <div class="eyebrow">Session analysis</div>
+    <div class="verdict" style="font-size:30px;line-height:1.15;margin-top:10px;">{{ activity_title }}</div>
+    {% if analysis.performance_summary %}
+    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+    <div class="lead" style="margin-top:14px;">{{ analysis.performance_summary }}</div>
+    {% endif %}
+  </td>
+</tr>
 
 {% if analysis.planned_vs_actual %}
-<div class="card">
-  <h3>Planned vs Actual</h3>
-  <p>{{ analysis.planned_vs_actual }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Planned vs actual</div>
+    <div class="p">{{ analysis.planned_vs_actual }}</div>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.hr_analysis %}
-<div class="card">
-  <h3>Heart Rate Analysis</h3>
-  <p>{{ analysis.hr_analysis }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Heart rate</div>
+    <div class="p">{{ analysis.hr_analysis }}</div>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.performance_trends %}
-<div class="card">
-  <h3>Performance Trends</h3>
-  <p>{{ analysis.performance_trends }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Trends</div>
+    <div class="p">{{ analysis.performance_trends }}</div>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.key_highlights %}
-<div class="card">
-  <h3>Highlights</h3>
-  <ul>
-  {% for item in analysis.key_highlights %}
-    <li>{{ item }}</li>
-  {% endfor %}
-  </ul>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:10px;">Highlights</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in analysis.key_highlights %}
+      <tr>
+        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
+        <td class="li" style="padding:5px 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.areas_for_improvement %}
-<div class="card">
-  <h3>Areas for Improvement</h3>
-  <ul>
-  {% for item in analysis.areas_for_improvement %}
-    <li>{{ item }}</li>
-  {% endfor %}
-  </ul>
-</div>
+<tr>
+  <td class="px" style="padding-top:16px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:10px;">Work on</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in analysis.areas_for_improvement %}
+      <tr>
+        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-arrow">&rarr;</span></td>
+        <td class="li" style="padding:5px 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.next_session_recommendations %}
-<div class="card">
-  <h3>Next Session Recommendations</h3>
-  <p>{{ analysis.next_session_recommendations }}</p>
-</div>
+<tr>
+  <td class="px" style="padding-top:16px;padding-bottom:2px;">
+    <div class="coach" style="padding:14px 16px;">
+      <div class="coach-k">Next session</div>
+      <div class="coach-t" style="margin-top:5px;">{{ analysis.next_session_recommendations }}</div>
+    </div>
+  </td>
+</tr>
 {% endif %}
 
 {% if analysis.recovery_notes %}
-<div class="card">
-  <h3>Recovery Notes</h3>
-  <p>{{ analysis.recovery_notes }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Recovery</div>
+    <div class="p">{{ analysis.recovery_notes }}</div>
+  </td>
+</tr>
 {% endif %}
+
+<tr>
+  <td class="px" style="padding-top:24px;padding-bottom:28px;">
+    <a href="{{ dashboard_url|default('#') }}" class="cta">View full report &rarr;</a>
+  </td>
+</tr>
 {% endblock %}

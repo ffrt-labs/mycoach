@@ -1,66 +1,118 @@
 {% extends "base.html" %}
 {% block title %}Weekly Recap{% endblock %}
-{% block subtitle %}Weekly Recap &mdash; Week of {{ week_start }}{% endblock %}
+{% block subtitle %}Weekly recap{% endblock %}
 {% block content %}
-<div class="card">
-  <h3>Week Summary</h3>
-  <p>{{ recap.week_summary }}</p>
-</div>
+
+<!-- Hero -->
+<tr>
+  <td class="px" style="padding-top:26px;padding-bottom:18px;">
+    <div class="eyebrow">Week of {{ week_start }}</div>
+    <div class="verdict" style="font-size:38px;margin-top:10px;">Weekly Recap</div>
+    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+    {% if recap.week_summary %}
+    <div class="lead" style="margin-top:14px;">{{ recap.week_summary }}</div>
+    {% endif %}
+  </td>
+</tr>
 
 {% if recap.adherence_analysis %}
-<div class="card">
-  <h3>Adherence Analysis</h3>
-  <p>{{ recap.adherence_analysis }}</p>
-</div>
-{% endif %}
-
-{% if recap.performance_highlights %}
-<div class="card">
-  <h3>Performance Highlights</h3>
-  <ul>
-  {% for item in recap.performance_highlights %}
-    <li>{{ item }}</li>
-  {% endfor %}
-  </ul>
-</div>
-{% endif %}
-
-{% if recap.areas_of_concern %}
-<div class="card">
-  <h3>Areas of Concern</h3>
-  <ul>
-  {% for item in recap.areas_of_concern %}
-    <li>{{ item }}</li>
-  {% endfor %}
-  </ul>
-</div>
-{% endif %}
-
-{% if recap.recovery_assessment %}
-<div class="card">
-  <h3>Recovery Assessment</h3>
-  <p>{{ recap.recovery_assessment }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Adherence</div>
+    <div class="p">{{ recap.adherence_analysis }}</div>
+  </td>
+</tr>
 {% endif %}
 
 {% if recap.training_load_analysis %}
-<div class="card">
-  <h3>Training Load Analysis</h3>
-  <p>{{ recap.training_load_analysis }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Training load</div>
+    <div class="p">{{ recap.training_load_analysis }}</div>
+  </td>
+</tr>
+{% endif %}
+
+{% if recap.recovery_assessment %}
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Recovery</div>
+    <div class="p">{{ recap.recovery_assessment }}</div>
+  </td>
+</tr>
+{% endif %}
+
+{% if recap.performance_highlights %}
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:10px;">Highlights</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in recap.performance_highlights %}
+      <tr>
+        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
+        <td class="li" style="padding:5px 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
+{% endif %}
+
+{% if recap.areas_of_concern %}
+<tr>
+  <td class="px" style="padding-top:16px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:10px;">Watch</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in recap.areas_of_concern %}
+      <tr>
+        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-arrow">&rarr;</span></td>
+        <td class="li" style="padding:5px 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
 {% endif %}
 
 {% if recap.next_week_recommendations %}
-<div class="card">
-  <h3>Next Week Recommendations</h3>
-  <p>{{ recap.next_week_recommendations }}</p>
-</div>
+<tr>
+  <td class="px" style="padding-top:16px;padding-bottom:2px;">
+    <div class="coach" style="padding:14px 16px;">
+      <div class="coach-k">Next week</div>
+      <div class="coach-t" style="margin-top:5px;">{{ recap.next_week_recommendations }}</div>
+    </div>
+  </td>
+</tr>
 {% endif %}
 
 {% if recap.mesocycle_progress %}
-<div class="card">
-  <h3>Mesocycle Progress</h3>
-  <p>{{ recap.mesocycle_progress }}</p>
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
+    <div class="sec" style="margin-bottom:8px;">Mesocycle</div>
+    <div class="p">{{ recap.mesocycle_progress }}</div>
+  </td>
+</tr>
 {% endif %}
+
+{% if recap.coach_recommendations %}
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:10px;">Coach recommendations</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in recap.coach_recommendations %}
+      <tr>
+        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
+        <td class="li" style="padding:5px 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
+{% endif %}
+
+<tr>
+  <td class="px" style="padding-top:24px;padding-bottom:28px;">
+    <a href="{{ dashboard_url|default('#') }}" class="cta">See full recap &rarr;</a>
+  </td>
+</tr>
 {% endblock %}

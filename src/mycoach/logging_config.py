@@ -22,8 +22,17 @@ class JSONFormatter(logging.Formatter):
         }
         if record.exc_info and record.exc_info[0] is not None:
             log_entry["exception"] = self.formatException(record.exc_info)
-        # Propagate extra fields attached by callers (e.g. request_id)
-        for key in ("request_id", "method", "path", "status_code", "duration_ms"):
+        # Propagate extra fields attached by callers (e.g. request_id, job run facts)
+        for key in (
+            "request_id",
+            "method",
+            "path",
+            "status_code",
+            "duration_ms",
+            "job_name",
+            "job_status",
+            "job_error",
+        ):
             value = getattr(record, key, None)
             if value is not None:
                 log_entry[key] = value

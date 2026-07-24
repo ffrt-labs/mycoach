@@ -135,7 +135,7 @@ def test_daily_briefing_job_logs_skip(
         job_daily_briefing()  # must not raise
 
     skip_logs = [
-        r for r in caplog.records if "daily briefing skipped" in r.message
+        r for r in caplog.records if "daily_briefing skipped" in r.message
     ]
     assert skip_logs and all(r.levelno == logging.INFO for r in skip_logs)
     assert not any(r.levelno >= logging.ERROR for r in caplog.records)
@@ -162,7 +162,7 @@ def test_daily_briefing_job_logs_malformed_response_as_failure(
         job_daily_briefing()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "daily briefing failed" in r.message
+        r.levelno == logging.ERROR and "daily_briefing failed" in r.message
         for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)

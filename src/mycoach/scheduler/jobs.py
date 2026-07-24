@@ -8,6 +8,7 @@ if the output already exists for the current day/week.
 import asyncio
 import json
 import logging
+import time
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
@@ -24,6 +25,7 @@ from mycoach.email.sender import (
 )
 from mycoach.models.activity import Activity
 from mycoach.models.coaching import CoachingInsight
+from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession
 from mycoach.models.user import User
 from mycoach.sources.garmin.source import GarminSource
@@ -58,6 +60,67 @@ def _run_job(label: str, coro) -> None:  # type: ignore[no-untyped-def]
         logger.info("Scheduler: %s skipped — %s", label, e)
     except Exception:
         logger.exception("Scheduler: %s failed", label)
+
+
+async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-def]
+    """Run a job body, timing it and recording its outcome durably.
+
+    Writes one append-only ``JobRun`` row — job identifier, start time,
+    duration, status (``success`` / ``skipped`` / ``failed``), and error detail
+    on failure — and emits a structured log line carrying the same facts. A
+    ``PipelineSkip`` is a deliberate no-op (``skipped``); every other exception
+    is a real failure (``failed``). Exceptions never propagate out to the
+    scheduler.
+    """
+    started_at = datetime.utcnow()
+    start = time.perf_counter()
+    status = "success"
+    detail: str | None = None  # skip reason or failure message, for the log line
+    failure: Exception | None = None
+    try:
+        await coro
+    except PipelineSkip as e:
+        status = "skipped"
+        detail = str(e)
+    except Exception as e:  # noqa: BLE001 - outcome is recorded, not re-raised
+        status = "failed"
+        detail = str(e)
+        failure = e
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    # The row's error column is failure detail only, per the spec; a skip's
+    # reason is not an error and lives only in the log line below.
+    error = detail if status == "failed" else None
+
+    async with async_session() as session:
+        session.add(
+            JobRun(
+                job_name=job_name,
+                started_at=started_at,
+                duration_ms=duration_ms,
+                status=status,
+                error=error,
+            )
+        )
+        await session.commit()
+
+    extra = {
+        "job_name": job_name,
+        "job_status": status,
+        "job_error": error,
+        "duration_ms": duration_ms,
+    }
+    if status == "failed":
+        logger.error("Scheduler: %s failed", job_name, exc_info=failure, extra=extra)
+    elif status == "skipped":
+        logger.info("Scheduler: %s skipped — %s", job_name, detail, extra=extra)
+    else:
+        logger.info("Scheduler: %s succeeded", job_name, extra=extra)
+
+
+def _run_recorded_job(job_name: str, coro) -> None:  # type: ignore[no-untyped-def]
+    """Sync entry point for a recorded job — the single call site per job."""
+    _run_async(_record_run(job_name, coro))
 
 
 async def _get_user_email_pref(pref_field: str) -> bool:
@@ -104,7 +167,7 @@ async def _garmin_sync() -> None:
 def job_daily_briefing() -> None:
     """Generate the daily coaching briefing."""
     logger.info("Scheduler: generating daily briefing")
-    _run_job("daily briefing", _daily_briefing())
+    _run_recorded_job("daily_briefing", _daily_briefing())
 
 
 async def _daily_briefing() -> None:

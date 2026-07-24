@@ -3,6 +3,7 @@ from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, MesocycleConfig
 from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
@@ -15,6 +16,7 @@ __all__ = [
     "DailyHealthSnapshot",
     "DataSourceConfig",
     "GymWorkoutDetail",
+    "JobRun",
     "MesocycleConfig",
     "PlannedSession",
     "PromptLog",

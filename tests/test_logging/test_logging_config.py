@@ -70,6 +70,28 @@ class TestJSONFormatter:
         assert data["status_code"] == 200
         assert data["duration_ms"] == 12.3
 
+    def test_job_run_fields_propagated(self) -> None:
+        formatter = JSONFormatter()
+        record = logging.LogRecord(
+            name="mycoach.scheduler.jobs",
+            level=logging.ERROR,
+            pathname="test.py",
+            lineno=1,
+            msg="Scheduler: daily_briefing failed",
+            args=(),
+            exc_info=None,
+        )
+        record.job_name = "daily_briefing"  # type: ignore[attr-defined]
+        record.job_status = "failed"  # type: ignore[attr-defined]
+        record.job_error = "boom"  # type: ignore[attr-defined]
+        record.duration_ms = 42  # type: ignore[attr-defined]
+        output = formatter.format(record)
+        data = json.loads(output)
+        assert data["job_name"] == "daily_briefing"
+        assert data["job_status"] == "failed"
+        assert data["job_error"] == "boom"
+        assert data["duration_ms"] == 42
+
     def test_output_is_single_line(self) -> None:
         formatter = JSONFormatter()
         record = logging.LogRecord(

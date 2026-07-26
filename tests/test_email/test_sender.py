@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from mycoach.config import Settings
 from mycoach.email.sender import (
+    _format_key_metrics,
     _render_template,
     send_daily_briefing,
     send_email,
@@ -30,28 +31,50 @@ def _make_settings(**overrides: object) -> Settings:
 
 
 def test_render_daily_briefing_template() -> None:
-    """Daily briefing template renders with readiness verdict."""
+    """Daily briefing template renders readiness verdict, explanation, and formatted metrics."""
     html = _render_template(
         "daily_briefing.html",
         {
             "briefing": {
                 "readiness_verdict": "go_hard",
                 "recovery_status": "Fully recovered",
+                "readiness_explanation": "HRV and sleep both trended up this week",
                 "sleep_assessment": "Good sleep",
                 "workout_adjustments": None,
-                "key_metrics": {"resting_hr": "52 bpm"},
+                "key_metrics": [{"label": "Resting HR", "value": 52, "unit": "bpm"}],
                 "sleep_recommendation": "Sleep by 10pm",
             }
         },
     )
     assert "Go Hard" in html
     assert "Fully recovered" in html
-    assert "52 bpm" in html
+    assert "HRV and sleep both trended up this week" in html
+    assert "Resting HR" in html
+    assert "52" in html
+    assert "bpm" in html
     assert "MyCoach" in html
 
 
+def test_format_key_metrics_maps_labels_and_skips_none() -> None:
+    """_format_key_metrics turns raw field names into display rows, dropping absent values."""
+    rows = _format_key_metrics(
+        {
+            "body_battery": 65,
+            "hrv_status": None,
+            "sleep_score": 78,
+            "training_readiness": None,
+            "resting_hr": 52,
+        }
+    )
+    assert rows == [
+        {"label": "Body Battery", "value": 65, "unit": ""},
+        {"label": "Sleep Score", "value": 78, "unit": ""},
+        {"label": "Resting HR", "value": 52, "unit": "bpm"},
+    ]
+
+
 def test_render_weekly_plan_template() -> None:
-    """Weekly plan template renders sessions."""
+    """Weekly plan template renders sessions and a gym exercise table."""
     html = _render_template(
         "weekly_plan.html",
         {
@@ -63,7 +86,17 @@ def test_render_weekly_plan_template() -> None:
                     "sport": "gym",
                     "duration_minutes": 60,
                     "notes": "Focus on bench",
-                    "details": {"bench_press": "4x8"},
+                    "details": {
+                        "exercises": [
+                            {
+                                "name": "Bench Press",
+                                "sets": 4,
+                                "reps": 8,
+                                "target_weight_kg": 60,
+                                "rpe": 8,
+                            }
+                        ]
+                    },
                 }
             ],
             "week_start": "2025-03-03",
@@ -73,6 +106,33 @@ def test_render_weekly_plan_template() -> None:
     assert "Upper Body" in html
     assert "gym" in html
     assert "2025-03-03" in html
+    assert "Bench Press" in html
+    assert "4" in html and "8" in html
+    assert "60kg" in html
+    assert "RPE 8" in html
+
+
+def test_render_weekly_plan_template_cardio_details_not_rendered() -> None:
+    """Cardio's free-form details dict is not rendered — sessions rely on notes instead."""
+    html = _render_template(
+        "weekly_plan.html",
+        {
+            "summary": "Easy week",
+            "sessions": [
+                {
+                    "day_name": "Tuesday",
+                    "title": "Easy Run",
+                    "sport": "running",
+                    "duration_minutes": 40,
+                    "notes": "Keep it conversational pace",
+                    "details": {"target_pace_min_per_km": 5.5, "hr_zone": 2},
+                }
+            ],
+            "week_start": "2025-03-03",
+        },
+    )
+    assert "Keep it conversational pace" in html
+    assert "target_pace_min_per_km" not in html
 
 
 def test_render_post_workout_template() -> None:
@@ -101,7 +161,7 @@ def test_render_post_workout_template() -> None:
 
 
 def test_render_weekly_recap_template() -> None:
-    """Weekly recap template renders recap fields."""
+    """Weekly recap template renders recap fields, including coach recommendations."""
     html = _render_template(
         "weekly_recap.html",
         {
@@ -114,6 +174,7 @@ def test_render_weekly_recap_template() -> None:
                 "training_load_analysis": "Moderate load",
                 "next_week_recommendations": "Push harder",
                 "mesocycle_progress": "Week 3 of 4",
+                "coach_recommendations": ["Add a third rest day", "Increase protein intake"],
             },
             "week_start": "2025-02-24",
         },
@@ -121,6 +182,8 @@ def test_render_weekly_recap_template() -> None:
     assert "Solid week" in html
     assert "Squat PR" in html
     assert "2025-02-24" in html
+    assert "Add a third rest day" in html
+    assert "Increase protein intake" in html
 
 
 # --- send_email function ---
@@ -245,3 +308,56 @@ def test_send_weekly_recap_calls_send_email(mock_send: MagicMock) -> None:
         settings=settings,
     )
     assert result is True
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_daily_briefing_wires_dashboard_url(mock_send: MagicMock) -> None:
+    """send_daily_briefing's CTA points at settings.app_base_url, not a dead '#' link."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    send_daily_briefing({"readiness_verdict": "moderate"}, settings=settings)
+    html = mock_send.call_args[0][2]
+    assert "https://coach.example.com/dashboard" in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_daily_briefing_formats_raw_key_metrics(mock_send: MagicMock) -> None:
+    """send_daily_briefing formats the raw Pydantic-shaped key_metrics before rendering."""
+    settings = _make_settings()
+    send_daily_briefing(
+        {"readiness_verdict": "moderate", "key_metrics": {"resting_hr": 52, "hrv_status": None}},
+        settings=settings,
+    )
+    html = mock_send.call_args[0][2]
+    assert "Resting HR" in html
+    assert "52" in html
+    assert "bpm" in html
+    assert "HRV Status" not in html  # None values are skipped
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_plan_wires_dashboard_url(mock_send: MagicMock) -> None:
+    """send_weekly_plan's CTA points at settings.app_base_url, not a dead '#' link."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    send_weekly_plan(summary="Good week", sessions=[], week_start="2025-03-03", settings=settings)
+    html = mock_send.call_args[0][2]
+    assert "https://coach.example.com/dashboard" in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_post_workout_wires_dashboard_url(mock_send: MagicMock) -> None:
+    """send_post_workout's CTA points at settings.app_base_url, not a dead '#' link."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    send_post_workout(
+        content={"performance_summary": "Great"}, activity_title="Leg Day", settings=settings
+    )
+    html = mock_send.call_args[0][2]
+    assert "https://coach.example.com/dashboard" in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_recap_wires_dashboard_url(mock_send: MagicMock) -> None:
+    """send_weekly_recap's CTA points at settings.app_base_url, not a dead '#' link."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    send_weekly_recap(content={"week_summary": "Solid"}, week_start="2025-02-24", settings=settings)
+    html = mock_send.call_args[0][2]
+    assert "https://coach.example.com/dashboard" in html

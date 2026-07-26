@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_token: str = ""
     timezone: str = "Europe/London"
+    app_base_url: str = "http://localhost:8000"  # links back into emails (e.g. dashboard CTA)
 
     # Security
     encryption_key: str = ""  # Fernet key for encrypting credentials at rest

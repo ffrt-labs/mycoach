@@ -1,29 +1,59 @@
 {% extends "base.html" %}
 {% block title %}Weekly Plan{% endblock %}
-{% block subtitle %}Weekly Training Plan &mdash; Week of {{ week_start }}{% endblock %}
+{% block subtitle %}Weekly plan{% endblock %}
 {% block content %}
-{% if summary %}
-<div class="card">
-  <h3>Plan Summary</h3>
-  <p>{{ summary }}</p>
-</div>
-{% endif %}
+{% set _sportbadge = {'gym': 'b-amber', 'strength': 'b-amber', 'swimming': 'b-sky', 'swim': 'b-sky', 'cycling': 'b-sky', 'running': 'b-emerald', 'run': 'b-emerald', 'padel': 'b-emerald', 'rest': 'b-zinc'} %}
 
+<!-- Hero -->
+<tr>
+  <td class="px" style="padding-top:26px;padding-bottom:18px;">
+    <div class="eyebrow">Week of {{ week_start }}</div>
+    <div class="verdict" style="font-size:38px;margin-top:10px;">Weekly Plan</div>
+    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+    {% if summary %}
+    <div class="lead" style="margin-top:14px;">{{ summary }}</div>
+    {% endif %}
+  </td>
+</tr>
+
+<!-- Sessions -->
 {% for session in sessions %}
-<div class="card">
-  <h3>{{ session.day_name }} &mdash; {{ session.title }}</h3>
-  <p>
-    <span class="badge badge-blue">{{ session.sport }}</span>
-    {% if session.duration_minutes %} &bull; {{ session.duration_minutes }} min{% endif %}
-  </p>
-  {% if session.notes %}<p>{{ session.notes }}</p>{% endif %}
-  {% if session.details %}
-  <ul>
-  {% for key, value in session.details.items() %}
-    <li><strong>{{ key }}:</strong> {{ value }}</li>
-  {% endfor %}
-  </ul>
-  {% endif %}
-</div>
+<tr>
+  <td class="px block-b" style="padding-top:18px;padding-bottom:18px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="vertical-align:top;">
+          <div class="msub" style="text-transform:uppercase;letter-spacing:.1em;">{{ session.day_name }}</div>
+          <div class="strong" style="font:600 17px 'IBM Plex Sans',sans-serif;margin-top:3px;">{{ session.title }}</div>
+        </td>
+        <td style="vertical-align:top;text-align:right;white-space:nowrap;">
+          <span class="badge {{ _sportbadge.get(session.sport|lower, 'b-zinc') }}">{{ session.sport }}</span>
+        </td>
+      </tr>
+    </table>
+    {% if session.duration_minutes %}
+    <div class="msub" style="margin-top:8px;">{{ session.duration_minutes }} min</div>
+    {% endif %}
+    {% if session.notes %}
+    <div class="p" style="margin-top:8px;">{{ session.notes }}</div>
+    {% endif %}
+    {% if session.details and session.details.exercises %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
+      {% for ex in session.details.exercises %}
+      <tr>
+        <td class="mlabel" style="padding:6px 0;font-weight:400;color:#78716c;">{{ ex.name }}</td>
+        <td class="mval" style="padding:6px 0;font-size:13px;">{{ ex.sets }}&times;{{ ex.reps }}{% if ex.target_weight_kg %} @ {{ ex.target_weight_kg }}kg{% endif %}{% if ex.rpe %} &middot; RPE {{ ex.rpe }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </td>
+</tr>
 {% endfor %}
+
+<tr>
+  <td class="px" style="padding-top:22px;padding-bottom:28px;">
+    <a href="{{ dashboard_url|default('#') }}" class="cta">Open this week &rarr;</a>
+  </td>
+</tr>
 {% endblock %}

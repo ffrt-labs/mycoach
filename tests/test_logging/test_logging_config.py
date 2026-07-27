@@ -92,6 +92,30 @@ class TestJSONFormatter:
         assert data["job_error"] == "boom"
         assert data["duration_ms"] == 42
 
+    @pytest.mark.parametrize("delivered", [True, False])
+    def test_email_delivered_propagated(self, delivered: bool) -> None:
+        """Delivery reaches the JSON line in both states.
+
+        False is the interesting one: it must survive into the output rather than
+        being dropped as falsy, since "succeeded but delivered nothing" is the
+        combination monitoring alerts on.
+        """
+        formatter = JSONFormatter()
+        record = logging.LogRecord(
+            name="mycoach.scheduler.jobs",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="Scheduler: daily_briefing succeeded",
+            args=(),
+            exc_info=None,
+        )
+        record.job_name = "daily_briefing"  # type: ignore[attr-defined]
+        record.job_status = "success"  # type: ignore[attr-defined]
+        record.email_delivered = delivered  # type: ignore[attr-defined]
+        data = json.loads(formatter.format(record))
+        assert data["email_delivered"] is delivered
+
     def test_output_is_single_line(self) -> None:
         formatter = JSONFormatter()
         record = logging.LogRecord(

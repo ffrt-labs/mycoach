@@ -30,6 +30,11 @@ def _render_template(template_name: str, context: dict) -> str:  # type: ignore[
     return template.render(**context)
 
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
 # Display label/unit for each DailyBriefingKeyMetrics field, in the order
 # emails should show them. Keys absent or None are skipped.
 _KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
@@ -41,14 +46,90 @@ _KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
 }
 
 
+<<<<<<< Updated upstream
 def _format_key_metrics(key_metrics: dict) -> list[dict]:  # type: ignore[type-arg]
     """Turn the raw DailyBriefingKeyMetrics fields into display-ready rows."""
     rows = []
+=======
+def _format_key_metrics(key_metrics: dict) -> dict[str, str]:  # type: ignore[type-arg]
+    """Turn the raw DailyBriefingKeyMetrics fields into label -> display value.
+
+    Insertion order follows _KEY_METRICS_DISPLAY, which is the order emails show.
+    """
+    rows: dict[str, str] = {}
+>>>>>>> Stashed changes
     for key, (label, unit) in _KEY_METRICS_DISPLAY.items():
         value = key_metrics.get(key)
         if value is None:
             continue
+<<<<<<< Updated upstream
         rows.append({"label": label, "value": value, "unit": unit})
+=======
+        rows[label] = f"{value} {unit}" if unit else str(value)
+    return rows
+
+
+def _format_exercise(exercise: dict) -> tuple[str, str]:  # type: ignore[type-arg]
+    """Turn one planned gym exercise into a (name, "4x8 @ 60kg - RPE 8") pair."""
+    detail = f"{exercise.get('sets', '?')}×{exercise.get('reps', '?')}"
+    if exercise.get("target_weight_kg"):
+        detail += f" @ {exercise['target_weight_kg']}kg"
+    if exercise.get("rpe"):
+        detail += f" · RPE {exercise['rpe']}"
+    return str(exercise.get("name", "Exercise")), detail
+
+
+# Label and unit suffix for cardio detail keys the planner commonly emits. Any
+# key not listed falls back to a title-cased version of itself with no unit.
+_CARDIO_DETAIL_DISPLAY: dict[str, tuple[str, str]] = {
+    "target_pace_min_per_km": ("Target Pace", "min/km"),
+    "target_pace": ("Target Pace", ""),
+    "hr_zone": ("HR Zone", ""),
+    "target_hr_zone": ("HR Zone", ""),
+    "distance_km": ("Distance", "km"),
+    "target_distance_km": ("Distance", "km"),
+    "intensity": ("Intensity", ""),
+    "rpe": ("RPE", ""),
+}
+
+
+def _format_cardio_detail(key: str, value: object) -> tuple[str, str] | None:
+    """Turn one raw cardio detail entry into a (label, display value) pair.
+
+    Returns None for entries that should not be shown in the email.
+    """
+    text = str(value).strip()
+    if not text:
+        return None
+    if isinstance(value, bool):
+        text = "Yes" if value else "No"
+
+    label, unit = _CARDIO_DETAIL_DISPLAY.get(key, (key.replace("_", " ").title(), ""))
+    return label, f"{text} {unit}" if unit else text
+
+
+def _format_session_details(details: dict | None) -> dict[str, str]:  # type: ignore[type-arg]
+    """Flatten a planned session's details JSON into label -> display value.
+
+    Gym sessions store {"exercises": [...]}; cardio sessions store flat scalars
+    such as target_pace_min_per_km. Returns {} when there is nothing to show, so
+    the template's `{% if session.details %}` guard hides the table.
+    """
+    if not isinstance(details, dict):
+        return {}
+
+    exercises = details.get("exercises")
+    if isinstance(exercises, list):
+        return dict(_format_exercise(ex) for ex in exercises if isinstance(ex, dict))
+
+    rows: dict[str, str] = {}
+    for key, value in details.items():
+        if value is None or isinstance(value, (dict, list)):
+            continue
+        row = _format_cardio_detail(key, value)
+        if row is not None:
+            rows[row[0]] = row[1]
+>>>>>>> Stashed changes
     return rows
 
 
@@ -57,6 +138,10 @@ def _dashboard_url(settings: Settings) -> str:
     return f"{settings.app_base_url}/dashboard"
 
 
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> bool:
     """Send email using Resend API."""
     resend.api_key = settings.email_resend_api_key
@@ -141,14 +226,30 @@ def send_weekly_plan(
     """Send the weekly training plan email."""
     if settings is None:
         settings = get_settings()
+    display_sessions = [
+        {**s, "details": _format_session_details(s.get("details"))} for s in sessions
+    ]
     html = _render_template(
         "weekly_plan.html",
+<<<<<<< Updated upstream
         {
             "summary": summary,
             "sessions": sessions,
             "week_start": week_start,
             "dashboard_url": _dashboard_url(settings),
         },
+=======
+<<<<<<< Updated upstream
+        {"summary": summary, "sessions": sessions, "week_start": week_start},
+=======
+        {
+            "summary": summary,
+            "sessions": display_sessions,
+            "week_start": week_start,
+            "dashboard_url": _dashboard_url(settings),
+        },
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     )
     return send_email(settings.email_to, "MyCoach — Weekly Plan", html, settings)
 
@@ -168,7 +269,6 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
     return send_email(
         settings.email_to, f"MyCoach — Post-Workout: {activity_title}", html, settings
     )
-
 
 
 def send_weekly_recap(content: dict, week_start: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]

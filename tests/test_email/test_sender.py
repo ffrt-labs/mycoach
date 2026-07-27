@@ -4,7 +4,15 @@ from unittest.mock import MagicMock, patch
 
 from mycoach.config import Settings
 from mycoach.email.sender import (
+<<<<<<< Updated upstream
     _format_key_metrics,
+=======
+<<<<<<< Updated upstream
+=======
+    _format_key_metrics,
+    _format_session_details,
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     _render_template,
     send_daily_briefing,
     send_email,
@@ -31,7 +39,15 @@ def _make_settings(**overrides: object) -> Settings:
 
 
 def test_render_daily_briefing_template() -> None:
+<<<<<<< Updated upstream
     """Daily briefing template renders readiness verdict, explanation, and formatted metrics."""
+=======
+<<<<<<< Updated upstream
+    """Daily briefing template renders with readiness verdict."""
+=======
+    """Daily briefing template renders readiness verdict and formatted metrics."""
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     html = _render_template(
         "daily_briefing.html",
         {
@@ -41,13 +57,22 @@ def test_render_daily_briefing_template() -> None:
                 "readiness_explanation": "HRV and sleep both trended up this week",
                 "sleep_assessment": "Good sleep",
                 "workout_adjustments": None,
+<<<<<<< Updated upstream
                 "key_metrics": [{"label": "Resting HR", "value": 52, "unit": "bpm"}],
+=======
+<<<<<<< Updated upstream
+                "key_metrics": {"resting_hr": "52 bpm"},
+=======
+                "key_metrics": {"Resting HR": "52 bpm"},
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 "sleep_recommendation": "Sleep by 10pm",
             }
         },
     )
     assert "Go Hard" in html
     assert "Fully recovered" in html
+<<<<<<< Updated upstream
     assert "HRV and sleep both trended up this week" in html
     assert "Resting HR" in html
     assert "52" in html
@@ -55,6 +80,20 @@ def test_render_daily_briefing_template() -> None:
     assert "MyCoach" in html
 
 
+=======
+<<<<<<< Updated upstream
+    assert "52 bpm" in html
+    assert "MyCoach" in html
+
+
+=======
+    assert "Resting HR" in html
+    assert "52" in html
+    assert "bpm" in html
+    assert "MyCoach" in html
+
+
+>>>>>>> Stashed changes
 def test_format_key_metrics_maps_labels_and_skips_none() -> None:
     """_format_key_metrics turns raw field names into display rows, dropping absent values."""
     rows = _format_key_metrics(
@@ -66,6 +105,7 @@ def test_format_key_metrics_maps_labels_and_skips_none() -> None:
             "resting_hr": 52,
         }
     )
+<<<<<<< Updated upstream
     assert rows == [
         {"label": "Body Battery", "value": 65, "unit": ""},
         {"label": "Sleep Score", "value": 78, "unit": ""},
@@ -73,6 +113,42 @@ def test_format_key_metrics_maps_labels_and_skips_none() -> None:
     ]
 
 
+=======
+    assert rows == {"Body Battery": "65", "Sleep Score": "78", "Resting HR": "52 bpm"}
+    # Display order is the order emails show, so it must survive the mapping.
+    assert list(rows) == ["Body Battery", "Sleep Score", "Resting HR"]
+
+
+def test_format_session_details_gym_exercises() -> None:
+    """Gym details flatten to one row per exercise with sets/reps/weight/RPE."""
+    rows = _format_session_details(
+        {
+            "exercises": [
+                {"name": "Bench Press", "sets": 4, "reps": 8, "target_weight_kg": 60, "rpe": 8},
+                {"name": "Pull-ups", "sets": 3, "reps": 10},
+            ]
+        }
+    )
+    assert rows == {"Bench Press": "4×8 @ 60kg · RPE 8", "Pull-ups": "3×10"}
+
+
+def test_format_session_details_cardio_humanises_keys() -> None:
+    """Cardio details get readable labels, with units where the key is known."""
+    rows = _format_session_details(
+        {"target_pace_min_per_km": 5.5, "hr_zone": 2, "warmup_minutes": 10, "notes": None}
+    )
+    assert rows == {"Target Pace": "5.5 min/km", "HR Zone": "2", "Warmup Minutes": "10"}
+
+
+def test_format_session_details_empty() -> None:
+    """Missing or malformed details produce no rows, so the template hides the table."""
+    assert _format_session_details(None) == {}
+    assert _format_session_details({}) == {}
+    assert _format_session_details({"exercises": []}) == {}
+
+
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 def test_render_weekly_plan_template() -> None:
     """Weekly plan template renders sessions and a gym exercise table."""
     html = _render_template(
@@ -86,6 +162,7 @@ def test_render_weekly_plan_template() -> None:
                     "sport": "gym",
                     "duration_minutes": 60,
                     "notes": "Focus on bench",
+<<<<<<< Updated upstream
                     "details": {
                         "exercises": [
                             {
@@ -97,6 +174,13 @@ def test_render_weekly_plan_template() -> None:
                             }
                         ]
                     },
+=======
+<<<<<<< Updated upstream
+                    "details": {"bench_press": "4x8"},
+=======
+                    "details": {"Bench Press": "4×8 @ 60kg · RPE 8"},
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 }
             ],
             "week_start": "2025-03-03",
@@ -106,12 +190,18 @@ def test_render_weekly_plan_template() -> None:
     assert "Upper Body" in html
     assert "gym" in html
     assert "2025-03-03" in html
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
     assert "Bench Press" in html
     assert "4" in html and "8" in html
     assert "60kg" in html
     assert "RPE 8" in html
 
 
+<<<<<<< Updated upstream
 def test_render_weekly_plan_template_cardio_details_not_rendered() -> None:
     """Cardio's free-form details dict is not rendered — sessions rely on notes instead."""
     html = _render_template(
@@ -133,6 +223,32 @@ def test_render_weekly_plan_template_cardio_details_not_rendered() -> None:
     )
     assert "Keep it conversational pace" in html
     assert "target_pace_min_per_km" not in html
+=======
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_plan_formats_raw_cardio_details(mock_send: MagicMock) -> None:
+    """send_weekly_plan humanises raw detail keys before they reach the template."""
+    send_weekly_plan(
+        summary="Easy week",
+        sessions=[
+            {
+                "day_name": "Tuesday",
+                "title": "Easy Run",
+                "sport": "running",
+                "duration_minutes": 40,
+                "notes": "Keep it conversational pace",
+                "details": {"target_pace_min_per_km": 5.5, "hr_zone": 2},
+            }
+        ],
+        week_start="2025-03-03",
+        settings=_make_settings(),
+    )
+    html = mock_send.call_args[0][2]
+    assert "Keep it conversational pace" in html
+    assert "Target Pace" in html
+    assert "5.5 min/km" in html
+    assert "target_pace_min_per_km" not in html
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 
 def test_render_post_workout_template() -> None:
@@ -157,7 +273,6 @@ def test_render_post_workout_template() -> None:
     assert "Great session" in html
     assert "PR on squat" in html
     assert "Leg Day" in html
-
 
 
 def test_render_weekly_recap_template() -> None:
@@ -295,7 +410,6 @@ def test_send_post_workout_calls_send_email(mock_send: MagicMock) -> None:
     )
     assert result is True
     assert "Leg Day" in mock_send.call_args[0][1]
-
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)

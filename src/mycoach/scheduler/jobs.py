@@ -78,18 +78,23 @@ _current_delivery: ContextVar[_Delivery | None] = ContextVar(
 )
 
 
-def _deliver(send: Callable[[], bool], description: str) -> None:
+def _deliver(send: Callable[[], bool], email_label: str) -> None:
     """Attempt one email send, recording the outcome and failing on rejection.
 
     ``send`` is the zero-argument send call. A False return means the backend
     refused the message, which is a real failure rather than something to log
     over; a True return is noted on the run as delivery having happened.
+
+    The "email sent" log line lives here rather than at the call sites so it can
+    only ever follow a send that actually reported success — the bug this helper
+    exists to prevent was exactly that line being logged unconditionally.
     """
     if not send():
-        raise EmailDeliveryError(f"{description} email send failed")
+        raise EmailDeliveryError(f"{email_label} email send failed")
     delivery = _current_delivery.get()
     if delivery is not None:
         delivery.delivered = True
+    logger.info("Scheduler: %s email sent", email_label)
 
 
 async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-def]
@@ -219,7 +224,6 @@ async def _daily_briefing() -> None:
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
             _deliver(partial(send_daily_briefing, content), "daily briefing")
-            logger.info("Scheduler: daily briefing email sent")
 
 
 
@@ -268,7 +272,6 @@ async def _weekly_plan() -> None:
                 ),
                 "weekly plan",
             )
-            logger.info("Scheduler: weekly plan email sent")
 
 
 def job_weekly_recap() -> None:
@@ -292,7 +295,6 @@ async def _weekly_recap() -> None:
                 partial(send_weekly_recap, content, week_start=str(last_monday)),
                 "weekly recap",
             )
-            logger.info("Scheduler: weekly recap email sent")
 
 
 def job_post_workout_analysis() -> None:
@@ -363,9 +365,6 @@ async def _post_workout_analysis() -> None:
                     _deliver(
                         partial(send_post_workout, content, activity.title),
                         f"post-workout activity {activity.id}",
-                    )
-                    logger.info(
-                        "Scheduler: post-workout email sent for activity %d", activity.id
                     )
                 # Tallied last so an activity counts exactly once: a failure
                 # anywhere above (including the email send) lands in ``failures``

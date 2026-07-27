@@ -434,13 +434,8 @@ async def test_post_workout_failed_email_counts_the_activity_once() -> None:
     twice would persist a wrong denominator ("1 of 2" for a single activity).
     """
     await _add_activities(1)
-    mock_engine = MagicMock()
-    mock_engine.generate_post_workout_analysis = AsyncMock(
-        return_value=MagicMock(content='{"performance_summary": "ok"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch(
@@ -471,6 +466,31 @@ def _briefing_engine() -> MagicMock:
     engine = MagicMock()
     engine.generate_daily_briefing = AsyncMock(
         return_value=MagicMock(content='{"readiness_verdict": "go_hard"}')
+    )
+    return engine
+
+
+def _plan_engine() -> MagicMock:
+    """Engine returning a plan with a real int id, so the session lookup binds."""
+    engine = MagicMock()
+    engine.generate_weekly_plan = AsyncMock(return_value=MagicMock(id=1, summary="Big week"))
+    return engine
+
+
+def _recap_engine() -> MagicMock:
+    """Engine whose recap insight carries JSON the email formatter can read."""
+    engine = MagicMock()
+    engine.generate_weekly_recap = AsyncMock(
+        return_value=MagicMock(content='{"week_summary": "Solid"}')
+    )
+    return engine
+
+
+def _post_workout_engine() -> MagicMock:
+    """Engine whose post-workout insight carries JSON the email formatter can read."""
+    engine = MagicMock()
+    engine.generate_post_workout_analysis = AsyncMock(
+        return_value=MagicMock(content='{"performance_summary": "ok"}')
     )
     return engine
 
@@ -569,13 +589,8 @@ async def test_non_sending_job_records_no_delivery() -> None:
 
 async def test_weekly_plan_records_delivery() -> None:
     """A delivered weekly-plan email is recorded on the run."""
-    mock_engine = MagicMock()
-    mock_engine.generate_weekly_plan = AsyncMock(
-        return_value=MagicMock(id=1, summary="Big week")
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_plan_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_weekly_plan", return_value=True),
@@ -589,13 +604,8 @@ async def test_weekly_plan_records_delivery() -> None:
 
 async def test_weekly_plan_rejected_send_fails_the_run() -> None:
     """A rejected weekly-plan send fails the run even though the plan generated."""
-    mock_engine = MagicMock()
-    mock_engine.generate_weekly_plan = AsyncMock(
-        return_value=MagicMock(id=1, summary="Big week")
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_plan_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_weekly_plan", return_value=False),
@@ -611,13 +621,8 @@ async def test_weekly_plan_rejected_send_fails_the_run() -> None:
 
 async def test_weekly_recap_records_delivery() -> None:
     """A delivered weekly-recap email is recorded on the run."""
-    mock_engine = MagicMock()
-    mock_engine.generate_weekly_recap = AsyncMock(
-        return_value=MagicMock(content='{"week_summary": "Solid"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_recap_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_weekly_recap", return_value=True),
@@ -631,13 +636,8 @@ async def test_weekly_recap_records_delivery() -> None:
 
 async def test_weekly_recap_rejected_send_fails_the_run() -> None:
     """A rejected weekly-recap send fails the run with the cause captured."""
-    mock_engine = MagicMock()
-    mock_engine.generate_weekly_recap = AsyncMock(
-        return_value=MagicMock(content='{"week_summary": "Solid"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_recap_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_weekly_recap", return_value=False),
@@ -654,13 +654,8 @@ async def test_weekly_recap_rejected_send_fails_the_run() -> None:
 async def test_post_workout_records_delivery() -> None:
     """A delivered post-workout email is recorded on the batch's single run."""
     await _add_activities(1)
-    mock_engine = MagicMock()
-    mock_engine.generate_post_workout_analysis = AsyncMock(
-        return_value=MagicMock(content='{"performance_summary": "ok"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_post_workout", return_value=True),
@@ -676,13 +671,8 @@ async def test_post_workout_records_delivery() -> None:
 async def test_post_workout_rejected_send_fails_the_run() -> None:
     """A rejected post-workout send is tallied as that activity's failure."""
     await _add_activities(1)
-    mock_engine = MagicMock()
-    mock_engine.generate_post_workout_analysis = AsyncMock(
-        return_value=MagicMock(content='{"performance_summary": "ok"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_post_workout", return_value=False),
@@ -704,13 +694,8 @@ async def test_post_workout_partial_delivery_is_still_recorded_as_delivered() ->
     things at once; folding delivery into the status would lose one of them.
     """
     await _add_activities(2)
-    mock_engine = MagicMock()
-    mock_engine.generate_post_workout_analysis = AsyncMock(
-        return_value=MagicMock(content='{"performance_summary": "ok"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_post_workout", side_effect=[True, False]),

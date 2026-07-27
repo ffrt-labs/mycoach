@@ -4,15 +4,6 @@
 {% block content %}
 {% set _vmap = {'go_hard': 'Go Hard', 'moderate': 'Moderate', 'active_recovery': 'Active Recovery', 'rest': 'Rest'} %}
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-<div class="card">
-  <h3>Sleep Assessment</h3>
-  <p>{{ briefing.sleep_assessment }}</p>
-</div>
-=======
->>>>>>> Stashed changes
 <!-- Hero: readiness verdict -->
 <tr>
   <td class="px" style="padding-top:26px;padding-bottom:20px;">
@@ -22,13 +13,6 @@
     {% if briefing.recovery_status %}
     <div class="lead" style="margin-top:14px;">{{ briefing.recovery_status }}</div>
     {% endif %}
-<<<<<<< Updated upstream
-    {% if briefing.readiness_explanation %}
-    <div class="lead" style="margin-top:10px;">{{ briefing.readiness_explanation }}</div>
-    {% endif %}
-  </td>
-</tr>
-=======
   </td>
 </tr>
 
@@ -41,41 +25,6 @@
       <tr>
         <td class="mrow mlabel" style="padding:12px 0;">{{ key }}</td>
         <td class="mrow mval" style="padding:12px 0;">{{ value }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </td>
-</tr>
-{% endif %}
-
-{% if briefing.sleep_assessment %}
-<!-- Sleep assessment -->
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Sleep assessment</div>
-    <div class="p">{{ briefing.sleep_assessment }}</div>
-  </td>
-</tr>
-{% endif %}
->>>>>>> Stashed changes
-
-{% if briefing.workout_adjustments %}
-<div class="card">
-  <h3>Workout Adjustments</h3>
-  <p>{{ briefing.workout_adjustments }}</p>
-</div>
-{% endif %}
->>>>>>> Stashed changes
-
-{% if briefing.key_metrics %}
-<!-- Key metrics -->
-<tr>
-  <td class="px" style="padding-top:6px;padding-bottom:6px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid rgba(0,0,0,.08);">
-      {% for metric in briefing.key_metrics %}
-      <tr>
-        <td class="mrow mlabel" style="padding:12px 0;">{{ metric.label }}</td>
-        <td class="mrow mval" style="padding:12px 0;">{{ metric.value }}{% if metric.unit %} <span class="munit">{{ metric.unit }}</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>

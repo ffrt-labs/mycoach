@@ -9,7 +9,11 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from functools import partial
 
 from sqlalchemy import select
 
@@ -47,21 +51,73 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
         loop.close()
 
 
+class EmailDeliveryError(RuntimeError):
+    """An email send was attempted and rejected by the backend.
+
+    Raised by ``_deliver`` so a rejected send reaches ``_record_run`` as an
+    ordinary failure. The send functions signal rejection by returning False,
+    which jobs previously discarded — logging "email sent" for a send that never
+    happened.
+    """
+
+
+@dataclass
+class _Delivery:
+    """Per-run tally of whether any email actually went out."""
+
+    delivered: bool = False
+
+
+# Set by ``_record_run`` for the duration of one job body, so ``_deliver`` can
+# note a successful send from wherever in the body it happens without every job
+# threading the fact back through both its return value and its exceptions. That
+# matters for the post-workout batch, which can deliver one email and still fail
+# the run on another — the exception would otherwise lose the delivery.
+_current_delivery: ContextVar[_Delivery | None] = ContextVar(
+    "job_email_delivery", default=None
+)
+
+
+def _deliver(send: Callable[[], bool], email_label: str) -> None:
+    """Attempt one email send, recording the outcome and failing on rejection.
+
+    ``send`` is the zero-argument send call. A False return means the backend
+    refused the message, which is a real failure rather than something to log
+    over; a True return is noted on the run as delivery having happened.
+
+    The "email sent" log line lives here rather than at the call sites so it can
+    only ever follow a send that actually reported success — the bug this helper
+    exists to prevent was exactly that line being logged unconditionally.
+    """
+    if not send():
+        raise EmailDeliveryError(f"{email_label} email send failed")
+    delivery = _current_delivery.get()
+    if delivery is not None:
+        delivery.delivered = True
+    logger.info("Scheduler: %s email sent", email_label)
+
+
 async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-def]
     """Run a job body, timing it and recording its outcome durably.
 
     Writes one append-only ``JobRun`` row — job identifier, start time,
-    duration, status (``success`` / ``skipped`` / ``failed``), and error detail
-    on failure — and emits a structured log line carrying the same facts. A
-    ``PipelineSkip`` is a deliberate no-op (``skipped``); every other exception
-    is a real failure (``failed``). Exceptions never propagate out to the
-    scheduler.
+    duration, status (``success`` / ``skipped`` / ``failed``), error detail on
+    failure, and whether an email was delivered — and emits a structured log
+    line carrying the same facts. A ``PipelineSkip`` is a deliberate no-op
+    (``skipped``); every other exception is a real failure (``failed``).
+    Exceptions never propagate out to the scheduler.
+
+    Delivery is read off the run's ``_Delivery`` tally rather than the body's
+    return value, so it is recorded however the body exited — including a batch
+    that delivered one email and then failed on another.
     """
     started_at = datetime.utcnow()
     start = time.perf_counter()
     status = "success"
     detail: str | None = None  # skip reason or failure message, for the log line
     failure: Exception | None = None
+    delivery = _Delivery()
+    token = _current_delivery.set(delivery)
     try:
         await coro
     except PipelineSkip as e:
@@ -71,6 +127,8 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
         status = "failed"
         detail = str(e)
         failure = e
+    finally:
+        _current_delivery.reset(token)
     duration_ms = int((time.perf_counter() - start) * 1000)
 
     # The row's error column is failure detail only, per the spec; a skip's
@@ -85,6 +143,7 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
                 duration_ms=duration_ms,
                 status=status,
                 error=error,
+                email_delivered=delivery.delivered,
             )
         )
         await session.commit()
@@ -94,6 +153,7 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
         "job_status": status,
         "job_error": error,
         "duration_ms": duration_ms,
+        "email_delivered": delivery.delivered,
     }
     if status == "failed":
         logger.error("Scheduler: %s failed", job_name, exc_info=failure, extra=extra)
@@ -163,8 +223,7 @@ async def _daily_briefing() -> None:
 
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
-            send_daily_briefing(content)
-            logger.info("Scheduler: daily briefing email sent")
+            _deliver(partial(send_daily_briefing, content), "daily briefing")
 
 
 
@@ -204,12 +263,15 @@ async def _weekly_plan() -> None:
                 }
                 for s in sessions
             ]
-            send_weekly_plan(
-                summary=plan.summary or "",
-                sessions=session_dicts,
-                week_start=str(next_monday),
+            _deliver(
+                partial(
+                    send_weekly_plan,
+                    summary=plan.summary or "",
+                    sessions=session_dicts,
+                    week_start=str(next_monday),
+                ),
+                "weekly plan",
             )
-            logger.info("Scheduler: weekly plan email sent")
 
 
 def job_weekly_recap() -> None:
@@ -229,8 +291,10 @@ async def _weekly_recap() -> None:
 
         if await _get_user_email_pref("email_weekly_recap"):
             content = json.loads(insight.content)
-            send_weekly_recap(content, week_start=str(last_monday))
-            logger.info("Scheduler: weekly recap email sent")
+            _deliver(
+                partial(send_weekly_recap, content, week_start=str(last_monday)),
+                "weekly recap",
+            )
 
 
 def job_post_workout_analysis() -> None:
@@ -295,9 +359,12 @@ async def _post_workout_analysis() -> None:
 
                 if send_email:
                     content = json.loads(insight.content)
-                    send_post_workout(content, activity.title)
-                    logger.info(
-                        "Scheduler: post-workout email sent for activity %d", activity.id
+                    # A rejected send lands in ``failures`` below, like any other
+                    # per-activity failure, so one undelivered email neither
+                    # aborts the batch nor passes as delivered.
+                    _deliver(
+                        partial(send_post_workout, content, activity.title),
+                        f"post-workout activity {activity.id}",
                     )
                 # Tallied last so an activity counts exactly once: a failure
                 # anywhere above (including the email send) lands in ``failures``

@@ -434,13 +434,8 @@ async def test_post_workout_failed_email_counts_the_activity_once() -> None:
     twice would persist a wrong denominator ("1 of 2" for a single activity).
     """
     await _add_activities(1)
-    mock_engine = MagicMock()
-    mock_engine.generate_post_workout_analysis = AsyncMock(
-        return_value=MagicMock(content='{"performance_summary": "ok"}')
-    )
-
     with (
-        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch(
@@ -455,3 +450,261 @@ async def test_post_workout_failed_email_counts_the_activity_once() -> None:
     assert runs[0].status == "failed"
     assert runs[0].error is not None
     assert "1 of 1 activities failed" in runs[0].error
+
+
+# --- email delivery outcome ---------------------------------------------------
+#
+# Delivery is recorded as its own fact, independent of status, so the three
+# distinguishable cases are (status, email_delivered) pairs:
+#   delivered              -> ("success", True)
+#   not attempted          -> ("success", False)   e.g. the type is switched off
+#   attempted and rejected -> ("failed",  False)
+
+
+def _briefing_engine() -> MagicMock:
+    """Engine whose briefing insight carries JSON the email formatter can read."""
+    engine = MagicMock()
+    engine.generate_daily_briefing = AsyncMock(
+        return_value=MagicMock(content='{"readiness_verdict": "go_hard"}')
+    )
+    return engine
+
+
+def _plan_engine() -> MagicMock:
+    """Engine returning a plan with a real int id, so the session lookup binds."""
+    engine = MagicMock()
+    engine.generate_weekly_plan = AsyncMock(return_value=MagicMock(id=1, summary="Big week"))
+    return engine
+
+
+def _recap_engine() -> MagicMock:
+    """Engine whose recap insight carries JSON the email formatter can read."""
+    engine = MagicMock()
+    engine.generate_weekly_recap = AsyncMock(
+        return_value=MagicMock(content='{"week_summary": "Solid"}')
+    )
+    return engine
+
+
+def _post_workout_engine() -> MagicMock:
+    """Engine whose post-workout insight carries JSON the email formatter can read."""
+    engine = MagicMock()
+    engine.generate_post_workout_analysis = AsyncMock(
+        return_value=MagicMock(content='{"performance_summary": "ok"}')
+    )
+    return engine
+
+
+async def test_records_email_delivered_when_send_succeeds() -> None:
+    """A send that reports success records the run as having delivered an email."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing", return_value=True),
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is True
+
+
+async def test_records_email_not_delivered_when_type_is_disabled() -> None:
+    """A recipient with this email type switched off is a success, nothing sent.
+
+    Not sending was intended, so the run must not be downgraded — the absence of
+    delivery is carried by ``email_delivered``, not by the status.
+    """
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is False
+    mock_send.assert_not_called()
+
+
+async def test_rejected_send_fails_the_run_with_the_cause() -> None:
+    """A send that is attempted and rejected makes the run a failure."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing", return_value=False),
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is False
+    assert runs[0].error is not None
+    assert "daily briefing" in runs[0].error
+    assert "email" in runs[0].error
+
+
+async def test_delivery_appears_in_the_structured_log_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The log line carries the delivery fact alongside the other run facts."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing", return_value=True),
+        caplog.at_level(logging.INFO),
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    outcome = [r for r in caplog.records if getattr(r, "job_name", None) == "daily_briefing"]
+    assert outcome
+    assert outcome[-1].email_delivered is True
+
+
+async def test_non_sending_job_records_no_delivery() -> None:
+    """Garmin sync sends no email, so it records delivery as not sent."""
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=_mock_garmin_source()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch(
+            "mycoach.scheduler.jobs.merge_garmin_hevy",
+            AsyncMock(return_value=MagicMock(merged=0)),
+        ),
+    ):
+        await _record_run("garmin_sync", _garmin_sync())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is False
+
+
+async def test_weekly_plan_records_delivery() -> None:
+    """A delivered weekly-plan email is recorded on the run."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_plan_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_plan", return_value=True),
+    ):
+        await _record_run("weekly_plan", _weekly_plan())
+
+    runs = await _job_runs()
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is True
+
+
+async def test_weekly_plan_rejected_send_fails_the_run() -> None:
+    """A rejected weekly-plan send fails the run even though the plan generated."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_plan_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_plan", return_value=False),
+    ):
+        await _record_run("weekly_plan", _weekly_plan())
+
+    runs = await _job_runs()
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is False
+    assert runs[0].error is not None
+    assert "weekly plan" in runs[0].error
+
+
+async def test_weekly_recap_records_delivery() -> None:
+    """A delivered weekly-recap email is recorded on the run."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_recap_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap", return_value=True),
+    ):
+        await _record_run("weekly_recap", _weekly_recap())
+
+    runs = await _job_runs()
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is True
+
+
+async def test_weekly_recap_rejected_send_fails_the_run() -> None:
+    """A rejected weekly-recap send fails the run with the cause captured."""
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_recap_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap", return_value=False),
+    ):
+        await _record_run("weekly_recap", _weekly_recap())
+
+    runs = await _job_runs()
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is False
+    assert runs[0].error is not None
+    assert "weekly recap" in runs[0].error
+
+
+async def test_post_workout_records_delivery() -> None:
+    """A delivered post-workout email is recorded on the batch's single run."""
+    await _add_activities(1)
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_post_workout", return_value=True),
+    ):
+        await _record_run("post_workout_analysis", _post_workout_analysis())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].email_delivered is True
+
+
+async def test_post_workout_rejected_send_fails_the_run() -> None:
+    """A rejected post-workout send is tallied as that activity's failure."""
+    await _add_activities(1)
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_post_workout", return_value=False),
+    ):
+        await _record_run("post_workout_analysis", _post_workout_analysis())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is False
+    assert runs[0].error is not None
+    assert "1 of 1 activities failed" in runs[0].error
+
+
+async def test_post_workout_partial_delivery_is_still_recorded_as_delivered() -> None:
+    """One rejected send out of two fails the run, but an email did go out.
+
+    Status and delivery are separate facts precisely so this run can say both
+    things at once; folding delivery into the status would lose one of them.
+    """
+    await _add_activities(2)
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_post_workout_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_post_workout", side_effect=[True, False]),
+    ):
+        await _record_run("post_workout_analysis", _post_workout_analysis())
+
+    runs = await _job_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is True
+    assert runs[0].error is not None
+    assert "1 of 2 activities failed" in runs[0].error

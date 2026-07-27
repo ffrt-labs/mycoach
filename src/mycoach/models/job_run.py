@@ -22,3 +22,10 @@ class JobRun(Base):
     duration_ms: Mapped[int]
     status: Mapped[str] = mapped_column(String(20))  # success, skipped, failed
     error: Mapped[str | None] = mapped_column(Text, default=None)
+    # Whether an email actually went out, kept deliberately separate from status
+    # rather than folded into it. A run whose insight generated fine but whose
+    # recipient has that email type switched off is a genuine success that sent
+    # nothing; a run whose send was attempted and rejected is a failure. Keeping
+    # delivery its own field represents both without overloading the status
+    # vocabulary, and lets monitoring alert on "succeeding but not delivering".
+    email_delivered: Mapped[bool] = mapped_column(default=False)

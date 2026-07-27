@@ -30,11 +30,6 @@ def _render_template(template_name: str, context: dict) -> str:  # type: ignore[
     return template.render(**context)
 
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
 # Display label/unit for each DailyBriefingKeyMetrics field, in the order
 # emails should show them. Keys absent or None are skipped.
 _KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
@@ -46,25 +41,16 @@ _KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
 }
 
 
-<<<<<<< Updated upstream
-def _format_key_metrics(key_metrics: dict) -> list[dict]:  # type: ignore[type-arg]
-    """Turn the raw DailyBriefingKeyMetrics fields into display-ready rows."""
-    rows = []
-=======
 def _format_key_metrics(key_metrics: dict) -> dict[str, str]:  # type: ignore[type-arg]
     """Turn the raw DailyBriefingKeyMetrics fields into label -> display value.
 
     Insertion order follows _KEY_METRICS_DISPLAY, which is the order emails show.
     """
     rows: dict[str, str] = {}
->>>>>>> Stashed changes
     for key, (label, unit) in _KEY_METRICS_DISPLAY.items():
         value = key_metrics.get(key)
         if value is None:
             continue
-<<<<<<< Updated upstream
-        rows.append({"label": label, "value": value, "unit": unit})
-=======
         rows[label] = f"{value} {unit}" if unit else str(value)
     return rows
 
@@ -129,7 +115,6 @@ def _format_session_details(details: dict | None) -> dict[str, str]:  # type: ig
         row = _format_cardio_detail(key, value)
         if row is not None:
             rows[row[0]] = row[1]
->>>>>>> Stashed changes
     return rows
 
 
@@ -138,10 +123,6 @@ def _dashboard_url(settings: Settings) -> str:
     return f"{settings.app_base_url}/dashboard"
 
 
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> bool:
     """Send email using Resend API."""
     resend.api_key = settings.email_resend_api_key
@@ -231,25 +212,12 @@ def send_weekly_plan(
     ]
     html = _render_template(
         "weekly_plan.html",
-<<<<<<< Updated upstream
-        {
-            "summary": summary,
-            "sessions": sessions,
-            "week_start": week_start,
-            "dashboard_url": _dashboard_url(settings),
-        },
-=======
-<<<<<<< Updated upstream
-        {"summary": summary, "sessions": sessions, "week_start": week_start},
-=======
         {
             "summary": summary,
             "sessions": display_sessions,
             "week_start": week_start,
             "dashboard_url": _dashboard_url(settings),
         },
->>>>>>> Stashed changes
->>>>>>> Stashed changes
     )
     return send_email(settings.email_to, "MyCoach — Weekly Plan", html, settings)
 

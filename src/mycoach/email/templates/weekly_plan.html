@@ -18,26 +18,6 @@
 
 <!-- Sessions -->
 {% for session in sessions %}
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-<div class="card">
-  <h3>{{ session.day_name }} &mdash; {{ session.title }}</h3>
-  <p>
-    <span class="badge badge-blue">{{ session.sport }}</span>
-    {% if session.duration_minutes %} &bull; {{ session.duration_minutes }} min{% endif %}
-  </p>
-  {% if session.notes %}<p>{{ session.notes }}</p>{% endif %}
-  {% if session.details %}
-  <ul>
-  {% for key, value in session.details.items() %}
-    <li><strong>{{ key }}:</strong> {{ value }}</li>
-  {% endfor %}
-  </ul>
-  {% endif %}
-</div>
-=======
->>>>>>> Stashed changes
 <tr>
   <td class="px block-b" style="padding-top:18px;padding-bottom:18px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -57,31 +37,18 @@
     {% if session.notes %}
     <div class="p" style="margin-top:8px;">{{ session.notes }}</div>
     {% endif %}
-<<<<<<< Updated upstream
-    {% if session.details and session.details.exercises %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
-      {% for ex in session.details.exercises %}
-      <tr>
-        <td class="mlabel" style="padding:6px 0;font-weight:400;color:#78716c;">{{ ex.name }}</td>
-        <td class="mval" style="padding:6px 0;font-size:13px;">{{ ex.sets }}&times;{{ ex.reps }}{% if ex.target_weight_kg %} @ {{ ex.target_weight_kg }}kg{% endif %}{% if ex.rpe %} &middot; RPE {{ ex.rpe }}{% endif %}</td>
-=======
     {% if session.details %}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
       {% for key, value in session.details.items() %}
       <tr>
         <td class="mlabel" style="padding:6px 0;font-weight:400;color:#78716c;">{{ key }}</td>
         <td class="mval" style="padding:6px 0;font-size:13px;">{{ value }}</td>
->>>>>>> Stashed changes
       </tr>
       {% endfor %}
     </table>
     {% endif %}
   </td>
 </tr>
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 {% endfor %}
 
 <tr>

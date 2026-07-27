@@ -75,19 +75,22 @@ async def test_garmin_sync_auth_failure_raises(mock_session: AsyncMock) -> None:
     mock_source.fetch_and_import.assert_not_awaited()
 
 
-def test_garmin_sync_job_logs_auth_failure(caplog: pytest.LogCaptureFixture) -> None:
+def test_garmin_sync_job_logs_auth_failure(
+    mock_session: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
     """The Garmin job wrapper surfaces an auth failure at error level, not silently."""
     mock_source = MagicMock()
     mock_source.authenticate = AsyncMock(return_value=False)
 
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         caplog.at_level(logging.INFO),
     ):
         job_garmin_sync()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "Garmin sync failed" in r.message
+        r.levelno == logging.ERROR and "garmin_sync failed" in r.message
         for r in caplog.records
     )
 
@@ -243,7 +246,7 @@ def test_weekly_plan_job_logs_skip(
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         job_weekly_plan()  # must not raise
 
-    skip_logs = [r for r in caplog.records if "weekly plan skipped" in r.message]
+    skip_logs = [r for r in caplog.records if "weekly_plan skipped" in r.message]
     assert skip_logs and all(r.levelno == logging.INFO for r in skip_logs)
     assert not any(r.levelno >= logging.ERROR for r in caplog.records)
 
@@ -267,7 +270,7 @@ def test_weekly_plan_job_logs_failure(
         job_weekly_plan()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "weekly plan failed" in r.message
+        r.levelno == logging.ERROR and "weekly_plan failed" in r.message
         for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)
@@ -332,7 +335,7 @@ def test_weekly_recap_job_logs_failure(
         job_weekly_recap()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "weekly recap failed" in r.message
+        r.levelno == logging.ERROR and "weekly_recap failed" in r.message
         for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)
@@ -415,7 +418,11 @@ async def test_post_workout_analysis_skips_existing_per_activity(
 async def test_post_workout_analysis_failure_does_not_abort_batch(
     mock_session: AsyncMock, mock_engine: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A per-activity failure is logged at error level and the batch continues."""
+    """A per-activity failure is logged, the batch continues, and the run still fails.
+
+    Continuing the batch is resilience, not absolution: the surviving activity is
+    analysed, then the coroutine raises so the run is recorded as a failure.
+    """
     mock_activity_1 = MagicMock(id=10, title="Morning Swim")
     mock_activity_2 = MagicMock(id=11, title="Gym Session")
     mock_engine.generate_post_workout_analysis = AsyncMock(
@@ -434,6 +441,7 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
         caplog.at_level(logging.INFO),
+        pytest.raises(RuntimeError, match="1 of 2 activities failed"),
     ):
         await _post_workout_analysis()
 
@@ -442,6 +450,33 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
         r.levelno == logging.ERROR and "post-workout analysis failed for activity 10" in r.message
         for r in caplog.records
     )
+
+
+async def test_post_workout_analysis_all_skipped_raises_skip(
+    mock_session: AsyncMock, mock_engine: MagicMock,
+) -> None:
+    """A batch where every activity already had an insight is a skip, not a success."""
+    mock_engine.generate_post_workout_analysis = AsyncMock(
+        side_effect=[
+            PipelineSkip("Post-workout analysis already exists for activity 10"),
+            PipelineSkip("Post-workout analysis already exists for activity 11"),
+        ]
+    )
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [
+        MagicMock(id=10, title="Morning Swim"),
+        MagicMock(id=11, title="Gym Session"),
+    ]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+        pytest.raises(PipelineSkip, match="all 2 activities already analysed"),
+    ):
+        await _post_workout_analysis()
 
 
 async def test_post_workout_analysis_sends_email(

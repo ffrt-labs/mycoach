@@ -47,21 +47,6 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
         loop.close()
 
 
-def _run_job(label: str, coro) -> None:  # type: ignore[no-untyped-def]
-    """Run a pipeline coroutine, translating its outcome into a log line.
-
-    A ``PipelineSkip`` is a deliberate no-op and logged at info level. Every
-    other exception is a real failure and logged at error level. This is the
-    skip-versus-failure boundary the rest of the pipeline keys on.
-    """
-    try:
-        _run_async(coro)
-    except PipelineSkip as e:
-        logger.info("Scheduler: %s skipped — %s", label, e)
-    except Exception:
-        logger.exception("Scheduler: %s failed", label)
-
-
 async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-def]
     """Run a job body, timing it and recording its outcome durably.
 
@@ -142,7 +127,7 @@ def job_garmin_sync() -> None:
     Fetches the last 2 days of data to handle timezone edge cases and overnight sync.
     """
     logger.info("Scheduler: starting Garmin sync")
-    _run_job("Garmin sync", _garmin_sync())
+    _run_recorded_job("garmin_sync", _garmin_sync())
 
 
 async def _garmin_sync() -> None:
@@ -186,7 +171,7 @@ async def _daily_briefing() -> None:
 def job_weekly_plan() -> None:
     """Generate the weekly training plan (runs Sunday evening for next week)."""
     logger.info("Scheduler: generating weekly plan")
-    _run_job("weekly plan", _weekly_plan())
+    _run_recorded_job("weekly_plan", _weekly_plan())
 
 
 async def _weekly_plan() -> None:
@@ -230,7 +215,7 @@ async def _weekly_plan() -> None:
 def job_weekly_recap() -> None:
     """Generate the weekly recap (runs Monday morning for the previous week)."""
     logger.info("Scheduler: generating weekly recap")
-    _run_job("weekly recap", _weekly_recap())
+    _run_recorded_job("weekly_recap", _weekly_recap())
 
 
 async def _weekly_recap() -> None:
@@ -255,7 +240,7 @@ def job_post_workout_analysis() -> None:
     an existing CoachingInsight, generates analysis for each, and sends email.
     """
     logger.info("Scheduler: starting post-workout analysis scan")
-    _run_job("post-workout analysis", _post_workout_analysis())
+    _run_recorded_job("post_workout_analysis", _post_workout_analysis())
 
 
 async def _post_workout_analysis() -> None:
@@ -291,6 +276,10 @@ async def _post_workout_analysis() -> None:
         logger.info("Scheduler: found %d activities to analyze", len(activities))
         send_email = await _get_user_email_pref("email_post_workout")
 
+        analysed = 0
+        skipped = 0
+        failures: list[str] = []
+
         for activity in activities:
             # Per-activity resilience: one activity's skip or failure must not
             # abort the batch. A whole-batch skip (no activities) is raised above.
@@ -310,13 +299,48 @@ async def _post_workout_analysis() -> None:
                     logger.info(
                         "Scheduler: post-workout email sent for activity %d", activity.id
                     )
+                # Tallied last so an activity counts exactly once: a failure
+                # anywhere above (including the email send) lands in ``failures``
+                # instead, keeping the totals in the error message honest.
+                analysed += 1
             except PipelineSkip as e:
+                skipped += 1
                 logger.info(
                     "Scheduler: post-workout analysis skipped for activity %d — %s",
                     activity.id,
                     e,
                 )
-            except Exception:
+            except Exception as e:  # noqa: BLE001 - tallied, then reported once below
+                failures.append(f"activity {activity.id}: {e}")
                 logger.exception(
                     "Scheduler: post-workout analysis failed for activity %d", activity.id
                 )
+
+    _raise_post_workout_outcome(analysed, skipped, failures)
+
+
+def _raise_post_workout_outcome(analysed: int, skipped: int, failures: list[str]) -> None:
+    """Collapse the per-activity outcomes into the run's single outcome.
+
+    Called once, after the whole batch, so the run records one coherent result
+    rather than one per activity. The recording helper reads the outcome off
+    this call: returning normally records ``success``, raising ``PipelineSkip``
+    records ``skipped``, and raising anything else records ``failed`` with the
+    message as the error detail.
+
+    ``analysed`` counts activities that produced an insight, ``skipped`` those
+    that already had one, and ``failures`` holds one message per activity that
+    blew up. The empty-batch case never reaches here — it is raised as a skip
+    before the loop.
+    """
+    total = analysed + skipped + len(failures)
+    if failures:
+        # A partial failure is still a failure: the run is the only durable
+        # signal, so a nightly batch quietly losing one activity must not be
+        # filed as a success.
+        raise RuntimeError(
+            f"{len(failures)} of {total} activities failed — " + "; ".join(failures)
+        )
+    if analysed == 0:
+        # Everything already had an insight — deliberate no-op, not work done.
+        raise PipelineSkip(f"all {skipped} activities already analysed")

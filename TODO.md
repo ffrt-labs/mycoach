@@ -5,10 +5,8 @@
 ## 🧭 Next Steps (current roadmap) — start here
 
 > Codebase audit (2026-07-12, re-verified 2026-07-16) confirmed **Phases 0–8 are
-> implemented and functional** — the daily morning digest and weekly recap
-> pipelines already run end-to-end (scheduler → coaching engine → email). The
-> checklists for those phases below are kept for history; the real remaining
-> work is ordered here.
+> implemented**. The checklists for those phases below are kept for history; the
+> real remaining work is ordered here.
 >
 > Priority chosen: **verify automation first → gym logger → cleanup.**
 >
@@ -17,24 +15,59 @@
 > schedule-config items were also already done (`6e14572`). The
 > `POST /api/system/scheduler/trigger/{job}` endpoint Step 1 depends on has now
 > been added (`api/routes/system.py`), unblocking end-to-end verification.
+>
+> **2026-07-28:** Step 1 is now **done** — the daily and weekly pipelines have
+> been run end to end (scheduler → coaching engine → Resend → inbox) and the run
+> records reconciled against delivered mail. The earlier wording above claimed
+> those pipelines "already run end-to-end"; that was an inference from reading
+> the code, and on the email leg it was wrong — see Phase 7's note below.
 
-### Step 1 — Verify & harden the automation (do first)
+### Step 1 — Verify & harden the automation — ✅ Done (2026-07-28)
 
-- [ ] End-to-end verify the **daily** pipeline: manually trigger `garmin_sync`
-      then `daily_briefing` (via `POST /api/system/scheduler/trigger/{job}`,
-      API-key guarded) and confirm a real briefing email lands in the inbox.
-- [ ] End-to-end verify the **weekly recap**: trigger `weekly_recap`, confirm the
-      `weekly_recap.html` email arrives with adherence + health trends + AI tips.
-- [ ] Confirm `.env` is set for real delivery: `MYCOACH_EMAIL_ENABLED=true`,
-      `MYCOACH_EMAIL_FROM`, `MYCOACH_EMAIL_TO`, and either
-      `MYCOACH_EMAIL_RESEND_API_KEY` or the `MYCOACH_EMAIL_SMTP_*` set.
-- [ ] Confirm per-user email prefs on the `User` row are enabled
-      (`email_daily_briefing`, `email_weekly_recap`, `email_weekly_plan`,
-      `email_post_workout`) — jobs silently skip sending when these are false.
+Verified end to end on 2026-07-28 by triggering every job through
+`POST /api/system/scheduler/trigger/{job}` against real Garmin data and the live
+Resend backend, then reconciling the `job_runs` rows against the inbox. Full
+account in PROGRESS.md ("2026-07-28 — End-to-end automation verification").
+
+- [x] End-to-end verify the **daily** pipeline: `garmin_sync` succeeded
+      (3 health snapshots), `daily_briefing` succeeded, briefing email delivered.
+- [x] End-to-end verify the **weekly recap**: `weekly_recap` succeeded and the
+      `weekly_recap.html` email arrived with adherence + health trends + tips.
+- [x] Confirm `.env` is set for real delivery — it is, via
+      `MYCOACH_EMAIL_RESEND_API_KEY`. **Note:** this item was previously carried
+      as merely unverified, but it had in fact been *false* until #4 — email had
+      never been configured for real delivery and no message had ever been sent,
+      despite Phase 7 being ticked complete below.
+- [x] Confirm per-user email prefs on the `User` row are enabled — all four
+      (`email_daily_briefing`, `email_weekly_plan`, `email_post_workout`,
+      `email_weekly_recap`) are on for user 1.
+- [x] A deliberately induced failure (invalid Resend key) recorded a `failed` run
+      whose error diagnoses it unaided: `daily briefing email send failed —
+      Resend rejected the message: API key is invalid`. Making the backend's
+      reason survive into `JobRun.error` was a code change, not just a check —
+      `EmailSendError` in `email/sender.py`; a `False` return now means only
+      "no backend was available to attempt the send".
 
 > ✅ Done: weekly-recap schedule and weekly-plan minute are config-driven
 > (`scheduler_weekly_recap_day/_hour/_minute`, `scheduler_weekly_plan_minute` in
 > `config.py` + `.env.example`, wired in `scheduler/scheduler.py`) — `6e14572`.
+
+**Remaining follow-up from this step** (tracked here rather than left implicit):
+
+- [ ] Send from a verified custom domain. Mail currently goes out as
+      `onboarding@resend.dev`, Resend's shared sandbox sender — fine for a
+      single-user inbox, but it is not the project's own domain and carries no
+      SPF/DKIM alignment of its own. Verify a domain in Resend and repoint
+      `MYCOACH_EMAIL_FROM`.
+- [ ] Observe the **weekly-plan** and **post-workout** emails in an inbox. Both
+      jobs skipped on 2026-07-28 for want of input, so those two of the four
+      templates have still never been delivered for real. Set availability for a
+      week and log an activity, then re-trigger.
+- [ ] Feed `job_runs` into an observability stack once one exists. The rows and
+      the structured log lines carry everything needed to alert on "succeeding
+      but not delivering", but nothing consumes them today — verification is
+      still a manual reconciliation. No such stack exists yet, so this is
+      deliberately deferred rather than scoped here.
 
 ### Step 2 — Retire Hevy web-API auto-sync (keep CSV) — ✅ Done
 
@@ -347,8 +380,18 @@ pending an actual home-server deploy (tracked outside this file).
 ## Phase 7: Email Delivery (Week 7-8)
 
 > ✅ **COMPLETE** — Resend + SMTP backends, all 4 templates, per-user prefs,
-> triggers wired into scheduler jobs (audit 2026-07-12). End-to-end delivery
-> verification tracked in **Step 1** above.
+> triggers wired into scheduler jobs (audit 2026-07-12); first real delivery
+> 2026-07-28 (#4). The **daily briefing** and **weekly recap** emails are
+> verified end to end in **Step 1** above. The weekly-plan and post-workout
+> emails are *not* yet observed in an inbox — their jobs skipped for want of
+> input data (no availability set, no new activities), so no send was attempted.
+>
+> ⚠️ **This phase was marked complete on 2026-07-12 without a single message
+> having been sent.** The audit checked that the code existed and the triggers
+> were wired, and read that as done. It was not: `.env` had no working backend,
+> so every send would have returned False — and, until #9, jobs discarded that
+> False and logged "email sent" regardless. "Implemented" and "works" are not the
+> same claim, and this file should not tick a phase on the former.
 
 - [ ] Set up email service (Resend API or SMTP)
 - [ ] Create HTML email templates (responsive, email-client compatible)

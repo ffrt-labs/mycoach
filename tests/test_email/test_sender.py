@@ -2,8 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mycoach.config import Settings
 from mycoach.email.sender import (
+    EmailSendError,
     _format_key_metrics,
     _format_session_details,
     _render_template,
@@ -263,12 +266,35 @@ def test_send_email_via_smtp(mock_smtp_class: MagicMock) -> None:
 
 
 @patch("mycoach.email.sender.resend")
-def test_send_email_resend_failure(mock_resend: MagicMock) -> None:
-    """Returns False and logs when Resend raises."""
-    mock_resend.Emails.send.side_effect = Exception("API error")
+def test_send_email_resend_failure_carries_the_backend_reason(mock_resend: MagicMock) -> None:
+    """A Resend rejection raises with the backend's own words, not a bare False.
+
+    The reason is the only thing that says *why* the send failed; collapsing it
+    to False leaves whoever reads the failed run guessing.
+    """
+    mock_resend.Emails.send.side_effect = Exception("domain example.com is not verified")
     settings = _make_settings(email_resend_api_key="re_test_key")
-    result = send_email("user@example.com", "Subject", "<p>Hi</p>", settings)
-    assert result is False
+
+    with pytest.raises(EmailSendError) as excinfo:
+        send_email("user@example.com", "Subject", "<p>Hi</p>", settings)
+
+    message = str(excinfo.value)
+    assert "resend" in message.lower()
+    assert "domain example.com is not verified" in message
+
+
+@patch("mycoach.email.sender.smtplib.SMTP")
+def test_send_email_smtp_failure_carries_the_backend_reason(mock_smtp_class: MagicMock) -> None:
+    """An SMTP rejection raises with the server's own words, like the Resend path."""
+    mock_smtp_class.side_effect = OSError("connection refused")
+    settings = _make_settings(email_resend_api_key="", email_smtp_host="smtp.example.com")
+
+    with pytest.raises(EmailSendError) as excinfo:
+        send_email("user@example.com", "Subject", "<p>Hi</p>", settings)
+
+    message = str(excinfo.value)
+    assert "smtp" in message.lower()
+    assert "connection refused" in message
 
 
 # --- Convenience sender functions ---

@@ -1,4 +1,5 @@
 from mycoach.email.sender import (
+    EmailSendError,
     send_daily_briefing,
     send_email,
     send_post_workout,
@@ -7,6 +8,7 @@ from mycoach.email.sender import (
 )
 
 __all__ = [
+    "EmailSendError",
     "send_daily_briefing",
     "send_email",
     "send_post_workout",

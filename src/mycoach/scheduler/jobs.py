@@ -22,6 +22,7 @@ from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.config import get_settings
 from mycoach.database import async_session
 from mycoach.email.sender import (
+    EmailSendError,
     send_daily_briefing,
     send_post_workout,
     send_weekly_plan,
@@ -52,12 +53,12 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
 
 
 class EmailDeliveryError(RuntimeError):
-    """An email send was attempted and rejected by the backend.
+    """An email a job meant to send did not go out.
 
-    Raised by ``_deliver`` so a rejected send reaches ``_record_run`` as an
-    ordinary failure. The send functions signal rejection by returning False,
-    which jobs previously discarded — logging "email sent" for a send that never
-    happened.
+    Raised by ``_deliver`` so an undelivered email reaches ``_record_run`` as an
+    ordinary failure — jobs previously discarded the send outcome, logging
+    "email sent" for a send that never happened. The message names the email and
+    the cause, because ``JobRun.error`` is all a reader gets.
     """
 
 
@@ -79,18 +80,29 @@ _current_delivery: ContextVar[_Delivery | None] = ContextVar(
 
 
 def _deliver(send: Callable[[], bool], email_label: str) -> None:
-    """Attempt one email send, recording the outcome and failing on rejection.
+    """Attempt one email send, recording the outcome and failing if nothing went out.
 
-    ``send`` is the zero-argument send call. A False return means the backend
-    refused the message, which is a real failure rather than something to log
-    over; a True return is noted on the run as delivery having happened.
+    ``send`` is the zero-argument send call. Either way it fails to deliver is a
+    real failure rather than something to log over, and the two ways differ in
+    what a reader has to do about them: an ``EmailSendError`` is a backend that
+    refused and said why, while a False return is no backend having been
+    available to try — a configuration fault. Both are re-raised naming the
+    email and the cause, since the run's error column is the only durable
+    account. A True return is noted on the run as delivery having happened.
 
     The "email sent" log line lives here rather than at the call sites so it can
     only ever follow a send that actually reported success — the bug this helper
     exists to prevent was exactly that line being logged unconditionally.
     """
-    if not send():
-        raise EmailDeliveryError(f"{email_label} email send failed")
+    try:
+        sent = send()
+    except EmailSendError as e:
+        raise EmailDeliveryError(f"{email_label} email send failed — {e}") from e
+    if not sent:
+        raise EmailDeliveryError(
+            f"{email_label} email send failed — no email backend was available to "
+            f"attempt it (check MYCOACH_EMAIL_ENABLED and the Resend/SMTP settings)"
+        )
     delivery = _current_delivery.get()
     if delivery is not None:
         delivery.delivered = True

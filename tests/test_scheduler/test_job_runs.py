@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.exceptions import PipelineSkip
+from mycoach.email.sender import EmailSendError
 from mycoach.models.activity import Activity
 from mycoach.models.job_run import JobRun
 from mycoach.scheduler.jobs import (
@@ -549,6 +550,51 @@ async def test_rejected_send_fails_the_run_with_the_cause() -> None:
     assert runs[0].error is not None
     assert "daily briefing" in runs[0].error
     assert "email" in runs[0].error
+
+
+async def test_rejected_send_records_the_backend_reason() -> None:
+    """The backend's rejection reason survives into the run's error column.
+
+    The recorded error is the only durable account of a failure — a reader must
+    not have to go back to the logs to learn why the send was refused.
+    """
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch(
+            "mycoach.scheduler.jobs.send_daily_briefing",
+            side_effect=EmailSendError("resend rejected the message: domain not verified"),
+        ),
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    runs = await _job_runs()
+    assert runs[0].status == "failed"
+    assert runs[0].email_delivered is False
+    assert runs[0].error is not None
+    assert "daily briefing" in runs[0].error
+    assert "domain not verified" in runs[0].error
+
+
+async def test_unattempted_send_records_the_configuration_cause() -> None:
+    """A send that never reached a backend says so, rather than "send failed".
+
+    ``False`` now means only "no backend was available to attempt this", which is
+    a configuration fault and must read as one.
+    """
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=_briefing_engine()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing", return_value=False),
+    ):
+        await _record_run("daily_briefing", _daily_briefing())
+
+    runs = await _job_runs()
+    assert runs[0].status == "failed"
+    assert runs[0].error is not None
+    assert "backend" in runs[0].error
 
 
 async def test_delivery_appears_in_the_structured_log_line(

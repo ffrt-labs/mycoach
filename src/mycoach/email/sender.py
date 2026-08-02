@@ -24,6 +24,18 @@ _jinja_env = Environment(
 )
 
 
+class EmailSendError(RuntimeError):
+    """A backend was asked to send a message and refused, with its reason.
+
+    Raised instead of returning False so the reason the backend gave survives to
+    whoever reads the failure. A scheduled job's ``JobRun.error`` is the only
+    durable account of why a run failed; collapsing "Resend says the sender
+    domain is unverified" into a bare False forced that reader back into the
+    logs to re-derive it. A False return now means only that no backend was
+    available to attempt the send at all.
+    """
+
+
 def _render_template(template_name: str, context: dict) -> str:  # type: ignore[type-arg]
     """Render a Jinja2 email template with the given context."""
     template = _jinja_env.get_template(template_name)
@@ -123,8 +135,12 @@ def _dashboard_url(settings: Settings) -> str:
     return f"{settings.app_base_url}/dashboard"
 
 
-def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> bool:
-    """Send email using Resend API."""
+def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> None:
+    """Send email using Resend API.
+
+    Returns only once Resend has accepted the message; raises ``EmailSendError``
+    carrying Resend's own words if it refuses.
+    """
     resend.api_key = settings.email_resend_api_key
     try:
         resend.Emails.send(
@@ -135,14 +151,17 @@ def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> bo
                 "html": html,
             }
         )
-        return True
-    except Exception:
+    except Exception as e:
         logger.exception("Resend send failed")
-        return False
+        raise EmailSendError(f"Resend rejected the message: {e}") from e
 
 
-def _send_via_smtp(settings: Settings, to: str, subject: str, html: str) -> bool:
-    """Send email using SMTP."""
+def _send_via_smtp(settings: Settings, to: str, subject: str, html: str) -> None:
+    """Send email using SMTP.
+
+    Returns only once the server has accepted the message; raises
+    ``EmailSendError`` carrying its own words if it refuses.
+    """
     msg = MIMEMultipart("alternative")
     msg["From"] = settings.email_from
     msg["To"] = to
@@ -157,16 +176,21 @@ def _send_via_smtp(settings: Settings, to: str, subject: str, html: str) -> bool
             if settings.email_smtp_user:
                 server.login(settings.email_smtp_user, settings.email_smtp_password)
             server.sendmail(settings.email_from, to, msg.as_string())
-        return True
-    except Exception:
+    except Exception as e:
         logger.exception("SMTP send failed")
-        return False
+        raise EmailSendError(
+            f"SMTP host {settings.email_smtp_host}:{settings.email_smtp_port} "
+            f"rejected the message: {e}"
+        ) from e
 
 
 def send_email(to: str, subject: str, html: str, settings: Settings | None = None) -> bool:
     """Send an email using the configured backend.
 
-    Returns True on success, False on failure.
+    Returns True once a backend has accepted the message, and False when there
+    was no backend to attempt it — email switched off, or none configured. A
+    backend that attempts the send and refuses raises ``EmailSendError`` so its
+    reason is not lost.
     """
     if settings is None:
         settings = get_settings()
@@ -176,12 +200,13 @@ def send_email(to: str, subject: str, html: str, settings: Settings | None = Non
         return False
 
     if settings.email_resend_api_key:
-        return _send_via_resend(settings, to, subject, html)
+        _send_via_resend(settings, to, subject, html)
     elif settings.email_smtp_host:
-        return _send_via_smtp(settings, to, subject, html)
+        _send_via_smtp(settings, to, subject, html)
     else:
         logger.warning("No email backend configured (no Resend API key or SMTP host)")
         return False
+    return True
 
 
 def send_daily_briefing(content: dict, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]

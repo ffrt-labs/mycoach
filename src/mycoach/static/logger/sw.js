@@ -43,10 +43,29 @@ self.addEventListener("fetch", (event) => {
     // API calls: always go to network (offline → the app queues locally).
     if (url.pathname.startsWith("/api/")) return;
 
-    // Navigations: network-first, fall back to the cached shell offline.
+    // Navigations: stale-while-revalidate. Off-LAN, the domain resolves to a
+    // private address unreachable from the mobile network — the connection
+    // hangs instead of rejecting, so a network-first `.catch()` never fires
+    // and the tab sits on a blank screen. Serving the cached shell first
+    // means the app opens immediately either way, and a reachable network
+    // still refreshes the cache in the background.
     if (req.mode === "navigate") {
+        const update = fetch(req)
+            .then((resp) => {
+                if (!resp.ok) return resp;
+                const copy = resp.clone();
+                return caches
+                    .open(CACHE)
+                    .then((c) => c.put("/logger", copy))
+                    .then(() => resp);
+            })
+            .catch(() => undefined);
+
+        event.waitUntil(update);
         event.respondWith(
-            fetch(req).catch(() => caches.match("/logger"))
+            caches.match("/logger").then((hit) =>
+                hit ? hit : update.then((resp) => resp || fetch(req))
+            )
         );
         return;
     }

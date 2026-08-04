@@ -13,6 +13,7 @@
     var API_ROUTINES = "/api/logger/routines";
     var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
+    var API_TIMEOUT_MS = 5000;
 
     // ── Tiny DOM helper ─────────────────────────────────────────────
     function el(tag, props, children) {
@@ -106,6 +107,19 @@
     }
 
     // ── Helpers ─────────────────────────────────────────────────────
+    /* Shared fetch for all /api/* calls. Off-LAN, the domain resolves to a
+       private address the mobile network can't route to, so the connection
+       hangs instead of rejecting — an abort-based timeout turns that hang
+       into a prompt, catchable failure. */
+    function apiFetch(url, options) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS);
+        var opts = Object.assign({}, options, { signal: controller.signal });
+        return fetch(url, opts).then(
+            function (resp) { clearTimeout(timer); return resp; },
+            function (err) { clearTimeout(timer); throw err; }
+        );
+    }
     function apiKey() { return localStorage.getItem(KEY_APIKEY) || ""; }
     function fmtTime(iso) {
         var d = new Date(iso);
@@ -160,10 +174,10 @@
         syncing = true;
         return getAllSessions().then(function (all) {
             var pending = all.filter(function (s) { return !s.synced && s.end_time; });
-            if (!pending.length) { syncing = false; if (manual) toast("Nothing to sync"); return refreshChip(); }
+            if (!pending.length) { if (manual) toast("Nothing to sync"); return; }
             setChip("pending", "Syncing…");
             var body = { source: "logger", workouts: pending.map(toPayload) };
-            return fetch(API_IMPORT, {
+            return apiFetch(API_IMPORT, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-API-Key": apiKey() },
                 body: JSON.stringify(body),
@@ -179,17 +193,21 @@
             }).catch(function (e) {
                 if (e.message !== "401" && manual) toast("Sync failed — MyCoach not reachable", "err");
             });
-        }).then(function () {
+        }).finally(function () {
             syncing = false;
             return refreshChip();
         }).then(function () {
             if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
+        }).catch(function () {
+            // Safety net for the whole chain (e.g. getAllSessions() rejecting)
+            // so a failure here never surfaces as an unhandled rejection. The
+            // guard itself is already cleared by the `finally` above.
         });
     }
 
     function pullExercises() {
         if (!apiKey() || !navigator.onLine) return;
-        fetch(API_EXERCISES, { headers: { "X-API-Key": apiKey() } })
+        apiFetch(API_EXERCISES, { headers: { "X-API-Key": apiKey() } })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) { if (d && d.exercises) { state.exerciseCache = d.exercises; setMeta("exercises", d.exercises); } })
             .catch(function () {});
@@ -197,7 +215,7 @@
 
     function pullRoutine() {
         if (!apiKey() || !navigator.onLine) return;
-        fetch(API_ROUTINES, { headers: { "X-API-Key": apiKey() } })
+        apiFetch(API_ROUTINES, { headers: { "X-API-Key": apiKey() } })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) { state.routine = d; setMeta("routine", d); if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render(); })
             .catch(function () {});
@@ -514,6 +532,11 @@
     $("sync-chip").addEventListener("click", function () { syncNow(true); });
     window.addEventListener("online", function () { refreshChip(); syncNow(false); pullRoutine(); });
     window.addEventListener("offline", refreshChip);
+    document.addEventListener("visibilitychange", function () {
+        // Walking back into LAN range and reopening the tab should retry
+        // without waiting for the next manual sync press.
+        if (document.visibilityState === "visible") syncNow(false);
+    });
 
     getMeta("exercises").then(function (list) { if (list) state.exerciseCache = list; });
     getMeta("routine").then(function (r) {

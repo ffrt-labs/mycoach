@@ -371,6 +371,32 @@ class TestImportHealthSnapshot:
             created = await import_health_snapshot(session, s2)
             assert created is False
 
+    async def test_different_sources_coexist_for_same_date(self, setup_db) -> None:  # type: ignore[no-untyped-def]
+        """Two different data sources for the same user+date coexist as separate rows."""
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            garmin_snapshot = map_health_snapshot(
+                user_id=user.id, snapshot_date=date(2024, 6, 10), stats=SAMPLE_STATS
+            )
+            garmin_snapshot.data_source = "garmin"
+            await import_health_snapshot(session, garmin_snapshot)
+            await session.commit()
+
+            hevy_snapshot = map_health_snapshot(
+                user_id=user.id, snapshot_date=date(2024, 6, 10), stats=SAMPLE_STATS
+            )
+            hevy_snapshot.data_source = "hevy"
+            created = await import_health_snapshot(session, hevy_snapshot)
+            await session.commit()
+
+            assert created is True
+            result = await session.execute(select(DailyHealthSnapshot))
+            rows = result.scalars().all()
+            assert len(rows) == 2
+            assert {row.data_source for row in rows} == {"garmin", "hevy"}
+
 
 class TestImportActivities:
     async def test_import_new_activities(self, setup_db) -> None:  # type: ignore[no-untyped-def]

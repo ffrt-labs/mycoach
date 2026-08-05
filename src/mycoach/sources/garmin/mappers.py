@@ -329,11 +329,14 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
     )
 
 
-async def _snapshot_exists(session: AsyncSession, user_id: int, day: date) -> bool:
-    """Check if a health snapshot already exists for this date."""
+async def _snapshot_exists(
+    session: AsyncSession, user_id: int, day: date, data_source: str
+) -> bool:
+    """Check if a health snapshot already exists for this date and source."""
     stmt = select(DailyHealthSnapshot.id).where(
         DailyHealthSnapshot.user_id == user_id,
         DailyHealthSnapshot.snapshot_date == day,
+        DailyHealthSnapshot.data_source == data_source,
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none() is not None
@@ -374,6 +377,7 @@ async def import_health_snapshot(session: AsyncSession, snapshot: DailyHealthSna
     stmt = select(DailyHealthSnapshot).where(
         DailyHealthSnapshot.user_id == snapshot.user_id,
         DailyHealthSnapshot.snapshot_date == snapshot.snapshot_date,
+        DailyHealthSnapshot.data_source == snapshot.data_source,
     )
     result = await session.execute(stmt)
     existing = result.scalar_one_or_none()

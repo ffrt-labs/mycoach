@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text
+from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import Base
@@ -8,10 +8,16 @@ from mycoach.database import Base
 
 class DailyHealthSnapshot(Base):
     __tablename__ = "daily_health_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "snapshot_date", "data_source",
+            name="uq_daily_health_snapshots_user_date_source",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    snapshot_date: Mapped[date] = mapped_column(unique=True)
+    snapshot_date: Mapped[date] = mapped_column()
 
     # Heart rate
     resting_hr: Mapped[int | None] = mapped_column(default=None)

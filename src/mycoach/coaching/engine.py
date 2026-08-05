@@ -14,6 +14,7 @@ from mycoach.coaching.context import (
     get_activities_for_week,
     get_activity_with_details,
     get_availability_for_week,
+    get_default_availability,
     get_gym_details_for_week,
     get_gym_performance_history,
     get_health_trends,
@@ -29,7 +30,7 @@ from mycoach.coaching.context import (
     get_today_planned_sessions,
     link_activity_to_planned_session,
 )
-from mycoach.coaching.exceptions import PipelineSkip
+from mycoach.coaching.exceptions import NoAvailabilityConfigured, PipelineSkip
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
     build_cardio_plan_prompt,
@@ -47,6 +48,7 @@ from mycoach.coaching.response_parser import (
     WeeklyRecapResponse,
     parse_response,
 )
+from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
@@ -231,6 +233,47 @@ class CoachingEngine:
 
         return llm_response, parsed, error_msg
 
+    async def _materialize_availability(
+        self, session: AsyncSession, user_id: int, week_start: date
+    ) -> str:
+        """Ensure ``week_start`` has availability rows, materializing from the
+        standing default schedule if none were declared.
+
+        This is the single seam every weekly-plan generation path passes
+        through, so the scheduled run and manual regenerate can't disagree
+        about what the week's availability is. Returns ``"declared"`` if the
+        week already had rows, ``"default"`` if rows were copied in from
+        ``DefaultAvailability``. Raises ``NoAvailabilityConfigured`` if the
+        week has no rows and the default is also empty — nothing is written
+        in that case.
+        """
+        existing = await session.execute(
+            select(WeeklyAvailability.id).where(
+                WeeklyAvailability.user_id == user_id,
+                WeeklyAvailability.week_start == week_start,
+            )
+        )
+        if existing.first() is not None:
+            return "declared"
+
+        default_slots = await get_default_availability(session, user_id)
+        if not default_slots:
+            raise NoAvailabilityConfigured(
+                f"No availability configured for week of {week_start}"
+            )
+
+        for slot in default_slots:
+            session.add(
+                WeeklyAvailability(
+                    user_id=user_id,
+                    week_start=week_start,
+                    day_of_week=slot.day_of_week,
+                    sport=slot.sport,
+                )
+            )
+        await session.flush()
+        return "default"
+
     async def generate_weekly_plan(
         self,
         session: AsyncSession,
@@ -268,9 +311,8 @@ class CoachingEngine:
                 raise PipelineSkip(f"Active plan already exists for week of {week_start}")
 
         # 1. Gather shared context
+        availability_source = await self._materialize_availability(session, user_id, week_start)
         availability = await get_availability_for_week(session, user_id, week_start)
-        if not availability:
-            raise PipelineSkip(f"No availability slots set for week of {week_start}")
         logger.info(
             "Availability for week %s: %s",
             week_start,
@@ -303,6 +345,7 @@ class CoachingEngine:
             week_start=week_start,
             prompt_version=PROMPT_VERSION,
             status="active",
+            availability_source=availability_source,
         )
         session.add(plan)
         await session.flush()

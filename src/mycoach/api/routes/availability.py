@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.context import get_default_availability as fetch_default_availability
 from mycoach.database import get_db
-from mycoach.models.availability import WeeklyAvailability
+from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.schemas.availability import (
     AvailabilitySlot,
+    DefaultAvailabilityRead,
+    DefaultAvailabilityReplace,
     WeeklyAvailabilityCreate,
     WeeklyAvailabilityRead,
 )
@@ -77,6 +80,40 @@ async def get_next_week_availability(
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+@router.get("/default", response_model=list[DefaultAvailabilityRead])
+async def get_default_availability(
+    session: AsyncSession = Depends(get_db),
+) -> list[DefaultAvailability]:
+    """Get the standing weekly schedule. An empty list is a valid state."""
+    return await fetch_default_availability(session, USER_ID)
+
+
+@router.post("/default", response_model=list[DefaultAvailabilityRead], status_code=201)
+async def set_default_availability(
+    body: DefaultAvailabilityReplace,
+    session: AsyncSession = Depends(get_db),
+) -> list[DefaultAvailability]:
+    """Replace the standing weekly schedule. An empty slot list clears it."""
+    await session.execute(
+        delete(DefaultAvailability).where(DefaultAvailability.user_id == USER_ID)
+    )
+
+    rows = []
+    for slot in body.slots:
+        row = DefaultAvailability(
+            user_id=USER_ID,
+            day_of_week=slot.day_of_week,
+            sport=slot.sport,
+        )
+        session.add(row)
+        rows.append(row)
+
+    await session.commit()
+    for row in rows:
+        await session.refresh(row)
+    return rows
 
 
 @router.get("/{week_start}", response_model=list[WeeklyAvailabilityRead])

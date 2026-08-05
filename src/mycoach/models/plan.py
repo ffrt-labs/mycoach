@@ -23,6 +23,10 @@ class WeeklyPlan(Base):
     )  # draft, active, completed, superseded
     summary: Mapped[str | None] = mapped_column(Text, default=None)
     raw_llm_output: Mapped[str | None] = mapped_column(Text, default=None)
+    # "declared" if the week's availability was set by the user, "default" if
+    # materialised from the standing schedule. Null for plans generated before
+    # this column existed.
+    availability_source: Mapped[str | None] = mapped_column(String(20), default=None)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 

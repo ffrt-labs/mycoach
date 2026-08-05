@@ -6,6 +6,9 @@ from mycoach.schemas.activity import (
 )
 from mycoach.schemas.availability import (
     AvailabilitySlot,
+    DefaultAvailabilityRead,
+    DefaultAvailabilityReplace,
+    DefaultAvailabilitySlot,
     WeeklyAvailabilityCreate,
     WeeklyAvailabilityRead,
 )
@@ -64,6 +67,9 @@ __all__ = [
     "DataSourceStatus",
     "DailyHealthSnapshotCreate",
     "DailyHealthSnapshotRead",
+    "DefaultAvailabilityRead",
+    "DefaultAvailabilityReplace",
+    "DefaultAvailabilitySlot",
     "GymWorkoutDetailCreate",
     "GymWorkoutDetailRead",
     "MesocycleConfigCreate",

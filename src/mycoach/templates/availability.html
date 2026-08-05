@@ -21,11 +21,22 @@
             {% if week == 'next' %}bg-accent text-ink{% else %}bg-surface text-zinc-400 hover:bg-surface-raised{% endif %}">
             Next Week
         </a>
+        <a href="/availability?week=default"
+            class="flex-1 text-center py-2 text-sm font-medium transition-colors border-l border-white/[0.10]
+            {% if week == 'default' %}bg-accent text-ink{% else %}bg-surface text-zinc-400 hover:bg-surface-raised{% endif %}">
+            Default
+        </a>
     </div>
 
+    {% if week == 'default' %}
+    <p class="text-sm text-zinc-400">
+        This is your standing schedule. Weeks you don't declare are planned from it automatically.
+    </p>
+    {% else %}
     <p class="text-sm text-zinc-400">
         Select the days you can train {{ week_label }} and the sport for each session.
     </p>
+    {% endif %}
 
     <!-- Availability form -->
     <form id="availability-form" method="post" class="space-y-3" hx-boost="false">
@@ -40,9 +51,16 @@
                     <div class="flex items-center gap-3 flex-1">
                         <div class="w-10 text-center">
                             <p class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500">{{ day.day_name[:3] }}</p>
+                            {% if day.date %}
                             <p class="text-lg font-bold font-mono text-zinc-300">{{ day.date.day }}</p>
+                            {% else %}
+                            <p class="text-lg font-bold font-mono text-zinc-600">&mdash;</p>
+                            {% endif %}
                         </div>
                         <span class="font-medium text-zinc-100">{{ day.day_name }}</span>
+                        {% if day.from_default %}
+                        <span class="text-[10px] font-semibold uppercase tracking-wide text-accent/80 border border-accent/30 rounded-full px-2 py-0.5">From default</span>
+                        {% endif %}
                     </div>
                 </label>
 
@@ -52,6 +70,12 @@
                         <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Sport</label>
                         <select name="day_{{ day.day_of_week }}_sport"
                             class="w-full rounded-lg text-sm px-2 py-1.5">
+                            {% if week == 'default' %}
+                            <option value=""
+                                {% if day.slot and not day.slot.sport %}selected{% endif %}>
+                                No training
+                            </option>
+                            {% endif %}
                             {% for sport in ['gym', 'swimming', 'running', 'padel'] %}
                             <option value="{{ sport }}"
                                 {% if day.slot and day.slot.sport == sport %}selected{% endif %}
@@ -97,6 +121,8 @@
     form.addEventListener('submit', function(e) {
         e.preventDefault();
 
+        var isDefault = {{ 'true' if week == 'default' else 'false' }};
+
         var slots = [];
         for (var day = 0; day < 7; day++) {
             var cb = form.querySelector('[name="day_' + day + '_enabled"]');
@@ -104,20 +130,22 @@
                 var sportVal = form.querySelector('[name="day_' + day + '_sport"]').value;
                 slots.push({
                     day_of_week: day,
-                    sport: sportVal
+                    sport: (isDefault && sportVal === '') ? null : sportVal
                 });
             }
         }
 
-        var weekStart = '{{ week_start.isoformat() }}';
-        var payload = { week_start: weekStart, slots: slots };
+        var url = isDefault ? '/api/availability/default' : '/api/availability';
+        var payload = isDefault
+            ? { slots: slots }
+            : { week_start: '{{ week_start.isoformat() if week_start else "" }}', slots: slots };
 
         var resultDiv = document.getElementById('save-result');
         var btn = document.getElementById('save-btn');
         btn.disabled = true;
         btn.textContent = 'Saving...';
 
-        fetch('/api/availability', {
+        fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

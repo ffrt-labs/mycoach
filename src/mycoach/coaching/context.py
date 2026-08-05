@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.prompt_builder import activity_to_dict, snapshot_to_dict
 from mycoach.models.activity import Activity, GymWorkoutDetail
-from mycoach.models.availability import WeeklyAvailability
+from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import MesocycleConfig
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -95,6 +95,19 @@ async def get_availability_for_week(
         }
         for s in slots
     ]
+
+
+async def get_default_availability(
+    session: AsyncSession, user_id: int
+) -> list[DefaultAvailability]:
+    """Get the user's standing weekly schedule, ordered by day. May be empty."""
+    stmt = (
+        select(DefaultAvailability)
+        .where(DefaultAvailability.user_id == user_id)
+        .order_by(DefaultAvailability.day_of_week)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
 
 
 async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | None:

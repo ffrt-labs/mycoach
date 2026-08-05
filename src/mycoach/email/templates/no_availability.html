@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}No Plan Generated{% endblock %}
+{% block subtitle %}No plan generated{% endblock %}
+{% block content %}
+
+<!-- Hero -->
+<tr>
+  <td class="px" style="padding-top:26px;padding-bottom:18px;">
+    <div class="eyebrow">Week of {{ week_start }}</div>
+    <div class="verdict" style="font-size:32px;margin-top:10px;">No plan generated</div>
+    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+    <div class="lead" style="margin-top:14px;">
+      No plan was generated for the week of {{ week_start }} because you don't have a standing
+      schedule set, and you didn't declare that week either. MyCoach won't invent a training week
+      for you — set your default schedule and it'll plan every week from there automatically.
+    </div>
+  </td>
+</tr>
+
+<tr>
+  <td class="px" style="padding-top:22px;padding-bottom:28px;">
+    <a href="{{ default_schedule_url|default('#') }}" class="cta">Set your standing schedule &rarr;</a>
+  </td>
+</tr>
+{% endblock %}

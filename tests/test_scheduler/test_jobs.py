@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mycoach.coaching.exceptions import PipelineSkip
+from mycoach.coaching.exceptions import NoAvailabilityConfigured, PipelineSkip
 from mycoach.scheduler.jobs import (
     _daily_briefing,
     _garmin_sync,
@@ -226,6 +226,100 @@ async def test_weekly_plan_raises_skip_on_duplicate(
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         with pytest.raises(PipelineSkip):
             await _weekly_plan()
+
+
+async def test_weekly_plan_sends_no_availability_email_on_no_availability_configured(
+    mock_session: AsyncMock, mock_engine: MagicMock
+) -> None:
+    """NoAvailabilityConfigured triggers the no-availability email, then still propagates."""
+    mock_engine.generate_weekly_plan = AsyncMock(
+        side_effect=NoAvailabilityConfigured("No availability configured for week of 2025-01-20")
+    )
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs.date") as mock_date,
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_no_availability", return_value=True) as mock_send,
+    ):
+        mock_date.today.return_value = date(2025, 1, 15)
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with pytest.raises(NoAvailabilityConfigured):
+            await _weekly_plan()
+
+    mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs["week_start"] == "2025-01-20"
+
+
+async def test_weekly_plan_no_availability_email_respects_preference(
+    mock_session: AsyncMock, mock_engine: MagicMock
+) -> None:
+    """The no-availability email is not sent when the user has the preference off."""
+    mock_engine.generate_weekly_plan = AsyncMock(
+        side_effect=NoAvailabilityConfigured("No availability configured for week of 2025-01-20")
+    )
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs.date") as mock_date,
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+        patch("mycoach.scheduler.jobs.send_no_availability", return_value=True) as mock_send,
+    ):
+        mock_date.today.return_value = date(2025, 1, 15)
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with pytest.raises(NoAvailabilityConfigured):
+            await _weekly_plan()
+
+    mock_send.assert_not_called()
+
+
+async def test_weekly_plan_duplicate_skip_does_not_send_no_availability_email(
+    mock_session: AsyncMock, mock_engine: MagicMock
+) -> None:
+    """A plain duplicate-plan PipelineSkip must not trigger the no-availability email."""
+    mock_engine.generate_weekly_plan = AsyncMock(
+        side_effect=PipelineSkip("Active plan already exists")
+    )
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs.date") as mock_date,
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_no_availability", return_value=True) as mock_send,
+    ):
+        mock_date.today.return_value = date(2025, 1, 15)
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        with pytest.raises(PipelineSkip):
+            await _weekly_plan()
+
+    mock_send.assert_not_called()
+
+
+def test_weekly_plan_job_logs_skip_for_no_availability_configured(
+    mock_session: AsyncMock, mock_engine: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The run is still recorded as skipped when NoAvailabilityConfigured is raised."""
+    mock_engine.generate_weekly_plan = AsyncMock(
+        side_effect=NoAvailabilityConfigured("No availability configured for week of 2025-01-20")
+    )
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs.date") as mock_date,
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
+        caplog.at_level(logging.INFO),
+    ):
+        mock_date.today.return_value = date(2025, 1, 15)
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        job_weekly_plan()  # must not raise
+
+    skip_logs = [r for r in caplog.records if "weekly_plan skipped" in r.message]
+    assert skip_logs and all(r.levelno == logging.INFO for r in skip_logs)
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
 
 
 def test_weekly_plan_job_logs_skip(

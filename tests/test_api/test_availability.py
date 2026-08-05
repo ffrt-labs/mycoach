@@ -211,3 +211,79 @@ async def test_delete_slot(client: AsyncClient) -> None:
 async def test_delete_slot_not_found(client: AsyncClient) -> None:
     resp = await client.delete("/api/availability/999")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_default_availability_empty_is_valid(client: AsyncClient) -> None:
+    resp = await client.get("/api/availability/default")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_set_default_availability(client: AsyncClient) -> None:
+    async with test_session() as session:
+        await _create_user(session)
+
+    resp = await client.post(
+        "/api/availability/default",
+        json={
+            "slots": [
+                {"day_of_week": 0, "sport": "gym"},
+                {"day_of_week": 1, "sport": "swimming"},
+                {"day_of_week": 2, "sport": None},
+            ],
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert len(data) == 3
+    assert data[0]["day_of_week"] == 0
+    assert data[0]["sport"] == "gym"
+    assert data[2]["day_of_week"] == 2
+    assert data[2]["sport"] is None
+
+    get_resp = await client.get("/api/availability/default")
+    assert get_resp.status_code == 200
+    assert len(get_resp.json()) == 3
+
+
+@pytest.mark.asyncio
+async def test_set_default_availability_replaces_existing(client: AsyncClient) -> None:
+    async with test_session() as session:
+        await _create_user(session)
+
+    await client.post(
+        "/api/availability/default",
+        json={"slots": [{"day_of_week": 0, "sport": "gym"}]},
+    )
+
+    resp = await client.post(
+        "/api/availability/default",
+        json={"slots": [{"day_of_week": 3, "sport": "padel"}]},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["day_of_week"] == 3
+
+    get_resp = await client.get("/api/availability/default")
+    assert len(get_resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_set_default_availability_empty_clears_it(client: AsyncClient) -> None:
+    async with test_session() as session:
+        await _create_user(session)
+
+    await client.post(
+        "/api/availability/default",
+        json={"slots": [{"day_of_week": 0, "sport": "gym"}]},
+    )
+
+    resp = await client.post("/api/availability/default", json={"slots": []})
+    assert resp.status_code == 201
+    assert resp.json() == []
+
+    get_resp = await client.get("/api/availability/default")
+    assert get_resp.json() == []

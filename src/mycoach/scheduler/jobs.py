@@ -18,12 +18,13 @@ from functools import partial
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
-from mycoach.coaching.exceptions import PipelineSkip
+from mycoach.coaching.exceptions import NoAvailabilityConfigured, PipelineSkip
 from mycoach.config import get_settings
 from mycoach.database import async_session
 from mycoach.email.sender import (
     EmailSendError,
     send_daily_briefing,
+    send_no_availability,
     send_post_workout,
     send_weekly_plan,
     send_weekly_recap,
@@ -254,7 +255,18 @@ async def _weekly_plan() -> None:
     next_monday = today + timedelta(days=days_until_monday)
 
     async with async_session() as session:
-        plan = await engine.generate_weekly_plan(session, USER_ID, next_monday)
+        try:
+            plan = await engine.generate_weekly_plan(session, USER_ID, next_monday)
+        except NoAvailabilityConfigured:
+            # Caught here, before it propagates to _record_run, so the "we
+            # couldn't plan your week" email can still go out — the skip is
+            # re-raised afterwards so the run is recorded as skipped as usual.
+            if await _get_user_email_pref("email_weekly_plan"):
+                _deliver(
+                    partial(send_no_availability, week_start=str(next_monday)),
+                    "no-availability",
+                )
+            raise
         logger.info("Scheduler: weekly plan generated for %s", next_monday)
 
         if await _get_user_email_pref("email_weekly_plan"):
@@ -281,6 +293,7 @@ async def _weekly_plan() -> None:
                     summary=plan.summary or "",
                     sessions=session_dicts,
                     week_start=str(next_monday),
+                    availability_source=plan.availability_source,
                 ),
                 "weekly plan",
             )

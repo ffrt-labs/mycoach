@@ -13,6 +13,11 @@
     {% if summary %}
     <div class="lead" style="margin-top:14px;">{{ summary }}</div>
     {% endif %}
+    {% if availability_source == 'default' %}
+    <div class="coach" style="margin-top:16px;padding:12px 14px;">
+      <div class="coach-t">Planned against your standing schedule — you didn't set this week, so it was filled in from your default. <a href="{{ default_schedule_url|default('#') }}">Change it here</a> if that's wrong.</div>
+    </div>
+    {% endif %}
   </td>
 </tr>
 

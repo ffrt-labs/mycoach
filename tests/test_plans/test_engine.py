@@ -8,9 +8,9 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
-from mycoach.coaching.exceptions import PipelineSkip
+from mycoach.coaching.exceptions import NoAvailabilityConfigured, PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
-from mycoach.models.availability import WeeklyAvailability
+from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.plan import PlannedSession
 from mycoach.models.prompt_log import PromptLog
 from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
@@ -277,6 +277,7 @@ class TestGenerateWeeklyPlan:
                 await engine.generate_weekly_plan(session, user_id, week_start)
 
     async def test_no_availability_raises(self) -> None:
+        """No declared rows and no standing default raises the distinct skip subtype."""
         async with test_session() as session:
             user = User(email="test@example.com", name="Test", fitness_level="beginner")
             session.add(user)
@@ -286,8 +287,100 @@ class TestGenerateWeeklyPlan:
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
 
-            with pytest.raises(PipelineSkip, match="No availability"):
+            with pytest.raises(NoAvailabilityConfigured, match="No availability"):
                 await engine.generate_weekly_plan(session, user.id, date(2024, 6, 10))
+
+            result = await session.execute(
+                select(WeeklyAvailability).where(WeeklyAvailability.user_id == user.id)
+            )
+            assert result.scalars().first() is None
+
+    async def test_declared_week_is_not_materialized_from_default(self) -> None:
+        """A week with declared rows is planned as-is; nothing is written to defaults."""
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+            session.add(DefaultAvailability(user_id=user_id, day_of_week=1, sport="gym"))
+            await session.commit()
+
+            mock_llm = _mock_llm_client()
+            engine = CoachingEngine(llm_client=mock_llm)
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            assert plan.availability_source == "declared"
+
+            result = await session.execute(
+                select(WeeklyAvailability).where(WeeklyAvailability.user_id == user_id)
+            )
+            days = sorted(s.day_of_week for s in result.scalars().all())
+            # Only the two originally declared slots — no top-up from the default.
+            assert days == [0, 3]
+
+    async def test_empty_week_materializes_from_default(self) -> None:
+        """An empty week with a populated default gets the default's rows copied in."""
+        async with test_session() as session:
+            user = User(email="test@example.com", name="Test", fitness_level="beginner")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            default_slots = [
+                DefaultAvailability(user_id=user.id, day_of_week=0, sport="gym"),
+                DefaultAvailability(user_id=user.id, day_of_week=1, sport="swimming"),
+                DefaultAvailability(user_id=user.id, day_of_week=6, sport="running"),
+            ]
+            for slot in default_slots:
+                session.add(slot)
+            await session.commit()
+
+            week_start = date(2024, 6, 10)
+            mock_llm = _mock_llm_client()
+            engine = CoachingEngine(llm_client=mock_llm)
+            plan = await engine.generate_weekly_plan(session, user.id, week_start)
+
+            assert plan.availability_source == "default"
+
+            result = await session.execute(
+                select(WeeklyAvailability)
+                .where(
+                    WeeklyAvailability.user_id == user.id,
+                    WeeklyAvailability.week_start == week_start,
+                )
+                .order_by(WeeklyAvailability.day_of_week)
+            )
+            rows = result.scalars().all()
+            assert [(r.day_of_week, r.sport) for r in rows] == [
+                (0, "gym"),
+                (1, "swimming"),
+                (6, "running"),
+            ]
+
+    async def test_materializing_does_not_disturb_adjacent_week(self) -> None:
+        """Materializing one week leaves an adjacent week's declared rows untouched."""
+        async with test_session() as session:
+            user_id, declared_week = await _setup_user_and_availability(session)
+            session.add(
+                DefaultAvailability(user_id=user_id, day_of_week=2, sport="padel")
+            )
+            await session.commit()
+
+            other_week = date(2024, 6, 17)  # the following Monday, undeclared
+            mock_llm = _mock_llm_client()
+            engine = CoachingEngine(llm_client=mock_llm)
+            await engine.generate_weekly_plan(session, user_id, other_week)
+
+            result = await session.execute(
+                select(WeeklyAvailability)
+                .where(
+                    WeeklyAvailability.user_id == user_id,
+                    WeeklyAvailability.week_start == declared_week,
+                )
+                .order_by(WeeklyAvailability.day_of_week)
+            )
+            rows = result.scalars().all()
+            assert [(r.day_of_week, r.sport) for r in rows] == [
+                (0, "running"),
+                (3, "swimming"),
+            ]
 
     async def test_non_monday_raises(self) -> None:
         async with test_session() as session:

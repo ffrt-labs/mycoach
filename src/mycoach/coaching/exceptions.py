@@ -11,3 +11,12 @@ class PipelineSkip(Exception):  # noqa: N818 - a skip is deliberately not an err
     LLM response, whose ``json.JSONDecodeError`` is a ``ValueError`` subtype)
     from being mistaken for a routine skip.
     """
+
+
+class NoAvailabilityConfigured(PipelineSkip):
+    """Raised when a week has no declared availability and no standing default.
+
+    Distinguished from a plain ``PipelineSkip`` so callers can react to it
+    specifically (e.g. sending a "we couldn't plan your week" email) without
+    parsing the skip message.
+    """

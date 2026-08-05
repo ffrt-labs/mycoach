@@ -1,5 +1,5 @@
 from mycoach.models.activity import Activity, GymWorkoutDetail
-from mycoach.models.availability import WeeklyAvailability
+from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, MesocycleConfig
 from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.health import DailyHealthSnapshot
@@ -15,6 +15,7 @@ __all__ = [
     "CoachingInsight",
     "DailyHealthSnapshot",
     "DataSourceConfig",
+    "DefaultAvailability",
     "GymWorkoutDetail",
     "JobRun",
     "MesocycleConfig",

@@ -15,3 +15,14 @@ class WeeklyAvailability(Base):
     day_of_week: Mapped[int]  # 0=Monday, 6=Sunday
     # sport: one of gym/swimming/running/padel; nullable for backward compat
     sport: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+
+class DefaultAvailability(Base):
+    """The user's standing weekly schedule, used to seed a week with no declared rows."""
+
+    __tablename__ = "default_availability"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    day_of_week: Mapped[int]  # 0=Monday, 6=Sunday
+    sport: Mapped[str | None] = mapped_column(String(50), nullable=True)

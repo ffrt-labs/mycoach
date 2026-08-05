@@ -12,6 +12,7 @@ from mycoach.email.sender import (
     _render_template,
     send_daily_briefing,
     send_email,
+    send_no_availability,
     send_post_workout,
     send_weekly_plan,
     send_weekly_recap,
@@ -325,6 +326,64 @@ def test_send_weekly_plan_calls_send_email(mock_send: MagicMock) -> None:
     )
     assert result is True
     mock_send.assert_called_once()
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_plan_includes_default_line_when_planned_from_default(
+    mock_send: MagicMock,
+) -> None:
+    """The 'planned from your standing schedule' line shows when availability_source is default."""
+    settings = _make_settings()
+    send_weekly_plan(
+        summary="Good week",
+        sessions=[],
+        week_start="2025-03-03",
+        availability_source="default",
+        settings=settings,
+    )
+    html = mock_send.call_args[0][2]
+    assert "standing schedule" in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_plan_omits_default_line_when_declared(mock_send: MagicMock) -> None:
+    """The default-schedule line is omitted when the week was declared by the user."""
+    settings = _make_settings()
+    send_weekly_plan(
+        summary="Good week",
+        sessions=[],
+        week_start="2025-03-03",
+        availability_source="declared",
+        settings=settings,
+    )
+    html = mock_send.call_args[0][2]
+    assert "standing schedule" not in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_weekly_plan_omits_default_line_when_source_unknown(mock_send: MagicMock) -> None:
+    """Plans generated before availability_source existed (None) don't show the line."""
+    settings = _make_settings()
+    send_weekly_plan(
+        summary="Good week", sessions=[], week_start="2025-03-03", settings=settings
+    )
+    html = mock_send.call_args[0][2]
+    assert "standing schedule" not in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_no_availability_names_the_week_and_links_default_schedule(
+    mock_send: MagicMock,
+) -> None:
+    """The no-availability email names the week and links straight to the default tab."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    result = send_no_availability(week_start="2025-03-03", settings=settings)
+    assert result is True
+    html = mock_send.call_args[0][2]
+    subject = mock_send.call_args[0][1]
+    assert "No Plan Generated" in subject
+    assert "2025-03-03" in html
+    assert "https://coach.example.com/availability?week=default" in html
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)

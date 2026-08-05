@@ -135,6 +135,11 @@ def _dashboard_url(settings: Settings) -> str:
     return f"{settings.app_base_url}/dashboard"
 
 
+def _default_schedule_url(settings: Settings) -> str:
+    """Build the link straight to the standing-schedule tab of the availability page."""
+    return f"{settings.app_base_url}/availability?week=default"
+
+
 def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> None:
     """Send email using Resend API.
 
@@ -227,9 +232,16 @@ def send_weekly_plan(
     summary: str,
     sessions: list[dict],
     week_start: str,
+    availability_source: str | None = None,
     settings: Settings | None = None,  # type: ignore[type-arg]
 ) -> bool:
-    """Send the weekly training plan email."""
+    """Send the weekly training plan email.
+
+    ``availability_source`` is ``"declared"`` or ``"default"`` (or None for plans
+    generated before the standing-schedule feature existed). When ``"default"``,
+    the email tells the reader the week was planned against their default
+    schedule rather than something they set.
+    """
     if settings is None:
         settings = get_settings()
     display_sessions = [
@@ -241,10 +253,26 @@ def send_weekly_plan(
             "summary": summary,
             "sessions": display_sessions,
             "week_start": week_start,
+            "availability_source": availability_source,
             "dashboard_url": _dashboard_url(settings),
+            "default_schedule_url": _default_schedule_url(settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Plan", html, settings)
+
+
+def send_no_availability(week_start: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]
+    """Send the "no plan generated" email for a week with no declared or default availability."""
+    if settings is None:
+        settings = get_settings()
+    html = _render_template(
+        "no_availability.html",
+        {
+            "week_start": week_start,
+            "default_schedule_url": _default_schedule_url(settings),
+        },
+    )
+    return send_email(settings.email_to, "MyCoach — No Plan Generated", html, settings)
 
 
 def send_post_workout(content: dict, activity_title: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]

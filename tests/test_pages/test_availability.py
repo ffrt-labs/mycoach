@@ -5,7 +5,9 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
-from mycoach.models.availability import WeeklyAvailability
+import re
+
+from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.user import User
 from tests.conftest import test_session
 
@@ -120,3 +122,101 @@ async def test_availability_page_has_save_button(client: AsyncClient) -> None:
     resp = await client.get("/availability")
     assert resp.status_code == 200
     assert "Save Availability" in resp.text
+
+
+async def test_availability_page_current_week_unchanged_when_empty(client: AsyncClient) -> None:
+    """The current-week tab keeps today's behaviour: no pre-fill from the default."""
+    await _seed_user()
+    async with test_session() as session:
+        session.add(DefaultAvailability(user_id=1, day_of_week=0, sport="gym"))
+        await session.commit()
+
+    resp = await client.get("/availability?week=current")
+    assert resp.status_code == 200
+    day0_cb = re.search(r'name="day_0_enabled"[^>]*', resp.text)
+    assert day0_cb is not None
+    assert "checked" not in day0_cb.group(0)
+    assert "From default" not in resp.text
+
+
+async def test_availability_page_next_week_prefills_from_default(client: AsyncClient) -> None:
+    """An empty next week pre-fills from the default and marks it as such."""
+    await _seed_user()
+    next_mon = _next_monday()
+    async with test_session() as session:
+        session.add(DefaultAvailability(user_id=1, day_of_week=0, sport="gym"))
+        await session.commit()
+
+    resp = await client.get("/availability?week=next")
+    assert resp.status_code == 200
+    html = resp.text
+    day0_cb = re.search(r'name="day_0_enabled"[^>]*', html)
+    assert day0_cb is not None
+    assert "checked" in day0_cb.group(0)
+    assert "From default" in html
+
+    # Purely display — nothing was written for the week.
+    async with test_session() as session:
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(WeeklyAvailability).where(
+                WeeklyAvailability.user_id == 1,
+                WeeklyAvailability.week_start == next_mon,
+            )
+        )
+        assert result.scalars().first() is None
+
+
+async def test_availability_page_next_week_declared_not_marked_as_default(
+    client: AsyncClient,
+) -> None:
+    """A declared next week renders its own rows, not marked as coming from the default."""
+    await _seed_user()
+    next_mon = _next_monday()
+    async with test_session() as session:
+        session.add(DefaultAvailability(user_id=1, day_of_week=0, sport="gym"))
+        session.add(
+            WeeklyAvailability(user_id=1, week_start=next_mon, day_of_week=0, sport="padel")
+        )
+        await session.commit()
+
+    resp = await client.get("/availability?week=next")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "From default" not in html
+    day0_select = re.search(r'name="day_0_sport".*?</select>', html, re.DOTALL)
+    assert day0_select is not None
+    padel_option = re.search(r'<option value="padel"[^>]*>', day0_select.group(0))
+    assert padel_option is not None
+    assert "selected" in padel_option.group(0)
+
+
+async def test_availability_page_default_tab_renders_prefilled(client: AsyncClient) -> None:
+    """The default tab renders the standing schedule, pre-filled from DefaultAvailability."""
+    await _seed_user()
+    async with test_session() as session:
+        session.add(DefaultAvailability(user_id=1, day_of_week=0, sport="gym"))
+        session.add(DefaultAvailability(user_id=1, day_of_week=2, sport=None))
+        await session.commit()
+
+    resp = await client.get("/availability?week=default")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Standing schedule" in html
+    day0_cb = re.search(r'name="day_0_enabled"[^>]*', html)
+    assert day0_cb is not None
+    assert "checked" in day0_cb.group(0)
+    day2_cb = re.search(r'name="day_2_enabled"[^>]*', html)
+    assert day2_cb is not None
+    assert "checked" in day2_cb.group(0)
+    day6_cb = re.search(r'name="day_6_enabled"[^>]*', html)
+    assert day6_cb is not None
+    assert "checked" not in day6_cb.group(0)
+
+
+async def test_availability_page_default_tab_empty_is_valid(client: AsyncClient) -> None:
+    """An empty default is a valid, renderable state."""
+    resp = await client.get("/availability?week=default")
+    assert resp.status_code == 200
+    assert "Standing schedule" in resp.text

@@ -1,11 +1,13 @@
 """Tests for the dashboard page route."""
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
 
+from mycoach.config import get_settings
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -280,3 +282,78 @@ async def test_dashboard_static_files(client: AsyncClient) -> None:
     icon_512_resp = await client.get("/static/icon-512.png")
     assert icon_512_resp.status_code == 200
     assert icon_512_resp.headers["content-type"] == "image/png"
+
+
+async def test_dashboard_never_synced_state(client: AsyncClient) -> None:
+    """With no Garmin data at all, the header shows a sensible never-synced state."""
+    await _seed_user()
+
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "Never synced" in resp.text
+    assert "Synced " not in resp.text  # no "Synced HH:MM" stamp rendered
+
+
+async def test_dashboard_shows_sync_time_in_local_timezone(client: AsyncClient) -> None:
+    """The 'Synced HH:MM' stamp renders in local time, not raw UTC."""
+    await _seed_user()
+    # Pick a UTC hour whose local rendering differs from the raw UTC hour,
+    # so the assertion actually exercises the timezone conversion.
+    utc_sync_time = datetime(2026, 6, 15, 23, 30, 0)
+    local_tz = ZoneInfo(get_settings().timezone)
+    expected_local = utc_sync_time.replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
+    assert expected_local.strftime("%H:%M") != utc_sync_time.strftime("%H:%M")
+
+    async with test_session() as session:
+        snapshot = DailyHealthSnapshot(
+            user_id=1,
+            snapshot_date=date.today(),
+            resting_hr=52,
+            data_source="garmin",
+        )
+        snapshot.created_at = utc_sync_time
+        session.add(snapshot)
+        await session.commit()
+
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert f"Synced {expected_local.strftime('%H:%M')}" in resp.text
+    assert f"Synced {utc_sync_time.strftime('%H:%M')}" not in resp.text
+
+
+async def test_dashboard_sync_stamp_advances_on_no_op_resync(client: AsyncClient) -> None:
+    """Re-syncing identical data still moves the displayed stamp forward.
+
+    Mirrors what the dashboard's Sync button does against already-held data:
+    the row gets UPSERTed with no field changes, but updated_at must still
+    advance so the header time isn't stuck.
+    """
+    await _seed_user()
+    today = date.today()
+
+    async with test_session() as session:
+        snapshot = DailyHealthSnapshot(
+            user_id=1,
+            snapshot_date=today,
+            resting_hr=52,
+            data_source="garmin",
+        )
+        snapshot.created_at = datetime(2026, 1, 1, 5, 0, 0)
+        session.add(snapshot)
+        await session.commit()
+
+    resp = await client.get("/")
+    first_sync_text = resp.text
+
+    async with test_session() as session:
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(DailyHealthSnapshot).where(DailyHealthSnapshot.user_id == 1)
+        )
+        row = result.scalar_one()
+        row.updated_at = datetime(2026, 6, 15, 9, 0, 0)  # simulate a re-sync touch
+        await session.commit()
+
+    resp = await client.get("/")
+    assert resp.text != first_sync_text

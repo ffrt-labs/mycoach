@@ -129,9 +129,13 @@ async def dashboard(
             except (json.JSONDecodeError, TypeError):
                 today_session_details = None
 
-    # Last Garmin sync time
+    # Last Garmin sync time. updated_at is bumped on every successful sync touch
+    # (even ones that change nothing), so it's a truer "last synced" stamp than
+    # created_at, which is only ever set once per row.
     garmin_last_sync = await session.scalar(
-        select(func.max(DailyHealthSnapshot.created_at)).where(
+        select(
+            func.max(func.coalesce(DailyHealthSnapshot.updated_at, DailyHealthSnapshot.created_at))
+        ).where(
             DailyHealthSnapshot.user_id == USER_ID,
             DailyHealthSnapshot.data_source == "garmin",
         )

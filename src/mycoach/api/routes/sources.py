@@ -204,7 +204,9 @@ async def get_sources_status(
 
     # Garmin status: check health snapshots and activities from garmin
     garmin_latest_health = await session.scalar(
-        select(func.max(DailyHealthSnapshot.created_at)).where(
+        select(
+            func.max(func.coalesce(DailyHealthSnapshot.updated_at, DailyHealthSnapshot.created_at))
+        ).where(
             DailyHealthSnapshot.user_id == DEFAULT_USER_ID,
             DailyHealthSnapshot.data_source == "garmin",
         )

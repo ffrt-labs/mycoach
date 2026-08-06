@@ -11,7 +11,9 @@
         </div>
         <div class="flex items-center gap-4">
             {% if garmin_last_sync %}
-            <span class="text-xs font-mono text-zinc-600 hidden sm:inline">Synced {{ garmin_last_sync.strftime('%H:%M') }}</span>
+            <span class="text-xs font-mono text-zinc-600 hidden sm:inline">Synced {{ (garmin_last_sync|localtime).strftime('%H:%M') }}</span>
+            {% else %}
+            <span class="text-xs font-mono text-zinc-600 hidden sm:inline">Never synced</span>
             {% endif %}
             <button id="sync-btn" hx-post="/api/sources/sync/garmin?days=2" hx-swap="none"
                 class="font-semibold text-xs text-zinc-400 hover:text-accent-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed">

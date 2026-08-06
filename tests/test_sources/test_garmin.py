@@ -397,6 +397,39 @@ class TestImportHealthSnapshot:
             assert len(rows) == 2
             assert {row.data_source for row in rows} == {"garmin", "hevy"}
 
+    async def test_updated_at_bumped_even_when_no_field_changes(
+        self, setup_db
+    ) -> None:  # type: ignore[no-untyped-def]
+        """updated_at advances on every successful touch, not just on real changes.
+
+        This is what the dashboard's "last synced" stamp relies on — a re-sync
+        that UPSERTs identical data must still move the stamp.
+        """
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            s1 = map_health_snapshot(
+                user_id=user.id, snapshot_date=date(2024, 6, 10), stats=SAMPLE_STATS
+            )
+            await import_health_snapshot(session, s1)
+            await session.commit()
+
+            result = await session.execute(select(DailyHealthSnapshot))
+            row = result.scalar_one()
+            assert row.updated_at is None
+
+            s2 = map_health_snapshot(
+                user_id=user.id, snapshot_date=date(2024, 6, 10), stats=SAMPLE_STATS
+            )
+            created = await import_health_snapshot(session, s2)
+            await session.commit()
+
+            assert created is False
+            result = await session.execute(select(DailyHealthSnapshot))
+            row = result.scalar_one()
+            assert row.updated_at is not None
+
 
 class TestImportActivities:
     async def test_import_new_activities(self, setup_db) -> None:  # type: ignore[no-untyped-def]

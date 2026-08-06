@@ -66,9 +66,9 @@ class Settings(BaseSettings):
 
     # Scheduler
     scheduler_timezone: str = ""
-    scheduler_sync_hour: int = 6
+    scheduler_sync_hour: int = 8
     scheduler_sync_minute: int = 0
-    scheduler_briefing_hour: int = 9
+    scheduler_briefing_hour: int = 8
     scheduler_briefing_minute: int = 30
     scheduler_post_workout_hour: int = 7
     scheduler_post_workout_minute: int = 0

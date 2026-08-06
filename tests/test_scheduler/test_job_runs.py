@@ -48,6 +48,7 @@ async def test_records_success() -> None:
     assert run.job_name == "daily_briefing"
     assert run.status == "success"
     assert run.error is None
+    assert run.skip_reason is None
     assert run.duration_ms >= 0
     assert run.started_at is not None
 
@@ -65,8 +66,9 @@ async def test_records_skip() -> None:
     assert len(runs) == 1
     assert runs[0].status == "skipped"
     # A skip is not an error, so no detail is persisted in the error column;
-    # the skip reason lives only in the structured log line.
+    # it lives in skip_reason instead.
     assert runs[0].error is None
+    assert runs[0].skip_reason == "Daily briefing already exists"
 
 
 async def test_records_failure_with_error_detail() -> None:
@@ -82,6 +84,7 @@ async def test_records_failure_with_error_detail() -> None:
     assert len(runs) == 1
     assert runs[0].status == "failed"
     assert runs[0].error == "LLM call blew up"
+    assert runs[0].skip_reason is None
 
 
 async def test_failure_is_not_re_raised() -> None:
@@ -257,6 +260,7 @@ async def test_weekly_plan_body_records_skip() -> None:
     assert len(runs) == 1
     assert runs[0].status == "skipped"
     assert runs[0].error is None
+    assert runs[0].skip_reason == "Active plan already exists"
 
 
 async def test_weekly_plan_body_records_failure() -> None:
@@ -379,6 +383,7 @@ async def test_post_workout_body_records_skip_when_nothing_to_analyse() -> None:
     runs = await _job_runs()
     assert len(runs) == 1
     assert runs[0].status == "skipped"
+    assert runs[0].skip_reason == "no new activities to analyse"
     mock_engine.generate_post_workout_analysis.assert_not_awaited()
 
 

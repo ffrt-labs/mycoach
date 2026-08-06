@@ -68,6 +68,10 @@
 
     {# Build the four hero metrics, skipping any with no data #}
     {% set src = health if health else yesterday_health %}
+    {# ysrc prefers yesterday's completed snapshot (falls back to today's if missing) —
+       used only by Steps/Avg Stress, which are same-day cumulative metrics that read
+       misleadingly low if shown before today has finished. #}
+    {% set ysrc = yesterday_health or health %}
     {% set hero = namespace(items=[]) %}
 
     {# Body Battery #}
@@ -106,12 +110,12 @@
     {% set v = src.training_readiness if src.training_readiness is not none else none %}
     {% set av = avg_metrics.training_readiness if (avg_metrics and avg_metrics.training_readiness is defined) else none %}
     {% if v is not none %}{% set sub.items = sub.items + [{'v': v, 'k': 'Readiness', 'sub': av}] %}{% endif %}
-    {% set v = src.steps if src.steps is not none else none %}
+    {% set v = ysrc.steps if ysrc.steps is not none else none %}
     {% set av = avg_metrics.steps if (avg_metrics and avg_metrics.steps is defined) else none %}
-    {% if v is not none %}{% set sub.items = sub.items + [{'v': "{:,}".format(v), 'k': 'Steps', 'sub': ("{:,}".format(av)) if av is not none else none}] %}{% endif %}
-    {% set v = src.avg_stress if src.avg_stress is not none else none %}
+    {% if v is not none %}{% set sub.items = sub.items + [{'v': "{:,}".format(v), 'k': 'Steps (yest.)', 'sub': ("{:,}".format(av)) if av is not none else none}] %}{% endif %}
+    {% set v = ysrc.avg_stress if ysrc.avg_stress is not none else none %}
     {% set av = avg_metrics.avg_stress if (avg_metrics and avg_metrics.avg_stress is defined) else none %}
-    {% if v is not none %}{% set sub.items = sub.items + [{'v': v, 'k': 'Avg Stress', 'sub': av}] %}{% endif %}
+    {% if v is not none %}{% set sub.items = sub.items + [{'v': v, 'k': 'Avg Stress (yest.)', 'sub': av}] %}{% endif %}
 
     {% if sub.items %}
     <div class="flex flex-wrap gap-y-4 mb-11">

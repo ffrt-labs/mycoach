@@ -61,6 +61,104 @@ async def test_dashboard_with_health(client: AsyncClient) -> None:
     assert "8,500" in resp.text  # steps formatted with comma
 
 
+async def test_dashboard_steps_and_stress_use_yesterday(client: AsyncClient) -> None:
+    """Steps and Avg Stress render yesterday's completed values, labelled as yesterday's."""
+    await _seed_user()
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    async with test_session() as session:
+        session.add(
+            DailyHealthSnapshot(
+                user_id=1,
+                snapshot_date=today,
+                resting_hr=52,
+                steps=120,  # today's partial total
+                avg_stress=5,
+                training_readiness=75,
+            )
+        )
+        session.add(
+            DailyHealthSnapshot(
+                user_id=1,
+                snapshot_date=yesterday,
+                steps=9412,  # yesterday's completed total
+                avg_stress=34,
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "9,412" in resp.text  # yesterday's steps, not today's 120
+    assert "120" not in resp.text
+    assert "34" in resp.text  # yesterday's avg stress
+    assert "STEPS" in resp.text.upper()
+    assert "(YEST." in resp.text.upper()  # labelled as yesterday's
+    # Point-in-time tiles stay on today's data, untouched
+    assert "52" in resp.text  # resting HR from today
+    assert "75" in resp.text  # readiness from today
+
+
+async def test_dashboard_steps_and_stress_fallback_when_no_yesterday(client: AsyncClient) -> None:
+    """A missing yesterday snapshot degrades gracefully by falling back to today's."""
+    await _seed_user()
+    async with test_session() as session:
+        session.add(
+            DailyHealthSnapshot(
+                user_id=1,
+                snapshot_date=date.today(),
+                steps=8500,
+                avg_stress=28,
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "8,500" in resp.text
+    assert "28" in resp.text
+
+
+async def test_dashboard_7day_baseline_excludes_today(client: AsyncClient) -> None:
+    """The 7-day comparison window ends before today, excluding today's partial data."""
+    await _seed_user()
+    today = date.today()
+    async with test_session() as session:
+        # Yesterday's total is distinct from the rest of the week so it can't be
+        # mistaken for the main Steps tile (which also renders yesterday's value).
+        session.add(
+            DailyHealthSnapshot(
+                user_id=1,
+                snapshot_date=today - timedelta(days=1),
+                steps=9000,
+            )
+        )
+        for i in range(2, 8):
+            session.add(
+                DailyHealthSnapshot(
+                    user_id=1,
+                    snapshot_date=today - timedelta(days=i),
+                    steps=10500,
+                )
+            )
+        # Today's near-zero partial total should not drag the baseline down
+        session.add(
+            DailyHealthSnapshot(
+                user_id=1,
+                snapshot_date=today,
+                steps=50,
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    # avg over the 7 days before today: (9000 + 6*10500) / 7 = 10,286
+    assert "10,286" in resp.text
+    # if today's 50 steps were still included, the average would be 9,006 instead
+    assert "9,006" not in resp.text
+
+
 async def test_dashboard_with_briefing(client: AsyncClient) -> None:
     """Dashboard shows readiness verdict from daily briefing."""
     await _seed_user()

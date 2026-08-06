@@ -79,7 +79,7 @@ async def dashboard(
         select(DailyHealthSnapshot).where(
             DailyHealthSnapshot.user_id == USER_ID,
             DailyHealthSnapshot.snapshot_date >= week_ago,
-            DailyHealthSnapshot.snapshot_date <= today,
+            DailyHealthSnapshot.snapshot_date < today,
         ).order_by(DailyHealthSnapshot.snapshot_date)
     )
     week_snapshots = list(week_result.scalars().all())

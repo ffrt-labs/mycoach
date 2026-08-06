@@ -115,10 +115,11 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
 
     Writes one append-only ``JobRun`` row — job identifier, start time,
     duration, status (``success`` / ``skipped`` / ``failed``), error detail on
-    failure, and whether an email was delivered — and emits a structured log
-    line carrying the same facts. A ``PipelineSkip`` is a deliberate no-op
-    (``skipped``); every other exception is a real failure (``failed``).
-    Exceptions never propagate out to the scheduler.
+    failure, skip reason on skip, and whether an email was delivered — and
+    emits a structured log line carrying the same facts except the skip
+    reason, which the log line already carries inline. A ``PipelineSkip`` is a
+    deliberate no-op (``skipped``); every other exception is a real failure
+    (``failed``). Exceptions never propagate out to the scheduler.
 
     Delivery is read off the run's ``_Delivery`` tally rather than the body's
     return value, so it is recorded however the body exited — including a batch
@@ -145,8 +146,9 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
     duration_ms = int((time.perf_counter() - start) * 1000)
 
     # The row's error column is failure detail only, per the spec; a skip's
-    # reason is not an error and lives only in the log line below.
+    # reason is persisted separately in skip_reason instead.
     error = detail if status == "failed" else None
+    skip_reason = detail if status == "skipped" else None
 
     async with async_session() as session:
         session.add(
@@ -156,6 +158,7 @@ async def _record_run(job_name: str, coro) -> None:  # type: ignore[no-untyped-d
                 duration_ms=duration_ms,
                 status=status,
                 error=error,
+                skip_reason=skip_reason,
                 email_delivered=delivery.delivered,
             )
         )

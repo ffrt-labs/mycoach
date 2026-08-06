@@ -391,6 +391,9 @@ async def import_health_snapshot(session: AsyncSession, snapshot: DailyHealthSna
         new_val = getattr(snapshot, field)
         if new_val is not None:
             setattr(existing, field, new_val)
+    # Touched by a successful sync regardless of whether any field above actually
+    # changed — this is what the dashboard's "last synced" stamp reads from.
+    existing.updated_at = datetime.utcnow()
     logger.debug("Updated snapshot for %s with fresh data", snapshot.snapshot_date)
     return False
 

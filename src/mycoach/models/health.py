@@ -66,3 +66,6 @@ class DailyHealthSnapshot(Base):
 
     data_source: Mapped[str] = mapped_column(String(50), default="garmin")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    # Bumped on every sync touch, including ones that leave every field unchanged —
+    # this is what "last synced" is measured from, not created_at.
+    updated_at: Mapped[datetime | None] = mapped_column(default=None)

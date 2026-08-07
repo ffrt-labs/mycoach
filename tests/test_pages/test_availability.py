@@ -168,6 +168,31 @@ async def test_availability_page_next_week_prefills_from_default(client: AsyncCl
         assert result.scalars().first() is None
 
 
+async def test_availability_page_next_week_prefills_rest_day_as_unchecked(
+    client: AsyncClient,
+) -> None:
+    """A default rest day (explicit sport=None row) pre-fills as unchecked.
+
+    Rendering it checked would leave the sport dropdown with nothing selected,
+    which the browser defaults to "gym" — silently turning a declared rest day
+    into a training day the moment the pre-filled week gets saved.
+    """
+    await _seed_user()
+    async with test_session() as session:
+        session.add(DefaultAvailability(user_id=1, day_of_week=0, sport="gym"))
+        session.add(DefaultAvailability(user_id=1, day_of_week=1, sport=None))
+        await session.commit()
+
+    resp = await client.get("/availability?week=next")
+    assert resp.status_code == 200
+    html = resp.text
+    day1_cb = re.search(r'name="day_1_enabled"[^>]*', html)
+    assert day1_cb is not None
+    assert "checked" not in day1_cb.group(0)
+    # Still marked as coming from the default, even though it's unchecked.
+    assert "From default" in html
+
+
 async def test_availability_page_next_week_declared_not_marked_as_default(
     client: AsyncClient,
 ) -> None:

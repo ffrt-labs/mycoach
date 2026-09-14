@@ -101,6 +101,86 @@ class TestGetPlanAdherenceForWeek:
             assert sessions_by_sport["gym"]["completed"] is True
             assert sessions_by_sport["swimming"]["completed"] is False
 
+    async def test_shifted_day_still_counts(self) -> None:
+        """A gym session planned Tuesday but lifted Wednesday must still count as done."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+                prompt_version="v1",
+            )
+            session.add(plan)
+            await session.flush()
+
+            # Planned for Tuesday (day_of_week=1)
+            s1 = PlannedSession(
+                plan_id=plan.id, day_of_week=1, sport="gym", title="Push", completed=False
+            )
+            session.add(s1)
+
+            # Actually lifted Wednesday (day_of_week=2)
+            a1 = Activity(
+                user_id=user_id,
+                title="Gym Session",
+                sport="gym",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="hevy",
+            )
+            session.add(a1)
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, week_start)
+            assert result is not None
+            assert result["completed_sessions"] == 1
+            assert result["adherence_pct"] == 100.0
+
+    async def test_greedy_one_activity_per_session(self) -> None:
+        """One activity consumes exactly one planned session of that sport."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+                prompt_version="v1",
+            )
+            session.add(plan)
+            await session.flush()
+
+            # Two planned gym sessions...
+            s1 = PlannedSession(
+                plan_id=plan.id, day_of_week=1, sport="gym", title="Push", completed=False
+            )
+            s2 = PlannedSession(
+                plan_id=plan.id, day_of_week=3, sport="gym", title="Pull", completed=False
+            )
+            session.add_all([s1, s2])
+
+            # ...but only one gym activity happened
+            a1 = Activity(
+                user_id=user_id,
+                title="Gym Session",
+                sport="gym",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="hevy",
+            )
+            session.add(a1)
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, week_start)
+            assert result is not None
+            assert result["total_sessions"] == 2
+            assert result["completed_sessions"] == 1
+            assert result["adherence_pct"] == 50.0
+
     async def test_no_plan_returns_none(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)

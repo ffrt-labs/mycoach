@@ -1,7 +1,7 @@
 /* MyCoach Logger — offline-first gym logger.
  *
  * Sessions are logged fully offline and queued in IndexedDB. When MyCoach is
- * reachable on the LAN, unsynced sessions are pushed to the universal import
+ * reachable over Tailscale, unsynced sessions are pushed to the universal import
  * endpoint. A session is editable until it syncs, then read-only.
  */
 (function () {
@@ -13,7 +13,7 @@
     var API_ROUTINES = "/api/logger/routines";
     var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
-    var API_TIMEOUT_MS = 5000;
+    var API_TIMEOUT_MS = 30000;
 
     // ── Tiny DOM helper ─────────────────────────────────────────────
     function el(tag, props, children) {
@@ -137,10 +137,9 @@
     }
 
     // ── Helpers ─────────────────────────────────────────────────────
-    /* Shared fetch for all /api/* calls. Off-LAN, the domain resolves to a
-       private address the mobile network can't route to, so the connection
-       hangs instead of rejecting — an abort-based timeout turns that hang
-       into a prompt, catchable failure. */
+    /* Shared fetch for all /api/* calls. Tailscale makes MyCoach reachable
+       away from home, but a request can still hang in a dead zone. Abort it
+       after 30 seconds; callers keep the session queued and retry later. */
     function apiFetch(url, options) {
         var controller = new AbortController();
         var timer = setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS);
@@ -1080,7 +1079,7 @@
         // A swipe-away kill does not always fire visibilitychange first.
         window.addEventListener("pagehide", function () { flushPersist(); });
         document.addEventListener("visibilitychange", function () {
-            // Walking back into LAN range and reopening the tab should retry
+            // Restoring connectivity and reopening the tab should retry
             // without waiting for the next manual sync press.
             if (document.visibilityState !== "visible") { flushPersist(); return; }
             syncNow(false);

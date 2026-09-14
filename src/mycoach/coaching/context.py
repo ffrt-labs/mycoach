@@ -1,6 +1,7 @@
 """Database queries that gather context data for prompt building."""
 
 import logging
+from collections import Counter
 from datetime import date, timedelta
 from typing import Any
 
@@ -181,29 +182,35 @@ async def get_plan_adherence_for_week(
     activities_result = await session.execute(activities_stmt)
     activities = activities_result.scalars().all()
 
-    done_set: set[tuple[int, str]] = set()
-    for act in activities:
-        from datetime import datetime as dt
-
-        act_dt = (
-            dt.fromisoformat(act.start_time) if isinstance(act.start_time, str) else act.start_time
-        )
-        done_set.add((act_dt.date().weekday(), act.sport))
-
-    total = len(sessions)
-    completed = sum(1 for s in sessions if s.completed or (s.day_of_week, s.sport) in done_set)
-    adherence_pct = round(completed / total * 100, 1) if total > 0 else 0.0
+    # Match actuals to plan by sport within the week, not by day: a session shifted
+    # to another day was still done. Greedily, one activity consumes one planned
+    # session of that sport, so extra activities never inflate adherence past the plan.
+    sport_budget: Counter[str] = Counter(act.sport for act in activities)
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    session_list = [
-        {
-            "day": day_names[s.day_of_week],
-            "sport": s.sport,
-            "title": s.title,
-            "completed": s.completed or (s.day_of_week, s.sport) in done_set,
-        }
-        for s in sessions
-    ]
+    session_list = []
+    completed = 0
+    for s in sessions:
+        is_done = s.completed
+        if sport_budget[s.sport] > 0:
+            # An actual activity covers this session, whether or not post_workout
+            # already flagged it. Consume the budget either way so it can't also
+            # complete a second planned session of the same sport.
+            sport_budget[s.sport] -= 1
+            is_done = True
+        if is_done:
+            completed += 1
+        session_list.append(
+            {
+                "day": day_names[s.day_of_week],
+                "sport": s.sport,
+                "title": s.title,
+                "completed": is_done,
+            }
+        )
+
+    total = len(sessions)
+    adherence_pct = round(completed / total * 100, 1) if total > 0 else 0.0
 
     return {
         "plan_summary": plan.summary,

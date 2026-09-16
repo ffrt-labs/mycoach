@@ -37,6 +37,12 @@ class WorkoutImport:
     ``external_id`` is a source-native stable id (e.g. the logger's client UUID)
     used for robust deduplication. When absent, dedup falls back to
     ``(title, start_time)``.
+
+    ``planned_session_id`` is the prescription this workout answers, stamped by
+    the logger when the session is started from the week's plan. Null for every
+    source that has no plan to start from (Garmin, Hevy CSV) and for an ad-hoc
+    session. A non-null value that no longer resolves is tolerated, not fatal —
+    see ``plan_linking.claim_planned_session``.
     """
 
     title: str
@@ -45,4 +51,5 @@ class WorkoutImport:
     sport: str = "gym"
     end_time: datetime | None = None
     notes: str | None = None
+    planned_session_id: int | None = None
     sets: list[WorkoutSetImport] = field(default_factory=list)

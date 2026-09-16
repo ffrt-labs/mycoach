@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.exercise_catalogue import exercise_id_for_name
 from mycoach.models.activity import Activity, GymWorkoutDetail
+from mycoach.plan_linking import claim_planned_session
 from mycoach.sources.base import ImportResult
 from mycoach.sources.workout_import import WorkoutImport
 
@@ -64,6 +65,10 @@ async def import_workouts(
     GymWorkoutDetail records tagged with ``source`` as their data_source.
     Does not commit — the caller commits (typically after auto-merge).
 
+    A workout carrying a ``planned_session_id`` is linked to that prescription,
+    which is marked completed. Deduplicated workouts are not re-linked: the
+    first import already did it, so a re-post stays a no-op.
+
     Args:
         session: Active database session.
         user_id: The user to import data for.
@@ -94,6 +99,15 @@ async def import_workouts(
         )
         session.add(activity)
         await session.flush()  # get activity.id
+
+        if workout.planned_session_id is not None:
+            # The log is the precious thing; the link is bookkeeping. A claim
+            # that cannot be honoured is reported and the workout still lands.
+            declined = await claim_planned_session(
+                session, user_id, activity.id, workout.planned_session_id
+            )
+            if declined:
+                result.errors = (result.errors or []) + [declined]
 
         for s in workout.sets:
             session.add(

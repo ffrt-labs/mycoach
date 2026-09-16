@@ -8,6 +8,7 @@ const {
     topSetForExercise,
     resolveExerciseChoice,
     sessionExerciseFromRoutine,
+    outstandingSessions,
 } = require("./app.js");
 
 test("resolveExerciseChoice turns a cached catalogue name into its stable id", () => {
@@ -170,4 +171,73 @@ test("topSetForExercise treats a bodyweight exercise's first working set as top"
         ],
     };
     assert.equal(topSetForExercise(ex), ex.sets[0]);
+});
+
+/* The union rule (#69): a prescription is outstanding unless the server says
+   it is done or this phone already holds a session answering it. Cancelling a
+   session deletes it locally, so the prescription correctly reappears. */
+test("outstandingSessions keeps a prescription nothing has answered", () => {
+    const week = [{ id: 1, title: "Push", done: false }];
+
+    assert.deepEqual(outstandingSessions(week, []), week);
+});
+
+test("outstandingSessions drops a prescription the server has marked done", () => {
+    const week = [{ id: 1, title: "Push", done: true }];
+
+    assert.deepEqual(outstandingSessions(week, []), []);
+});
+
+test("outstandingSessions drops a prescription a local session already answers", () => {
+    const week = [{ id: 1, title: "Push", done: false }];
+    const local = [{ id: "uuid-a", planned_session_id: 1 }];
+
+    assert.deepEqual(outstandingSessions(week, local), []);
+});
+
+test("outstandingSessions counts an unsynced local session as consumed", () => {
+    // The stale `done` flag is the fallback, not the answer: a session lifted
+    // in a basement is consumed long before the server hears about it.
+    const week = [{ id: 1, title: "Push", done: false }];
+    const local = [{ id: "uuid-a", planned_session_id: 1, synced: false }];
+
+    assert.deepEqual(outstandingSessions(week, local), []);
+});
+
+test("outstandingSessions keeps a routine-built session, which has no id to consume", () => {
+    const week = [{ id: null, title: "Pull", done: false }];
+    const local = [{ id: "uuid-a", planned_session_id: null }];
+
+    assert.deepEqual(outstandingSessions(week, local), week);
+});
+
+test("outstandingSessions leaves non-gym sessions in — filtering is the caller's job", () => {
+    const week = [{ id: 2, title: "Easy Run", done: false, loggable: false }];
+
+    assert.deepEqual(outstandingSessions(week, []), week);
+});
+
+test("toPayload forwards the prescription id the session answers", () => {
+    const payload = toPayload({
+        id: "uuid-a",
+        title: "Push",
+        start_time: "2024-06-10T09:00:00",
+        end_time: "2024-06-10T10:00:00",
+        planned_session_id: 7,
+        exercises: [],
+    });
+
+    assert.equal(payload.planned_session_id, 7);
+});
+
+test("toPayload sends a null prescription id for an unprescribed session", () => {
+    const payload = toPayload({
+        id: "uuid-b",
+        title: "Push",
+        start_time: "2024-06-10T09:00:00",
+        end_time: null,
+        exercises: [],
+    });
+
+    assert.equal(payload.planned_session_id, null);
 });

@@ -1,11 +1,13 @@
 """Tests for the generic canonical-workout importer."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.models.activity import Activity, GymWorkoutDetail
+from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from mycoach.sources.importer import import_workouts
 from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
@@ -164,3 +166,145 @@ class TestImportWorkouts:
 
         assert result.activities_created == 0
         assert result.activities_skipped == 1
+
+
+class TestPrescriptionLinking:
+    """A logged session says which prescription it answers (#69).
+
+    The link rides on ``PlannedSession.activity_id`` — there is no forward
+    column on ``activities``. A prescription id that no longer resolves is
+    expected rather than exceptional (the plan may have been regenerated or
+    superseded while the session sat unsynced), so it never costs the log.
+    """
+
+    async def _plan(self, session: AsyncSession, user_id: int) -> WeeklyPlan:
+        plan = WeeklyPlan(
+            user_id=user_id, week_start=date(2024, 6, 10), status="active", summary="Test"
+        )
+        session.add(plan)
+        await session.flush()
+        return plan
+
+    @pytest.mark.asyncio
+    async def test_links_and_completes_the_prescription(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            plan = await self._plan(session, user.id)
+            planned = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="Push", track="gym"
+            )
+            session.add(planned)
+            await session.flush()
+            planned_id = planned.id
+
+            workout = _workout("uuid-link")
+            workout.planned_session_id = planned_id
+            result = await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert not result.errors
+
+        async with test_session() as session:
+            act = (await session.execute(select(Activity))).scalar_one()
+            refreshed = (
+                await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
+            ).scalar_one()
+            assert refreshed.completed is True
+            assert refreshed.activity_id == act.id
+
+    @pytest.mark.asyncio
+    async def test_unknown_prescription_still_imports_the_log(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            workout = _workout("uuid-stale")
+            workout.planned_session_id = 4242
+            result = await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert result.errors is not None
+        assert "4242" in result.errors[0]
+
+        async with test_session() as session:
+            details = (await session.execute(select(GymWorkoutDetail))).scalars().all()
+            assert len(details) == 2
+
+    @pytest.mark.asyncio
+    async def test_another_users_prescription_is_not_linked(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            other = User(id=2, name="Other", email="other@example.com")
+            session.add(other)
+            await session.flush()
+            plan = await self._plan(session, other.id)
+            planned = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="Push", track="gym"
+            )
+            session.add(planned)
+            await session.flush()
+            planned_id = planned.id
+
+            workout = _workout("uuid-foreign")
+            workout.planned_session_id = planned_id
+            result = await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert result.errors
+
+        async with test_session() as session:
+            refreshed = (
+                await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
+            ).scalar_one()
+            assert refreshed.completed is False
+            assert refreshed.activity_id is None
+
+    @pytest.mark.asyncio
+    async def test_a_claimed_prescription_is_left_alone(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            plan = await self._plan(session, user.id)
+            planned = PlannedSession(
+                plan_id=plan.id,
+                day_of_week=0,
+                sport="gym",
+                title="Push",
+                track="gym",
+                activity_id=999,
+                completed=True,
+            )
+            session.add(planned)
+            await session.flush()
+            planned_id = planned.id
+
+            workout = _workout("uuid-claimed")
+            workout.planned_session_id = planned_id
+            result = await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert result.errors
+
+        async with test_session() as session:
+            refreshed = (
+                await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
+            ).scalar_one()
+            assert refreshed.activity_id == 999
+
+    @pytest.mark.asyncio
+    async def test_no_prescription_is_the_silent_case(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            result = await import_workouts(
+                session, user.id, [_workout("uuid-none")], source="logger"
+            )
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert not result.errors

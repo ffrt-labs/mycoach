@@ -28,7 +28,6 @@ from mycoach.coaching.context import (
     get_sport_profiles,
     get_today_health,
     get_today_planned_sessions,
-    link_activity_to_planned_session,
 )
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
@@ -58,6 +57,7 @@ from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
+from mycoach.plan_linking import link_activity_to_planned_session
 
 logger = logging.getLogger(__name__)
 

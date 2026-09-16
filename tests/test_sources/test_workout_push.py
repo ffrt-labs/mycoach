@@ -177,3 +177,63 @@ class TestLoggerExercises:
         ids = [exercise["id"] for exercise in exercises]
         assert names == sorted(names, key=str.casefold)
         assert len(ids) == len(set(ids))
+
+
+class TestPushPrescriptionLink:
+    """The wire field the logger stamps, end to end (#69)."""
+
+    async def _prescription(self, user_id: int) -> int:
+        from datetime import date
+
+        from mycoach.models.plan import PlannedSession, WeeklyPlan
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            plan = WeeklyPlan(
+                user_id=user_id, week_start=date(2024, 6, 10), status="active", summary="Test"
+            )
+            session.add(plan)
+            await session.flush()
+            planned = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="Push", track="gym"
+            )
+            session.add(planned)
+            await session.commit()
+            return planned.id
+
+    @pytest.mark.asyncio
+    async def test_posted_id_completes_the_prescription(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
+        from sqlalchemy import select
+
+        from mycoach.models.plan import PlannedSession
+        from tests.conftest import test_session
+
+        planned_id = await self._prescription(user.id)
+        batch = _batch()
+        batch["workouts"][0]["planned_session_id"] = planned_id
+
+        resp = await client.post(
+            "/api/sources/import/workouts", json=batch, headers={"X-API-Key": TOKEN}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["errors"] == []
+
+        async with test_session() as session:
+            planned = (
+                await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
+            ).scalar_one()
+            assert planned.completed is True
+            assert planned.activity_id is not None
+
+    @pytest.mark.asyncio
+    async def test_stale_id_reports_but_still_stores_the_workout(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
+        batch = _batch()
+        batch["workouts"][0]["planned_session_id"] = 4242
+
+        resp = await client.post(
+            "/api/sources/import/workouts", json=batch, headers={"X-API-Key": TOKEN}
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["activities_created"] == 1
+        assert body["errors"]

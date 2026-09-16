@@ -208,6 +208,35 @@
        established null-handling path for Hevy history / manual entry). */
     var RIR_TO_RPE = { "0": 10, "1": 9, "2": 8, "3+": null };
 
+    /* Which of the week's prescriptions are still owed.
+
+       The server's `done` flag is a fallback, not the answer: it is whatever
+       MyCoach knew at the last successful pull, and a session lifted in a
+       basement is consumed long before the server hears about it. So the
+       local sessions are unioned in — any session carrying a prescription's
+       id consumes it.
+
+       Consumption is *derived* from the stored sessions rather than kept as a
+       separate list, and that is what makes cancelling work: cancelling
+       deletes the session outright (it is never synced, because a cancelled
+       session is not data), so the prescription correctly reappears as owed.
+       A separate list would need a second code path to rewind, and would
+       quietly rot when it didn't.
+
+       Sessions rebuilt from the routine have `id: null` — there is no
+       prescription to consume, so they always stay. Non-gym sessions stay too:
+       what to *render* is the caller's decision. */
+    function outstandingSessions(weekSessions, localSessions) {
+        var consumed = {};
+        (localSessions || []).forEach(function (s) {
+            if (s.planned_session_id != null) consumed[s.planned_session_id] = true;
+        });
+        return (weekSessions || []).filter(function (ps) {
+            if (ps.id == null) return true;
+            return !ps.done && !consumed[ps.id];
+        });
+    }
+
     /* Flatten a stored session to the canonical WorkoutImport payload. */
     function toPayload(s) {
         var sets = [];
@@ -235,6 +264,7 @@
             start_time: s.start_time,
             end_time: s.end_time || null,
             notes: s.notes || null,
+            planned_session_id: s.planned_session_id != null ? s.planned_session_id : null,
             sets: sets,
         };
     }
@@ -395,6 +425,7 @@
             start_time: now.toISOString(),
             end_time: null,
             notes: null,
+            planned_session_id: null,  // ad-hoc: answers no prescription
             exercises: [],
             synced: false,
             created_at: now.toISOString(),
@@ -429,6 +460,7 @@
             start_time: now.toISOString(),
             end_time: null,
             notes: null,
+            planned_session_id: null,  // the routine is not a prescription; #71 starts from the week
             exercises: day.exercises.slice().sort(function (a, b) { return a.order_index - b.order_index; }).map(sessionExerciseFromRoutine),
             synced: false,
             created_at: now.toISOString(),
@@ -1108,6 +1140,6 @@
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromRoutine: sessionExerciseFromRoutine };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromRoutine: sessionExerciseFromRoutine, outstandingSessions: outstandingSessions };
     }
 })();

@@ -283,14 +283,56 @@ async def get_activity_with_details(
     return activity_dict, gym_details
 
 
+async def _planned_session_linked_to(
+    session: AsyncSession, activity: dict[str, Any], user_id: int
+) -> dict[str, Any] | None:
+    """The planned session already pointing at this activity, if any."""
+    activity_id = activity.get("id")
+    if activity_id is None:
+        return None
+
+    stmt = (
+        select(PlannedSession)
+        .join(WeeklyPlan, PlannedSession.plan_id == WeeklyPlan.id)
+        .where(PlannedSession.activity_id == activity_id, WeeklyPlan.user_id == user_id)
+    )
+    planned = (await session.execute(stmt)).scalars().first()
+    return _planned_session_to_dict(planned) if planned is not None else None
+
+
+def _planned_session_to_dict(planned: PlannedSession) -> dict[str, Any]:
+    return {
+        "id": planned.id,
+        "title": planned.title,
+        "sport": planned.sport,
+        "day_of_week": planned.day_of_week,
+        "duration_minutes": planned.duration_minutes,
+        "details": planned.details,
+        "notes": planned.notes,
+        "completed": planned.completed,
+    }
+
+
 async def find_matching_planned_session(
     session: AsyncSession, activity: dict[str, Any], user_id: int
 ) -> dict[str, Any] | None:
-    """Find the planned session that matches this activity by date + sport.
+    """Find the planned session this activity answers.
 
-    Looks for an active weekly plan covering the activity date, then finds
-    a session matching the day of week and sport.
+    An explicit link wins. A session logged in ``/logger`` carries the
+    prescription's id on the wire, and ``sources.importer`` has already written
+    it onto ``PlannedSession.activity_id`` by the time post-workout runs — so
+    the plan row itself says which prescription was answered, whatever day the
+    lift actually happened on.
+
+    Only when nothing is linked does this fall back to matching by day of week
+    and sport. That fallback is still the whole story for Garmin and Hevy, which
+    carry no prescription reference and never will; but it is guesswork once the
+    week is unpinned from days, so it never overrides what the athlete stated.
     """
+    linked = await _planned_session_linked_to(session, activity, user_id)
+    if linked is not None:
+        return linked
+
     start_time_str = activity.get("start_time")
     if not start_time_str:
         return None
@@ -331,16 +373,7 @@ async def find_matching_planned_session(
     if planned is None:
         return None
 
-    return {
-        "id": planned.id,
-        "title": planned.title,
-        "sport": planned.sport,
-        "day_of_week": planned.day_of_week,
-        "duration_minutes": planned.duration_minutes,
-        "details": planned.details,
-        "notes": planned.notes,
-        "completed": planned.completed,
-    }
+    return _planned_session_to_dict(planned)
 
 
 async def get_similar_activities(
@@ -359,21 +392,6 @@ async def get_similar_activities(
     )
     result = await session.execute(stmt)
     return [activity_to_dict(a) for a in result.scalars().all()]
-
-
-async def link_activity_to_planned_session(
-    session: AsyncSession,
-    activity_id: int,
-    planned_session_id: int,
-) -> None:
-    """Mark a planned session as completed and link it to the actual activity."""
-    stmt = select(PlannedSession).where(PlannedSession.id == planned_session_id)
-    result = await session.execute(stmt)
-    planned = result.scalar_one_or_none()
-    if planned is not None:
-        planned.completed = True
-        planned.activity_id = activity_id
-        await session.flush()
 
 
 async def get_active_routine(session: AsyncSession, user_id: int) -> dict[str, Any] | None:

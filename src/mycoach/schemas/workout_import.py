@@ -62,6 +62,9 @@ class WorkoutIn(BaseModel):
     sport: str = Field(default="gym", max_length=50)
     end_time: datetime | None = None
     notes: str | None = None
+    # The prescription this session answers. Deliberately unvalidated here: a
+    # stale id must not 422 a real training log (see plan_linking).
+    planned_session_id: int | None = None
     sets: list[WorkoutSetIn] = Field(default_factory=list)
 
     def to_dataclass(self) -> WorkoutImport:
@@ -72,6 +75,7 @@ class WorkoutIn(BaseModel):
             sport=self.sport,
             end_time=self.end_time,
             notes=self.notes,
+            planned_session_id=self.planned_session_id,
             sets=[s.to_dataclass() for s in self.sets],
         )
 

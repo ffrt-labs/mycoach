@@ -462,6 +462,35 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
     return "\n".join(lines) if lines else "No activity data."
 
 
+def _format_weight_reps(d: dict[str, Any]) -> str:
+    """Format a set's performed weight/reps, prefixed with its prescription if one exists.
+
+    A set with no prescribed_weight_kg/prescribed_reps (manual entry, Hevy history)
+    renders as plain performed data — it must read as unprescribed, not as missed.
+    """
+    performed = []
+    weight = d.get("weight_kg")
+    reps = d.get("reps")
+    if weight is not None:
+        performed.append(f"{weight}kg")
+    if reps is not None:
+        performed.append(f"x{reps}")
+    performed_str = " ".join(performed)
+
+    prescribed_weight = d.get("prescribed_weight_kg")
+    prescribed_reps = d.get("prescribed_reps")
+    if prescribed_weight is None and prescribed_reps is None:
+        return performed_str
+
+    prescribed = []
+    if prescribed_weight is not None:
+        prescribed.append(f"{prescribed_weight}kg")
+    if prescribed_reps is not None:
+        prescribed.append(f"x{prescribed_reps}")
+    prescribed_str = " ".join(prescribed)
+    return f"prescribed {prescribed_str}, performed {performed_str or 'nothing'}"
+
+
 def _format_gym_details(details: list[dict[str, Any]]) -> str:
     """Format gym workout details (sets/reps/weight) for prompt."""
     if not details:
@@ -471,16 +500,13 @@ def _format_gym_details(details: list[dict[str, Any]]) -> str:
         lines.append(f"\n**{exercise}**")
         for d in sets:
             set_type = d.get("set_type", "normal")
-            weight = d.get("weight_kg")
-            reps = d.get("reps")
             rpe = d.get("rpe")
             parts = [f"  Set {d.get('set_index', '?')}"]
             if set_type != "normal":
                 parts.append(f"({set_type})")
-            if weight is not None:
-                parts.append(f"{weight}kg")
-            if reps is not None:
-                parts.append(f"x{reps}")
+            weight_reps = _format_weight_reps(d)
+            if weight_reps:
+                parts.append(weight_reps)
             if rpe is not None:
                 parts.append(f"RPE {rpe}")
             lines.append(" ".join(parts))
@@ -1076,14 +1102,11 @@ def _format_last_week_training_log(activities: list[dict[str, Any]]) -> str:
             for ex, sets in _group_exercise_details(gym_details):
                 parts.append(f"  **{ex}**")
                 for d in sets:
-                    w = d.get("weight_kg")
-                    r = d.get("reps")
                     rpe = d.get("rpe")
                     set_parts = [f"    Set {d.get('set_index', '?')}:"]
-                    if w is not None:
-                        set_parts.append(f"{w}kg")
-                    if r is not None:
-                        set_parts.append(f"x{r}")
+                    weight_reps = _format_weight_reps(d)
+                    if weight_reps:
+                        set_parts.append(weight_reps)
                     if rpe is not None:
                         set_parts.append(f"RPE {rpe}")
                     parts.append(" ".join(set_parts))

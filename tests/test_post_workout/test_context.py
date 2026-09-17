@@ -49,6 +49,8 @@ class TestGetActivityWithDetails:
                     weight_kg=80.0,
                     reps=8,
                     rpe=7.5,
+                    prescribed_weight_kg=82.5,
+                    prescribed_reps=8,
                 )
             )
             await session.commit()
@@ -60,6 +62,8 @@ class TestGetActivityWithDetails:
             assert len(gym_details) == 1
             assert gym_details[0]["exercise_title"] == "Bench Press"
             assert gym_details[0]["weight_kg"] == 80.0
+            assert gym_details[0]["prescribed_weight_kg"] == 82.5
+            assert gym_details[0]["prescribed_reps"] == 8
 
     async def test_non_gym_activity_no_details(self) -> None:
         async with test_session() as session:

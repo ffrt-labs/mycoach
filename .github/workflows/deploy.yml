@@ -15,6 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Run logger JS tests
+        run: node --test src/mycoach/static/logger/app.test.js
+
       - name: Write .env from secrets and vars
         run: |
           cat > .env <<'EOF'

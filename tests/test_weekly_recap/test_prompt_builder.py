@@ -53,6 +53,31 @@ class TestStableExerciseGrouping:
         assert result.count("**Barbell Squat**") == 1
         assert "**Back Squat**" not in result
 
+    def test_last_week_training_log_shows_prescribed_alongside_performed(self) -> None:
+        result = _format_last_week_training_log(
+            [
+                {
+                    "sport": "gym",
+                    "title": "Legs",
+                    "start_time": "2024-06-10",
+                    "gym_details": [
+                        {
+                            "exercise_id": "Barbell_Squat",
+                            "exercise_title": "Barbell Squat",
+                            "set_index": 1,
+                            "weight_kg": 100,
+                            "reps": 5,
+                            "prescribed_weight_kg": 102.5,
+                            "prescribed_reps": 5,
+                        }
+                    ],
+                }
+            ]
+        )
+
+        assert "prescribed 102.5kg x5" in result
+        assert "performed 100kg x5" in result
+
 
 class TestFormatPlanAdherence:
     def test_no_plan(self) -> None:

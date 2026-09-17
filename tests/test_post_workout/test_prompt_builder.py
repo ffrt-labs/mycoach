@@ -73,6 +73,39 @@ class TestFormatGymDetails:
         result = _format_gym_details(details)
         assert "(warmup)" in result
 
+    def test_prescribed_and_performed_shown_together(self) -> None:
+        details = [
+            {
+                "exercise_title": "Bench Press",
+                "set_index": 1,
+                "set_type": "normal",
+                "weight_kg": 80.0,
+                "reps": 7,
+                "rpe": 8.0,
+                "prescribed_weight_kg": 82.5,
+                "prescribed_reps": 8,
+            },
+        ]
+        result = _format_gym_details(details)
+        assert "prescribed 82.5kg x8" in result
+        assert "performed 80.0kg x7" in result
+
+    def test_unprescribed_set_reads_as_unprescribed_not_missed(self) -> None:
+        details = [
+            {
+                "exercise_title": "Bench Press",
+                "set_index": 1,
+                "set_type": "normal",
+                "weight_kg": 80.0,
+                "reps": 7,
+                "rpe": 8.0,
+            },
+        ]
+        result = _format_gym_details(details)
+        assert "prescribed" not in result
+        assert "missed" not in result
+        assert "80.0kg x7" in result
+
 
 class TestFormatPlannedSession:
     def test_with_planned(self) -> None:

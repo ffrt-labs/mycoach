@@ -274,6 +274,8 @@ async def get_activity_with_details(
                     "weight_kg": d.weight_kg,
                     "reps": d.reps,
                     "rpe": d.rpe,
+                    "prescribed_weight_kg": d.prescribed_weight_kg,
+                    "prescribed_reps": d.prescribed_reps,
                     "distance_meters": d.distance_meters,
                     "duration_seconds": d.duration_seconds,
                     "superset_id": d.superset_id,
@@ -527,6 +529,8 @@ async def get_last_week_all_activities(
                     "weight_kg": det.weight_kg,
                     "reps": det.reps,
                     "rpe": det.rpe,
+                    "prescribed_weight_kg": det.prescribed_weight_kg,
+                    "prescribed_reps": det.prescribed_reps,
                 }
                 for det in detail_result.scalars().all()
             ]

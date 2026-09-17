@@ -8,6 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -108,6 +109,19 @@ def create_app() -> FastAPI:
 
     # Request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
+
+    # CORS for the standalone logger origin, once split out (settings.logger_origin
+    # set). The logger authenticates with a bearer-style X-API-Key header, never
+    # cookies, so credentials stay disabled — pinning to the exact origin is what
+    # actually matters here, not credential support.
+    if settings.logger_origin:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[settings.logger_origin],
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["X-API-Key", "Content-Type"],
+        )
 
     # Global error handlers
     register_error_handlers(app)

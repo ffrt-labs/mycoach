@@ -25,6 +25,12 @@ jobs:
           MYCOACH_API_TOKEN=${{ secrets.MYCOACH_API_TOKEN }}
           MYCOACH_ENCRYPTION_KEY=${{ secrets.MYCOACH_ENCRYPTION_KEY }}
 
+          # Split-out /logger origin (issue #60). Both blank keeps the legacy
+          # same-origin mount; set together once the mycoach-logger container
+          # and its homelab-edge route are actually live.
+          MYCOACH_LOGGER_ORIGIN=${{ vars.MYCOACH_LOGGER_ORIGIN }}
+          MYCOACH_API_ORIGIN=${{ vars.MYCOACH_API_ORIGIN }}
+
           MYCOACH_GARMIN_EMAIL=${{ secrets.MYCOACH_GARMIN_EMAIL }}
           MYCOACH_GARMIN_PASSWORD=${{ secrets.MYCOACH_GARMIN_PASSWORD }}
           MYCOACH_HEVY_EMAIL=${{ secrets.MYCOACH_HEVY_EMAIL }}

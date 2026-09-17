@@ -15,6 +15,16 @@ async def test_logger_page_renders(client: AsyncClient) -> None:
     assert "/static/logger/icon-192.png" in resp.text  # apple-touch-icon
 
 
+async def test_logger_page_redirects_once_split_out(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Once logger_origin is set, /logger sends visitors to the new origin instead."""
+    monkeypatch.setenv("MYCOACH_LOGGER_ORIGIN", "https://logger.example.com")
+    resp = await client.get("/logger", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == "https://logger.example.com"
+
+
 async def test_logger_service_worker_scope(client: AsyncClient) -> None:
     """Service worker is served with the header that widens its scope to /logger.
 

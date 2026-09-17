@@ -183,6 +183,21 @@ was installed from. If that ever changes, finish and sync any in-progress sessio
 origin first — an unsynced session (or one still missing an end time, which never syncs) has no
 way to move to a new origin automatically.
 
+### Splitting the logger onto its own origin
+
+`/logger` can run as a separate deployable, `mycoach-logger` in `docker-compose.yml` — a static
+Caddy file server, not another Python app — fronted by its own `homelab-edge` route (e.g.
+`logger.yourdomain.com`) instead of living under this app's origin. The split is dormant by
+default: set both `MYCOACH_LOGGER_ORIGIN` (this app's CORS allowlist, and what turns `GET
+/logger` into a redirect) and `MYCOACH_API_ORIGIN` (passed only to `mycoach-logger`, so its
+requests carry the right absolute origin) to activate it — see `.env.example`. Leaving both blank
+keeps the legacy same-origin mount exactly as it is today.
+
+This is the risky half of the split: per the note above, IndexedDB is origin-scoped, so any
+device mid-cutover needs every session finished and synced *before* switching, and re-entering
+the API key afterward (`localStorage` doesn't carry over either) — verify on the actual phone,
+not just in a browser tab.
+
 ## Scripts
 
 ### Fetch raw Garmin data

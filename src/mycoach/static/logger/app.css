@@ -367,6 +367,9 @@ body.reordering { user-select: none; -webkit-user-select: none; cursor: grabbing
     padding: 3px 8px;
     border-radius: 999px;
 }
+/* An answered session stays on screen so the week reads as a whole, but it
+   is not a button any more. */
+.session-row--done { opacity: 0.55; }
 .tag--synced { color: var(--ok); background: var(--ok-bg); }
 .tag--pending { color: var(--pending); background: var(--pending-bg); }
 

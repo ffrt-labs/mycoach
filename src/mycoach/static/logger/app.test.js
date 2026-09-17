@@ -7,7 +7,9 @@ const {
     pruneEmptySets,
     topSetForExercise,
     resolveExerciseChoice,
-    sessionExerciseFromRoutine,
+    sessionExerciseFromPrescribed,
+    loggableSessions,
+    prescribedMeta,
     outstandingSessions,
 } = require("./app.js");
 
@@ -22,10 +24,10 @@ test("resolveExerciseChoice turns a cached catalogue name into its stable id", (
     });
 });
 
-test("sessionExerciseFromRoutine carries stable identity into offline state", () => {
-    const exercise = sessionExerciseFromRoutine({
+test("sessionExerciseFromPrescribed carries stable identity into offline state", () => {
+    const exercise = sessionExerciseFromPrescribed({
         exercise_id: "Barbell_Squat",
-        exercise_name: "Barbell Squat",
+        name: "Barbell Squat",
         notes: null,
         sets: 3,
         rep_range: "8-10",
@@ -34,6 +36,79 @@ test("sessionExerciseFromRoutine carries stable identity into offline state", ()
 
     assert.equal(exercise.exercise_id, "Barbell_Squat");
     assert.equal(exercise.title, "Barbell Squat");
+});
+
+test("sessionExerciseFromPrescribed carries the coach's numbers onto the phone", () => {
+    // The whole reason the picker moved to the week: a routine day had no
+    // weights, a prescription does.
+    const exercise = sessionExerciseFromPrescribed({
+        exercise_id: "Barbell_Squat",
+        name: "Barbell Squat",
+        sets: 3,
+        rep_range: "5",
+        target_weight_kg: 82.5,
+        target_rpe: 8,
+        rest_seconds: 180,
+        superset_group: 2,
+    });
+
+    assert.equal(exercise.target_weight_kg, 82.5);
+    assert.equal(exercise.target_rpe, 8);
+    assert.equal(exercise.rest_seconds, 180);
+    assert.equal(exercise.target_sets, 3);
+    assert.equal(exercise.rep_range, "5");
+    assert.equal(exercise.superset_group, 2);
+    assert.deepEqual(exercise.sets, []);
+});
+
+test("sessionExerciseFromPrescribed nulls the numbers a routine-built session lacks", () => {
+    const exercise = sessionExerciseFromPrescribed({
+        exercise_id: null,
+        name: "Bulgarian. Split Squat",
+        sets: 3,
+        rep_range: "8-10",
+    });
+
+    assert.equal(exercise.exercise_id, null);
+    assert.equal(exercise.target_weight_kg, null);
+    assert.equal(exercise.target_rpe, null);
+    assert.equal(exercise.rest_seconds, null);
+    assert.equal(exercise.superset_group, null);
+});
+
+test("loggableSessions keeps gym and drops the sports the logger does not log", () => {
+    const week = {
+        week_start: "2024-06-10",
+        sessions: [
+            { id: 1, title: "Push", loggable: true },
+            { id: 2, title: "Easy Run", loggable: false },
+        ],
+    };
+
+    assert.deepEqual(loggableSessions(week), [week.sessions[0]]);
+});
+
+test("loggableSessions tolerates no cached week at all", () => {
+    assert.deepEqual(loggableSessions(null), []);
+    assert.deepEqual(loggableSessions({ week_start: "2024-06-10" }), []);
+});
+
+test("prescribedMeta says how many exercises carry the coach's weights", () => {
+    const meta = prescribedMeta({
+        exercises: [
+            { name: "Barbell Squat", target_weight_kg: 82.5 },
+            { name: "Leg Press", target_weight_kg: 140 },
+            { name: "Plank", target_weight_kg: null },
+        ],
+    });
+
+    assert.equal(meta, "3 exercises · 2 prescribed");
+});
+
+test("prescribedMeta marks a routine-built session as carrying no weights", () => {
+    const meta = prescribedMeta({ exercises: [{ name: "Barbell Squat", target_weight_kg: null }] });
+
+    assert.equal(meta, "1 exercise · no weights");
 });
 
 test("repRangeLowerBound reads the lower bound of a range like '8-10'", () => {

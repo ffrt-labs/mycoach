@@ -11,6 +11,9 @@ const {
     loggableSessions,
     prescribedMeta,
     outstandingSessions,
+    defaultSetValues,
+    prescribedForSet,
+    lastPerformedFor,
 } = require("./app.js");
 
 test("resolveExerciseChoice turns a cached catalogue name into its stable id", () => {
@@ -315,4 +318,86 @@ test("toPayload sends a null prescription id for an unprescribed session", () =>
     });
 
     assert.equal(payload.planned_session_id, null);
+});
+
+/* #54: the coach's numbers are the *editable default* of a new set, not a
+   placeholder — the first set of a prescribed exercise starts on the target
+   weight, later sets carry the previous set forward exactly as before. */
+test("defaultSetValues prefills the first set of a prescribed exercise from the coach's numbers", () => {
+    const ex = { target_weight_kg: 82.5, rep_range: "5" };
+
+    assert.deepEqual(defaultSetValues(ex, null), { weight_kg: 82.5, reps: 5 });
+});
+
+test("defaultSetValues reads the lower bound of a rep range for the first set", () => {
+    const ex = { target_weight_kg: null, rep_range: "8-10" };
+
+    assert.deepEqual(defaultSetValues(ex, null), { weight_kg: null, reps: 8 });
+});
+
+test("defaultSetValues leaves an ad-hoc exercise's first set blank", () => {
+    const ex = { target_weight_kg: null, rep_range: null };
+
+    assert.deepEqual(defaultSetValues(ex, null), { weight_kg: null, reps: null });
+});
+
+test("defaultSetValues carries the previous set forward once one exists, ignoring the prescription", () => {
+    const ex = { target_weight_kg: 82.5, rep_range: "5" };
+    const prev = { weight_kg: 85, reps: 4 };
+
+    assert.deepEqual(defaultSetValues(ex, prev), { weight_kg: 85, reps: 4 });
+});
+
+test("defaultSetValues does not resurrect a previous set's blanked-out values", () => {
+    const ex = { target_weight_kg: 82.5, rep_range: "5" };
+    const prev = { weight_kg: null, reps: null };
+
+    assert.deepEqual(defaultSetValues(ex, prev), { weight_kg: null, reps: null });
+});
+
+/* #58 reads this off GymWorkoutDetail (#50) to compare plan against actual —
+   it must be captured when the set is logged, not reconstructed later. */
+test("prescribedForSet stamps a prescribed exercise's target onto a new set", () => {
+    const ex = { target_weight_kg: 82.5, rep_range: "8-10" };
+
+    assert.deepEqual(prescribedForSet(ex), { prescribed_weight_kg: 82.5, prescribed_reps: 8 });
+});
+
+test("prescribedForSet leaves an ad-hoc exercise's set unprescribed, not falsely missed", () => {
+    const ex = { target_weight_kg: null, rep_range: null };
+
+    assert.deepEqual(prescribedForSet(ex), { prescribed_weight_kg: null, prescribed_reps: null });
+});
+
+/* #70 serves last_performed keyed by exercise_id, falling back to title only
+   for a custom (null-id) exercise. The grey reference row (#54) reads it here. */
+test("lastPerformedFor matches a catalogued exercise by exercise_id", () => {
+    const cache = [
+        { exercise_id: "Barbell_Squat", title: "Barbell Squat", date: "2026-09-01", sets: [{ weight_kg: 100, reps: 5 }] },
+    ];
+
+    assert.deepEqual(lastPerformedFor(cache, { exercise_id: "Barbell_Squat", title: "Squat" }), cache[0]);
+});
+
+test("lastPerformedFor matches a custom exercise by title, since it has no exercise_id", () => {
+    const cache = [
+        { exercise_id: null, title: "Bulgarian. Split Squat", date: "2026-09-01", sets: [{ weight_kg: null, reps: 12 }] },
+    ];
+
+    assert.deepEqual(
+        lastPerformedFor(cache, { exercise_id: null, title: "Bulgarian. Split Squat" }),
+        cache[0]
+    );
+});
+
+test("lastPerformedFor returns null for an exercise never trained before", () => {
+    assert.equal(lastPerformedFor([], { exercise_id: "Barbell_Squat", title: "Barbell Squat" }), null);
+});
+
+test("lastPerformedFor never matches a custom exercise's title against a catalogued entry with the same name", () => {
+    const cache = [
+        { exercise_id: "Barbell_Squat", title: "Barbell Squat", date: "2026-09-01", sets: [] },
+    ];
+
+    assert.equal(lastPerformedFor(cache, { exercise_id: null, title: "Barbell Squat" }), null);
 });

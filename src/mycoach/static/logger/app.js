@@ -108,7 +108,7 @@
     }
 
     // ── State ───────────────────────────────────────────────────────
-    var state = { activeId: null, exerciseCache: [], week: null };
+    var state = { activeId: null, exerciseCache: [], lastPerformedCache: [], week: null };
 
     // ── Sync-status chip ────────────────────────────────────────────
     function setChip(kind, text) {
@@ -173,6 +173,19 @@
             return { exercise_id: null, title: title };
         }
         return { exercise_id: match.id, title: match.name };
+    }
+
+    /* The grey reference row under a card (#54): the last time this exercise
+       was actually trained, from the `last_performed` sibling list #70 added
+       to /api/logger/exercises. Matched the same way the server built it — by
+       exercise_id, falling back to title only for a custom (null-id)
+       exercise, which is the only handle it has. */
+    function lastPerformedFor(cache, ex) {
+        var match = (cache || []).find(function (entry) {
+            if (ex.exercise_id != null) return entry.exercise_id === ex.exercise_id;
+            return entry.exercise_id == null && entry.title === ex.title;
+        });
+        return match || null;
     }
 
     /* One exercise of a prescribed session, as the offline session stores it.
@@ -343,7 +356,11 @@
         if (!apiKey() || !navigator.onLine) return;
         apiFetch(API_EXERCISES, { headers: { "X-API-Key": apiKey() } })
             .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (d) { if (d && d.exercises) { state.exerciseCache = d.exercises; setMeta("exercises", d.exercises); } })
+            .then(function (d) {
+                if (!d) return;
+                if (d.exercises) { state.exerciseCache = d.exercises; setMeta("exercises", d.exercises); }
+                if (d.last_performed) { state.lastPerformedCache = d.last_performed; setMeta("lastPerformed", d.last_performed); }
+            })
             .catch(function () {});
     }
 
@@ -600,6 +617,20 @@
 
     function cardFor(exIdx) { return $("view").querySelector('.card[data-ex="' + exIdx + '"]'); }
 
+    /* The grey line under the coach's prescription (#54): context for
+       overriding the prefilled default, not the default itself — the input
+       is already on the target weight, this just shows what it took last
+       time. Nothing renders when the exercise has never been trained. */
+    function lastPerformedRow(ex) {
+        var entry = lastPerformedFor(state.lastPerformedCache, ex);
+        if (!entry || !entry.sets.length) return null;
+        var text = "Last: " + entry.sets.map(function (set) {
+            var w = set.weight_kg != null ? set.weight_kg + "kg" : "BW";
+            return w + "×" + (set.reps != null ? set.reps : "—");
+        }).join(", ");
+        return el("div", { class: "exercise-lastperformed", text: text });
+    }
+
     // ── Ad-hoc supersets ────────────────────────────────────────────
     /* superset_group is a session-local integer. The one invariant every
        mutation here has to preserve: members of a group are always a
@@ -692,6 +723,7 @@
                     ex.superset_group != null ? el("span", { class: "superset-badge", text: "Superset" }) : null,
                 ]),
                 el("div", { class: "exercise-meta", text: exerciseMeta(ex) }),
+                ro ? null : lastPerformedRow(ex),
             ]),
             ro ? null : el("button", { class: "iconbtn", onclick: function () {
                 var i = s.exercises.indexOf(ex);
@@ -797,16 +829,48 @@
     }
 
     /* Prefill carried over from the old add-set sheet: the previous set's
-       weight and reps, else the bottom of the prescribed rep range. The
-       difference is that the prefill is now stored the moment the row appears
-       — an untouched row is a logged set, not a discarded draft. */
+       weight and reps, else — for the first set of a prescribed exercise —
+       the coach's target weight and the bottom of the prescribed rep range
+       (#54: the default *value* of the input, not a placeholder to accept).
+       The difference from the old sheet is that the prefill is now stored the
+       moment the row appears — an untouched row is a logged set, not a
+       discarded draft. */
+    function defaultSetValues(ex, prev) {
+        if (prev) {
+            return {
+                weight_kg: prev.weight_kg != null ? prev.weight_kg : null,
+                reps: prev.reps != null ? prev.reps : null,
+            };
+        }
+        return {
+            weight_kg: ex.target_weight_kg != null ? ex.target_weight_kg : null,
+            reps: repRangeLowerBound(ex.rep_range),
+        };
+    }
+
+    /* Captured at write time, once, from the prescription that was live when
+       the set was created — #58 reads this off GymWorkoutDetail to compare
+       plan against actual without reconstructing it later. An ad-hoc
+       exercise has no prescription, so both come back null: unprescribed,
+       not falsely missed. */
+    function prescribedForSet(ex) {
+        return {
+            prescribed_weight_kg: ex.target_weight_kg != null ? ex.target_weight_kg : null,
+            prescribed_reps: repRangeLowerBound(ex.rep_range),
+        };
+    }
+
     function addSet(s, ex, card) {
         var prev = ex.sets.length ? ex.sets[ex.sets.length - 1] : null;
+        var defaults = defaultSetValues(ex, prev);
+        var prescribed = prescribedForSet(ex);
         var set = {
-            weight_kg: prev && prev.weight_kg != null ? prev.weight_kg : null,
-            reps: prev && prev.reps != null ? prev.reps : (!prev ? repRangeLowerBound(ex.rep_range) : null),
+            weight_kg: defaults.weight_kg,
+            reps: defaults.reps,
             rpe: null,
             set_type: "normal",
+            prescribed_weight_kg: prescribed.prescribed_weight_kg,
+            prescribed_reps: prescribed.prescribed_reps,
         };
         ex.sets.push(set);
         var row = editSetRow(s, ex, card, set);
@@ -1189,6 +1253,7 @@
         });
 
         getMeta("exercises").then(function (list) { if (list) state.exerciseCache = list; });
+        getMeta("lastPerformed").then(function (list) { if (list) state.lastPerformedCache = list; });
         getMeta("week").then(function (w) {
             if (!w) return;
             state.week = w;
@@ -1210,6 +1275,6 @@
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
     }
 })();

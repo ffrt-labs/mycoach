@@ -265,6 +265,7 @@ body.reordering { user-select: none; -webkit-user-select: none; cursor: grabbing
 
 .exercise-title { font-size: 17px; font-weight: 600; margin: 0; }
 .exercise-meta { font-size: 12px; color: var(--faint); font-family: var(--mono); margin-top: 2px; }
+.exercise-lastperformed { font-size: 12px; color: var(--faint); font-family: var(--mono); margin-top: 2px; opacity: 0.7; }
 
 /* set rows */
 .setrow {

@@ -10,7 +10,7 @@
     // ── Config ──────────────────────────────────────────────────────
     var API_IMPORT = "/api/sources/import/workouts";
     var API_EXERCISES = "/api/logger/exercises";
-    var API_ROUTINES = "/api/logger/routines";
+    var API_WEEK = "/api/logger/week";
     var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
     var API_TIMEOUT_MS = 30000;
@@ -108,7 +108,7 @@
     }
 
     // ── State ───────────────────────────────────────────────────────
-    var state = { activeId: null, exerciseCache: [], routine: null };
+    var state = { activeId: null, exerciseCache: [], week: null };
 
     // ── Sync-status chip ────────────────────────────────────────────
     function setChip(kind, text) {
@@ -175,16 +175,43 @@
         return { exercise_id: match.id, title: match.name };
     }
 
-    function sessionExerciseFromRoutine(exercise) {
+    /* One exercise of a prescribed session, as the offline session stores it.
+
+       The coach's numbers ride along unchanged. `target_weight_kg` is the
+       point of the whole exercise: it is what #54 prefills the first set's
+       input with, and storing it on the session means the prescription
+       survives a week with no signal. */
+    function sessionExerciseFromPrescribed(exercise) {
         return {
             exercise_id: exercise.exercise_id || null,
-            title: exercise.exercise_name,
+            title: exercise.name,
             notes: exercise.notes || null,
             sets: [],
             target_sets: exercise.sets,
             rep_range: exercise.rep_range,
-            superset_group: exercise.superset_group,
+            target_weight_kg: exercise.target_weight_kg != null ? exercise.target_weight_kg : null,
+            target_rpe: exercise.target_rpe != null ? exercise.target_rpe : null,
+            rest_seconds: exercise.rest_seconds != null ? exercise.rest_seconds : null,
+            superset_group: exercise.superset_group != null ? exercise.superset_group : null,
         };
+    }
+
+    /* The week's *loggable* sessions. Swim and run ride the same payload (#48)
+       so the wire never has to change to render them, but this screen does not
+       render them yet — see the map's Out of scope. Dropping them here keeps
+       that decision in one place. */
+    function loggableSessions(week) {
+        return ((week && week.sessions) || []).filter(function (ps) { return !!ps.loggable; });
+    }
+
+    /* The line under a prescribed session's title. Whether the coach has put
+       weights on it is the thing worth knowing before you tap: a session the
+       server rebuilt from the routine (no plan this week) carries none. */
+    function prescribedMeta(ps) {
+        var exercises = ps.exercises || [];
+        var weighted = exercises.filter(function (ex) { return ex.target_weight_kg != null; }).length;
+        return exercises.length + (exercises.length === 1 ? " exercise" : " exercises") +
+            " · " + (weighted ? weighted + " prescribed" : "no weights");
     }
 
     /* The heaviest working (non-warmup) set in an exercise, ties going to the
@@ -320,11 +347,22 @@
             .catch(function () {});
     }
 
-    function pullRoutine() {
+    /* The training week, pulled on open and cached.
+
+       Nothing on the gym floor waits on this: home renders from the cached
+       copy the moment the app opens, and a successful pull re-renders
+       underneath it. A failed or non-ok response leaves the cache alone —
+       last week's plan beats an empty screen in a basement. */
+    function pullWeek() {
         if (!apiKey() || !navigator.onLine) return;
-        apiFetch(API_ROUTINES, { headers: { "X-API-Key": apiKey() } })
+        apiFetch(API_WEEK, { headers: { "X-API-Key": apiKey() } })
             .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (d) { state.routine = d; setMeta("routine", d); if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render(); })
+            .then(function (d) {
+                if (!d) return;
+                state.week = d;
+                setMeta("week", d);
+                if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
+            })
             .catch(function () {});
     }
 
@@ -384,36 +422,76 @@
         view.appendChild(
             el("button", { class: "btn btn--primary btn--block", style: "margin-top:22px", onclick: startSession }, ["＋ Start session"])
         );
-        if (state.routine && state.routine.days && state.routine.days.length) {
-            view.appendChild(
-                el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openRoutinePicker }, ["Start from routine"])
-            );
-        }
         view.appendChild(
             el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openSettings }, ["Settings"])
         );
 
+        /* Both lists need the stored sessions — the week to know what has
+           already been answered, the history to list itself — so their
+           containers go in now, in order, and fill from the one read. */
+        var weekBox = el("div", {});
+        var historyBox = el("div", {});
+        view.appendChild(weekBox);
+        view.appendChild(historyBox);
+
         getAllSessions().then(function (all) {
-            all.sort(function (a, b) { return (b.start_time || "").localeCompare(a.start_time || ""); });
-            view.appendChild(el("div", { class: "eyebrow", text: "Sessions" }));
-            if (!all.length) {
-                view.appendChild(el("div", { class: "empty", text: "No sessions yet. Start one above." }));
-                return;
-            }
-            all.forEach(function (s) {
-                var meta = fmtTime(s.start_time) + " · " + s.exercises.length + " ex · " + totalSets(s) + " sets";
-                view.appendChild(
-                    el("button", { class: "session-row", onclick: function () { openSession(s.id); } }, [
-                        el("span", {}, [
-                            el("div", { class: "session-row__title", text: s.title || "Session" }),
-                            el("div", { class: "session-row__meta", text: meta }),
-                        ]),
-                        el("span", { class: "tag " + (s.synced ? "tag--synced" : "tag--pending"), text: s.synced ? "Synced" : "Pending" }),
-                    ])
-                );
-            });
+            renderWeek(weekBox, all);
+            renderHistory(historyBox, all);
         });
         refreshChip();
+    }
+
+    /* This week's gym sessions, in place of the old routine picker (#71).
+
+       Selection is the athlete's, not the calendar's: the week is a list of
+       work owed, shown in no day order, and you start whichever one you are
+       actually doing. Answered sessions stay on screen but inert — watching
+       the week fill up is half the point — and "answered" is the server's
+       stale `done` flag unioned with the local record (outstandingSessions),
+       so a session lifted in a basement leaves the list immediately and a
+       cancelled one comes back. */
+    function renderWeek(box, localSessions) {
+        var gym = loggableSessions(state.week);
+        if (!gym.length) return;
+        var owed = outstandingSessions(gym, localSessions);
+        box.appendChild(el("div", { class: "eyebrow", text: "This week" }));
+        gym.forEach(function (ps) {
+            var label = el("span", {}, [
+                el("div", { class: "session-row__title", text: ps.title }),
+                el("div", { class: "session-row__meta", text: prescribedMeta(ps) }),
+            ]);
+            if (owed.indexOf(ps) === -1) {
+                box.appendChild(el("div", { class: "session-row session-row--done" }, [
+                    label,
+                    el("span", { class: "tag tag--synced", text: "Done" }),
+                ]));
+                return;
+            }
+            box.appendChild(
+                el("button", { class: "session-row", onclick: function () { startFromPrescribed(ps); } }, [label])
+            );
+        });
+    }
+
+    function renderHistory(box, all) {
+        all = all.slice().sort(function (a, b) { return (b.start_time || "").localeCompare(a.start_time || ""); });
+        box.appendChild(el("div", { class: "eyebrow", text: "Sessions" }));
+        if (!all.length) {
+            box.appendChild(el("div", { class: "empty", text: "No sessions yet. Start one above." }));
+            return;
+        }
+        all.forEach(function (s) {
+            var meta = fmtTime(s.start_time) + " · " + s.exercises.length + " ex · " + totalSets(s) + " sets";
+            box.appendChild(
+                el("button", { class: "session-row", onclick: function () { openSession(s.id); } }, [
+                    el("span", {}, [
+                        el("div", { class: "session-row__title", text: s.title || "Session" }),
+                        el("div", { class: "session-row__meta", text: meta }),
+                    ]),
+                    el("span", { class: "tag " + (s.synced ? "tag--synced" : "tag--pending"), text: s.synced ? "Synced" : "Pending" }),
+                ])
+            );
+        });
     }
 
     // ── Session lifecycle ───────────────────────────────────────────
@@ -438,30 +516,21 @@
         return part + " Session";
     }
 
-    function openRoutinePicker() {
-        var days = (state.routine && state.routine.days) || [];
-        var sorted = days.slice().sort(function (a, b) { return a.order_index - b.order_index; });
-        openSheet("Start from routine", sorted.map(function (day) {
-            var meta = day.exercises.length + (day.exercises.length === 1 ? " exercise" : " exercises");
-            return el("button", { class: "session-row", onclick: function () { closeSheet(); startFromRoutineDay(day); } }, [
-                el("span", {}, [
-                    el("div", { class: "session-row__title", text: day.name }),
-                    el("div", { class: "session-row__meta", text: meta }),
-                ]),
-            ]);
-        }));
-    }
-
-    function startFromRoutineDay(day) {
+    /* Start one of the week's sessions. No picker sheet: the week is already
+       on the home screen, so the row *is* the button. */
+    function startFromPrescribed(ps) {
         var now = new Date();
         var s = {
             id: uuid(),
-            title: day.name,
+            title: ps.title,
             start_time: now.toISOString(),
             end_time: null,
             notes: null,
-            planned_session_id: null,  // the routine is not a prescription; #71 starts from the week
-            exercises: day.exercises.slice().sort(function (a, b) { return a.order_index - b.order_index; }).map(sessionExerciseFromRoutine),
+            // The prescription this session answers (#69). Null when the
+            // server rebuilt the session from the routine because no plan
+            // exists this week — there is nothing to claim.
+            planned_session_id: ps.id != null ? ps.id : null,
+            exercises: (ps.exercises || []).map(sessionExerciseFromPrescribed),
             synced: false,
             created_at: now.toISOString(),
         };
@@ -1083,7 +1152,7 @@
                 closeSheet();
                 toast("Saved");
                 pullExercises();
-                pullRoutine();
+                pullWeek();
                 syncNow(true);
             } }, ["Save"]),
             el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: function () { closeSheet(); syncNow(true); } }, ["Sync now"]),
@@ -1106,7 +1175,7 @@
     // pure functions (see the export guard below), which has no DOM.
     if (typeof document !== "undefined") {
         $("sync-chip").addEventListener("click", function () { syncNow(true); });
-        window.addEventListener("online", function () { refreshChip(); syncNow(false); pullRoutine(); });
+        window.addEventListener("online", function () { refreshChip(); syncNow(false); pullWeek(); });
         window.addEventListener("offline", refreshChip);
         // A swipe-away kill does not always fire visibilitychange first.
         window.addEventListener("pagehide", function () { flushPersist(); });
@@ -1120,8 +1189,9 @@
         });
 
         getMeta("exercises").then(function (list) { if (list) state.exerciseCache = list; });
-        getMeta("routine").then(function (r) {
-            state.routine = r;
+        getMeta("week").then(function (w) {
+            if (!w) return;
+            state.week = w;
             if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
         });
 
@@ -1133,13 +1203,13 @@
 
         render();
         pullExercises();
-        pullRoutine();
+        pullWeek();
         syncNow(false);
     }
 
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromRoutine: sessionExerciseFromRoutine, outstandingSessions: outstandingSessions };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions };
     }
 })();

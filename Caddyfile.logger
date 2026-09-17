@@ -1,0 +1,11 @@
+# Inner file server for the standalone logger deployable. Not internet-facing
+# on its own — reached only via the homelab-edge Caddy's reverse_proxy over
+# the shared `edge` Docker network, which terminates TLS. Plain HTTP here.
+:80 {
+	root * /srv
+	encode gzip
+
+	header /sw.js Cache-Control "no-cache"
+
+	file_server
+}

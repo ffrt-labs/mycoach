@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     timezone: str = "Europe/London"
     app_base_url: str = "http://localhost:8000"  # links back into emails (e.g. dashboard CTA)
 
+    # The logger PWA's own origin once split out (e.g. https://logger.example.com).
+    # Empty means it's still same-origin under /logger: no CORS is opened and
+    # GET /logger keeps serving the shell directly instead of redirecting.
+    logger_origin: str = ""
+
     # Security
     encryption_key: str = ""  # Fernet key for encrypting credentials at rest
 

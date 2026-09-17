@@ -8,9 +8,15 @@
     "use strict";
 
     // ── Config ──────────────────────────────────────────────────────
-    var API_IMPORT = "/api/sources/import/workouts";
-    var API_EXERCISES = "/api/logger/exercises";
-    var API_WEEK = "/api/logger/week";
+    // window.MYCOACH_CONFIG only exists on the standalone deploy (its own
+    // origin, injected into index.html at container start). Absent there —
+    // as under the legacy same-origin /logger mount — API paths stay
+    // relative and the service worker keeps its /logger scope.
+    var STANDALONE = typeof window !== "undefined" && !!window.MYCOACH_CONFIG;
+    var API_ORIGIN = (STANDALONE && window.MYCOACH_CONFIG.apiOrigin) || "";
+    var API_IMPORT = API_ORIGIN + "/api/sources/import/workouts";
+    var API_EXERCISES = API_ORIGIN + "/api/logger/exercises";
+    var API_WEEK = API_ORIGIN + "/api/logger/week";
     var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
     var API_TIMEOUT_MS = 30000;
@@ -1261,7 +1267,9 @@
         });
 
         if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("/logger/sw.js", { scope: "/logger" }).catch(function (e) {
+            var swUrl = STANDALONE ? "/sw.js" : "/logger/sw.js";
+            var swScope = STANDALONE ? "/" : "/logger";
+            navigator.serviceWorker.register(swUrl, { scope: swScope }).catch(function (e) {
                 console.warn("[logger] SW registration failed:", e);
             });
         }

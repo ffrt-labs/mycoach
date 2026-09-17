@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+#
+# Standalone deployable for the /logger PWA, on its own origin. Static files
+# only — Caddy as a tiny file server, no app server, no build step (matches
+# app.js's own "no dependencies, hand-written" constraint).
+FROM caddy:2-alpine
+
+COPY Caddyfile.logger /etc/caddy/Caddyfile
+COPY docker-entrypoint-logger.sh /docker-entrypoint-logger.sh
+
+RUN mkdir -p /srv
+
+# Shared assets (app.js, app.css, icons) — the same files the legacy
+# same-origin /static/logger mount serves, kept as one source of truth.
+COPY src/mycoach/static/logger/app.js src/mycoach/static/logger/app.css \
+     src/mycoach/static/logger/icon.svg src/mycoach/static/logger/icon-192.png \
+     src/mycoach/static/logger/icon-512.png /srv/
+
+# Root-relative shell/manifest/service worker, specific to this origin.
+# index.html carries a ${MYCOACH_API_ORIGIN} placeholder substituted by the
+# entrypoint at container start, so it's kept as a .tmpl until then.
+COPY src/mycoach/static/logger-standalone/index.html /srv/index.html.tmpl
+COPY src/mycoach/static/logger-standalone/manifest.json /srv/manifest.json
+COPY src/mycoach/static/logger-standalone/sw.js /srv/sw.js
+
+ENTRYPOINT ["/docker-entrypoint-logger.sh"]

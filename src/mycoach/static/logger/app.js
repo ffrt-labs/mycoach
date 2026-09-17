@@ -572,6 +572,7 @@
 
     function renderSession(s) {
         var ro = !!s.synced; // read-only after sync
+        cancelPendingReorder(); // about to detach every card; don't outlive them
         var view = $("view");
         view.innerHTML = "";
 
@@ -927,6 +928,20 @@
     var EDGE_ZONE = 72;      // autoscroll when the finger nears a viewport edge
     var EDGE_SPEED = 16;     // px per frame at the very edge
     var drag = null;
+    var pendingReorder = null; // { cleanup } for a pointerdown not yet armed or released
+
+    /* renderSession wipes the card list wholesale (`view.innerHTML = ""`),
+       which on iOS Safari does not reliably fire pointercancel for a touch
+       whose target got detached. Left alone, a pending long-press timer from
+       a handle pressed moments ago fires anyway and arms a drag on a card
+       that's no longer in the document — surfacing as a drag that hijacks
+       whatever gesture (e.g. a plain scroll) happens to be live when the
+       stale timer finally fires. Call this before any re-render wipes the
+       cards, so an in-flight touch on a handle never outlives its element. */
+    function cancelPendingReorder() {
+        if (pendingReorder) { pendingReorder.cleanup(); pendingReorder = null; }
+        if (drag) endDrag(false);
+    }
 
     function enableReorder(handle, card, s) {
         handle.addEventListener("pointerdown", function (e) {
@@ -941,9 +956,11 @@
                 handle.removeEventListener("pointermove", preMove);
                 handle.removeEventListener("pointerup", preEnd);
                 handle.removeEventListener("pointercancel", preEnd);
+                pendingReorder = null;
             }
             function arm(pointerY) {
                 cleanup();
+                if (!card.isConnected) return; // detached by a re-render since pointerdown
                 beginDrag(s, card, handle, pid, pointerY);
             }
             function preMove(ev) {
@@ -958,6 +975,7 @@
             handle.addEventListener("pointermove", preMove);
             handle.addEventListener("pointerup", preEnd);
             handle.addEventListener("pointercancel", preEnd);
+            pendingReorder = { cleanup: cleanup };
         });
     }
 

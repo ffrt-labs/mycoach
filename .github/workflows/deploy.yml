@@ -28,6 +28,12 @@ jobs:
           MYCOACH_API_TOKEN=${{ secrets.MYCOACH_API_TOKEN }}
           MYCOACH_ENCRYPTION_KEY=${{ secrets.MYCOACH_ENCRYPTION_KEY }}
 
+          # mycoach-db (Postgres, docker-compose.yml) — engine-swap target
+          # for map #85, ticket #107. Read by docker compose for variable
+          # substitution, not by the app itself: MYCOACH_DB_URL below still
+          # points at SQLite until the cutover (blocked on #104).
+          MYCOACH_DATABASE_PASSWORD=${{ secrets.MYCOACH_DATABASE_PASSWORD }}
+
           # Split-out /logger origin (issue #60). Both blank keeps the legacy
           # same-origin mount; set together once the mycoach-logger container
           # and its homelab-edge route are actually live.

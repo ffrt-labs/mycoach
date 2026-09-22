@@ -1,4 +1,26 @@
 services:
+  # Engine-swap target for the observed-athlete-record extraction (map #85,
+  # ticket #107): provisioned now, not yet wired up as `mycoach`'s db_url.
+  # Stays off the `edge` network — like homelab-apps' datastores, a database
+  # reachable from every edge-joined container is exactly the exposure this
+  # setup avoids. No published ports: only containers on the default
+  # compose network (mycoach, mycoach-logger) can reach it.
+  mycoach-db:
+    image: postgres:16-alpine
+    container_name: mycoach-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=mycoach
+      - POSTGRES_PASSWORD=${MYCOACH_DATABASE_PASSWORD}
+      - POSTGRES_DB=mycoach
+    volumes:
+      - mycoach-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mycoach"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   mycoach:
     build: .
     container_name: mycoach
@@ -47,3 +69,4 @@ networks:
 
 volumes:
   app-data:
+  mycoach-db-data:

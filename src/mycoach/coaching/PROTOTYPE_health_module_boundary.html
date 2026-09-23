@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PROTOTYPE — Health module boundary</title>
+<style>
+  :root { --accent: #2f6f4f; --bg: #faf9f6; --panel: #fff; --ink: #1f2622; --muted: #6b7570; --bad: #b3432b; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 2rem; line-height: 1.5; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .intro { background: var(--panel); border: 1px solid #e3e0d8; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+  .intro p { margin: 0.4rem 0; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid #e3e0d8; border-radius: 10px; padding: 1rem 1.25rem; }
+  .panel h2 { font-size: 1rem; margin: 0 0 0.6rem; color: var(--accent); }
+  .panel h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 1rem 0 0.4rem; }
+  .row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; border-bottom: 1px dashed #eee; font-size: 0.9rem; }
+  .row:last-child { border-bottom: none; }
+  .field { color: var(--muted); }
+  .value { font-weight: 600; text-align: right; }
+  .empty { color: var(--muted); font-style: italic; font-size: 0.9rem; }
+  button { font: inherit; background: var(--accent); color: white; border: none; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.2rem 0.3rem 0.2rem 0; cursor: pointer; font-size: 0.85rem; }
+  button.illegal { background: var(--bad); }
+  button.secondary { background: #dedad0; color: var(--ink); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .log { background: #10221a; color: #d9f0e2; border-radius: 8px; padding: 0.8rem 1rem; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.8rem; max-height: 220px; overflow-y: auto; white-space: pre-wrap; margin-top: 1rem; }
+  .log .err { color: #ffb0a0; }
+  .tabs { display: flex; gap: 0.4rem; margin: 1.5rem 0 0.75rem; flex-wrap: wrap; }
+  .tab { padding: 0.4rem 0.7rem; border-radius: 999px; background: #efece3; cursor: pointer; font-size: 0.82rem; }
+  .tab.active { background: var(--accent); color: white; }
+  .scenario { background: var(--panel); border: 1px solid #e3e0d8; border-radius: 10px; padding: 1rem 1.25rem; }
+  .scenario p { margin-top: 0; color: var(--muted); font-size: 0.92rem; }
+  .step { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .stepnum { display: inline-block; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: #ddd; color: #555; text-align: center; font-size: 0.75rem; line-height: 1.3rem; }
+  .stepnum.done { background: var(--accent); color: white; }
+  code { background: #eee; padding: 0 4px; border-radius: 4px; }
+  .boundary-label { text-align: center; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 1.5rem 0 0.5rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PROTOTYPE — Health module boundary (throwaway, do not ship)</h1>
+  <div class="intro">
+    <p><strong>Question:</strong> #111 asks what the health module's interface should look like — the in-process boundary that will later become the <code>Health-data API</code> over HTTP. The operations must be right <em>now</em> because the physical split only swaps the implementation, not the callers.</p>
+    <p>This demo simulates two separate stores — <strong>health</strong> (canonical activities, exercise catalogue) and <strong>coaching</strong> (planned sessions, prescription fulfillments) — that can <em>only</em> talk through the boundary functions below, using each other's external IDs, never an internal database id. That's the constraint #85 already decided (&ldquo;neither uses a cross-database foreign key&rdquo;); this demo is where it gets tested against real call shapes instead of argued on paper.</p>
+    <p>Press buttons freely, or run a guided walkthrough below. Watch for the moment something you expected to work doesn't — that's the interface telling you something.</p>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Health store <span style="color:var(--muted); font-weight:400;">(future separate DB)</span></h2>
+      <h3>Canonical activities</h3>
+      <div id="activities"></div>
+      <h3>Exercise catalogue</h3>
+      <div id="catalogue"></div>
+    </div>
+    <div class="panel">
+      <h2>Coaching store <span style="color:var(--muted); font-weight:400;">(stays MyCoach)</span></h2>
+      <h3>Planned sessions</h3>
+      <div id="planned"></div>
+      <h3>Prescription fulfillments</h3>
+      <div id="fulfillments"></div>
+    </div>
+  </div>
+
+  <div class="boundary-label">— boundary: healthApi / coachingApi below, plain data only —</div>
+
+  <div class="panel">
+    <h2>Free play</h2>
+    <div>
+      <button onclick="run('recordWorkoutHappy')">Logger: record workout (linked to plan)</button>
+      <button onclick="run('recordWorkoutRetry')">Logger: retry same POST (network hiccup)</button>
+      <button onclick="run('recordWorkoutNoPlan')">Logger: record ad-hoc workout (no plan)</button>
+      <button onclick="run('claimAgain')">Coaching: re-claim same plan with a 2nd activity</button>
+      <button class="illegal" onclick="run('claimByInternalId')">Coaching: claim using health's internal row id ⚠️</button>
+      <button class="secondary" onclick="run('readLastPerformed')">Read: last performed (bench press)</button>
+      <button class="secondary" onclick="reset()">Reset demo</button>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <h2 style="margin-top:1.5rem;">Guided walkthroughs</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="scenario" id="scenario"></div>
+</div>
+
+<script>
+/* ---------- pure module: this is the part worth lifting into the real code ---------- */
+
+function createHealthCoachingBoundary() {
+  let nextActivitySeq = 1;
+
+  const health = {
+    activities: [],   // { externalId, source, title, startTime, sets: [{setIndex, exerciseId, exerciseTitle, weightKg, reps}] }
+    catalogue: [
+      { id: "bench-press", title: "Bench Press" },
+      { id: "back-squat", title: "Back Squat" },
+    ],
+  };
+
+  const coaching = {
+    plannedSessions: [
+      { id: 1, title: "Push Day", completed: false, fulfillingActivityExternalId: null },
+    ],
+    prescriptionFulfillments: [], // { activityExternalId, setIndex, prescribedWeightKg, prescribedReps }
+  };
+
+  function findActivity(externalId) {
+    return health.activities.find(a => a.externalId === externalId) || null;
+  }
+
+  // READ — health.getActivity: plain dict, no ORM object, no data_source-as-state leak.
+  const healthApi = {
+    getActivity(externalId) {
+      const a = findActivity(externalId);
+      if (!a) return null;
+      return { externalId: a.externalId, title: a.title, startTime: a.startTime, sport: "gym" };
+    },
+
+    // READ — used by both coaching (prompt context) and the Logger (grey reference row).
+    // Note the shape: no data_source, no raw_data — this is the trap in prompt_builder.py's
+    // activity_to_dict (line 868), which serializes the raw ORM object straight into an
+    // LLM prompt today, source column and all.
+    getLastPerformed(exerciseId) {
+      const sets = [];
+      for (const a of health.activities) {
+        for (const s of a.sets) {
+          if (s.exerciseId === exerciseId) sets.push({ ...s, startTime: a.startTime });
+        }
+      }
+      sets.sort((x, y) => new Date(y.startTime) - new Date(x.startTime));
+      const last = sets[0];
+      return last ? { exerciseId, date: last.startTime, weightKg: last.weightKg, reps: last.reps } : null;
+    },
+
+    listExerciseCatalogue() {
+      return health.catalogue.slice();
+    },
+
+    // COMMAND — the one shared intake path (#109's decision). Idempotent on (source, externalId).
+    // Returns externalId, never an internal row id — that id is the only thing safe to hand back
+    // to a caller that might one day be on the other side of an HTTP boundary.
+    recordWorkout({ source, externalId, title, startTime, sets }) {
+      const existing = findActivity(externalId);
+      if (existing) {
+        return { activityExternalId: existing.externalId, created: false, reason: "duplicate (source, externalId)" };
+      }
+      health.activities.push({
+        externalId, source, title, startTime,
+        sets: sets.map((s, i) => ({ setIndex: i, exerciseId: s.exerciseId, exerciseTitle: s.exerciseTitle, weightKg: s.weightKg, reps: s.reps })),
+      });
+      nextActivitySeq++;
+      return { activityExternalId: externalId, created: true };
+    },
+  };
+
+  // COACHING side of the same POST. #108 decided prescribed_weight_kg/prescribed_reps move OUT
+  // of the health-owned set row into a coaching-owned table, keyed by (activityExternalId, setIndex)
+  // — never by health's internal activity.id. This is the part of the Logger's current POST body
+  // that has to land on the coaching side of the boundary once the schemas actually split.
+  const coachingApi = {
+    recordPrescriptionFulfillment({ activityExternalId, setIndex, prescribedWeightKg, prescribedReps }) {
+      coaching.prescriptionFulfillments.push({ activityExternalId, setIndex, prescribedWeightKg, prescribedReps });
+      return { recorded: true };
+    },
+
+    // COMMAND — legal form: keyed by the activity's *external* id, the thing that still
+    // resolves once health is a different database. This is what today's claim_planned_session
+    // (plan_linking.py:38) should become.
+    claimPlannedSession({ plannedSessionId, activityExternalId }) {
+      const plan = coaching.plannedSessions.find(p => p.id === plannedSessionId);
+      if (!plan) return { claimed: false, reason: "no such planned session" };
+      if (plan.completed && plan.fulfillingActivityExternalId !== activityExternalId) {
+        return { claimed: false, reason: `already claimed by ${plan.fulfillingActivityExternalId}` };
+      }
+      plan.completed = true;
+      plan.fulfillingActivityExternalId = activityExternalId;
+      return { claimed: true };
+    },
+
+    // ILLEGAL form, kept here only to demonstrate why it can't exist: today's
+    // plan_linking.py claim_planned_session (L34-73) takes `activity_id` (health's internal
+    // primary key, read off the just-flushed Activity row in importer.py) and writes it
+    // straight into PlannedSession.activity_id as a literal FK. That works only because both
+    // tables sit in the same process and the same database. The moment health becomes a
+    // separate service, that id means nothing on the coaching side — there is no row to find.
+    claimPlannedSessionByInternalId({ plannedSessionId, healthInternalRowId }) {
+      throw new Error(
+        `refused: healthInternalRowId (${healthInternalRowId}) is not a thing this boundary exposes — ` +
+        `use activityExternalId instead. This call only ever "worked" because both stores share a process.`
+      );
+    },
+  };
+
+  return { health, coaching, healthApi, coachingApi };
+}
+
+/* ---------- throwaway page shell below: wiring, rendering, scenarios ---------- */
+
+let state = createHealthCoachingBoundary();
+const logEl = document.getElementById("log");
+
+function log(msg, isErr) {
+  const line = document.createElement("div");
+  if (isErr) line.className = "err";
+  line.textContent = (isErr ? "✗ " : "› ") + msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function render() {
+  const { health, coaching } = state;
+
+  const activities = document.getElementById("activities");
+  activities.innerHTML = health.activities.length ? "" : '<div class="empty">none yet</div>';
+  for (const a of health.activities) {
+    const div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `<span class="field">${a.title} <code>${a.externalId}</code> (${a.source})</span><span class="value">${a.sets.length} set(s)</span>`;
+    activities.appendChild(div);
+  }
+
+  const catalogue = document.getElementById("catalogue");
+  catalogue.innerHTML = "";
+  for (const c of state.health.catalogue) {
+    const div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `<span class="field">${c.title}</span><span class="value"><code>${c.id}</code></span>`;
+    catalogue.appendChild(div);
+  }
+
+  const planned = document.getElementById("planned");
+  planned.innerHTML = "";
+  for (const p of coaching.plannedSessions) {
+    const div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `<span class="field">${p.title}</span><span class="value">${p.completed ? "done — fulfilled by " + p.fulfillingActivityExternalId : "pending"}</span>`;
+    planned.appendChild(div);
+  }
+
+  const fulfillments = document.getElementById("fulfillments");
+  fulfillments.innerHTML = coaching.prescriptionFulfillments.length ? "" : '<div class="empty">none yet</div>';
+  for (const f of coaching.prescriptionFulfillments) {
+    const div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `<span class="field"><code>${f.activityExternalId}</code> set ${f.setIndex}</span><span class="value">${f.prescribedWeightKg}kg × ${f.prescribedReps}</span>`;
+    fulfillments.appendChild(div);
+  }
+}
+
+function reset() {
+  state = createHealthCoachingBoundary();
+  logEl.innerHTML = "";
+  log("demo reset");
+  render();
+}
+
+/* Actions available to both free-play buttons and guided steps. */
+const actions = {
+  recordWorkoutHappy() {
+    const r = state.healthApi.recordWorkout({
+      source: "logger", externalId: "wkt-001", title: "Push Day", startTime: "2026-09-23T08:00:00Z",
+      sets: [{ exerciseId: "bench-press", exerciseTitle: "Bench Press", weightKg: 80, reps: 5 }],
+    });
+    log(`healthApi.recordWorkout → ${JSON.stringify(r)}`);
+    if (r.created) {
+      state.coachingApi.recordPrescriptionFulfillment({ activityExternalId: "wkt-001", setIndex: 0, prescribedWeightKg: 80, prescribedReps: 5 });
+      log("coachingApi.recordPrescriptionFulfillment → recorded");
+      const claim = state.coachingApi.claimPlannedSession({ plannedSessionId: 1, activityExternalId: "wkt-001" });
+      log(`coachingApi.claimPlannedSession → ${JSON.stringify(claim)}`);
+    }
+  },
+  recordWorkoutRetry() {
+    const r = state.healthApi.recordWorkout({
+      source: "logger", externalId: "wkt-001", title: "Push Day", startTime: "2026-09-23T08:00:00Z",
+      sets: [{ exerciseId: "bench-press", exerciseTitle: "Bench Press", weightKg: 80, reps: 5 }],
+    });
+    log(`healthApi.recordWorkout (retry) → ${JSON.stringify(r)} — no duplicate row, no re-claim attempted`);
+  },
+  recordWorkoutNoPlan() {
+    const r = state.healthApi.recordWorkout({
+      source: "logger", externalId: "wkt-002", title: "Improvised Squat Session", startTime: "2026-09-24T08:00:00Z",
+      sets: [{ exerciseId: "back-squat", exerciseTitle: "Back Squat", weightKg: 100, reps: 3 }],
+    });
+    log(`healthApi.recordWorkout → ${JSON.stringify(r)} (no planned session to claim — ad-hoc log)`);
+  },
+  claimAgain() {
+    const r = state.healthApi.recordWorkout({
+      source: "logger", externalId: "wkt-003", title: "Push Day (2nd attempt)", startTime: "2026-09-25T08:00:00Z",
+      sets: [{ exerciseId: "bench-press", exerciseTitle: "Bench Press", weightKg: 82.5, reps: 5 }],
+    });
+    log(`healthApi.recordWorkout → ${JSON.stringify(r)}`);
+    const claim = state.coachingApi.claimPlannedSession({ plannedSessionId: 1, activityExternalId: "wkt-003" });
+    log(`coachingApi.claimPlannedSession → ${JSON.stringify(claim)}`, !claim.claimed);
+  },
+  claimByInternalId() {
+    try {
+      state.coachingApi.claimPlannedSessionByInternalId({ plannedSessionId: 1, healthInternalRowId: 1 });
+    } catch (e) {
+      log(`coachingApi.claimPlannedSessionByInternalId → ${e.message}`, true);
+    }
+  },
+  readLastPerformed() {
+    const r = state.healthApi.getLastPerformed("bench-press");
+    log(`healthApi.getLastPerformed("bench-press") → ${JSON.stringify(r)}`);
+  },
+};
+
+function run(name) {
+  actions[name]();
+  render();
+}
+
+/* ---------- guided walkthroughs ---------- */
+
+const scenarios = [
+  {
+    title: "Happy path",
+    description: "Logger pushes a workout that fulfills today's planned session. Everything resolves through external ids only.",
+    steps: [
+      { label: "Record the workout", action: "recordWorkoutHappy" },
+      { label: "Read it back (last performed)", action: "readLastPerformed" },
+    ],
+  },
+  {
+    title: "Retry after a dropped response",
+    description: "The Logger's POST succeeded server-side but the response never reached the offline client, so it retries with the same external id. This is the case _(_workout_exists in importer.py:20) already guards against — the interface needs to guard it too.",
+    steps: [
+      { label: "First POST", action: "recordWorkoutHappy" },
+      { label: "Retry (same external id)", action: "recordWorkoutRetry" },
+    ],
+  },
+  {
+    title: "Attempt something illegal: claim via internal id",
+    description: "This is today's actual code shape: plan_linking.py's claim_planned_session takes health's internal activity.id and writes it into PlannedSession.activity_id as a literal foreign key. Watch what happens when the boundary refuses to expose that operation at all.",
+    steps: [
+      { label: "Record a workout normally", action: "recordWorkoutHappy" },
+      { label: "Now try claiming with the internal row id instead", action: "claimByInternalId" },
+    ],
+  },
+  {
+    title: "Second workout tries to claim an already-fulfilled plan",
+    description: "Two activities, one planned session. Only the first claim should stick — a second claim by a different external id must be rejected, not silently overwrite the first.",
+    steps: [
+      { label: "Fulfill the plan with the first workout", action: "recordWorkoutHappy" },
+      { label: "Try to claim the same plan with a second workout", action: "claimAgain" },
+    ],
+  },
+];
+
+let activeTab = 0;
+let stepIndex = 0;
+
+function renderTabs() {
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = "";
+  scenarios.forEach((s, i) => {
+    const el = document.createElement("div");
+    el.className = "tab" + (i === activeTab ? " active" : "");
+    el.textContent = s.title;
+    el.onclick = () => selectTab(i);
+    tabs.appendChild(el);
+  });
+}
+
+function selectTab(i) {
+  activeTab = i;
+  stepIndex = 0;
+  reset();
+  renderTabs();
+  renderScenario();
+}
+
+function renderScenario() {
+  const s = scenarios[activeTab];
+  const box = document.getElementById("scenario");
+  const stepsHtml = s.steps.map((step, i) => {
+    const done = i < stepIndex;
+    const isNext = i === stepIndex;
+    return `<span class="step" style="margin-right:1rem;">
+      <span class="stepnum ${done ? "done" : ""}">${done ? "✓" : i + 1}</span>
+      <button ${isNext ? "" : "disabled"} onclick="advanceScenario(${i})">${step.label}</button>
+    </span>`;
+  }).join("");
+  box.innerHTML = `<p>${s.description}</p><div>${stepsHtml}</div>`;
+}
+
+function advanceScenario(i) {
+  if (i !== stepIndex) return;
+  run(scenarios[activeTab].steps[i].action);
+  stepIndex++;
+  renderScenario();
+}
+
+reset();
+renderTabs();
+renderScenario();
+</script>
+</body>
+</html>

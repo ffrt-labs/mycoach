@@ -11,8 +11,11 @@ settings = get_settings()
 engine = create_async_engine(
     settings.db_url,
     echo=settings.debug,
+    pool_pre_ping=not settings.db_url.startswith("sqlite"),
 )
 
+# Postgres is the production engine (map #85, ticket #107). The SQLite branch is
+# gated, not removed: the test suite and one-off local runs still use it.
 if settings.db_url.startswith("sqlite"):
 
     @event.listens_for(engine.sync_engine, "connect")

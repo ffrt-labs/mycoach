@@ -52,12 +52,9 @@ async def test_garmin_sync_success(mock_session: AsyncMock) -> None:
     mock_result.health_snapshots_created = 2
     mock_result.activities_created = 1
     mock_source.fetch_and_import = AsyncMock(return_value=mock_result)
-    mock_merge = MagicMock(merged=0)
-
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch("mycoach.scheduler.jobs.merge_garmin_hevy", AsyncMock(return_value=mock_merge)),
     ):
         await _garmin_sync()
 
@@ -76,12 +73,9 @@ async def test_garmin_sync_looks_back_seven_days_by_default(
     mock_result.health_snapshots_created = 0
     mock_result.activities_created = 0
     mock_source.fetch_and_import = AsyncMock(return_value=mock_result)
-    mock_merge = MagicMock(merged=0)
-
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch("mycoach.scheduler.jobs.merge_garmin_hevy", AsyncMock(return_value=mock_merge)),
     ):
         await _garmin_sync()
 
@@ -97,12 +91,9 @@ async def test_garmin_sync_returns_the_import_result(mock_session: AsyncMock) ->
     mock_result.health_snapshots_created = 1
     mock_result.activities_created = 0
     mock_source.fetch_and_import = AsyncMock(return_value=mock_result)
-    mock_merge = MagicMock(merged=0)
-
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch("mycoach.scheduler.jobs.merge_garmin_hevy", AsyncMock(return_value=mock_merge)),
     ):
         result = await _garmin_sync()
 
@@ -1093,10 +1084,6 @@ async def test_garmin_sync_logs_the_failure_detail_it_already_computed(
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch(
-            "mycoach.scheduler.jobs.merge_garmin_hevy",
-            AsyncMock(return_value=MagicMock(merged=0)),
-        ),
         caplog.at_level(logging.INFO),
     ):
         await _garmin_sync()
@@ -1119,10 +1106,6 @@ async def test_garmin_sync_stays_quiet_when_nothing_failed(
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch(
-            "mycoach.scheduler.jobs.merge_garmin_hevy",
-            AsyncMock(return_value=MagicMock(merged=0)),
-        ),
         caplog.at_level(logging.INFO),
     ):
         await _garmin_sync()

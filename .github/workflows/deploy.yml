@@ -30,9 +30,12 @@ jobs:
 
           # mycoach-db (Postgres, docker-compose.yml) — engine-swap target
           # for map #85, ticket #107. Read by docker compose for variable
-          # substitution, not by the app itself: MYCOACH_DB_URL below still
-          # points at SQLite until the cutover (blocked on #104).
+          # substitution, not by the app itself. MYCOACH_RUNTIME_DB_URL is the
+          # cutover switch: blank keeps the app on SQLite, a
+          # postgresql+asyncpg://mycoach:<password>@mycoach-db/mycoach secret
+          # moves it to Postgres (docs/postgres-cutover.md).
           MYCOACH_DATABASE_PASSWORD=${{ secrets.MYCOACH_DATABASE_PASSWORD }}
+          MYCOACH_RUNTIME_DB_URL=${{ secrets.MYCOACH_RUNTIME_DB_URL }}
 
           # Split-out /logger origin (issue #60). Both blank keeps the legacy
           # same-origin mount; set together once the mycoach-logger container

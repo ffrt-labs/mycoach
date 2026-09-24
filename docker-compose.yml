@@ -1,6 +1,7 @@
 services:
   # Engine-swap target for the observed-athlete-record extraction (map #85,
-  # ticket #107): provisioned now, not yet wired up as `mycoach`'s db_url.
+  # ticket #107). `mycoach` switches to it via MYCOACH_RUNTIME_DB_URL once the
+  # data is copied (docs/postgres-cutover.md).
   # Stays off the `edge` network — like homelab-apps' datastores, a database
   # reachable from every edge-joined container is exactly the exposure this
   # setup avoids. No published ports: only containers on the default
@@ -26,8 +27,13 @@ services:
     container_name: mycoach
     restart: unless-stopped
     env_file: .env
+    depends_on:
+      mycoach-db:
+        condition: service_healthy
     environment:
-      MYCOACH_DB_URL: sqlite+aiosqlite:////data/mycoach.db
+      # Stays SQLite until the cutover runbook sets MYCOACH_RUNTIME_DB_URL on
+      # the host; a later commit then flips this default.
+      MYCOACH_DB_URL: ${MYCOACH_RUNTIME_DB_URL:-sqlite+aiosqlite:////data/mycoach.db}
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - app-data:/data

@@ -5,7 +5,8 @@ services:
   # Stays off the `edge` network — like homelab-apps' datastores, a database
   # reachable from every edge-joined container is exactly the exposure this
   # setup avoids. No published ports: only containers on the default
-  # compose network (mycoach, mycoach-logger) can reach it.
+  # compose network can reach it, which is why `mycoach` joins both `default`
+  # and `edge`.
   mycoach-db:
     image: postgres:16-alpine
     container_name: mycoach-db
@@ -40,6 +41,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     networks:
+      - default
       - edge
     healthcheck:
       test:

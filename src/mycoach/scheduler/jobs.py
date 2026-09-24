@@ -48,7 +48,7 @@ from mycoach.scheduler.briefing_window import (
 )
 from mycoach.sources.base import ImportResult
 from mycoach.sources.garmin.source import DeviceUpload, GarminSource
-from mycoach.sources.merger import merge_garmin_hevy
+from mycoach.sources.merger import MergeResult
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +234,10 @@ async def _garmin_sync(days: int | None = None) -> ImportResult:
         since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         since = since - timedelta(days=days)
         result = await source.fetch_and_import(session, USER_ID, since=since)
-        merge_result = await merge_garmin_hevy(session, USER_ID)
+        # Merging is disabled ahead of the #109 canonical-activity migration:
+        # merge_garmin_hevy's delete-and-overwrite pattern destroys provenance
+        # (see #116/#110).
+        merge_result = MergeResult()
         await session.commit()
         logger.info(
             "Scheduler: Garmin sync complete — health=%d, activities=%d, merged=%d",

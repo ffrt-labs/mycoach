@@ -202,10 +202,6 @@ async def test_garmin_sync_body_records_run() -> None:
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=_mock_garmin_source()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
-        patch(
-            "mycoach.scheduler.jobs.merge_garmin_hevy",
-            AsyncMock(return_value=MagicMock(merged=0)),
-        ),
     ):
         await _record_run("garmin_sync", _garmin_sync())
 
@@ -661,10 +657,6 @@ async def test_non_sending_job_records_no_delivery() -> None:
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=_mock_garmin_source()),
         patch("mycoach.scheduler.jobs.async_session", test_session),
-        patch(
-            "mycoach.scheduler.jobs.merge_garmin_hevy",
-            AsyncMock(return_value=MagicMock(merged=0)),
-        ),
     ):
         await _record_run("garmin_sync", _garmin_sync())
 

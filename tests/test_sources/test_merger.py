@@ -329,26 +329,7 @@ class TestMergeGarminHevy:
 
 class TestMergeEndpoint:
     @pytest.mark.asyncio
-    async def test_merge_endpoint(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        from tests.conftest import test_session
-
-        start = datetime(2024, 6, 10, 9, 0)
-
-        async with test_session() as session:
-            hevy = _make_hevy_activity(user.id, "Push Day", start)
-            garmin = _make_garmin_activity(user.id, "g123", start)
-            session.add_all([hevy, garmin])
-            await session.commit()
-
+    async def test_merge_endpoint_is_disabled(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
+        """Disabled ahead of the #109 canonical-activity migration (see #116)."""
         response = await client.post("/api/sources/merge")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["activities_merged"] == 1
-        assert data["errors"] == []
-
-    @pytest.mark.asyncio
-    async def test_merge_endpoint_nothing_to_merge(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        response = await client.post("/api/sources/merge")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["activities_merged"] == 0
+        assert response.status_code == 503

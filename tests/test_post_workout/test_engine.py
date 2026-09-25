@@ -167,6 +167,12 @@ class TestGeneratePostWorkoutAnalysis:
             )
             session.add(activity)
             await session.flush()
+            session.add(
+                GymWorkoutDetail(
+                    activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
+                )
+            )
+            await session.flush()
 
             # Create a plan for that week
             plan = WeeklyPlan(
@@ -196,6 +202,51 @@ class TestGeneratePostWorkoutAnalysis:
             await session.refresh(planned)
             assert planned.completed is True
             assert planned.activity_id == activity.id
+
+    async def test_empty_activity_does_not_complete_planned_session(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+
+            # Create activity on Wednesday June 12 (week starting Monday June 10)
+            activity = Activity(
+                user_id=user_id,
+                sport="gym",
+                title="Upper Body",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                duration_minutes=60,
+                data_source="hevy",
+            )
+            session.add(activity)
+            await session.flush()
+
+            # Create a plan for that week
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=date(2024, 6, 10),
+                status="active",
+                summary="Test plan",
+            )
+            session.add(plan)
+            await session.flush()
+
+            planned = PlannedSession(
+                plan_id=plan.id,
+                day_of_week=2,  # Wednesday
+                sport="gym",
+                title="Upper Body",
+                duration_minutes=60,
+            )
+            session.add(planned)
+            await session.commit()
+
+            mock_llm = _mock_llm_client()
+            engine = CoachingEngine(llm_client=mock_llm)
+            await engine.generate_post_workout_analysis(session, user_id, activity.id)
+
+            # The insight is still produced, but the prescription stays open
+            await session.refresh(planned)
+            assert planned.completed is False
+            assert planned.activity_id is None
 
     async def test_swimming_activity(self) -> None:
         async with test_session() as session:

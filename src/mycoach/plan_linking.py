@@ -14,10 +14,27 @@ has already resolved a planned session and just records the link;
 to trust it.
 """
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.models.activity import GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
+
+logger = logging.getLogger(__name__)
+
+
+async def has_performed_sets(session: AsyncSession, activity_id: int) -> bool:
+    """Whether the activity has at least one performed set.
+
+    The claim guard: a prescription is only answered by an activity that shows
+    work was done. Empty activities are still stored (source records are
+    immutable) but never complete a prescription. Callers must have flushed the
+    activity's sets first.
+    """
+    stmt = select(GymWorkoutDetail.id).where(GymWorkoutDetail.activity_id == activity_id).limit(1)
+    return (await session.execute(stmt)).first() is not None
 
 
 async def link_activity_to_planned_session(
@@ -25,7 +42,18 @@ async def link_activity_to_planned_session(
     activity_id: int,
     planned_session_id: int,
 ) -> None:
-    """Mark a planned session as completed and link it to the actual activity."""
+    """Mark a planned session as completed and link it to the actual activity.
+
+    An activity with no performed sets is a logged no-op: the prescription
+    stays open (see ``has_performed_sets``).
+    """
+    if not await has_performed_sets(session, activity_id):
+        logger.warning(
+            "Not linking activity %s to planned session %s: no performed sets",
+            activity_id,
+            planned_session_id,
+        )
+        return
     stmt = select(PlannedSession).where(PlannedSession.id == planned_session_id)
     result = await session.execute(stmt)
     planned = result.scalar_one_or_none()
@@ -71,6 +99,12 @@ async def claim_planned_session(
         return (
             f"planned_session_id {planned_session_id} is already answered by "
             f"activity {planned.activity_id} — workout imported without a prescription link"
+        )
+
+    if not await has_performed_sets(session, activity_id):
+        return (
+            f"planned_session_id {planned_session_id} not claimed: activity has no "
+            "performed sets — workout imported without a prescription link"
         )
 
     planned.completed = True

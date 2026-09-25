@@ -309,6 +309,26 @@ class TestGetPlanAdherenceForWeek:
             assert result is not None
             assert [s["completed"] for s in result["sessions"]] == [True, True]
 
+    async def test_one_activity_linked_twice_credits_one_session(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            act = await _gym(session, user_id, sets=1)
+            session.add_all(
+                [
+                    PlannedSession(
+                        plan_id=plan_id, day_of_week=0, sport="gym", title="A", activity_id=act.id
+                    ),
+                    PlannedSession(
+                        plan_id=plan_id, day_of_week=2, sport="gym", title="B", activity_id=act.id
+                    ),
+                ]
+            )
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 1
+
     async def test_unlinked_activity_returns_to_pool(self) -> None:
         async with test_session() as session:
             user_id, plan_id = await _plan(session)

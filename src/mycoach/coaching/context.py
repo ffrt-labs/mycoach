@@ -211,7 +211,7 @@ async def get_plan_adherence_for_week(
         if s.activity_id is None:
             continue
         sport = linked_sports.get(s.activity_id)
-        if sport is not None and fulfils(s.activity_id, sport):
+        if sport is not None and s.activity_id not in consumed and fulfils(s.activity_id, sport):
             done.add(s.id)
             consumed.add(s.activity_id)
 

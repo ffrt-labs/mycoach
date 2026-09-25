@@ -22,6 +22,37 @@ async def _create_user(session: object) -> int:
     return user.id
 
 
+WEEK = date(2024, 6, 10)
+
+
+async def _plan(session: object) -> tuple[int, int]:
+    user_id = await _create_user(session)
+    plan = WeeklyPlan(
+        user_id=user_id, week_start=WEEK, status="active", summary="p", prompt_version="v1"
+    )
+    session.add(plan)  # type: ignore[union-attr]
+    await session.flush()  # type: ignore[union-attr]
+    return user_id, plan.id
+
+
+async def _gym(session: object, user_id: int, sets: int, day: int = 10) -> Activity:
+    activity = Activity(
+        user_id=user_id,
+        title="Gym",
+        sport="gym",
+        start_time=datetime(2024, 6, day, 9, 0),
+        data_source="hevy",
+    )
+    session.add(activity)  # type: ignore[union-attr]
+    await session.flush()  # type: ignore[union-attr]
+    for i in range(sets):
+        session.add(  # type: ignore[union-attr]
+            GymWorkoutDetail(activity_id=activity.id, exercise_title="Bench", set_index=i + 1)
+        )
+    await session.flush()  # type: ignore[union-attr]
+    return activity
+
+
 class TestGetPlanAdherenceForWeek:
     async def test_returns_adherence_data(self) -> None:
         async with test_session() as session:
@@ -88,6 +119,8 @@ class TestGetPlanAdherenceForWeek:
                 data_source="hevy",
             )
             session.add(a1)
+            await session.flush()
+            session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
             result = await get_plan_adherence_for_week(session, user_id, week_start)
@@ -132,6 +165,8 @@ class TestGetPlanAdherenceForWeek:
                 data_source="hevy",
             )
             session.add(a1)
+            await session.flush()
+            session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
             result = await get_plan_adherence_for_week(session, user_id, week_start)
@@ -173,6 +208,8 @@ class TestGetPlanAdherenceForWeek:
                 data_source="hevy",
             )
             session.add(a1)
+            await session.flush()
+            session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
             result = await get_plan_adherence_for_week(session, user_id, week_start)
@@ -214,6 +251,113 @@ class TestGetPlanAdherenceForWeek:
             result = await get_plan_adherence_for_week(session, user_id, week_start)
             assert result is not None
             assert result["adherence_pct"] == 100.0
+
+    async def test_empty_gym_activity_does_not_complete_session(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            session.add(PlannedSession(plan_id=plan_id, day_of_week=0, sport="gym", title="Push"))
+            await _gym(session, user_id, sets=0)
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 0
+
+    async def test_empty_linked_activity_does_not_read_done(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            empty = await _gym(session, user_id, sets=0)
+            session.add(
+                PlannedSession(
+                    plan_id=plan_id,
+                    day_of_week=0,
+                    sport="gym",
+                    title="Push",
+                    completed=True,
+                    activity_id=empty.id,
+                )
+            )
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 0
+
+    async def test_linked_activity_is_consumed_before_pool(self) -> None:
+        """Session 2's link must not lose its activity to session 1 (earlier day)."""
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            first = await _gym(session, user_id, sets=1, day=10)
+            second = await _gym(session, user_id, sets=1, day=11)
+            session.add_all(
+                [
+                    PlannedSession(plan_id=plan_id, day_of_week=0, sport="gym", title="A"),
+                    PlannedSession(
+                        plan_id=plan_id,
+                        day_of_week=1,
+                        sport="gym",
+                        title="B",
+                        completed=True,
+                        activity_id=second.id,
+                    ),
+                ]
+            )
+            await session.commit()
+            assert first.id != second.id
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert [s["completed"] for s in result["sessions"]] == [True, True]
+
+    async def test_unlinked_activity_returns_to_pool(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            await _gym(session, user_id, sets=1)
+            session.add(PlannedSession(plan_id=plan_id, day_of_week=3, sport="gym", title="Pull"))
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 1
+
+    async def test_manual_complete_consumes_nothing(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            await _gym(session, user_id, sets=1)
+            session.add_all(
+                [
+                    PlannedSession(
+                        plan_id=plan_id, day_of_week=0, sport="gym", title="A", completed=True
+                    ),
+                    PlannedSession(plan_id=plan_id, day_of_week=2, sport="gym", title="B"),
+                ]
+            )
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 2
+
+    async def test_non_gym_activity_still_counts_without_sets(self) -> None:
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            session.add(
+                PlannedSession(plan_id=plan_id, day_of_week=0, sport="running", title="Run")
+            )
+            session.add(
+                Activity(
+                    user_id=user_id,
+                    title="Run",
+                    sport="running",
+                    start_time=datetime(2024, 6, 11, 7, 0),
+                    data_source="garmin",
+                )
+            )
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+            assert result is not None
+            assert result["completed_sessions"] == 1
 
 
 class TestGetActivitiesForWeek:

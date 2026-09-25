@@ -6,7 +6,7 @@ services:
   # reachable from every edge-joined container is exactly the exposure this
   # setup avoids. No published ports: only containers on the default
   # compose network can reach it, which is why `mycoach` joins both `default`
-  # and `edge`.
+  # and `mycoach-internal`.
   mycoach-db:
     image: postgres:16-alpine
     container_name: mycoach-db
@@ -40,9 +40,12 @@ services:
       - app-data:/data
     ports:
       - "127.0.0.1:8000:8000"
+    # Deliberately NOT on `edge`: only homelab-edge's Caddy shares
+    # `mycoach-internal`, so a sibling container on `edge` cannot reach
+    # mycoach:8000 directly and bypass Caddy. (homelab-edge#28)
     networks:
       - default
-      - edge
+      - mycoach-internal
     healthcheck:
       test:
         - CMD
@@ -73,6 +76,9 @@ services:
 
 networks:
   edge:
+    external: true
+  # Created by homelab-edge's deploy; must already exist.
+  mycoach-internal:
     external: true
 
 volumes:

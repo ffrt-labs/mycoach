@@ -157,9 +157,11 @@ of every app on the home server. MyCoach itself has nothing HTTPS-related to con
 
 ### What this repo needs
 
-`docker-compose.yml` joins the shared `edge` Docker network (an external network created by
-`homelab-edge`'s own deploy — it must already exist, or `docker compose up` here fails) and
-publishes no other LAN ports. `127.0.0.1:8000` stays bound to localhost only, purely so you can
+`docker-compose.yml` puts the `mycoach` API on a private `mycoach-internal` Docker network shared
+only with `homelab-edge`'s Caddy, and deliberately **not** on the shared `edge` network, so no
+sibling container can reach it directly. `mycoach-logger` joins `edge`. Both are external networks
+created by `homelab-edge`'s own deploy — they must already exist, or `docker compose up` here
+fails. Nothing else is published on the LAN. `127.0.0.1:8000` stays bound to localhost only, purely so you can
 `curl localhost:8000` when SSH'd into the box — the LAN and the PWA both reach the app through
 `homelab-edge`'s Caddy, not this port.
 

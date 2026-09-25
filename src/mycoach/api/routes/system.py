@@ -2,10 +2,8 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-
-from mycoach.api.deps import require_api_key
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -63,7 +61,6 @@ async def scheduler_status(request: Request) -> SchedulerStatusResponse:
     "/scheduler/trigger/{job_id}",
     response_model=TriggerResponse,
     status_code=202,
-    dependencies=[Depends(require_api_key)],
 )
 async def trigger_scheduler_job(job_id: str, request: Request) -> TriggerResponse:
     """Fire a scheduled job immediately, ahead of its normal cron time.

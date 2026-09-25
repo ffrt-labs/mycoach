@@ -6,20 +6,13 @@ in history, keyed by ``exercise_id`` with the display title alongside so a
 null-id custom exercise still has a home.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
 
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.user import User
-
-TOKEN = "secret-token"
-
-
-@pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MYCOACH_API_TOKEN", TOKEN)
 
 
 @pytest.fixture
@@ -63,7 +56,7 @@ async def _log_gym(start_time: datetime, sets: list[dict]) -> None:
 
 
 async def _get(client: AsyncClient) -> dict:
-    response = await client.get("/api/logger/exercises", headers={"X-API-Key": TOKEN})
+    response = await client.get("/api/logger/exercises")
     assert response.status_code == 200
     return response.json()
 

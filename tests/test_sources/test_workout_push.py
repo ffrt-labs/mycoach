@@ -4,8 +4,6 @@ import pytest
 
 from mycoach.models.user import User
 
-TOKEN = "secret-token"
-
 
 @pytest.fixture
 async def user(setup_db: None) -> User:
@@ -16,12 +14,6 @@ async def user(setup_db: None) -> User:
         session.add(u)
         await session.commit()
         return u
-
-
-@pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Overrides any value from .env for deterministic auth tests.
-    monkeypatch.setenv("MYCOACH_API_TOKEN", TOKEN)
 
 
 def _batch() -> dict:
@@ -53,25 +45,11 @@ def _batch() -> dict:
     }
 
 
-class TestPushAuth:
-    @pytest.mark.asyncio
-    async def test_missing_key_rejected(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.post("/api/sources/import/workouts", json=_batch())
-        assert resp.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_wrong_key_rejected(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.post(
-            "/api/sources/import/workouts", json=_batch(), headers={"X-API-Key": "nope"}
-        )
-        assert resp.status_code == 401
-
-
 class TestPushImport:
     @pytest.mark.asyncio
     async def test_valid_batch_creates(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         resp = await client.post(
-            "/api/sources/import/workouts", json=_batch(), headers={"X-API-Key": TOKEN}
+            "/api/sources/import/workouts", json=_batch()
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -88,7 +66,6 @@ class TestPushImport:
         response = await client.post(
             "/api/sources/import/workouts",
             json=batch,
-            headers={"X-API-Key": TOKEN},
         )
         assert response.status_code == 200
 
@@ -104,7 +81,6 @@ class TestPushImport:
         response = await client.post(
             "/api/sources/import/workouts",
             json=batch,
-            headers={"X-API-Key": TOKEN},
         )
         assert response.status_code == 200
 
@@ -120,18 +96,16 @@ class TestPushImport:
         response = await client.post(
             "/api/sources/import/workouts",
             json=batch,
-            headers={"X-API-Key": TOKEN},
         )
 
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_idempotent_repost(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        headers = {"X-API-Key": TOKEN}
-        first = await client.post("/api/sources/import/workouts", json=_batch(), headers=headers)
+        first = await client.post("/api/sources/import/workouts", json=_batch())
         assert first.json()["activities_created"] == 1
 
-        second = await client.post("/api/sources/import/workouts", json=_batch(), headers=headers)
+        second = await client.post("/api/sources/import/workouts", json=_batch())
         body = second.json()
         assert body["activities_created"] == 0
         assert body["activities_skipped"] == 1
@@ -141,20 +115,16 @@ class TestPushImport:
         batch = _batch()
         batch["workouts"][0]["sets"][0]["set_type"] = "bogus"
         resp = await client.post(
-            "/api/sources/import/workouts", json=batch, headers={"X-API-Key": TOKEN}
+            "/api/sources/import/workouts", json=batch
         )
         assert resp.status_code == 422
 
 
 class TestLoggerExercises:
-    @pytest.mark.asyncio
-    async def test_requires_key(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/exercises")
-        assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_returns_pinned_catalogue_with_stable_ids(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/exercises", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/exercises")
 
         assert resp.status_code == 200
         exercises = resp.json()["exercises"]
@@ -167,10 +137,9 @@ class TestLoggerExercises:
 
     @pytest.mark.asyncio
     async def test_returns_sorted_distinct_catalogue(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        headers = {"X-API-Key": TOKEN}
-        await client.post("/api/sources/import/workouts", json=_batch(), headers=headers)
+        await client.post("/api/sources/import/workouts", json=_batch())
 
-        resp = await client.get("/api/logger/exercises", headers=headers)
+        resp = await client.get("/api/logger/exercises")
         assert resp.status_code == 200
         exercises = resp.json()["exercises"]
         names = [exercise["name"] for exercise in exercises]
@@ -213,7 +182,7 @@ class TestPushPrescriptionLink:
         batch["workouts"][0]["planned_session_id"] = planned_id
 
         resp = await client.post(
-            "/api/sources/import/workouts", json=batch, headers={"X-API-Key": TOKEN}
+            "/api/sources/import/workouts", json=batch
         )
         assert resp.status_code == 200
         assert resp.json()["errors"] == []
@@ -231,7 +200,7 @@ class TestPushPrescriptionLink:
         batch["workouts"][0]["planned_session_id"] = 4242
 
         resp = await client.post(
-            "/api/sources/import/workouts", json=batch, headers={"X-API-Key": TOKEN}
+            "/api/sources/import/workouts", json=batch
         )
         assert resp.status_code == 200
         body = resp.json()

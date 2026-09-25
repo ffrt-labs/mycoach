@@ -182,22 +182,64 @@ async def get_plan_adherence_for_week(
     activities_result = await session.execute(activities_stmt)
     activities = activities_result.scalars().all()
 
-    # Match actuals to plan by sport within the week, not by day: a session shifted
-    # to another day was still done. Greedily, one activity consumes one planned
-    # session of that sport, so extra activities never inflate adherence past the plan.
-    sport_budget: Counter[str] = Counter(act.sport for act in activities)
+    # Claim guard (#129): a gym activity with no performed sets never fulfils a
+    # prescription. Other sports count as before.
+    linked_ids = {s.activity_id for s in sessions if s.activity_id is not None}
+    candidate_ids = {a.id for a in activities if a.sport == "gym"} | linked_ids
+    performed_ids: set[int] = set()
+    if candidate_ids:
+        performed_stmt = select(GymWorkoutDetail.activity_id).where(
+            GymWorkoutDetail.activity_id.in_(candidate_ids)
+        )
+        performed_ids = set((await session.execute(performed_stmt)).scalars().all())
+
+    def fulfils(activity_id: int, sport: str) -> bool:
+        return sport != "gym" or activity_id in performed_ids
+
+    # Pass 1: a session whose linked activity still fulfils it consumes exactly
+    # that activity, so it can't also fill a different session.
+    linked_sports: dict[int, str] = {}
+    if linked_ids:
+        linked_stmt = select(Activity.id, Activity.sport).where(
+            Activity.user_id == user_id, Activity.id.in_(linked_ids)
+        )
+        linked_sports = {row.id: row.sport for row in await session.execute(linked_stmt)}
+
+    done: set[int] = set()
+    consumed: set[int] = set()
+    for s in sessions:
+        if s.activity_id is None:
+            continue
+        sport = linked_sports.get(s.activity_id)
+        if sport is not None and fulfils(s.activity_id, sport):
+            done.add(s.id)
+            consumed.add(s.activity_id)
+
+    # Manual completes: no linked activity, nothing consumed.
+    for s in sessions:
+        if s.completed and s.activity_id is None:
+            done.add(s.id)
+
+    # Pass 2: match remaining eligible activities to leftover sessions by sport
+    # within the week, not by day: a session shifted to another day was still
+    # done. One activity fills one session, so extras never inflate adherence.
+    # A session whose link no longer fulfils it is unlinked here: its activity
+    # returns to the pool.
+    sport_budget: Counter[str] = Counter(
+        a.sport for a in activities if a.id not in consumed and fulfils(a.id, a.sport)
+    )
+    for s in sessions:
+        if s.id in done:
+            continue
+        if sport_budget[s.sport] > 0:
+            sport_budget[s.sport] -= 1
+            done.add(s.id)
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list = []
     completed = 0
     for s in sessions:
-        is_done = s.completed
-        if sport_budget[s.sport] > 0:
-            # An actual activity covers this session, whether or not post_workout
-            # already flagged it. Consume the budget either way so it can't also
-            # complete a second planned session of the same sport.
-            sport_budget[s.sport] -= 1
-            is_done = True
+        is_done = s.id in done
         if is_done:
             completed += 1
         session_list.append(

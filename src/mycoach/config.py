@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     env: str = "development"
     debug: bool = False
     log_level: str = "INFO"
-    api_token: str = ""
     timezone: str = "Europe/London"
     app_base_url: str = "http://localhost:8000"  # links back into emails (e.g. dashboard CTA)
 
@@ -43,7 +42,7 @@ class Settings(BaseSettings):
     garmin_token_dir: Path = Field(default=Path(".garmin_tokens"))
 
     # Gym workouts arrive via Hevy CSV import or the offline companion logger
-    # (POST /api/sources/import/workouts, authenticated with api_token above).
+    # (POST /api/sources/import/workouts).
 
     # LLM Provider (anthropic, gemini)
     llm_provider: str = "anthropic"

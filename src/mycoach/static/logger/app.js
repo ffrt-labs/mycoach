@@ -17,7 +17,6 @@
     var API_IMPORT = API_ORIGIN + "/api/sources/import/workouts";
     var API_EXERCISES = API_ORIGIN + "/api/logger/exercises";
     var API_WEEK = API_ORIGIN + "/api/logger/week";
-    var KEY_APIKEY = "mycoach_logger_api_key";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
     var API_TIMEOUT_MS = 30000;
 
@@ -155,7 +154,6 @@
             function (err) { clearTimeout(timer); throw err; }
         );
     }
-    function apiKey() { return localStorage.getItem(KEY_APIKEY) || ""; }
     function fmtTime(iso) {
         var d = new Date(iso);
         return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " +
@@ -319,10 +317,6 @@
     var syncing = false;
     function syncNow(manual) {
         if (syncing) return Promise.resolve();
-        if (!apiKey()) {
-            if (manual) toast("Set your API key in Settings first", "err");
-            return Promise.resolve();
-        }
         if (!navigator.onLine) { if (manual) toast("Offline — will sync when reachable", "err"); return refreshChip(); }
         syncing = true;
         return getAllSessions().then(function (all) {
@@ -332,10 +326,9 @@
             var body = { source: "logger", workouts: pending.map(toPayload) };
             return apiFetch(API_IMPORT, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-API-Key": apiKey() },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
             }).then(function (resp) {
-                if (resp.status === 401) { toast("API key rejected — check Settings", "err"); throw new Error("401"); }
                 if (!resp.ok) throw new Error("HTTP " + resp.status);
                 return resp.json();
             }).then(function () {
@@ -344,7 +337,7 @@
                 if (manual) toast(pending.length + " session" + (pending.length > 1 ? "s" : "") + " synced", "ok");
                 pullExercises();
             }).catch(function (e) {
-                if (e.message !== "401" && manual) toast("Sync failed — MyCoach not reachable", "err");
+                if (manual) toast("Sync failed — MyCoach not reachable", "err");
             });
         }).finally(function () {
             syncing = false;
@@ -359,8 +352,8 @@
     }
 
     function pullExercises() {
-        if (!apiKey() || !navigator.onLine) return;
-        apiFetch(API_EXERCISES, { headers: { "X-API-Key": apiKey() } })
+        if (!navigator.onLine) return;
+        apiFetch(API_EXERCISES)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (!d) return;
@@ -377,8 +370,8 @@
        underneath it. A failed or non-ok response leaves the cache alone —
        last week's plan beats an empty screen in a basement. */
     function pullWeek() {
-        if (!apiKey() || !navigator.onLine) return;
-        apiFetch(API_WEEK, { headers: { "X-API-Key": apiKey() } })
+        if (!navigator.onLine) return;
+        apiFetch(API_WEEK)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (!d) return;
@@ -1228,24 +1221,9 @@
     }
 
     function openSettings() {
-        var key = el("input", { class: "input", type: "password", placeholder: "Paste MYCOACH_API_TOKEN", value: apiKey(), autocomplete: "off" });
         openSheet("Settings", [
-            el("div", { class: "field" }, [
-                el("label", { text: "API key" }),
-                key,
-                el("p", { class: "sub faint", style: "font-size:12px;margin-top:8px", text: "Must match MYCOACH_API_TOKEN on your MyCoach server. Stored on this device only." }),
-            ]),
-            el("button", { class: "btn btn--primary btn--block", onclick: function () {
-                localStorage.setItem(KEY_APIKEY, key.value.trim());
-                closeSheet();
-                toast("Saved");
-                pullExercises();
-                pullWeek();
-                syncNow(true);
-            } }, ["Save"]),
-            el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: function () { closeSheet(); syncNow(true); } }, ["Sync now"]),
+            el("button", { class: "btn btn--primary btn--block", onclick: function () { closeSheet(); syncNow(true); } }, ["Sync now"]),
         ]);
-        setTimeout(function () { key.focus(); }, 50);
     }
 
     // ── Action bar ──────────────────────────────────────────────────

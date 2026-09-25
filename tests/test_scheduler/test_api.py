@@ -8,8 +8,6 @@ from httpx import AsyncClient
 
 from mycoach.main import app
 
-TOKEN = "secret-token"
-
 
 class _FakeJob:
     def __init__(self, job_id: str) -> None:
@@ -36,12 +34,6 @@ class _FakeScheduler:
         return self._jobs.get(job_id)
 
 
-@pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Overrides any value from .env for deterministic auth tests.
-    monkeypatch.setenv("MYCOACH_API_TOKEN", TOKEN)
-
-
 @pytest.fixture
 def fake_scheduler():  # type: ignore[no-untyped-def]
     """Attach a fake scheduler to app.state, and detach it afterward.
@@ -66,24 +58,10 @@ async def test_scheduler_status_no_scheduler(client: AsyncClient) -> None:
 
 
 class TestTriggerSchedulerJob:
-    async def test_requires_key(self, client: AsyncClient, fake_scheduler: _FakeScheduler) -> None:
-        resp = await client.post("/api/system/scheduler/trigger/daily_briefing")
-        assert resp.status_code == 401
-
-    async def test_wrong_key_rejected(
-        self, client: AsyncClient, fake_scheduler: _FakeScheduler
-    ) -> None:
-        resp = await client.post(
-            "/api/system/scheduler/trigger/daily_briefing",
-            headers={"X-API-Key": "nope"},
-        )
-        assert resp.status_code == 401
-
     async def test_503_when_scheduler_not_running(self, client: AsyncClient) -> None:
         # No fake_scheduler fixture here — app.state.scheduler is unset, as in test mode.
         resp = await client.post(
             "/api/system/scheduler/trigger/daily_briefing",
-            headers={"X-API-Key": TOKEN},
         )
         assert resp.status_code == 503
 
@@ -92,7 +70,6 @@ class TestTriggerSchedulerJob:
     ) -> None:
         resp = await client.post(
             "/api/system/scheduler/trigger/nonsense",
-            headers={"X-API-Key": TOKEN},
         )
         assert resp.status_code == 404
         assert "daily_briefing" in resp.json()["detail"]
@@ -102,7 +79,6 @@ class TestTriggerSchedulerJob:
     ) -> None:
         resp = await client.post(
             "/api/system/scheduler/trigger/daily_briefing",
-            headers={"X-API-Key": TOKEN},
         )
         assert resp.status_code == 202
         body = resp.json()

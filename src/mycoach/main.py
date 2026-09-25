@@ -111,8 +111,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
 
     # CORS for the standalone logger origin, once split out (settings.logger_origin
-    # set). The logger authenticates with a bearer-style X-API-Key header, never
-    # cookies, so credentials stay disabled — pinning to the exact origin is what
+    # set). The logger sends no cookies or credentials, so credentials stay disabled — pinning to the exact origin is what
     # actually matters here, not credential support.
     if settings.logger_origin:
         app.add_middleware(
@@ -120,7 +119,7 @@ def create_app() -> FastAPI:
             allow_origins=[settings.logger_origin],
             allow_credentials=False,
             allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["X-API-Key", "Content-Type"],
+            allow_headers=["Content-Type"],
         )
 
     # Global error handlers

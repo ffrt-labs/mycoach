@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mycoach.api.deps import require_api_key
 from mycoach.database import get_db
 from mycoach.exercise_catalogue import load_exercise_catalogue
 from mycoach.models.activity import Activity, GymWorkoutDetail
@@ -125,7 +124,6 @@ async def _last_performed(session: AsyncSession) -> list[LastPerformedExercise]:
 @router.get(
     "/exercises",
     response_model=ExerciseListResponse,
-    dependencies=[Depends(require_api_key)],
 )
 async def list_exercises(
     session: AsyncSession = Depends(get_db),
@@ -222,7 +220,6 @@ def _prescribed_from_routine_day(day: RoutineDay) -> PrescribedSession:
 @router.get(
     "/week",
     response_model=TrainingWeek,
-    dependencies=[Depends(require_api_key)],
 )
 async def get_training_week(
     session: AsyncSession = Depends(get_db),

@@ -13,8 +13,6 @@ import pytest
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 
-TOKEN = "secret-token"
-
 
 def _monday(offset_weeks: int = 0) -> date:
     today = date.today()
@@ -30,11 +28,6 @@ async def user(setup_db: None) -> User:
         session.add(u)
         await session.commit()
         return u
-
-
-@pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MYCOACH_API_TOKEN", TOKEN)
 
 
 def _routine_payload() -> dict:
@@ -111,22 +104,10 @@ def _gym_session(**overrides) -> PlannedSession:
     return PlannedSession(**defaults)
 
 
-class TestTrainingWeekAuth:
-    @pytest.mark.asyncio
-    async def test_requires_key(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/week")
-        assert resp.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_wrong_key_rejected(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": "nope"})
-        assert resp.status_code == 401
-
-
 class TestTrainingWeekFallback:
     @pytest.mark.asyncio
     async def test_empty_when_no_plan_and_no_routine(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         assert resp.status_code == 200
         body = resp.json()
         assert body["week_start"] == _monday().isoformat()
@@ -136,7 +117,7 @@ class TestTrainingWeekFallback:
     async def test_falls_back_to_routine_with_null_weights(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         assert (await client.post("/api/routines", json=_routine_payload())).status_code == 201
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         assert resp.status_code == 200
         sessions = resp.json()["sessions"]
         assert len(sessions) == 1
@@ -161,7 +142,7 @@ class TestTrainingWeekFromPlan:
     async def test_gym_session_carries_prescribed_weights(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         await _add_plan(_monday(), [_gym_session()])
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         assert resp.status_code == 200
         sessions = resp.json()["sessions"]
         assert len(sessions) == 1
@@ -186,7 +167,7 @@ class TestTrainingWeekFromPlan:
     async def test_done_reflects_completed(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         await _add_plan(_monday(), [_gym_session(completed=True)])
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         assert resp.json()["sessions"][0]["done"] is True
 
     @pytest.mark.asyncio
@@ -205,7 +186,7 @@ class TestTrainingWeekFromPlan:
         )
         await _add_plan(_monday(), [cardio])
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         s = resp.json()["sessions"][0]
         assert s["sport"] == "run"
         assert s["loggable"] is False
@@ -224,7 +205,7 @@ class TestTrainingWeekFromPlan:
         )
         await _add_plan(_monday(), [cardio])
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         s = resp.json()["sessions"][0]
         assert s["loggable"] is False
         assert s["details"] is None
@@ -236,7 +217,7 @@ class TestTrainingWeekFromPlan:
         )
         await _add_plan(_monday(), [_gym_session(), cardio])
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         sessions = resp.json()["sessions"]
         assert {s["sport"] for s in sessions} == {"gym", "run"}
 
@@ -247,7 +228,7 @@ class TestTrainingWeekFromPlan:
         await _add_plan(_monday(offset_weeks=-1), [_gym_session(title="Last Week")])
         assert (await client.post("/api/routines", json=_routine_payload())).status_code == 201
 
-        resp = await client.get("/api/logger/week", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/week")
         sessions = resp.json()["sessions"]
         titles = [s["title"] for s in sessions]
         assert "Last Week" not in titles

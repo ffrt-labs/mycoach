@@ -171,8 +171,8 @@ proxies to this app.
 ### Install on Android
 
 On your phone, on home Wi-Fi, open `https://mycoach.yourdomain.com/logger` in Chrome → menu →
-**Install app**. Then open Settings in the logger, paste your `MYCOACH_API_TOKEN`, and hit
-**Sync now** once to confirm the key works.
+**Install app**. Then open Settings in the logger and hit
+**Sync now** once to confirm it can reach the server.
 
 To verify the offline flow end-to-end: put the phone in airplane mode, open the installed app,
 log a session, finish it, then re-enable Wi-Fi at home and confirm it auto-syncs and shows up
@@ -196,8 +196,7 @@ requests carry the right absolute origin) to activate it — see `.env.example`.
 keeps the legacy same-origin mount exactly as it is today.
 
 This is the risky half of the split: per the note above, IndexedDB is origin-scoped, so any
-device mid-cutover needs every session finished and synced *before* switching, and re-entering
-the API key afterward (`localStorage` doesn't carry over either) — verify on the actual phone,
+device mid-cutover needs every session finished and synced *before* switching, — verify on the actual phone,
 not just in a browser tab.
 
 ## Scripts

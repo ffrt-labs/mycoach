@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.api.deps import require_api_key
 from mycoach.database import get_db
 from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
@@ -59,7 +58,6 @@ class WorkoutImportResponse(BaseModel):
 @router.post(
     "/import/workouts",
     response_model=WorkoutImportResponse,
-    dependencies=[Depends(require_api_key)],
 )
 async def import_workouts_endpoint(
     batch: WorkoutImportBatch,

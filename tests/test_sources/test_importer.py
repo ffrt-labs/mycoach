@@ -308,3 +308,34 @@ class TestPrescriptionLinking:
 
         assert result.activities_created == 1
         assert not result.errors
+
+    @pytest.mark.asyncio
+    async def test_empty_activity_is_stored_but_never_claims(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            plan = await self._plan(session, user.id)
+            planned = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="Push", track="gym"
+            )
+            session.add(planned)
+            await session.flush()
+            planned_id = planned.id
+
+            workout = _workout("uuid-empty")
+            workout.sets = []
+            workout.planned_session_id = planned_id
+            result = await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        assert result.activities_created == 1
+        assert result.errors
+        assert "performed sets" in result.errors[0]
+
+        async with test_session() as session:
+            assert (await session.execute(select(Activity))).scalar_one() is not None
+            refreshed = (
+                await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
+            ).scalar_one()
+            assert refreshed.completed is False
+            assert refreshed.activity_id is None

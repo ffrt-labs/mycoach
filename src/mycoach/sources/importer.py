@@ -100,15 +100,6 @@ async def import_workouts(
         session.add(activity)
         await session.flush()  # get activity.id
 
-        if workout.planned_session_id is not None:
-            # The log is the precious thing; the link is bookkeeping. A claim
-            # that cannot be honoured is reported and the workout still lands.
-            declined = await claim_planned_session(
-                session, user_id, activity.id, workout.planned_session_id
-            )
-            if declined:
-                result.errors = (result.errors or []) + [declined]
-
         for s in workout.sets:
             session.add(
                 GymWorkoutDetail(
@@ -128,6 +119,16 @@ async def import_workouts(
                     prescribed_reps=s.prescribed_reps,
                 )
             )
+        await session.flush()  # the claim guard reads the stored sets
+
+        if workout.planned_session_id is not None:
+            # The log is the precious thing; the link is bookkeeping. A claim
+            # that cannot be honoured is reported and the workout still lands.
+            declined = await claim_planned_session(
+                session, user_id, activity.id, workout.planned_session_id
+            )
+            if declined:
+                result.errors = (result.errors or []) + [declined]
 
         result.activities_created += 1
 

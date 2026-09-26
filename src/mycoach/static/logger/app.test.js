@@ -8,6 +8,9 @@ const {
     topSetForExercise,
     resolveExerciseChoice,
     sessionExerciseFromPrescribed,
+    sessionExerciseFromRoutine,
+    routineDays,
+    sessionFromRoutineDay,
     loggableSessions,
     prescribedMeta,
     outstandingSessions,
@@ -400,4 +403,78 @@ test("lastPerformedFor never matches a custom exercise's title against a catalog
     ];
 
     assert.equal(lastPerformedFor(cache, { exercise_id: null, title: "Barbell Squat" }), null);
+});
+
+test("routineDays lists the routine's days in routine order, skipping empty ones", () => {
+    const days = routineDays({
+        days: [
+            { name: "Pull", order_index: 1, exercises: [{ exercise_name: "Row" }] },
+            { name: "Rest", order_index: 2, exercises: [] },
+            { name: "Push", order_index: 0, exercises: [{ exercise_name: "Bench Press" }] },
+        ],
+    });
+
+    assert.deepEqual(days.map((d) => d.name), ["Push", "Pull"]);
+});
+
+test("routineDays is empty with no active routine", () => {
+    // The server answers `null` when no routine is active; the button hides.
+    assert.deepEqual(routineDays(null), []);
+    assert.deepEqual(routineDays({ days: [] }), []);
+});
+
+test("sessionExerciseFromRoutine carries the routine's targets, with no weights", () => {
+    const exercise = sessionExerciseFromRoutine({
+        exercise_id: "Barbell_Squat",
+        exercise_name: "Barbell Squat",
+        notes: "Belt on",
+        sets: 4,
+        rep_range: "5-6",
+        superset_group: null,
+    });
+
+    assert.deepEqual(exercise, {
+        exercise_id: "Barbell_Squat",
+        title: "Barbell Squat",
+        notes: "Belt on",
+        sets: [],
+        target_sets: 4,
+        rep_range: "5-6",
+        superset_group: null,
+    });
+});
+
+test("sessionFromRoutineDay never claims a prescription", () => {
+    // #145/#146: starting from the routine is choosing not to follow the plan.
+    const now = new Date("2026-09-26T17:32:00Z");
+    const s = sessionFromRoutineDay(
+        {
+            name: "Squat Day",
+            exercises: [
+                { exercise_name: "Leg Press", order_index: 1, sets: 3, rep_range: "10-12" },
+                { exercise_name: "Barbell Squat", order_index: 0, sets: 4, rep_range: "5-6" },
+            ],
+        },
+        now,
+        "abc",
+    );
+
+    assert.equal(s.planned_session_id, null);
+    assert.equal(s.title, "Squat Day");
+    assert.equal(s.start_time, now.toISOString());
+    assert.equal(s.synced, false);
+    assert.deepEqual(s.exercises.map((e) => e.title), ["Barbell Squat", "Leg Press"]);
+});
+
+test("a routine session's payload carries no planned_session_id", () => {
+    const s = sessionFromRoutineDay(
+        { name: "Push", exercises: [{ exercise_name: "Bench Press", order_index: 0, sets: 3, rep_range: "8" }] },
+        new Date("2026-09-26T17:32:00Z"),
+        "abc",
+    );
+    s.exercises[0].sets = [{ set_type: "normal", weight_kg: 60, reps: 8 }];
+
+    const workout = toPayload(s);
+    assert.equal(workout.planned_session_id, null);
+    assert.equal(workout.sets.length, 1);
 });

@@ -17,6 +17,7 @@
     var API_IMPORT = API_ORIGIN + "/api/sources/import/workouts";
     var API_EXERCISES = API_ORIGIN + "/api/logger/exercises";
     var API_WEEK = API_ORIGIN + "/api/logger/week";
+    var API_ROUTINES = API_ORIGIN + "/api/logger/routines";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
     var API_TIMEOUT_MS = 30000;
 
@@ -113,7 +114,7 @@
     }
 
     // ── State ───────────────────────────────────────────────────────
-    var state = { activeId: null, exerciseCache: [], lastPerformedCache: [], week: null };
+    var state = { activeId: null, exerciseCache: [], lastPerformedCache: [], week: null, routine: null };
 
     // ── Sync-status chip ────────────────────────────────────────────
     function setChip(kind, text) {
@@ -210,6 +211,48 @@
             target_rpe: exercise.target_rpe != null ? exercise.target_rpe : null,
             rest_seconds: exercise.rest_seconds != null ? exercise.rest_seconds : null,
             superset_group: exercise.superset_group != null ? exercise.superset_group : null,
+        };
+    }
+
+    /* One exercise of a routine day, as the offline session stores it. The
+       routine carries no weights, so there is nothing to prefill beyond the
+       set count and rep range. */
+    function sessionExerciseFromRoutine(exercise) {
+        return {
+            exercise_id: exercise.exercise_id || null,
+            title: exercise.exercise_name,
+            notes: exercise.notes || null,
+            sets: [],
+            target_sets: exercise.sets,
+            rep_range: exercise.rep_range,
+            superset_group: exercise.superset_group != null ? exercise.superset_group : null,
+        };
+    }
+
+    /* The active routine's days in routine order, for "Start from routine"
+       (#145). Empty days are dropped: there is nothing to start. */
+    function routineDays(routine) {
+        return ((routine && routine.days) || [])
+            .filter(function (day) { return day.exercises && day.exercises.length; })
+            .sort(function (a, b) { return a.order_index - b.order_index; });
+    }
+
+    /* A new offline session from a routine day. It never carries a
+       `planned_session_id`: starting from the routine is choosing not to
+       follow a prescription, so it answers none (#145, #146). */
+    function sessionFromRoutineDay(day, now, id) {
+        return {
+            id: id,
+            title: day.name,
+            start_time: now.toISOString(),
+            end_time: null,
+            notes: null,
+            planned_session_id: null,
+            exercises: day.exercises.slice()
+                .sort(function (a, b) { return a.order_index - b.order_index; })
+                .map(sessionExerciseFromRoutine),
+            synced: false,
+            created_at: now.toISOString(),
         };
     }
 
@@ -382,6 +425,22 @@
             .catch(function () {});
     }
 
+    /* The active routine, pulled and cached like the week so "Start from
+       routine" works offline. A 200 with `null` (no active routine) is a real
+       answer and clears the cache; a failed pull leaves it alone. */
+    function pullRoutine() {
+        if (!navigator.onLine) return;
+        apiFetch(API_ROUTINES)
+            .then(function (r) { return r.ok ? r.json().then(function (d) { return { d: d }; }) : null; })
+            .then(function (res) {
+                if (!res) return;
+                state.routine = res.d;
+                setMeta("routine", res.d);
+                if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
+            })
+            .catch(function () {});
+    }
+
     // ── Screen wake lock ────────────────────────────────────────────
     /* The screen dimming mid-set is the loudest way this feels worse than a
        paper notebook. The lock is held for exactly as long as an editable
@@ -438,6 +497,11 @@
         view.appendChild(
             el("button", { class: "btn btn--primary btn--block", style: "margin-top:22px", onclick: startSession }, ["＋ Start session"])
         );
+        if (routineDays(state.routine).length) {
+            view.appendChild(
+                el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openRoutinePicker }, ["Start from routine"])
+            );
+        }
         view.appendChild(
             el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openSettings }, ["Settings"])
         );
@@ -530,6 +594,27 @@
         var h = d.getHours();
         var part = h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening";
         return part + " Session";
+    }
+
+    /* "Start from routine" (#145): any routine day, whatever the coach
+       prescribed this week. The week list above stays as it is. */
+    function openRoutinePicker() {
+        openSheet("Start from routine", routineDays(state.routine).map(function (day) {
+            var meta = day.exercises.length + (day.exercises.length === 1 ? " exercise" : " exercises");
+            return el("button", { class: "session-row", onclick: function () { closeSheet(); startFromRoutineDay(day); } }, [
+                el("span", {}, [
+                    el("div", { class: "session-row__title", text: day.name }),
+                    el("div", { class: "session-row__meta", text: meta }),
+                ]),
+            ]);
+        }).concat([
+            el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: closeSheet }, ["Cancel"]),
+        ]));
+    }
+
+    function startFromRoutineDay(day) {
+        var s = sessionFromRoutineDay(day, new Date(), uuid());
+        putSession(s).then(function () { openSession(s.id); refreshChip(); });
     }
 
     /* Start one of the week's sessions. No picker sheet: the week is already
@@ -1241,7 +1326,7 @@
     // pure functions (see the export guard below), which has no DOM.
     if (typeof document !== "undefined") {
         $("sync-chip").addEventListener("click", function () { syncNow(true); });
-        window.addEventListener("online", function () { refreshChip(); syncNow(false); pullWeek(); });
+        window.addEventListener("online", function () { refreshChip(); syncNow(false); pullWeek(); pullRoutine(); });
         window.addEventListener("offline", refreshChip);
         // A swipe-away kill does not always fire visibilitychange first.
         window.addEventListener("pagehide", function () { flushPersist(); });
@@ -1261,6 +1346,11 @@
             state.week = w;
             if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
         });
+        getMeta("routine").then(function (r) {
+            if (!r) return;
+            state.routine = r;
+            if (state.activeId === null && !document.querySelector(".sheet-backdrop")) render();
+        });
 
         if ("serviceWorker" in navigator) {
             var swUrl = STANDALONE ? "/sw.js" : "/logger/sw.js";
@@ -1273,12 +1363,13 @@
         render();
         pullExercises();
         pullWeek();
+        pullRoutine();
         syncNow(false);
     }
 
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, sessionExerciseFromRoutine: sessionExerciseFromRoutine, routineDays: routineDays, sessionFromRoutineDay: sessionFromRoutineDay, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
     }
 })();

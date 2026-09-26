@@ -3,7 +3,7 @@
    default scope (/) already covers the whole app — no Service-Worker-Allowed
    header trick needed here, unlike the legacy /logger-mounted copy. */
 
-const CACHE = "mycoach-logger-v9";
+const CACHE = "mycoach-logger-v10";
 const CACHE_PREFIX = "mycoach-logger-";
 const SHELL = [
     "/",

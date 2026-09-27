@@ -111,3 +111,32 @@ async def claim_planned_session(
     planned.activity_id = activity_id
     await session.flush()
     return None
+
+
+async def unlink_planned_session(
+    session: AsyncSession,
+    user_id: int,
+    planned_session_id: int,
+) -> PlannedSession | None:
+    """Release a prescription from the activity that claimed it.
+
+    Clears the prescription side only (``activity_id``, ``completed``) so the
+    prescription is to-do again; the activity itself is untouched. Deleting an
+    activity is a health-side action, separate from unlink (#130).
+
+    Returns the updated planned session, or ``None`` if it doesn't exist or
+    doesn't belong to this user.
+    """
+    stmt = (
+        select(PlannedSession)
+        .join(WeeklyPlan, PlannedSession.plan_id == WeeklyPlan.id)
+        .where(PlannedSession.id == planned_session_id, WeeklyPlan.user_id == user_id)
+    )
+    planned = (await session.execute(stmt)).scalar_one_or_none()
+    if planned is None:
+        return None
+
+    planned.completed = False
+    planned.activity_id = None
+    await session.flush()
+    return planned

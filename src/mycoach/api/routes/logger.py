@@ -149,16 +149,15 @@ async def list_exercises(
 @router.get(
     "/routines",
     response_model=WorkoutRoutineRead | None,
-    dependencies=[Depends(require_api_key)],
 )
 async def get_active_routine(
     session: AsyncSession = Depends(get_db),
 ) -> WorkoutRoutine | None:
-    """The user's active routine, with its days/exercises, for the logger to prefill.
+    """The user's active routine, with its days/exercises, for "Start from routine" (#145).
 
     Returns null if the user has no active routine. Mirrors
     ``api/routes/routines.py::get_active_routine`` but sits under the
-    API-key-guarded ``/api/logger`` surface the offline logger authenticates against.
+    ``/api/logger`` surface the offline logger reads from.
     """
     stmt = (
         select(WorkoutRoutine)

@@ -225,8 +225,17 @@ async def get_plan_adherence_for_week(
     # done. One activity fills one session, so extras never inflate adherence.
     # A session whose link no longer fulfils it is unlinked here: its activity
     # returns to the pool.
+    #
+    # Logger activities are excluded unless explicitly linked (#146): a logger
+    # session could have carried a planned_session_id and didn't, meaning the
+    # athlete chose not to follow a prescription. Garmin/Hevy keep feeding the
+    # pool since they can never carry that id.
     sport_budget: Counter[str] = Counter(
-        a.sport for a in activities if a.id not in consumed and fulfils(a.id, a.sport)
+        a.sport
+        for a in activities
+        if a.id not in consumed
+        and fulfils(a.id, a.sport)
+        and (a.data_source != "logger" or a.id in linked_ids)
     )
     for s in sessions:
         if s.id in done:
@@ -372,10 +381,17 @@ async def find_matching_planned_session(
     and sport. That fallback is still the whole story for Garmin and Hevy, which
     carry no prescription reference and never will; but it is guesswork once the
     week is unpinned from days, so it never overrides what the athlete stated.
+
+    A logger activity could have carried a prescription id and didn't, meaning
+    the athlete chose not to follow one (a routine day or a blank "Start
+    session"). So an unlinked logger activity gets no fallback guess either.
     """
     linked = await _planned_session_linked_to(session, activity, user_id)
     if linked is not None:
         return linked
+
+    if activity.get("data_source") == "logger":
+        return None
 
     start_time_str = activity.get("start_time")
     if not start_time_str:

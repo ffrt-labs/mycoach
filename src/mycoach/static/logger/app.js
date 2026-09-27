@@ -18,6 +18,7 @@
     var API_EXERCISES = API_ORIGIN + "/api/logger/exercises";
     var API_WEEK = API_ORIGIN + "/api/logger/week";
     var API_ROUTINES = API_ORIGIN + "/api/logger/routines";
+    var API_SESSIONS = API_ORIGIN + "/api/logger/sessions";
     var SET_TYPES = ["normal", "warmup", "dropset", "failure"];
     var API_TIMEOUT_MS = 30000;
 
@@ -544,6 +545,7 @@
                 box.appendChild(el("div", { class: "session-row session-row--done" }, [
                     label,
                     el("span", { class: "tag tag--synced", text: "Done" }),
+                    el("button", { class: "btn btn--ghost btn--sm", onclick: function () { confirmUnlink(ps); } }, ["Unlink"]),
                 ]));
                 return;
             }
@@ -572,6 +574,41 @@
                 ])
             );
         });
+    }
+
+    /* Release a wrongly claimed prescription (#130): confirm, then clear the
+       server's link and any local session still pointing at it, so the row
+       goes back to owed without a re-sync. The activity itself — server-side
+       or the local session record — is left alone; unlink only breaks the
+       link. */
+    function confirmUnlink(ps) {
+        openSheet("Unlink this session?", [
+            el("p", { class: "sub", style: "margin-bottom:16px", text: "Releases " + ps.title + " back to to-do. The logged activity is kept, just no longer counted as answering this prescription." }),
+            el("button", { class: "btn btn--danger btn--block", onclick: function () { unlinkPrescribed(ps); } }, ["Unlink"]),
+            el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: closeSheet }, ["Cancel"]),
+        ]);
+    }
+
+    function unlinkPrescribed(ps) {
+        apiFetch(API_SESSIONS + "/" + ps.id + "/unlink", { method: "POST" })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("unlink failed")); })
+            .then(function (updated) {
+                if (state.week) {
+                    state.week.sessions = state.week.sessions.map(function (s) {
+                        return s.id === updated.id ? updated : s;
+                    });
+                    setMeta("week", state.week);
+                }
+                return getAllSessions().then(function (all) {
+                    var stale = all.filter(function (s) { return s.planned_session_id === ps.id; });
+                    return Promise.all(stale.map(function (s) {
+                        s.planned_session_id = null;
+                        return putSession(s);
+                    }));
+                });
+            })
+            .then(function () { closeSheet(); render(); toast("Session unlinked"); })
+            .catch(function () { toast("Couldn't unlink — try again when online", "err"); });
     }
 
     // ── Session lifecycle ───────────────────────────────────────────

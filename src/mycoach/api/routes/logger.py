@@ -3,7 +3,7 @@
 import json
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from mycoach.exercise_catalogue import load_exercise_catalogue
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
+from mycoach.plan_linking import unlink_planned_session
 from mycoach.schemas.logger import (
     LastPerformedExercise,
     LastPerformedSet,
@@ -289,3 +290,25 @@ async def get_training_week(
     routine = (await session.execute(routine_stmt)).scalar_one_or_none()
     sessions = [_prescribed_from_routine_day(day) for day in routine.days] if routine else []
     return TrainingWeek(week_start=monday, sessions=sessions)
+
+
+@router.post(
+    "/sessions/{session_id}/unlink",
+    response_model=PrescribedSession,
+)
+async def unlink_session(
+    session_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> PrescribedSession:
+    """Release a wrongly claimed prescription back to to-do (#130).
+
+    Clears the prescription side only (``activity_id``, ``completed``); the
+    activity that claimed it is untouched — deleting it is a health-side
+    action, out of scope here. POST rather than PATCH/DELETE: the standalone
+    logger origin's CORS policy only allows GET/POST cross-origin.
+    """
+    planned = await unlink_planned_session(session, DEFAULT_USER_ID, session_id)
+    if planned is None:
+        raise HTTPException(status_code=404, detail="Planned session not found.")
+    await session.commit()
+    return _prescribed_from_planned(planned)

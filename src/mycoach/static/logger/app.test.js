@@ -5,6 +5,7 @@ const {
     numOrNull,
     toPayload,
     pruneEmptySets,
+    hasPerformedSets,
     topSetForExercise,
     resolveExerciseChoice,
     sessionExerciseFromPrescribed,
@@ -202,6 +203,21 @@ test("pruneEmptySets drops sets with neither weight nor reps", () => {
 
     assert.equal(exercises[0].sets.length, 2);
     assert.deepEqual(exercises[0].sets.map((s) => s.reps), [5, 3]);
+});
+
+test("hasPerformedSets is false for a session with no sets at all", () => {
+    const s = { exercises: [{ title: "Squat", sets: [] }, { title: "Bench", sets: [] }] };
+    assert.equal(hasPerformedSets(s), false);
+});
+
+test("hasPerformedSets is false when every set has neither weight nor reps (#123's accidental start-and-finish)", () => {
+    const s = { exercises: [{ title: "Squat", sets: [{ weight_kg: null, reps: null }] }] };
+    assert.equal(hasPerformedSets(s), false);
+});
+
+test("hasPerformedSets is true once any set carries weight or reps, warmup or not", () => {
+    const s = { exercises: [{ title: "Squat", sets: [{ weight_kg: 60, reps: null, set_type: "warmup" }] }] };
+    assert.equal(hasPerformedSets(s), true);
 });
 
 test("topSetForExercise picks the heaviest working set", () => {

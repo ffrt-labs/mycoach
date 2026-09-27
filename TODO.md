@@ -115,6 +115,11 @@ pending an actual home-server deploy (tracked outside this file).
 > ✅ Done: icon assets (`static/icon-192.png`/`icon-512.png`) and manifest
 > colors were already fixed.
 
+### Step 7 — Logger follow-ups (not scheduled)
+
+- [ ] Show session history from the server in the logger's "Sessions" list, not
+      only what is stored on the phone (#148).
+
 ---
 
 ## Phase 0: Foundation (Week 1)

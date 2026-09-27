@@ -214,6 +214,44 @@ class TestFindMatchingPlannedSession:
             assert result is not None
             assert result["title"] == "Push"
 
+    async def test_logger_activity_without_link_does_not_fall_back(self) -> None:
+        """A logger session with no explicit link answers no prescription.
+
+        Garmin/Hevy fall back to day-and-sport matching because they can never
+        carry a prescription id. A logger activity could have carried one — the
+        importer stamps it at write time when the athlete followed a
+        prescription — so an unlinked logger activity means the athlete chose
+        not to follow one. Nothing should guess a match for it.
+        """
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)
+            plan = WeeklyPlan(
+                user_id=user_id, week_start=week_start, status="active", summary="Test plan"
+            )
+            session.add(plan)
+            await session.flush()
+
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,  # Wednesday
+                    sport="gym",
+                    title="Upper Body",
+                    duration_minutes=60,
+                )
+            )
+            await session.commit()
+
+            activity_dict = {
+                "id": 1,
+                "sport": "gym",
+                "start_time": "2024-06-12 09:00:00",
+                "data_source": "logger",
+            }
+            result = await find_matching_planned_session(session, activity_dict, user_id)
+            assert result is None
+
     async def test_another_activitys_link_is_not_stolen(self) -> None:
         """A prescription already answered by a *different* activity stays out of it."""
         async with test_session() as session:

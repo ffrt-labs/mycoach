@@ -218,6 +218,52 @@ class TestGetPlanAdherenceForWeek:
             assert result["completed_sessions"] == 1
             assert result["adherence_pct"] == 50.0
 
+    async def test_unlinked_logger_activity_does_not_feed_sport_pool(self) -> None:
+        """An unlinked logger session (routine day / blank start) leaves the plan open.
+
+        Garmin/Hevy activities can never carry a prescription id, so they keep
+        the day-and-sport guessing. A logger activity could have carried one —
+        the athlete chose not to follow a prescription — so it must not fill a
+        same-sport slot it was never linked to.
+        """
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+                prompt_version="v1",
+            )
+            session.add(plan)
+            await session.flush()
+
+            s1 = PlannedSession(
+                plan_id=plan.id, day_of_week=1, sport="gym", title="Push", completed=False
+            )
+            session.add(s1)
+
+            # Logged from a routine day with no planned_session_id, with sets
+            # performed (so the claim guard alone wouldn't explain it being skipped)
+            a1 = Activity(
+                user_id=user_id,
+                title="Gym Session",
+                sport="gym",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="logger",
+            )
+            session.add(a1)
+            await session.flush()
+            session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, week_start)
+            assert result is not None
+            assert result["completed_sessions"] == 0
+            assert result["adherence_pct"] == 0.0
+
     async def test_no_plan_returns_none(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)

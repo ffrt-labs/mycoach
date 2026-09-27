@@ -1,10 +1,8 @@
-"""Tests for the API-key-guarded routine endpoint the offline logger prefills from."""
+"""Tests for GET /api/logger/routines, the logger's "Start from routine" source (#145)."""
 
 import pytest
 
 from mycoach.models.user import User
-
-TOKEN = "secret-token"
 
 
 @pytest.fixture
@@ -16,12 +14,6 @@ async def user(setup_db: None) -> User:
         session.add(u)
         await session.commit()
         return u
-
-
-@pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Overrides any value from .env for deterministic auth tests.
-    monkeypatch.setenv("MYCOACH_API_TOKEN", TOKEN)
 
 
 def _routine_payload() -> dict:
@@ -55,18 +47,8 @@ def _routine_payload() -> dict:
 
 class TestLoggerRoutines:
     @pytest.mark.asyncio
-    async def test_requires_key(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/routines")
-        assert resp.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_wrong_key_rejected(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/routines", headers={"X-API-Key": "nope"})
-        assert resp.status_code == 401
-
-    @pytest.mark.asyncio
     async def test_returns_null_when_no_active_routine(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.get("/api/logger/routines", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/routines")
         assert resp.status_code == 200
         assert resp.json() is None
 
@@ -75,7 +57,7 @@ class TestLoggerRoutines:
         create_resp = await client.post("/api/routines", json=_routine_payload())
         assert create_resp.status_code == 201
 
-        resp = await client.get("/api/logger/routines", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/routines")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "PPL"
@@ -95,7 +77,7 @@ class TestLoggerRoutines:
         create_resp = await client.post("/api/routines", json=payload)
         assert create_resp.status_code == 201
 
-        logger_resp = await client.get("/api/logger/routines", headers={"X-API-Key": TOKEN})
+        logger_resp = await client.get("/api/logger/routines")
         exercise = logger_resp.json()["days"][0]["exercises"][0]
         assert exercise["exercise_id"] == "Barbell_Bench_Press_-_Medium_Grip"
 
@@ -119,6 +101,6 @@ class TestLoggerRoutines:
         create_resp = await client.post("/api/routines", json=second)
         assert create_resp.status_code == 201
 
-        resp = await client.get("/api/logger/routines", headers={"X-API-Key": TOKEN})
+        resp = await client.get("/api/logger/routines")
         assert resp.status_code == 200
         assert resp.json()["name"] == "Upper/Lower"

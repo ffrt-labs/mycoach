@@ -1177,13 +1177,27 @@
         }, 220);
     }
 
-    /* Rows appear prefilled and are stored immediately, so a tapped-then-
-       abandoned row is a set with nothing in it. It is not data — and a
+    /* A tapped-then-abandoned row is a set with neither weight nor reps — a
        null weight *and* null reps would poison the 1RM estimates the
-       coaching prompts read — so it is dropped rather than synced. */
+       coaching prompts read, so it doesn't count as performed. */
+    function isPerformedSet(set) {
+        return set.weight_kg != null || set.reps != null;
+    }
+
+    /* Rows appear prefilled and are stored immediately, so an abandoned row
+       is not data — it is dropped rather than synced. */
     function pruneEmptySets(exercises) {
         exercises.forEach(function (ex) {
-            ex.sets = ex.sets.filter(function (set) { return set.weight_kg != null || set.reps != null; });
+            ex.sets = ex.sets.filter(isPerformedSet);
+        });
+    }
+
+    /* An empty session = no performed sets; duration plays no part (#128).
+       Uses the same definition pruneEmptySets does, so a row that would be
+       dropped as empty at save time doesn't count here either. */
+    function hasPerformedSets(s) {
+        return s.exercises.some(function (ex) {
+            return ex.sets.some(isPerformedSet);
         });
     }
 
@@ -1193,6 +1207,7 @@
        leaves any unanswered exercise's rpe untouched (null, same as every
        other set). */
     function promptFinish(s) {
+        if (!hasPerformedSets(s)) { confirmEmptyFinish(s); return; }
         var tops = [];
         s.exercises.forEach(function (ex) {
             var set = topSetForExercise(ex);
@@ -1200,6 +1215,17 @@
         });
         if (!tops.length) { finishSession(s); return; }
         openRirSheet(s, tops);
+    }
+
+    /* Catches the accidental start-and-finish (#123): saving still stores the
+       activity, but with no performed sets it cannot claim a prescription —
+       the server is the authority on that (claim guard, #129); this prompt is
+       client UX only. */
+    function confirmEmptyFinish(s) {
+        openSheet("No sets logged. Save anyway?", [
+            el("button", { class: "btn btn--primary btn--block", onclick: function () { closeSheet(); finishSession(s); } }, ["Save session"]),
+            el("button", { class: "btn btn--ghost btn--block", style: "margin-top:8px", onclick: closeSheet }, ["Keep going"]),
+        ]);
     }
 
     function openRirSheet(s, tops) {
@@ -1370,6 +1396,6 @@
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, sessionExerciseFromRoutine: sessionExerciseFromRoutine, routineDays: routineDays, sessionFromRoutineDay: sessionFromRoutineDay, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, hasPerformedSets: hasPerformedSets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, sessionExerciseFromRoutine: sessionExerciseFromRoutine, routineDays: routineDays, sessionFromRoutineDay: sessionFromRoutineDay, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
     }
 })();

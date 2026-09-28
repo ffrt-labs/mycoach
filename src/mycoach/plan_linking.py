@@ -71,6 +71,10 @@ async def claim_planned_session(
 ) -> str | None:
     """Link an imported activity to the prescription it claims to answer.
 
+    Declines a target session already answered by a different activity, an
+    activity that already answers a different session (one activity claims
+    at most one prescription), and an activity with no performed sets.
+
     Returns ``None`` on success, or a human-readable reason the claim was
     declined. A declined claim is never an exception: the id arrives from a
     phone that may have been offline while MyCoach regenerated or superseded
@@ -99,6 +103,22 @@ async def claim_planned_session(
         return (
             f"planned_session_id {planned_session_id} is already answered by "
             f"activity {planned.activity_id} — workout imported without a prescription link"
+        )
+
+    other_stmt = (
+        select(PlannedSession.id)
+        .join(WeeklyPlan, PlannedSession.plan_id == WeeklyPlan.id)
+        .where(
+            PlannedSession.activity_id == activity_id,
+            PlannedSession.id != planned_session_id,
+            WeeklyPlan.user_id == user_id,
+        )
+    )
+    other_session_id = (await session.execute(other_stmt)).scalar_one_or_none()
+    if other_session_id is not None:
+        return (
+            f"activity {activity_id} already claims planned_session_id {other_session_id} — "
+            "workout imported without a prescription link"
         )
 
     if not await has_performed_sets(session, activity_id):

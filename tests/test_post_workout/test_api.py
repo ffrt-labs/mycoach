@@ -5,7 +5,7 @@ from datetime import datetime
 
 from httpx import AsyncClient
 
-from mycoach.models.activity import Activity
+from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
@@ -101,13 +101,30 @@ class TestMarkSessionCompleted:
                 duration_minutes=60,
             )
             session.add(planned)
+
+            activity = Activity(
+                user_id=user.id,
+                sport="gym",
+                title="Push",
+                start_time=datetime(2024, 6, 10, 9, 0),
+                data_source="logger",
+            )
+            session.add(activity)
+            await session.flush()
+            session.add(
+                GymWorkoutDetail(
+                    activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
+                )
+            )
             await session.commit()
 
-            resp = await client.patch(f"/api/plans/{plan.id}/sessions/{planned.id}?activity_id=42")
+            resp = await client.patch(
+                f"/api/plans/{plan.id}/sessions/{planned.id}?activity_id={activity.id}"
+            )
             assert resp.status_code == 200
             data = resp.json()
             assert data["completed"] is True
-            assert data["activity_id"] == 42
+            assert data["activity_id"] == activity.id
 
     async def test_mark_session_not_found(self, client: AsyncClient) -> None:
         resp = await client.patch("/api/plans/999/sessions/999")

@@ -16,6 +16,7 @@ from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
 from mycoach.models.sport_profile import SportProfile
+from mycoach.plan_linking import has_performed_sets
 
 logger = logging.getLogger(__name__)
 
@@ -423,6 +424,15 @@ async def find_matching_planned_session(
 
     # Find matching session by day_of_week and sport
     sport = activity.get("sport", "")
+
+    # Claim guard (#129): an empty gym activity never answers a prescription,
+    # so the day-and-sport fallback must skip it same as an explicit claim.
+    # Other sports are unaffected — they carry no performed-sets concept.
+    if sport == "gym":
+        activity_id = activity.get("id")
+        if activity_id is None or not await has_performed_sets(session, activity_id):
+            return None
+
     session_stmt = select(PlannedSession).where(
         PlannedSession.plan_id == plan.id,
         PlannedSession.day_of_week == day_of_week,

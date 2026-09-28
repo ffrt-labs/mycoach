@@ -113,10 +113,31 @@ class TestFindMatchingPlannedSession:
                 duration_minutes=60,
             )
             session.add(planned)
+
+            # A performed gym activity on Wednesday of that week
+            activity = Activity(
+                user_id=user_id,
+                sport="gym",
+                title="Upper Body",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="hevy",
+            )
+            session.add(activity)
+            await session.flush()
+            session.add(
+                GymWorkoutDetail(
+                    activity_id=activity.id,
+                    exercise_title="Bench Press",
+                    set_index=1,
+                    set_type="normal",
+                    weight_kg=80.0,
+                    reps=8,
+                )
+            )
             await session.commit()
 
-            # Activity on Wednesday of that week
             activity_dict = {
+                "id": activity.id,
                 "sport": "gym",
                 "start_time": "2024-06-12 09:00:00",
             }
@@ -124,6 +145,145 @@ class TestFindMatchingPlannedSession:
             assert result is not None
             assert result["title"] == "Upper Body"
             assert result["sport"] == "gym"
+
+    async def test_empty_gym_activity_does_not_fall_back(self) -> None:
+        """An empty gym activity (no performed sets) answers no prescription via the fallback."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+            )
+            session.add(plan)
+            await session.flush()
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,  # Wednesday
+                    sport="gym",
+                    title="Upper Body",
+                    duration_minutes=60,
+                )
+            )
+
+            activity = Activity(
+                user_id=user_id,
+                sport="gym",
+                title="Upper Body",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="hevy",
+            )
+            session.add(activity)
+            await session.commit()
+
+            activity_dict = {
+                "id": activity.id,
+                "sport": "gym",
+                "start_time": "2024-06-12 09:00:00",
+            }
+            result = await find_matching_planned_session(session, activity_dict, user_id)
+            assert result is None
+
+    async def test_non_gym_empty_activity_still_falls_back(self) -> None:
+        """The performed-sets guard is gym-only; other sports match as before."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+            )
+            session.add(plan)
+            await session.flush()
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,  # Wednesday
+                    sport="swimming",
+                    title="Pool Swim",
+                    duration_minutes=45,
+                )
+            )
+
+            activity = Activity(
+                user_id=user_id,
+                sport="swimming",
+                title="Pool Swim",
+                start_time=datetime(2024, 6, 12, 7, 0),
+                data_source="garmin",
+            )
+            session.add(activity)
+            await session.commit()
+
+            activity_dict = {
+                "id": activity.id,
+                "sport": "swimming",
+                "start_time": "2024-06-12 07:00:00",
+            }
+            result = await find_matching_planned_session(session, activity_dict, user_id)
+            assert result is not None
+            assert result["title"] == "Pool Swim"
+
+    async def test_rematch_after_unlink_still_falls_back(self) -> None:
+        """A real (performed) activity, unlinked from its own session, still
+        matches another session by day-and-sport — unlinking doesn't touch this
+        fallback, only the empty-activity guard does."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            week_start = date(2024, 6, 10)  # Monday
+            plan = WeeklyPlan(
+                user_id=user_id,
+                week_start=week_start,
+                status="active",
+                summary="Test plan",
+            )
+            session.add(plan)
+            await session.flush()
+
+            activity = Activity(
+                user_id=user_id,
+                sport="gym",
+                title="Upper Body",
+                start_time=datetime(2024, 6, 12, 9, 0),
+                data_source="hevy",
+            )
+            session.add(activity)
+            await session.flush()
+            session.add(
+                GymWorkoutDetail(
+                    activity_id=activity.id,
+                    exercise_title="Bench Press",
+                    set_index=1,
+                    set_type="normal",
+                    weight_kg=80.0,
+                    reps=8,
+                )
+            )
+            # No longer linked to any session (activity_id=None), as unlink leaves it.
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,  # Wednesday
+                    sport="gym",
+                    title="Upper Body",
+                    duration_minutes=60,
+                )
+            )
+            await session.commit()
+
+            activity_dict = {
+                "id": activity.id,
+                "sport": "gym",
+                "start_time": "2024-06-12 09:00:00",
+            }
+            result = await find_matching_planned_session(session, activity_dict, user_id)
+            assert result is not None
+            assert result["title"] == "Upper Body"
 
     async def test_no_matching_plan(self) -> None:
         async with test_session() as session:

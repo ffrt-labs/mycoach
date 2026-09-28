@@ -36,6 +36,13 @@ jobs:
           MYCOACH_DATABASE_PASSWORD=${{ secrets.MYCOACH_DATABASE_PASSWORD }}
           MYCOACH_RUNTIME_DB_URL=${{ secrets.MYCOACH_RUNTIME_DB_URL }}
 
+          # This box's tailnet address (ticket #117) — a variable, not a
+          # secret, same as homelab-apps' NEKO_NAT1TO1_IP: it's the address
+          # every tailnet client already routes to, not something to keep
+          # hidden. Grafana reaches mycoach-db's health_analytics schema
+          # through it.
+          MYCOACH_DB_TAILNET_IP=${{ vars.MYCOACH_DB_TAILNET_IP }}
+
           # Split-out /logger origin (issue #60). Both blank keeps the legacy
           # same-origin mount; set together once the mycoach-logger container
           # and its homelab-edge route are actually live.

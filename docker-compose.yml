@@ -22,6 +22,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    # Grafana (homelab-observability) is a different compose project, on its
+    # own Docker networks, so it has no route to this project's `default` or
+    # `mycoach-internal` networks and can only reach mycoach-db over the
+    # network both boxes share: the tailnet (map #85, ticket #117). Bound to
+    # the host's tailnet address specifically, not 0.0.0.0 — a LAN- or
+    # publicly-reachable bind would expose Postgres to every device the
+    # tailnet boundary is supposed to keep out (homelab-edge ADR 0001).
+    # `tailscale ip -4` on the host, never hardcoded (homelab-host/RUNBOOK.md
+    # step 7: "never written down anywhere, only queried live"); `:?` fails
+    # the deploy instead of silently publishing on every interface.
+    ports:
+      - "${MYCOACH_DB_TAILNET_IP:?set MYCOACH_DB_TAILNET_IP}:5432:5432"
 
   mycoach:
     build: .

@@ -1,10 +1,11 @@
 """Tests for plans API endpoints."""
 
 import json
-from datetime import date
+from datetime import date, datetime
 
 from httpx import AsyncClient
 
+from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
@@ -214,6 +215,30 @@ class TestGeneratePlan:
         assert resp.status_code == 409
 
 
+async def _seed_activity(
+    session: object, user_id: int, with_performed_sets: bool = True
+) -> int:
+    """Create an Activity, optionally with a performed set. Returns activity id."""
+    activity = Activity(
+        user_id=user_id,
+        sport="gym",
+        title="Push",
+        start_time=datetime(2024, 6, 10, 9, 0),
+        data_source="logger",
+    )
+    session.add(activity)  # type: ignore[union-attr]
+    await session.flush()  # type: ignore[union-attr]
+    if with_performed_sets:
+        session.add(  # type: ignore[union-attr]
+            GymWorkoutDetail(
+                activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
+            )
+        )
+        await session.flush()  # type: ignore[union-attr]
+    await session.commit()  # type: ignore[union-attr]
+    return activity.id
+
+
 class TestMarkSessionCompleted:
     async def test_mark_completed(self, client: AsyncClient) -> None:
         async with test_session() as session:
@@ -227,13 +252,81 @@ class TestMarkSessionCompleted:
 
     async def test_mark_completed_with_activity_id(self, client: AsyncClient) -> None:
         async with test_session() as session:
-            _, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+            user_id, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+            activity_id = await _seed_activity(session, user_id)
 
-        resp = await client.patch(f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id=42")
+        resp = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["completed"] is True
-        assert data["activity_id"] == 42
+        assert data["activity_id"] == activity_id
+
+    async def test_mark_completed_refuses_empty_activity(self, client: AsyncClient) -> None:
+        """An activity with no performed sets is a claim guard refusal, not a success."""
+        async with test_session() as session:
+            user_id, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+            activity_id = await _seed_activity(session, user_id, with_performed_sets=False)
+
+        resp = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+        )
+        assert resp.status_code == 409
+        assert "performed sets" in resp.json()["detail"]
+
+        adherence = await client.get(f"/api/plans/{plan_id}/adherence")
+        session_data = next(
+            s for s in adherence.json()["sessions"] if s["session_id"] == session_ids[1]
+        )
+        assert session_data["completed"] is False
+        assert session_data["activity_id"] is None
+
+    async def test_mark_completed_refuses_already_answered_session(
+        self, client: AsyncClient
+    ) -> None:
+        """A session already claimed by one activity can't be reclaimed by a different one."""
+        async with test_session() as session:
+            user_id, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+            first_activity_id = await _seed_activity(session, user_id)
+            second_activity_id = await _seed_activity(session, user_id)
+
+        first = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={first_activity_id}"
+        )
+        assert first.status_code == 200
+
+        second = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={second_activity_id}"
+        )
+        assert second.status_code == 409
+        assert "already answered" in second.json()["detail"]
+
+    async def test_mark_completed_refuses_activity_linked_to_another_session(
+        self, client: AsyncClient
+    ) -> None:
+        """An activity already claiming one planned session can't also claim a second one."""
+        async with test_session() as session:
+            user_id, plan_id, session_ids = await _seed_plan_with_multiple_sessions(session)
+            activity_id = await _seed_activity(session, user_id)
+
+        first = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={activity_id}"
+        )
+        assert first.status_code == 200
+
+        second = await client.patch(
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+        )
+        assert second.status_code == 409
+        assert "already claims" in second.json()["detail"]
+
+        adherence = await client.get(f"/api/plans/{plan_id}/adherence")
+        session_data = next(
+            s for s in adherence.json()["sessions"] if s["session_id"] == session_ids[1]
+        )
+        assert session_data["completed"] is False
+        assert session_data["activity_id"] is None
 
     async def test_mark_session_not_found(self, client: AsyncClient) -> None:
         async with test_session() as session:

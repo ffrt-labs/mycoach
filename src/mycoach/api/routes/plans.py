@@ -10,6 +10,7 @@ from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.database import get_db
 from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.plan_linking import claim_planned_session
 from mycoach.schemas.plan import (
     PlanAdherenceRead,
     PlannedSessionRead,
@@ -126,7 +127,14 @@ async def mark_session_completed(
     activity_id: int | None = None,
     session: AsyncSession = Depends(get_db),
 ) -> PlannedSession:
-    """Mark a planned session as completed, optionally linking to an activity."""
+    """Mark a planned session as completed, optionally linking to an activity.
+
+    With an ``activity_id``, delegates to the shared claim guard
+    (``plan_linking.claim_planned_session``): refuses an empty activity or one
+    already linked to another planned session, with a 409 and the reason.
+    Without one, stays unrestricted — the only way to credit a session with
+    no activity.
+    """
     stmt = select(PlannedSession).where(
         PlannedSession.id == session_id,
         PlannedSession.plan_id == plan_id,
@@ -142,9 +150,13 @@ async def mark_session_completed(
     if plan_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Plan not found.")
 
-    planned.completed = True
     if activity_id is not None:
-        planned.activity_id = activity_id
+        declined = await claim_planned_session(session, USER_ID, activity_id, session_id)
+        if declined:
+            raise HTTPException(status_code=409, detail=declined)
+    else:
+        planned.completed = True
+
     await session.commit()
     await session.refresh(planned)
     return planned

@@ -5,7 +5,11 @@ from datetime import date, datetime
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
-from mycoach.plan_linking import link_activity_to_planned_session, unlink_planned_session
+from mycoach.plan_linking import (
+    claim_planned_session,
+    link_activity_to_planned_session,
+    unlink_planned_session,
+)
 from tests.conftest import test_session
 
 
@@ -89,6 +93,52 @@ class TestLinkActivityToPlannedSession:
 
             assert planned.completed is False
             assert planned.activity_id is None
+
+
+class TestClaimPlannedSession:
+    async def test_activity_already_claiming_another_session_is_declined(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            plan = WeeklyPlan(
+                user_id=user_id, week_start=date(2024, 6, 10), status="active", summary="Test"
+            )
+            session.add(plan)
+            await session.flush()
+            first = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="First", duration_minutes=60
+            )
+            second = PlannedSession(
+                plan_id=plan.id, day_of_week=2, sport="gym", title="Second", duration_minutes=60
+            )
+            session.add_all([first, second])
+            await session.flush()
+
+            activity = Activity(
+                user_id=user_id,
+                sport="gym",
+                title="Push",
+                start_time=datetime(2024, 6, 10, 9, 0),
+                data_source="logger",
+            )
+            session.add(activity)
+            await session.flush()
+            session.add(
+                GymWorkoutDetail(
+                    activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
+                )
+            )
+            await session.flush()
+
+            declined = await claim_planned_session(session, user_id, activity.id, first.id)
+            assert declined is None
+            assert first.completed is True
+            assert first.activity_id == activity.id
+
+            declined = await claim_planned_session(session, user_id, activity.id, second.id)
+            assert declined is not None
+            assert "already claims" in declined
+            assert second.completed is False
+            assert second.activity_id is None
 
 
 class TestUnlinkPlannedSession:

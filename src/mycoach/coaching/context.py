@@ -65,7 +65,7 @@ async def get_recent_activities(
         select(Activity)
         .where(
             Activity.user_id == user_id,
-            Activity.start_time >= since.isoformat(),
+            Activity.start_time >= since,
         )
         .order_by(Activity.start_time.desc())
     )
@@ -176,8 +176,8 @@ async def get_plan_adherence_for_week(
     # Cross-reference actual activities to detect completions missed by post-workout flow
     activities_stmt = select(Activity).where(
         Activity.user_id == user_id,
-        Activity.start_time >= week_start.isoformat(),
-        Activity.start_time < (week_start + timedelta(days=7)).isoformat(),
+        Activity.start_time >= week_start,
+        Activity.start_time < (week_start + timedelta(days=7)),
     )
     activities_result = await session.execute(activities_stmt)
     activities = activities_result.scalars().all()
@@ -281,8 +281,8 @@ async def get_activities_for_week(
         select(Activity)
         .where(
             Activity.user_id == user_id,
-            Activity.start_time >= week_start.isoformat(),
-            Activity.start_time < week_end.isoformat(),
+            Activity.start_time >= week_start,
+            Activity.start_time < week_end,
         )
         .order_by(Activity.start_time)
     )
@@ -511,8 +511,8 @@ async def get_last_week_gym_performance(
     stmt = select(Activity).where(
         Activity.user_id == user_id,
         Activity.sport == "gym",
-        Activity.start_time >= prev_week_start.isoformat(),
-        Activity.start_time < prev_week_end.isoformat(),
+        Activity.start_time >= prev_week_start,
+        Activity.start_time < prev_week_end,
     )
     result = await session.execute(stmt)
     activity_ids = [a.id for a in result.scalars().all()]
@@ -561,8 +561,8 @@ async def get_last_week_all_activities(
         select(Activity)
         .where(
             Activity.user_id == user_id,
-            Activity.start_time >= prev_week_start.isoformat(),
-            Activity.start_time < prev_week_end.isoformat(),
+            Activity.start_time >= prev_week_start,
+            Activity.start_time < prev_week_end,
         )
         .order_by(Activity.start_time)
     )
@@ -671,8 +671,8 @@ async def get_last_week_cardio_performance(
         .where(
             Activity.user_id == user_id,
             Activity.sport.in_(["swimming", "running", "padel", "cardio"]),
-            Activity.start_time >= prev_week_start.isoformat(),
-            Activity.start_time < prev_week_end.isoformat(),
+            Activity.start_time >= prev_week_start,
+            Activity.start_time < prev_week_end,
         )
         .order_by(Activity.start_time)
     )
@@ -778,8 +778,8 @@ async def get_gym_details_for_week(
         .where(
             Activity.user_id == user_id,
             Activity.sport == "gym",
-            Activity.start_time >= week_start.isoformat(),
-            Activity.start_time < week_end.isoformat(),
+            Activity.start_time >= week_start,
+            Activity.start_time < week_end,
         )
         .order_by(Activity.start_time)
     )
@@ -827,8 +827,8 @@ async def get_gym_performance_history(
         act_stmt = select(Activity).where(
             Activity.user_id == user_id,
             Activity.sport == "gym",
-            Activity.start_time >= w_start.isoformat(),
-            Activity.start_time < w_end.isoformat(),
+            Activity.start_time >= w_start,
+            Activity.start_time < w_end,
         )
         act_result = await session.execute(act_stmt)
         activity_ids = [a.id for a in act_result.scalars().all()]

@@ -2,7 +2,10 @@
 
 from datetime import datetime
 
+from sqlalchemy import select
+
 from mycoach.models.activity import Activity, GymWorkoutDetail
+from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from mycoach.tools.cleanup_activity_58 import ACTIVITY_ID, PLANNED_SESSION_ID, cleanup
@@ -45,6 +48,15 @@ class TestCleanup:
                 activity_id=ACTIVITY_ID,
             )
             session.add(planned)
+            session.add(
+                CoachingInsight(
+                    user_id=user_id,
+                    insight_date=datetime(2026, 9, 21).date(),
+                    insight_type="post_workout",
+                    content='{"performance_summary": "Incomplete session, logging error."}',
+                    activity_id=ACTIVITY_ID,
+                )
+            )
             await session.flush()
 
             ok = await cleanup(session)
@@ -56,6 +68,12 @@ class TestCleanup:
             assert refreshed.completed is False
             assert refreshed.activity_id is None
             assert await session.get(Activity, ACTIVITY_ID) is None
+            remaining_insights = (
+                await session.execute(
+                    select(CoachingInsight).where(CoachingInsight.activity_id == ACTIVITY_ID)
+                )
+            ).scalars().all()
+            assert remaining_insights == []
 
     async def test_refuses_when_planned_session_links_a_different_activity(self) -> None:
         async with test_session() as session:

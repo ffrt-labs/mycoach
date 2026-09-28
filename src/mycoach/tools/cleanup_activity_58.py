@@ -2,9 +2,13 @@
 
 Releases planned session 41 (Squat Day, week of 2026-09-21) from activity 58 (a
 19-second empty "Morning Session" logger import that wrongly claimed it), via
-``unlink_planned_session`` (#130), then deletes activity 58. Decision #6 in #123
-deferred this until after the Postgres cutover (#107) and the unlink feature both
-landed, so row-count verification during the migration stayed faithful.
+``unlink_planned_session`` (#130), then deletes activity 58 and the stray
+``coaching_insights`` row(s) generated from it (a ``post_workout`` note written
+before the claim guard existed — its own content calls activity 58 "a logging
+error", so it carries no history worth keeping once the activity is gone).
+Decision #6 in #123 deferred this until after the Postgres cutover (#107) and
+the unlink feature both landed, so row-count verification during the migration
+stayed faithful.
 
 A data fix, not a product feature: no API route, no UI button. Run once, inside
 the app container, with the app stopped (its checks and the delete are not
@@ -27,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.database import async_session
 from mycoach.models.activity import Activity
+from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession
 from mycoach.plan_linking import has_performed_sets, unlink_planned_session
 
@@ -67,12 +72,18 @@ async def cleanup(session: AsyncSession) -> bool:
     if activity is None:
         print(f"ABORT: activity {ACTIVITY_ID} does not exist.")
         return False
+
+    insight_stmt = select(CoachingInsight).where(CoachingInsight.activity_id == ACTIVITY_ID)
+    insights = (await session.execute(insight_stmt)).scalars().all()
+    for insight in insights:
+        await session.delete(insight)
+
     await session.delete(activity)
     await session.flush()
 
     print(
-        f"Released planned session {PLANNED_SESSION_ID} (completed=False, activity_id=None) "
-        f"and deleted activity {ACTIVITY_ID}."
+        f"Released planned session {PLANNED_SESSION_ID} (completed=False, activity_id=None), "
+        f"deleted {len(insights)} coaching insight(s), and deleted activity {ACTIVITY_ID}."
     )
     return True
 

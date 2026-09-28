@@ -4,9 +4,11 @@ services:
   # data is copied (docs/postgres-cutover.md).
   # Stays off the `edge` network — like homelab-apps' datastores, a database
   # reachable from every edge-joined container is exactly the exposure this
-  # setup avoids. No published ports: only containers on the default
-  # compose network can reach it, which is why `mycoach` joins both `default`
-  # and `mycoach-internal`.
+  # setup avoids. Unpublished to every Docker network but the tailnet bind
+  # below (ticket #117): only containers on the default compose network, plus
+  # tailnet clients on port 5432 specifically, can reach it — which is why
+  # `mycoach` joins both `default` and `mycoach-internal` rather than relying
+  # on the published port for its own access.
   mycoach-db:
     image: postgres:16-alpine
     container_name: mycoach-db

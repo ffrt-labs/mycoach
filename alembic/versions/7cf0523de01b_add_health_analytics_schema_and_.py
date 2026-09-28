@@ -21,6 +21,14 @@ here in place of the ADR's future `health_owner`; regranting from
 `health_owner` once that split lands is expected to be mechanical, same as
 the ADR's stated plan for moving each schema to its own instance.
 
+Second ADR gap, same root cause: the ADR also calls for "two independent
+Alembic histories, one per schema," which doesn't exist either — there is
+exactly one `alembic/versions/` history today, chained through both the
+health- and coaching-side migrations (this one revises `e7f8a9b0c1d2`, the
+most recent coaching-side migration). Splitting the history is a bigger,
+separate change than this migration should make unilaterally; flagging it
+here rather than silently working within the single shared history.
+
 Debug/free-text/internal-id columns are left out of every view on purpose:
 `raw_data` (raw sync payload), `notes`/`exercise_notes` (free text), and
 `external_id`/`garmin_activity_id` (source-dedup keys, not observed facts).

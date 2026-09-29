@@ -77,6 +77,12 @@ async def cleanup(session: AsyncSession) -> bool:
     insights = (await session.execute(insight_stmt)).scalars().all()
     for insight in insights:
         await session.delete(insight)
+    # Flush now, before deleting the activity: there's no ORM `relationship()`
+    # between CoachingInsight and Activity, so the unit of work has no
+    # dependency info to order the two DELETEs itself, and Postgres checks the
+    # FK per statement — deleting the activity first fails even though both
+    # deletes are in the same transaction.
+    await session.flush()
 
     await session.delete(activity)
     await session.flush()

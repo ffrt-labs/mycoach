@@ -1,9 +1,12 @@
 """Tests for the one-off cleanup script (#131)."""
 
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from mycoach.database import Base
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -17,6 +20,26 @@ async def _create_user(session: object) -> int:
     session.add(user)  # type: ignore[union-attr]
     await session.flush()  # type: ignore[union-attr]
     return user.id
+
+
+async def _fk_enforced_session() -> AsyncGenerator[AsyncSession, None]:
+    """A session on its own SQLite engine with FK enforcement on, unlike the shared
+    ``test_session`` fixture — Postgres always enforces FKs, and the ordering bug this
+    guards against (deleting a referenced row before its referencer, in the same flush,
+    with no ORM ``relationship()`` to tell SQLAlchemy the dependency) only surfaces when
+    something actually checks the constraint."""
+    engine = create_async_engine("sqlite+aiosqlite://")
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_fk(dbapi_conn: object, _: object) -> None:
+        dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")  # type: ignore[attr-defined]
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessionmaker() as session:
+        yield session
+    await engine.dispose()
 
 
 class TestCleanup:
@@ -196,3 +219,54 @@ class TestCleanup:
             assert ok is False
             assert planned.completed is True
             assert await session.get(Activity, ACTIVITY_ID) is not None
+
+    async def test_deletes_activity_referenced_by_a_coaching_insight_under_fk_enforcement(
+        self,
+    ) -> None:
+        """Regression test for the production failure: deleting the activity before the
+        insight that references it trips the FK constraint under real enforcement, even
+        within the same transaction, because Postgres (and SQLite with the pragma on)
+        checks per statement, not per commit."""
+        async for session in _fk_enforced_session():
+            user_id = await _create_user(session)
+            plan = WeeklyPlan(
+                user_id=user_id, week_start=datetime(2026, 9, 21).date(), status="active"
+            )
+            session.add(plan)
+            await session.flush()
+            activity = Activity(
+                id=ACTIVITY_ID,
+                user_id=user_id,
+                sport="gym",
+                title="Morning Session",
+                start_time=datetime(2026, 9, 21, 8, 9, 26),
+                end_time=datetime(2026, 9, 21, 8, 9, 45),
+                data_source="logger",
+            )
+            session.add(activity)
+            planned = PlannedSession(
+                id=PLANNED_SESSION_ID,
+                plan_id=plan.id,
+                day_of_week=0,
+                sport="gym",
+                title="Squat Day",
+                completed=True,
+                activity_id=ACTIVITY_ID,
+            )
+            session.add(planned)
+            session.add(
+                CoachingInsight(
+                    user_id=user_id,
+                    insight_date=datetime(2026, 9, 21).date(),
+                    insight_type="post_workout",
+                    content='{"performance_summary": "Incomplete session, logging error."}',
+                    activity_id=ACTIVITY_ID,
+                )
+            )
+            await session.flush()
+
+            ok = await cleanup(session)
+            await session.commit()
+
+            assert ok is True
+            assert await session.get(Activity, ACTIVITY_ID) is None

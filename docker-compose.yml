@@ -37,6 +37,34 @@ services:
     ports:
       - "${MYCOACH_DB_TAILNET_IP:?set MYCOACH_DB_TAILNET_IP}:5432:5432"
 
+  # Scheduled pg_dump for mycoach-db (ticket #161) — mycoach-db has held real
+  # history since #107 with no backup mechanism at all. A separate long-lived
+  # container rather than a job inside `mycoach`'s own APScheduler: pg_dump's
+  # wire protocol is version-sensitive, so the client needs to match the
+  # server's major version exactly, and the simplest way to guarantee that is
+  # to run it from the same `postgres` image rather than track the version in
+  # a second place (the app's Dockerfile). Only on `default` (implicit, no
+  # `networks:` override) — it needs nothing from `edge` or
+  # `mycoach-internal`, so it isn't joined to either.
+  mycoach-db-backup:
+    image: postgres:16
+    container_name: mycoach-db-backup
+    restart: unless-stopped
+    depends_on:
+      mycoach-db:
+        condition: service_healthy
+    environment:
+      - PGHOST=mycoach-db
+      - PGUSER=mycoach
+      - PGPASSWORD=${MYCOACH_DATABASE_PASSWORD}
+      - PGDATABASE=mycoach
+      - RETENTION_DAYS=${MYCOACH_BACKUP_RETENTION_DAYS:-14}
+      - BACKUP_TIME=${MYCOACH_BACKUP_TIME:-03:00}
+    volumes:
+      - mycoach-db-backups:/backups
+      - ./scripts/backup-mycoach-db.sh:/backup.sh:ro
+    entrypoint: ["bash", "/backup.sh"]
+
   mycoach:
     build: .
     container_name: mycoach
@@ -98,3 +126,4 @@ networks:
 volumes:
   app-data:
   mycoach-db-data:
+  mycoach-db-backups:

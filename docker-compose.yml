@@ -42,10 +42,12 @@ services:
   # container rather than a job inside `mycoach`'s own APScheduler: pg_dump's
   # wire protocol is version-sensitive, so the client needs to match the
   # server's major version exactly, and the simplest way to guarantee that is
-  # to run it from the same `postgres` image rather than track the version in
-  # a second place (the app's Dockerfile). Only on `default` (implicit, no
-  # `networks:` override) — it needs nothing from `edge` or
-  # `mycoach-internal`, so it isn't joined to either.
+  # to pin the same Postgres major version tag (16) here as mycoach-db rather
+  # than track it in a second place (the app's Dockerfile). Debian-based, not
+  # `-alpine` like mycoach-db: the backup script's scheduling loop relies on
+  # GNU date's `-d "today HH:MM"` parsing, which busybox date doesn't support.
+  # Only on `default` (implicit, no `networks:` override) — it needs nothing
+  # from `edge` or `mycoach-internal`, so it isn't joined to either.
   mycoach-db-backup:
     image: postgres:16
     container_name: mycoach-db-backup

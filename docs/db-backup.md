@@ -3,17 +3,25 @@
 Ticket #161: `mycoach-db` (Postgres, holding real health/coaching history since
 #107) had no backup mechanism at all. This closes the immediate gap — a
 scheduled dump recoverable from, not a full homelab backup architecture.
-Broader concerns (offsite/3-2-1, retention policy, other apps' volumes) are
-out of scope; see #85 for that wider map.
+Broader concerns (offsite/3-2-1, a *designed* retention policy — tiering,
+legal/compliance windows, restoring other apps' volumes) are out of scope; see
+#85 for that wider map. The fixed-window pruning below (default 14 days) is
+the minimum needed for this to run unattended indefinitely without filling the
+`mycoach-db-backups` volume — not a retention policy in that sense, just a
+bound. To keep every dump indefinitely, set `MYCOACH_BACKUP_RETENTION_DAYS` to
+a very large number (there's no dedicated "never prune" switch).
 
 ## What runs
 
-`mycoach-db-backup` (docker-compose.yml) is a long-lived container built from
-the same `postgres:16` image as `mycoach-db` — matching client and server
-major versions exactly, which `pg_dump`/`pg_restore` require, without tracking
-the Postgres version in a second place (the app's own `Dockerfile`). It runs
-`scripts/backup-mycoach-db.sh` as its entrypoint: a sleep loop rather than a
-cron entry, since the postgres image has no cron daemon.
+`mycoach-db-backup` (docker-compose.yml) is a long-lived container pinned to
+the same Postgres major version tag (`16`) as `mycoach-db` — which
+`pg_dump`/`pg_restore` require to match exactly — without tracking the version
+in a second place (the app's own `Dockerfile`). It's `postgres:16`
+(Debian-based), not `-alpine` like `mycoach-db`: the backup loop's scheduling
+relies on GNU date's `-d "today HH:MM"` parsing, which busybox date (alpine)
+doesn't support. It runs `scripts/backup-mycoach-db.sh` as its entrypoint: a
+sleep loop rather than a cron entry, since the postgres image has no cron
+daemon.
 
 Once a day (`MYCOACH_BACKUP_TIME`, default `03:00`, container's local time):
 

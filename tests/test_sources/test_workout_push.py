@@ -206,3 +206,50 @@ class TestPushPrescriptionLink:
         body = resp.json()
         assert body["activities_created"] == 1
         assert body["errors"]
+
+
+class TestTimezoneAwareTimestamps:
+    """The logger sends ``toISOString()`` values ("...Z"). Activity times are
+    naive-UTC ``TIMESTAMP WITHOUT TIME ZONE`` columns, and asyncpg refuses to
+    bind an aware datetime to one — so the schema must hand the importer
+    naive UTC. SQLite never enforced this, hence a schema-level test."""
+
+    def test_utc_z_suffix_becomes_naive_utc(self) -> None:
+        from datetime import datetime
+
+        from mycoach.schemas.workout_import import WorkoutIn
+
+        workout = WorkoutIn(
+            title="Deadlift",
+            start_time="2026-09-26T15:32:11.304Z",
+            end_time="2026-09-26T16:30:41.495Z",
+        ).to_dataclass()
+
+        assert workout.start_time == datetime(2026, 9, 26, 15, 32, 11, 304000)
+        assert workout.start_time.tzinfo is None
+        assert workout.end_time == datetime(2026, 9, 26, 16, 30, 41, 495000)
+        assert workout.end_time.tzinfo is None
+
+    def test_offset_is_converted_to_utc(self) -> None:
+        from datetime import datetime
+
+        from mycoach.schemas.workout_import import WorkoutIn
+
+        workout = WorkoutIn(
+            title="Deadlift", start_time="2026-09-26T16:32:11+01:00"
+        ).to_dataclass()
+
+        assert workout.start_time == datetime(2026, 9, 26, 15, 32, 11)
+        assert workout.start_time.tzinfo is None
+        assert workout.end_time is None
+
+    def test_naive_input_is_kept_as_is(self) -> None:
+        from datetime import datetime
+
+        from mycoach.schemas.workout_import import WorkoutIn
+
+        workout = WorkoutIn(
+            title="Deadlift", start_time="2026-09-26T15:32:11"
+        ).to_dataclass()
+
+        assert workout.start_time == datetime(2026, 9, 26, 15, 32, 11)

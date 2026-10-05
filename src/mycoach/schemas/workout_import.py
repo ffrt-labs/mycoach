@@ -4,7 +4,7 @@ Mirrors the canonical ``sources.workout_import`` dataclasses on the wire, with
 validation, and converts to them via ``to_dataclass()`` for the importer.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -66,6 +66,16 @@ class WorkoutIn(BaseModel):
     # stale id must not 422 a real training log (see plan_linking).
     planned_session_id: int | None = None
     sets: list[WorkoutSetIn] = Field(default_factory=list)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def to_naive_utc(cls, value: datetime | None) -> datetime | None:
+        # Activity times are naive UTC (TIMESTAMP WITHOUT TIME ZONE). The
+        # logger sends toISOString() values ("...Z"), which parse as aware,
+        # and asyncpg refuses to bind an aware datetime to a naive column.
+        if value is not None and value.tzinfo is not None:
+            return value.astimezone(UTC).replace(tzinfo=None)
+        return value
 
     def to_dataclass(self) -> WorkoutImport:
         return WorkoutImport(

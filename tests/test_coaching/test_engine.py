@@ -1,5 +1,6 @@
 """Tests for coaching engine with mocked LLM client."""
 
+import threading
 from datetime import date
 from unittest.mock import MagicMock
 
@@ -99,6 +100,30 @@ class TestGenerateDailyBriefing:
             assert insight.user_id == user_id
             assert "go_hard" in insight.content
             mock_llm.call.assert_called_once()
+
+    async def test_llm_call_runs_off_the_event_loop_thread(self) -> None:
+        """A slow provider (the Claude Code CLI takes 30-90 s) must not freeze the
+        web server, so the engine hands the synchronous call to a worker thread."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+
+            loop_thread = threading.get_ident()
+            call_threads: list[int] = []
+            mock_llm = _mock_llm_client()
+            response = mock_llm.call.return_value
+
+            def record_thread(**_kwargs: object) -> LLMResponse:
+                call_threads.append(threading.get_ident())
+                return response
+
+            mock_llm.call.side_effect = record_thread
+            engine = CoachingEngine(llm_client=mock_llm)
+            await engine.generate_daily_briefing(session, user_id, today)
+
+            assert call_threads
+            assert loop_thread not in call_threads
 
     async def test_logs_prompt(self) -> None:
         async with test_session() as session:

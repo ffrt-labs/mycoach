@@ -4,7 +4,7 @@
 
 **Problem:** Personal trainers are expensive and not always available. Generic fitness apps lack deep personalization. Users who train across multiple sports (gym, swimming, padel) have no single system that understands all their training holistically, adapts to their biometric data (sleep, HRV, stress, recovery), and provides progressive programming.
 
-**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with a configurable LLM provider (currently Gemini; Claude also supported), and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
+**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with a configurable LLM provider (currently Claude through the Claude Code CLI, billed to a Claude Pro subscription; the Anthropic API also supported), and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
 
 **Target user (MVP):** Single technically-proficient user training gym + swimming + padel, wearing a Garmin watch 24/7, logging gym workouts in Hevy (free tier).
 
@@ -118,7 +118,7 @@ Codebase audit confirmed the MVP backend is **built and functional**, not stubs:
 | Database | SQLite (MVP) → PostgreSQL (future), via SQLAlchemy 2.0 + Alembic |
 | Garmin | `garminconnect` + `garth` |
 | Hevy | API sync (web API) + CSV import fallback |
-| LLM | Provider-configurable (`MYCOACH_LLM_PROVIDER`) — Gemini (in use) or Claude/Anthropic |
+| LLM | Provider-configurable (`MYCOACH_LLM_PROVIDER`) — `claude_code` (in use) or `anthropic` |
 | Scheduler | APScheduler |
 | Frontend | Jinja2 + HTMX + Tailwind CSS |
 | Email | Resend API or SMTP |
@@ -181,13 +181,13 @@ mycoach/
 ## 5. LLM Integration Strategy
 
 - **Prompt architecture:** System prompt (coaching persona) + context assembly (data from DB) + structured output (JSON with Pydantic validation)
-- **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **Gemini is the provider currently in use** (`gemini-2.5-flash` daily, `gemini-2.5-pro` weekly); **Claude/Anthropic remains fully supported** as an alternative (`claude-sonnet-4-5` daily, `claude-opus-4-6` weekly). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
-- **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. This dual-model split applies to both providers (Gemini Flash → Pro, Claude Sonnet → Opus).
+- **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **`claude_code` is the provider currently in use**: it runs the Claude Code CLI headless (`claude -p`), authenticated with a Claude Pro subscription token, so coaching adds no per-token cost (`sonnet` alias for both tiers by default). **The Anthropic API (`anthropic`) remains supported** as an alternative (`claude-sonnet-4-5` daily, `claude-opus-4-6` weekly). Gemini was removed after its prepaid credits ran out (issue #164). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
+- **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. Both providers expose the split (Claude Sonnet → Opus); `claude_code` defaults both tiers to Sonnet until Opus availability on Pro is confirmed.
 - **Token budget management:** Raw Garmin data summarized into compact representations before prompting. Rolling context windows (7 days for plans, 3 days for dailies)
 - **Prompt versioning:** Templates in `prompts/v1/`, `v2/`, etc. PromptLog tracks which version produced each output.
 - **Response validation:** JSON parsed → Pydantic validated → retry once on failure → fallback to text
 
-**Estimated monthly cost:** Provider-dependent for a single user. The ~$20-30/month ceiling (`MYCOACH_CLAUDE_MONTHLY_COST_CEILING`) reflects the Claude/Anthropic configuration; Gemini (the provider currently in use) is typically lower for the same workload. Track actual spend via `PromptLog`.
+**Estimated monthly cost:** Provider-dependent for a single user. The ~$20-30/month ceiling (`MYCOACH_CLAUDE_MONTHLY_COST_CEILING`) reflects the Anthropic API configuration; with `claude_code` (the provider currently in use) the marginal cost is zero, within the Pro subscription's usage limits. `PromptLog.estimated_cost_usd` records what each prompt would have cost on the API.
 
 ---
 

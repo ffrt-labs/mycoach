@@ -1,6 +1,6 @@
 """Abstract LLM client interface and shared types.
 
-All provider implementations (Anthropic, Gemini, etc.) must subclass LLMClient
+All provider implementations (Anthropic, Claude Code, etc.) must subclass LLMClient
 and implement the `call` method. The rest of the coaching engine depends only
 on this interface, making providers swappable via configuration.
 """
@@ -85,12 +85,7 @@ def get_llm_client() -> LLMClient:
         from mycoach.coaching.providers.claude_code import ClaudeCodeClient
 
         return ClaudeCodeClient()
-    elif provider == "gemini":
-        from mycoach.coaching.providers.gemini import GeminiClient
-
-        return GeminiClient()
     else:
         raise ValueError(
-            f"Unknown LLM provider: '{provider}'. "
-            "Supported providers: anthropic, claude_code, gemini"
+            f"Unknown LLM provider: '{provider}'. Supported providers: anthropic, claude_code"
         )

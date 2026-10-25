@@ -169,7 +169,7 @@ async def test_daily_briefing_body_records_failure() -> None:
     """A real failure out of the body records a failed run with the detail."""
     mock_engine = MagicMock()
     mock_engine.generate_daily_briefing = AsyncMock(
-        side_effect=RuntimeError("Gemini call failed")
+        side_effect=RuntimeError("LLM call failed")
     )
 
     with (
@@ -185,7 +185,7 @@ async def test_daily_briefing_body_records_failure() -> None:
     runs = await _job_runs()
     assert len(runs) == 1
     assert runs[0].status == "failed"
-    assert runs[0].error == "Gemini call failed"
+    assert runs[0].error == "LLM call failed"
 
 
 def _mock_garmin_source() -> MagicMock:

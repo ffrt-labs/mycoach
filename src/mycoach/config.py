@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Gym workouts arrive via Hevy CSV import or the offline companion logger
     # (POST /api/sources/import/workouts).
 
-    # LLM Provider (anthropic, claude_code, gemini)
+    # LLM Provider (anthropic, claude_code)
     llm_provider: str = "anthropic"
 
     # Anthropic Claude API
@@ -63,11 +63,6 @@ class Settings(BaseSettings):
     )
     claude_code_model_daily: str = "sonnet"
     claude_code_model_weekly: str = "sonnet"
-
-    # Google Gemini API
-    gemini_api_key: str = ""
-    gemini_model_daily: str = "gemini-2.5-flash"
-    gemini_model_weekly: str = "gemini-2.5-pro"
 
     # Email
     email_enabled: bool = False
@@ -116,7 +111,6 @@ class Settings(BaseSettings):
         required_keys = {
             "anthropic": ("MYCOACH_CLAUDE_API_KEY", self.claude_api_key),
             "claude_code": ("CLAUDE_CODE_OAUTH_TOKEN", self.claude_code_oauth_token),
-            "gemini": ("MYCOACH_GEMINI_API_KEY", self.gemini_api_key),
         }
         if provider not in required_keys:
             raise ValueError(

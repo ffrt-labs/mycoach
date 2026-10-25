@@ -9,9 +9,9 @@ def _settings(**overrides: object) -> Settings:
     """Build Settings with a valid LLM config, so email-focused tests don't trip
     the provider-key validator (or pick up values from a local .env file)."""
     defaults: dict[str, object] = {
-        "llm_provider": "gemini",
+        "llm_provider": "claude_code",
         "claude_api_key": "",
-        "gemini_api_key": "test-key",
+        "claude_code_oauth_token": "sk-ant-oat01-test",
     }
     defaults.update(overrides)
     return Settings(**defaults)  # type: ignore[arg-type]
@@ -19,22 +19,18 @@ def _settings(**overrides: object) -> Settings:
 
 def test_anthropic_provider_requires_claude_key() -> None:
     with pytest.raises(ValueError, match="MYCOACH_CLAUDE_API_KEY"):
-        Settings(llm_provider="anthropic", claude_api_key="", gemini_api_key="")
-
-
-def test_gemini_provider_requires_gemini_key() -> None:
-    with pytest.raises(ValueError, match="MYCOACH_GEMINI_API_KEY"):
-        Settings(llm_provider="gemini", claude_api_key="", gemini_api_key="")
+        Settings(llm_provider="anthropic", claude_api_key="")
 
 
 def test_anthropic_provider_with_key_is_valid() -> None:
-    settings = Settings(llm_provider="anthropic", claude_api_key="sk-test", gemini_api_key="")
+    settings = Settings(llm_provider="anthropic", claude_api_key="sk-test")
     assert settings.llm_provider == "anthropic"
 
 
-def test_gemini_provider_with_key_is_valid() -> None:
-    settings = Settings(llm_provider="gemini", claude_api_key="", gemini_api_key="test-key")
-    assert settings.llm_provider == "gemini"
+def test_removed_gemini_provider_fails_listing_supported_providers() -> None:
+    """A stale MYCOACH_LLM_PROVIDER=gemini must fail at boot, not at 09:30."""
+    with pytest.raises(ValueError, match=r"'gemini'.*\['anthropic', 'claude_code'\]"):
+        Settings(llm_provider="gemini", claude_api_key="sk-test")
 
 
 def test_claude_code_provider_requires_oauth_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,7 +63,7 @@ def test_claude_code_models_are_configurable(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_unknown_provider_fails() -> None:
     with pytest.raises(ValueError, match="MYCOACH_LLM_PROVIDER"):
-        Settings(llm_provider="openai", claude_api_key="sk-test", gemini_api_key="test-key")
+        Settings(llm_provider="openai", claude_api_key="sk-test")
 
 
 # --- Email startup validation ---------------------------------------------

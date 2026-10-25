@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Gym workouts arrive via Hevy CSV import or the offline companion logger
     # (POST /api/sources/import/workouts).
 
-    # LLM Provider (anthropic, gemini)
+    # LLM Provider (anthropic, claude_code, gemini)
     llm_provider: str = "anthropic"
 
     # Anthropic Claude API
@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     claude_model_daily: str = "claude-sonnet-4-5-20250929"
     claude_model_weekly: str = "claude-opus-4-6"
     claude_monthly_cost_ceiling: float = 30.0
+
+    # Claude Code CLI, billed against a Claude Pro subscription. The token is
+    # the long-lived one from `claude setup-token`, under the CLI's own variable
+    # name rather than a MYCOACH_ one. Model aliases, not dated IDs, so a
+    # retired model ID can't break generation.
+    claude_code_oauth_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("claude_code_oauth_token", "CLAUDE_CODE_OAUTH_TOKEN"),
+    )
+    claude_code_model_daily: str = "sonnet"
+    claude_code_model_weekly: str = "sonnet"
 
     # Google Gemini API
     gemini_api_key: str = ""
@@ -104,6 +115,7 @@ class Settings(BaseSettings):
         provider = self.llm_provider.lower()
         required_keys = {
             "anthropic": ("MYCOACH_CLAUDE_API_KEY", self.claude_api_key),
+            "claude_code": ("CLAUDE_CODE_OAUTH_TOKEN", self.claude_code_oauth_token),
             "gemini": ("MYCOACH_GEMINI_API_KEY", self.gemini_api_key),
         }
         if provider not in required_keys:

@@ -1,4 +1,7 @@
-"""Tests for LLM client — abstract interface, factory, and Anthropic provider."""
+"""Tests for LLM client — abstract interface, factory, and Anthropic provider.
+
+The Claude Code provider has its own module: test_claude_code_provider.py.
+"""
 
 from unittest.mock import MagicMock, patch
 
@@ -6,6 +9,7 @@ import pytest
 
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.providers.anthropic import AnthropicClient, _estimate_cost
+from mycoach.coaching.providers.claude_code import ClaudeCodeClient
 
 
 class TestEstimateCost:
@@ -219,6 +223,23 @@ class TestGetLLMClient:
 
         client = get_llm_client()
         assert isinstance(client, AnthropicClient)
+
+    @patch("mycoach.coaching.providers.claude_code.get_settings")
+    @patch("mycoach.config.get_settings")
+    def test_factory_returns_claude_code_client(
+        self, mock_settings: MagicMock, mock_provider_settings: MagicMock
+    ) -> None:
+        settings = MagicMock()
+        settings.llm_provider = "claude_code"
+        settings.claude_code_oauth_token = "sk-ant-oat01-test"
+        settings.claude_code_model_daily = "sonnet"
+        settings.claude_code_model_weekly = "sonnet"
+        mock_settings.return_value = settings
+        mock_provider_settings.return_value = settings
+
+        client = get_llm_client()
+        assert isinstance(client, ClaudeCodeClient)
+        assert client.daily_model == "sonnet"
 
     @patch("mycoach.config.get_settings")
     def test_factory_raises_for_unknown_provider(self, mock_settings: MagicMock) -> None:

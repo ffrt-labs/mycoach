@@ -61,6 +61,12 @@ jobs:
           MYCOACH_CLAUDE_MONTHLY_COST_CEILING=${{ vars.MYCOACH_CLAUDE_MONTHLY_COST_CEILING }}
           MYCOACH_GEMINI_API_KEY=${{ secrets.MYCOACH_GEMINI_API_KEY }}
 
+          # claude_code provider (issue #164): the Claude Pro subscription token
+          # from `claude setup-token`, under the CLI's own (unprefixed) name.
+          CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          MYCOACH_CLAUDE_CODE_MODEL_DAILY=${{ vars.MYCOACH_CLAUDE_CODE_MODEL_DAILY }}
+          MYCOACH_CLAUDE_CODE_MODEL_WEEKLY=${{ vars.MYCOACH_CLAUDE_CODE_MODEL_WEEKLY }}
+
           MYCOACH_EMAIL_ENABLED=${{ vars.MYCOACH_EMAIL_ENABLED }}
           MYCOACH_EMAIL_FROM=${{ secrets.MYCOACH_EMAIL_FROM }}
           MYCOACH_EMAIL_TO=${{ secrets.MYCOACH_EMAIL_TO }}

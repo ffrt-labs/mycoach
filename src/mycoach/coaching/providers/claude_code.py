@@ -65,9 +65,7 @@ def _parse_result(completed: subprocess.CompletedProcess[str]) -> dict[str, Any]
     if isinstance(payload, dict):
         return payload
     if completed.returncode != 0:
-        raise LLMProviderError(
-            f"Claude Code: exit {completed.returncode}: {_stderr_tail(completed)}"
-        )
+        raise _exit_error(completed)
     raise LLMProviderError(f"Claude Code: unparseable output: {completed.stdout[:200]!r}")
 
 
@@ -96,13 +94,12 @@ def _raise_for_error(payload: dict[str, Any], completed: subprocess.CompletedPro
             )
         raise LLMProviderError(f"Claude Code: {message}")
     if completed.returncode != 0:
-        raise LLMProviderError(
-            f"Claude Code: exit {completed.returncode}: {_stderr_tail(completed)}"
-        )
+        raise _exit_error(completed)
 
 
-def _stderr_tail(completed: subprocess.CompletedProcess[str]) -> str:
-    return (completed.stderr or "").strip()[-500:] or "no error output"
+def _exit_error(completed: subprocess.CompletedProcess[str]) -> LLMProviderError:
+    stderr_tail = (completed.stderr or "").strip()[-500:] or "no error output"
+    return LLMProviderError(f"Claude Code: exit {completed.returncode}: {stderr_tail}")
 
 
 class ClaudeCodeClient(LLMClient):

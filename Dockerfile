@@ -8,12 +8,29 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_FROZEN=1 \
     UV_NO_CACHE=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:/home/app/.local/bin:$PATH"
 
 WORKDIR /app
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Claude Code CLI for the claude_code LLM provider (coaching billed to the
+# Claude Pro subscription). Pinned, with auto-update off, so a CLI release
+# can't change behaviour mid-run: bump CLAUDE_CODE_VERSION deliberately. It
+# installs into the app user's home, which must stay writable at runtime
+# (the CLI keeps its state under ~/.claude). Placed before the source COPY so
+# code changes don't re-download it.
+ARG CLAUDE_CODE_VERSION=2.1.308
+ENV DISABLE_AUTOUPDATER=1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 app
+USER app
+RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}" \
+    && claude --version | grep -F "${CLAUDE_CODE_VERSION}"
+USER root
 
 # 1. Install dependencies only (best layer caching). README is required because
 #    pyproject sets `readme = "README.md"`, but --no-install-project skips
@@ -33,9 +50,8 @@ RUN mkdir -p /data /data/garmin_tokens
 ENV MYCOACH_DB_URL=sqlite+aiosqlite:////data/mycoach.db \
     MYCOACH_GARMIN_TOKEN_DIR=/data/garmin_tokens
 
-# Run as a non-root user that owns the app and data directories.
-RUN useradd --create-home --uid 1000 app \
-    && chown -R app:app /app /data
+# Run as the non-root user (created above) that owns the app and data directories.
+RUN chown -R app:app /app /data
 USER app
 
 EXPOSE 8000

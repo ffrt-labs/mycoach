@@ -1,5 +1,6 @@
 """Coaching engine — orchestrates LLM calls for generating coaching insights."""
 
+import asyncio
 import json
 import logging
 from datetime import date
@@ -138,7 +139,7 @@ class CoachingEngine:
         parsed: DailyBriefingResponse | None = None
 
         try:
-            llm_response = self._llm.call(
+            llm_response = await self._call_llm(
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.daily_model,
@@ -151,7 +152,7 @@ class CoachingEngine:
             # Retry once on parse failure if we got an LLM response
             if llm_response is not None:
                 try:
-                    llm_response = self._llm.call(
+                    llm_response = await self._call_llm(
                         system=system_prompt,
                         user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
                         model=self._llm.daily_model,
@@ -197,7 +198,30 @@ class CoachingEngine:
 
         return insight
 
-    def _call_llm_with_retry(
+    async def _call_llm(
+        self,
+        *,
+        system: str,
+        user_message: str,
+        model: str,
+        max_tokens: int = 4096,
+    ) -> LLMResponse:
+        """Run the synchronous provider call on a worker thread.
+
+        A provider call can take a minute or more (the Claude Code CLI), and
+        the manual generate routes await the engine on the web server's event
+        loop. Calling the provider inline would freeze every other request,
+        the health check included, until it returned.
+        """
+        return await asyncio.to_thread(
+            self._llm.call,
+            system=system,
+            user_message=user_message,
+            model=model,
+            max_tokens=max_tokens,
+        )
+
+    async def _call_llm_with_retry(
         self,
         *,
         system: str,
@@ -212,7 +236,7 @@ class CoachingEngine:
         parsed: Any = None
 
         try:
-            llm_response = self._llm.call(
+            llm_response = await self._call_llm(
                 system=system,
                 user_message=user_message,
                 model=model,
@@ -236,7 +260,7 @@ class CoachingEngine:
                     )
 
                 try:
-                    llm_response = self._llm.call(
+                    llm_response = await self._call_llm(
                         system=system,
                         user_message=(
                             user_message
@@ -389,7 +413,7 @@ class CoachingEngine:
                 version=PROMPT_VERSION,
             )
 
-            llm_response, parsed, error_msg = self._call_llm_with_retry(
+            llm_response, parsed, error_msg = await self._call_llm_with_retry(
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.daily_model,
@@ -507,7 +531,7 @@ class CoachingEngine:
                 version=PROMPT_VERSION,
             )
 
-            llm_response, parsed, error_msg = self._call_llm_with_retry(
+            llm_response, parsed, error_msg = await self._call_llm_with_retry(
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.weekly_model,
@@ -676,7 +700,7 @@ class CoachingEngine:
         parsed: PostWorkoutResponse | None = None
 
         try:
-            llm_response = self._llm.call(
+            llm_response = await self._call_llm(
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.daily_model,
@@ -688,7 +712,7 @@ class CoachingEngine:
 
             if llm_response is not None:
                 try:
-                    llm_response = self._llm.call(
+                    llm_response = await self._call_llm(
                         system=system_prompt,
                         user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
                         model=self._llm.daily_model,
@@ -804,7 +828,7 @@ class CoachingEngine:
         )
 
         # Call LLM (daily model for cost efficiency)
-        llm_response, parsed, error_msg = self._call_llm_with_retry(
+        llm_response, parsed, error_msg = await self._call_llm_with_retry(
             system=system_prompt,
             user_message=user_message,
             model=self._llm.daily_model,

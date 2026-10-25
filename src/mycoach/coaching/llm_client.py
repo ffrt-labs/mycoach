@@ -81,11 +81,16 @@ def get_llm_client() -> LLMClient:
         from mycoach.coaching.providers.anthropic import AnthropicClient
 
         return AnthropicClient()
+    elif provider == "claude_code":
+        from mycoach.coaching.providers.claude_code import ClaudeCodeClient
+
+        return ClaudeCodeClient()
     elif provider == "gemini":
         from mycoach.coaching.providers.gemini import GeminiClient
 
         return GeminiClient()
     else:
         raise ValueError(
-            f"Unknown LLM provider: '{provider}'. Supported providers: anthropic, gemini"
+            f"Unknown LLM provider: '{provider}'. "
+            "Supported providers: anthropic, claude_code, gemini"
         )

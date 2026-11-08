@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -63,6 +63,7 @@ from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
+from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
 from mycoach.observability.tracing import (
     GenerationStart,
     RunSpec,
@@ -262,17 +263,48 @@ class CoachingEngine:
         if fallback_used is not None:
             checks.append(("fallback_used", fallback_used))
         for name, value in checks:
-            score = Score.boolean(
-                run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
-            )
-            try:
-                self._scores.emit(score)
-            except Exception:
-                logger.warning(
-                    "Langfuse: sending the %s score failed; the coaching run continues",
-                    name,
-                    exc_info=True,
+            self._emit(
+                Score.boolean(
+                    run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
                 )
+            )
+
+    def _score_plan_completion(
+        self, plan_adherence: dict[str, Any] | None, *, at: datetime
+    ) -> None:
+        """Emit ``plan_sessions_completed_ratio`` on the recapped week's plan trace.
+
+        A skipped session never reaches prescription fulfillment, so only the
+        recap, looking back at the whole week, can count it against the plan.
+        No plan, or a plan with no sessions, has no ratio.
+        """
+        if not plan_adherence or not plan_adherence["total_sessions"]:
+            return
+        completed = plan_adherence["completed_sessions"]
+        planned = plan_adherence["total_sessions"]
+        self._emit(
+            Score.numeric(
+                trace_id(weekly_plan_seed(plan_adherence["plan_id"])),
+                "plan_sessions_completed_ratio",
+                completed / planned,
+                timestamp=at,
+                metadata={
+                    "operation": "weekly_recap",
+                    "completed_sessions": completed,
+                    "planned_sessions": planned,
+                },
+            )
+        )
+
+    def _emit(self, score: Score) -> None:
+        try:
+            self._scores.emit(score)
+        except Exception:
+            logger.warning(
+                "Langfuse: sending the %s score failed; the coaching run continues",
+                score.name,
+                exc_info=True,
+            )
 
     async def _call_llm(
         self,
@@ -978,6 +1010,8 @@ class CoachingEngine:
 
         # week_start is the recapped week, so the recap joins that week's session.
         now = self._clock()
+        # Midnight of the recapped Monday, so a regenerated recap overwrites the ratio.
+        self._score_plan_completion(plan_adherence, at=score_timestamp(week_start, now))
         run = weekly_recap_run(user_id, week_start, regenerated_at=now if replaced else None)
         with self._tracer.run(run):
             # Call LLM (daily model for cost efficiency)

@@ -263,6 +263,9 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 | `LANGFUSE_BASE_URL` | Langfuse server, e.g. `http://langfuse-web:3000` over the `langfuse-ingest` network (a deploy *variable*, not a secret) |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Keys of the `mycoach` Langfuse project. Tracing is on only when all three Langfuse variables are set; the boot log says which |
 
+To check that every scheduled coaching run has a trace, run
+`python -m mycoach.tools.trace_coverage --days 30`. See [docs/trace-coverage.md](docs/trace-coverage.md).
+
 ## Data Pipeline
 
 MyCoach collects data from two sources, stores it in a normalized database, then assembles relevant subsets into LLM prompts for each coaching feature.

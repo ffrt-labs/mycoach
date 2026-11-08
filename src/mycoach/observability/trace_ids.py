@@ -29,13 +29,32 @@ def weekly_recap_seed(user_id: int, week_start: date) -> str:
     return f"mycoach:weekly-recap:{user_id}:{week_start.isoformat()}"
 
 
+_REGEN_STAMP = "%Y%m%dT%H%M%SZ"
+
+
 def regen_seed(seed: str, at: datetime) -> str:
     """The seed of a forced regeneration of the run ``seed`` names, made at ``at``.
 
     A naive ``at`` is taken to be UTC.
     """
     at = at.replace(tzinfo=UTC) if at.tzinfo is None else at.astimezone(UTC)
-    return f"{seed}:regen:{at:%Y%m%dT%H%M%SZ}"
+    return f"{seed}:regen:{at:{_REGEN_STAMP}}"
+
+
+def is_regen_of(candidate: str, seed: str) -> bool:
+    """Is ``candidate`` the seed of a forced regeneration of ``seed``?
+
+    The regeneration time is not stored anywhere, so a regen seed cannot be
+    rebuilt; this recognises one instead (the trace-coverage check uses it).
+    """
+    prefix = f"{seed}:regen:"
+    if not candidate.startswith(prefix):
+        return False
+    try:
+        datetime.strptime(candidate.removeprefix(prefix), _REGEN_STAMP)
+    except ValueError:
+        return False
+    return True
 
 
 def trace_id(seed: str) -> str:

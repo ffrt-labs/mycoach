@@ -51,3 +51,23 @@ def test_week_session_is_keyed_by_the_monday_of_the_day_it_is_about() -> None:
     assert week_session_id(1, date(2024, 6, 13)) == "mycoach:week:1:2024-06-10"
     assert week_session_id(1, date(2024, 6, 10)) == "mycoach:week:1:2024-06-10"
     assert week_session_id(1, date(2024, 6, 16)) == "mycoach:week:1:2024-06-10"
+
+
+def test_is_regen_of_recognises_a_regeneration_of_the_seed() -> None:
+    from mycoach.observability.trace_ids import is_regen_of
+
+    seed = "mycoach:daily-briefing:1:2024-06-10"
+    assert is_regen_of("mycoach:daily-briefing:1:2024-06-10:regen:20240610T071500Z", seed)
+
+
+def test_is_regen_of_rejects_the_seed_itself_and_other_runs() -> None:
+    from mycoach.observability.trace_ids import is_regen_of
+
+    seed = "mycoach:daily-briefing:1:2024-06-10"
+    assert not is_regen_of(seed, seed)
+    assert not is_regen_of("mycoach:daily-briefing:1:2024-06-11:regen:20240611T071500Z", seed)
+    # A longer seed sharing the prefix is a different run.
+    assert not is_regen_of(
+        "mycoach:post-workout:12:regen:20240610T071500Z", "mycoach:post-workout:1"
+    )
+    assert not is_regen_of(f"{seed}:regen:not-a-timestamp", seed)

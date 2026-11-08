@@ -14,6 +14,7 @@ from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import LLMQuotaExceeded
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
+from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from mycoach.observability.scores import NoopScoreSink, Score, ScoreSink
 from tests.conftest import test_session as new_session
@@ -232,6 +233,88 @@ class TestOtherRuns:
             f"{RECAP}:needed_retry",
             f"{RECAP}:truncated",
         }
+
+
+RATIO = f"{PLAN}:plan_sessions_completed_ratio"
+
+
+async def _plan_with_sessions(session: object, user_id: int, week_start: date, done: int) -> None:
+    """A plan of three sessions, the first ``done`` of them marked done by hand."""
+    plan = WeeklyPlan(user_id=user_id, week_start=week_start, status="active", summary="Plan")
+    session.add(plan)  # type: ignore[attr-defined]
+    await session.flush()  # type: ignore[attr-defined]
+    for day in range(3):
+        session.add(  # type: ignore[attr-defined]
+            PlannedSession(
+                plan_id=plan.id,
+                day_of_week=day,
+                sport="padel",
+                title=f"Session {day}",
+                completed=day < done,
+            )
+        )
+    await session.commit()  # type: ignore[attr-defined]
+
+
+class TestPlanCompletionScore:
+    async def test_recap_scores_the_ratio_on_the_recapped_weeks_plan(self) -> None:
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            await _plan_with_sessions(session, user_id, MONDAY, done=1)  # plan 1: week W
+            await _plan_with_sessions(session, user_id, date(2024, 6, 17), done=3)  # plan 2
+            engine = CoachingEngine(
+                llm_client=_recap_llm(), scores=sink, clock=lambda: _at(2024, 6, 17, 6, 0)
+            )
+            await engine.generate_weekly_recap(session, user_id, MONDAY)
+
+        ratio = sink.by_id()[RATIO]
+        assert ratio.trace_id == PLAN
+        assert ratio.data_type == "NUMERIC"
+        assert ratio.value == pytest.approx(1 / 3)
+        assert ratio.timestamp == _at(2024, 6, 10)
+        assert ratio.metadata == {
+            "operation": "weekly_recap",
+            "completed_sessions": 1,
+            "planned_sessions": 3,
+        }
+        assert [s.id for s in sink.scores if s.trace_id != RECAP] == [RATIO]
+
+    async def test_a_week_without_a_plan_scores_no_ratio(self) -> None:
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            engine = CoachingEngine(llm_client=_recap_llm(), scores=sink)
+            await engine.generate_weekly_recap(session, user_id, MONDAY)
+
+        assert all(s.name != "plan_sessions_completed_ratio" for s in sink.scores)
+
+    async def test_a_regenerated_recap_overwrites_the_ratio(self) -> None:
+        first, again = RecordingScoreSink(), RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            await _plan_with_sessions(session, user_id, MONDAY, done=2)
+            await CoachingEngine(
+                llm_client=_recap_llm(), scores=first, clock=lambda: _at(2024, 6, 17, 6, 0)
+            ).generate_weekly_recap(session, user_id, MONDAY)
+            await CoachingEngine(
+                llm_client=_recap_llm(), scores=again, clock=lambda: _at(2024, 6, 19, 20, 0)
+            ).generate_weekly_recap(session, user_id, MONDAY, force=True)
+
+        assert first.by_id()[RATIO].timestamp == again.by_id()[RATIO].timestamp
+        assert again.values()[RATIO] == pytest.approx(2 / 3)
+
+    async def test_the_ratio_is_scored_even_when_the_recap_fails(self) -> None:
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            await _plan_with_sessions(session, user_id, MONDAY, done=0)
+            with pytest.raises(RuntimeError):
+                await CoachingEngine(
+                    llm_client=_recap_llm("not json at all"), scores=sink
+                ).generate_weekly_recap(session, user_id, MONDAY)
+
+        assert sink.values()[RATIO] == 0.0
 
 
 class _FailingSink:

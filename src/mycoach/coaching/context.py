@@ -149,8 +149,9 @@ async def get_plan_adherence_for_week(
 ) -> dict[str, Any] | None:
     """Get plan adherence data for a given week.
 
-    Returns a dict with total_sessions, completed_sessions, adherence_pct,
-    and per-session breakdown. Returns None if no plan exists for the week.
+    Returns a dict with the plan_id it measured (the week's latest plan),
+    total_sessions, completed_sessions, adherence_pct, and per-session
+    breakdown. Returns None if no plan exists for the week.
     """
     stmt = (
         select(WeeklyPlan)
@@ -265,6 +266,7 @@ async def get_plan_adherence_for_week(
     adherence_pct = round(completed / total * 100, 1) if total > 0 else 0.0
 
     return {
+        "plan_id": plan.id,
         "plan_summary": plan.summary,
         "total_sessions": total,
         "completed_sessions": completed,

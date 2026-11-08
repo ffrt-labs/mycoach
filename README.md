@@ -260,6 +260,8 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 | `MYCOACH_CLAUDE_MODEL_WEEKLY` | Model for weekly plans (default: Opus) |
 | `MYCOACH_CLAUDE_MONTHLY_COST_CEILING` | Monthly API spend limit (default: $30) |
 | `MYCOACH_EMAIL_ENABLED` | Enable email delivery |
+| `LANGFUSE_BASE_URL` | Langfuse server, e.g. `http://langfuse-web:3000` over the `langfuse-ingest` network (a deploy *variable*, not a secret) |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Keys of the `mycoach` Langfuse project. Tracing is on only when all three Langfuse variables are set; the boot log says which |
 
 ## Data Pipeline
 

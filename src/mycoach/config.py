@@ -64,6 +64,23 @@ class Settings(BaseSettings):
     claude_code_model_daily: str = "sonnet"
     claude_code_model_weekly: str = "sonnet"
 
+    # Langfuse tracing of coaching runs, under the SDK's own variable names.
+    # On only when all three are set: the SDK's default base URL is Langfuse
+    # Cloud, so keys without a base URL must never enable it. The base URL is
+    # a deploy *variable*, the keys are secrets.
+    langfuse_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("langfuse_base_url", "LANGFUSE_BASE_URL"),
+    )
+    langfuse_public_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("langfuse_public_key", "LANGFUSE_PUBLIC_KEY"),
+    )
+    langfuse_secret_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("langfuse_secret_key", "LANGFUSE_SECRET_KEY"),
+    )
+
     # Email
     email_enabled: bool = False
     email_from: str = ""

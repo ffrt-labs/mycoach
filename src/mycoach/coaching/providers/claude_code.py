@@ -105,6 +105,8 @@ def _exit_error(completed: subprocess.CompletedProcess[str]) -> LLMProviderError
 class ClaudeCodeClient(LLMClient):
     """LLM client backed by ``claude -p``, one subprocess per call."""
 
+    provider_name = "claude_code"
+
     def __init__(self, oauth_token: str | None = None) -> None:
         settings = get_settings()
         self._oauth_token = oauth_token or settings.claude_code_oauth_token

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mycoach.database import Base, get_db
 from mycoach.main import app
+from mycoach.observability.tracing import NoopTracer, set_tracer
 
 test_engine = create_async_engine("sqlite+aiosqlite://", echo=False)
 test_session = async_sessionmaker(test_engine, expire_on_commit=False)
@@ -62,6 +63,17 @@ def _restore_logging_state() -> Generator[None, None, None]:
                 lg.propagate = propagate
                 lg.handlers = handlers
         root.disabled, root.level, root.handlers = root_state
+
+
+@pytest.fixture(autouse=True)
+def _langfuse_off() -> Generator[None, None, None]:
+    """No test traces to a real Langfuse, whatever LANGFUSE_* the shell or .env holds.
+
+    Tracing tests pass their own tracer (tests/test_observability/conftest.py).
+    """
+    set_tracer(NoopTracer())
+    yield
+    set_tracer(None)
 
 
 @pytest.fixture(autouse=True)

@@ -62,8 +62,10 @@ from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
+from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
 from mycoach.observability.tracing import (
     GenerationStart,
+    RunSpec,
     Tracer,
     daily_briefing_run,
     get_tracer,
@@ -87,17 +89,25 @@ class Generation(Generic[T]):
     ``parsed`` is ``None`` when the generation failed; ``error`` then says why
     and ``exception`` is what was raised (a typed provider error, or the parse
     error), kept so callers can tell failures apart.
-    ``response`` is the last LLM response received, if any.
+    ``response`` is the last LLM response received, if any. ``retried`` and
+    ``truncated`` say whether a second attempt was made and whether any
+    attempt's response hit the token limit.
     """
 
     response: LLMResponse | None
     parsed: T | None
     error: str | None
     exception: BaseException | None = None
+    retried: bool = False
+    truncated: bool = False
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _truncated(response: LLMResponse | None) -> bool:
+    return response is not None and response.stop_reason == "max_tokens"
 
 
 class CoachingEngine:
@@ -108,11 +118,13 @@ class CoachingEngine:
         llm_client: LLMClient | None = None,
         tracer: Tracer | None = None,
         clock: Callable[[], datetime] = _utc_now,
+        scores: ScoreSink | None = None,
     ) -> None:
         self._llm = llm_client or get_llm_client()
         self._tracer = tracer or get_tracer()
-        # Stamps the trace seed of a forced regeneration.
+        # Stamps the trace seed of a forced regeneration and the code-check scores.
         self._clock = clock
+        self._scores = scores or score_sink_for(self._tracer)
 
     @property
     def _provider(self) -> str:
@@ -185,7 +197,8 @@ class CoachingEngine:
             Operation.DAILY_BRIEFING, variables, version=PROMPT_VERSION
         )
 
-        run = daily_briefing_run(user_id, today, regenerated_at=self._clock() if replaced else None)
+        now = self._clock()
+        run = daily_briefing_run(user_id, today, regenerated_at=now if replaced else None)
         with self._tracer.run(run):
             generation = await self._generate(
                 session,
@@ -195,6 +208,9 @@ class CoachingEngine:
                 variables=variables,
                 model=self._llm.daily_model,
                 response_model=DailyBriefingResponse,
+            )
+            self._score_code_checks(
+                run, generation, operation="daily_briefing", at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 
@@ -216,6 +232,47 @@ class CoachingEngine:
         await session.refresh(insight)
 
         return insight
+
+    def _score_code_checks(
+        self,
+        run: RunSpec,
+        generation: Generation[T],
+        *,
+        operation: str,
+        at: datetime,
+        qualifier: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+        fallback_used: bool | None = None,
+    ) -> None:
+        """Emit the code-check scores of one generation on the run's trace.
+
+        The checks observe values the run already computed and never steer
+        it. With no answer at all (the provider failed) there is nothing to
+        check, so only ``fallback_used`` can still be emitted. ``qualifier``
+        tells apart several generations on one trace.
+        """
+        meta = {"operation": operation, **(metadata or {})}
+        checks: list[tuple[str, bool]] = []
+        if generation.response is not None:
+            checks += [
+                ("parse_ok", generation.parsed is not None),
+                ("needed_retry", generation.retried),
+                ("truncated", generation.truncated),
+            ]
+        if fallback_used is not None:
+            checks.append(("fallback_used", fallback_used))
+        for name, value in checks:
+            score = Score.boolean(
+                run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
+            )
+            try:
+                self._scores.emit(score)
+            except Exception:
+                logger.warning(
+                    "Langfuse: sending the %s score failed; the coaching run continues",
+                    name,
+                    exc_info=True,
+                )
 
     async def _call_llm(
         self,
@@ -310,7 +367,11 @@ class CoachingEngine:
                 parsed=retry.parsed,
                 error=None if retry.parsed is not None else f"Retry also failed: {retry.error}",
                 exception=retry.exception,
+                retried=True,
+                truncated=_truncated(result.response) or _truncated(retry.response),
             )
+        elif result.response is not None:
+            result.truncated = _truncated(result.response)
 
         response = result.response
         session.add(
@@ -494,7 +555,9 @@ class CoachingEngine:
 
         # One trace for the whole plan: a generation per gym slot plus the
         # cardio generation. plan.id exists now, after the flush above.
-        with self._tracer.run(weekly_plan_run(plan.id, user_id, week_start)):
+        run = weekly_plan_run(plan.id, user_id, week_start)
+        scored_at = score_timestamp(run.about, self._clock())
+        with self._tracer.run(run):
             # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed)
             for i, slot in enumerate(gym_slots):
                 if not sorted_routine_days:
@@ -526,6 +589,16 @@ class CoachingEngine:
                     model=self._llm.daily_model,
                     max_tokens=8192,
                     response_model=GymAdjustmentResponse,
+                )
+
+                self._score_code_checks(
+                    run,
+                    gym,
+                    operation="gym_adjustment",
+                    at=scored_at,
+                    qualifier=f"gym_adjustment:{i}",
+                    metadata={"day_of_week": slot["day_of_week"]},
+                    fallback_used=gym.parsed is None,
                 )
 
                 if gym.response and gym.response.content:
@@ -639,6 +712,10 @@ class CoachingEngine:
                     model=self._llm.weekly_model,
                     max_tokens=8192,
                     response_model=CardioPlanResponse,
+                )
+
+                self._score_code_checks(
+                    run, cardio, operation="cardio_plan", at=scored_at, qualifier="cardio_plan"
                 )
 
                 if cardio.response and cardio.response.content:
@@ -786,11 +863,12 @@ class CoachingEngine:
         )
 
         # The week session follows the activity's date, not the run's.
+        now = self._clock()
         run = post_workout_run(
             activity_id,
             user_id,
             activity_date,
-            regenerated_at=self._clock() if replaced else None,
+            regenerated_at=now if replaced else None,
         )
         with self._tracer.run(run):
             generation = await self._generate(
@@ -801,6 +879,9 @@ class CoachingEngine:
                 variables=variables,
                 model=self._llm.daily_model,
                 response_model=PostWorkoutResponse,
+            )
+            self._score_code_checks(
+                run, generation, operation="post_workout", at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 
@@ -896,9 +977,8 @@ class CoachingEngine:
         )
 
         # week_start is the recapped week, so the recap joins that week's session.
-        run = weekly_recap_run(
-            user_id, week_start, regenerated_at=self._clock() if replaced else None
-        )
+        now = self._clock()
+        run = weekly_recap_run(user_id, week_start, regenerated_at=now if replaced else None)
         with self._tracer.run(run):
             # Call LLM (daily model for cost efficiency)
             generation = await self._generate(
@@ -910,6 +990,9 @@ class CoachingEngine:
                 model=self._llm.daily_model,
                 max_tokens=8192,
                 response_model=WeeklyRecapResponse,
+            )
+            self._score_code_checks(
+                run, generation, operation="weekly_recap", at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 

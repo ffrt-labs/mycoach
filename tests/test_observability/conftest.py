@@ -12,7 +12,8 @@ from opentelemetry.sdk.trace.export import SpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from mycoach.config import Settings
-from mycoach.observability.tracing import Tracer, build_tracer
+from mycoach.observability.scores import Score
+from mycoach.observability.tracing import LangfuseTracer, Tracer, build_tracer
 
 
 def langfuse_settings() -> Settings:
@@ -27,11 +28,21 @@ def langfuse_settings() -> Settings:
 
 
 def tracer_with(exporter: SpanExporter) -> Tracer:
-    """A real Langfuse tracer whose spans go to ``exporter``, never the network."""
+    """A real Langfuse tracer whose spans go to ``exporter``, never the network.
+
+    Scores never reach the network either: the client's ``create_score`` is
+    replaced by a recorder, its calls kept in ``tracer.client.score_calls``.
+    """
     LangfuseResourceManager.reset()
-    return build_tracer(
+    tracer = build_tracer(
         langfuse_settings(), span_exporter=exporter, tracer_provider=TracerProvider()
     )
+    assert isinstance(tracer, LangfuseTracer)
+    calls: list[dict[str, Any]] = []
+    client: Any = tracer.client
+    client.score_calls = calls
+    client.create_score = lambda **kwargs: calls.append(kwargs)
+    return tracer
 
 
 @dataclass
@@ -80,3 +91,20 @@ def captured() -> Generator[Captured, None, None]:
     tracer = tracer_with(exporter)
     yield Captured(tracer, exporter)
     LangfuseResourceManager.reset()
+
+
+class RecordingScoreSink:
+    """The fake ``ScoreSink``: keeps every emitted score, in order."""
+
+    def __init__(self) -> None:
+        self.scores: list[Score] = []
+
+    def emit(self, score: Score) -> None:
+        self.scores.append(score)
+
+    def by_id(self) -> dict[str, Score]:
+        return {s.id: s for s in self.scores}
+
+    def values(self) -> dict[str, float]:
+        """Score ID to value, the usual thing to assert on."""
+        return {s.id: s.value for s in self.scores}

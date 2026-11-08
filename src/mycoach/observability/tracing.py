@@ -305,6 +305,11 @@ class LangfuseTracer:
     def __init__(self, client: Langfuse) -> None:
         self._lf = client
 
+    @property
+    def client(self) -> Langfuse:
+        """The Langfuse client, shared with the score sink (one client per key)."""
+        return self._lf
+
     @contextmanager
     def run(self, spec: RunSpec) -> Iterator[None]:
         stack = ExitStack()

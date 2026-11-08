@@ -87,9 +87,12 @@ services:
     # Deliberately NOT on `edge`: only homelab-edge's Caddy shares
     # `mycoach-internal`, so a sibling container on `edge` cannot reach
     # mycoach:8000 directly and bypass Caddy. (homelab-edge#28)
+    # `langfuse-ingest` carries traces to http://langfuse-web:3000 directly,
+    # never through Caddy.
     networks:
       - default
       - mycoach-internal
+      - langfuse-ingest
     healthcheck:
       test:
         - CMD
@@ -123,6 +126,10 @@ networks:
     external: true
   # Created by homelab-edge's deploy; must already exist.
   mycoach-internal:
+    external: true
+  # Created (with this fixed name) by homelab-apps' Langfuse deploy, which
+  # must run first.
+  langfuse-ingest:
     external: true
 
 volumes:

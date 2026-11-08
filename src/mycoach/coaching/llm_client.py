@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,11 @@ class LLMClient(ABC):
 
     Subclasses must implement ``call`` and expose ``daily_model`` / ``weekly_model``
     properties so the coaching engine can select the appropriate model tier.
+    ``provider_name`` (the ``MYCOACH_LLM_PROVIDER`` value) is recorded on each
+    Langfuse generation.
     """
+
+    provider_name: ClassVar[str] = ""
 
     @abstractmethod
     def call(

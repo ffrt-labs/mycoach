@@ -66,6 +66,13 @@ jobs:
           MYCOACH_CLAUDE_CODE_MODEL_DAILY=${{ vars.MYCOACH_CLAUDE_CODE_MODEL_DAILY }}
           MYCOACH_CLAUDE_CODE_MODEL_WEEKLY=${{ vars.MYCOACH_CLAUDE_CODE_MODEL_WEEKLY }}
 
+          # Langfuse tracing (issue #172): on only when all three are set. The
+          # base URL is a *variable* (http://langfuse-web:3000), the keys are
+          # secrets; saving the URL as a secret would leave tracing off.
+          LANGFUSE_BASE_URL=${{ vars.LANGFUSE_BASE_URL }}
+          LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
+
           MYCOACH_EMAIL_ENABLED=${{ vars.MYCOACH_EMAIL_ENABLED }}
           MYCOACH_EMAIL_FROM=${{ secrets.MYCOACH_EMAIL_FROM }}
           MYCOACH_EMAIL_TO=${{ secrets.MYCOACH_EMAIL_TO }}

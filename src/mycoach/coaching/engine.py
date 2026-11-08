@@ -3,8 +3,9 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel
@@ -61,6 +62,15 @@ from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
+from mycoach.observability.tracing import (
+    GenerationStart,
+    Tracer,
+    daily_briefing_run,
+    get_tracer,
+    post_workout_run,
+    weekly_plan_run,
+    weekly_recap_run,
+)
 from mycoach.plan_linking import link_activity_to_planned_session
 
 logger = logging.getLogger(__name__)
@@ -74,20 +84,41 @@ T = TypeVar("T", bound=BaseModel)
 class Generation(Generic[T]):
     """Outcome of one coaching generation (or of a single attempt within it).
 
-    ``parsed`` is ``None`` when the generation failed; ``error`` then says why.
+    ``parsed`` is ``None`` when the generation failed; ``error`` then says why
+    and ``exception`` is what was raised (a typed provider error, or the parse
+    error), kept so callers can tell failures apart.
     ``response`` is the last LLM response received, if any.
     """
 
     response: LLMResponse | None
     parsed: T | None
     error: str | None
+    exception: BaseException | None = None
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class CoachingEngine:
     """Orchestrates coaching insight generation."""
 
-    def __init__(self, llm_client: LLMClient | None = None) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient | None = None,
+        tracer: Tracer | None = None,
+        clock: Callable[[], datetime] = _utc_now,
+    ) -> None:
         self._llm = llm_client or get_llm_client()
+        self._tracer = tracer or get_tracer()
+        # Stamps the trace seed of a forced regeneration.
+        self._clock = clock
+
+    @property
+    def _provider(self) -> str:
+        """The provider name recorded on each generation."""
+        name = getattr(type(self._llm), "provider_name", None)
+        return name if isinstance(name, str) and name else type(self._llm).__name__
 
     async def generate_daily_briefing(
         self,
@@ -113,8 +144,10 @@ class CoachingEngine:
                 CoachingInsight.insight_type == "daily_briefing",
             )
         )
+        replaced = False
         if existing.scalar_one_or_none() is not None:
             if force:
+                replaced = True
                 await session.execute(
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
@@ -152,19 +185,22 @@ class CoachingEngine:
             Operation.DAILY_BRIEFING, variables, version=PROMPT_VERSION
         )
 
-        generation = await self._generate(
-            session,
-            operation="daily_briefing",
-            system=system_prompt,
-            user_message=user_message,
-            model=self._llm.daily_model,
-            response_model=DailyBriefingResponse,
-        )
-        parsed = generation.parsed
+        run = daily_briefing_run(user_id, today, regenerated_at=self._clock() if replaced else None)
+        with self._tracer.run(run):
+            generation = await self._generate(
+                session,
+                operation="daily_briefing",
+                system=system_prompt,
+                user_message=user_message,
+                variables=variables,
+                model=self._llm.daily_model,
+                response_model=DailyBriefingResponse,
+            )
+            parsed = generation.parsed
 
-        if parsed is None:
-            await session.commit()
-            raise RuntimeError(f"Failed to generate daily briefing: {generation.error}")
+            if parsed is None:
+                await session.commit()
+                raise RuntimeError(f"Failed to generate daily briefing: {generation.error}")
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()
@@ -211,6 +247,7 @@ class CoachingEngine:
         operation: str,
         system: str,
         user_message: str,
+        variables: Mapping[str, str],
         model: str,
         response_model: type[T],
         max_tokens: int = 4096,
@@ -222,8 +259,9 @@ class CoachingEngine:
         telling the model what was wrong), and writes the single ``PromptLog``
         row for the operation. ``operation`` names what is being served
         (``daily_briefing``, ``gym_adjustment``, ...) and becomes the log's
-        ``prompt_type``. Each attempt runs through ``_attempt`` so a later
-        tracing layer can record attempts individually.
+        ``prompt_type``. Each attempt runs through ``_attempt``, which records
+        it as its own generation in the current trace; ``variables`` (the
+        prompt's variable map) is that generation's input.
 
         Never raises for an LLM or parse failure: the caller reads
         ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
@@ -233,6 +271,7 @@ class CoachingEngine:
             attempt=1,
             system=system,
             user_message=user_message,
+            variables=variables,
             model=model,
             max_tokens=max_tokens,
             response_model=response_model,
@@ -260,14 +299,17 @@ class CoachingEngine:
                     + "\n\nIMPORTANT: Respond ONLY with valid JSON. "
                     + f"Your previous response had this error: {first_error}"
                 ),
+                variables=variables,
                 model=model,
                 max_tokens=retry_tokens,
                 response_model=response_model,
+                previous_error=first_error,
             )
             result = Generation(
                 response=retry.response or result.response,
                 parsed=retry.parsed,
                 error=None if retry.parsed is not None else f"Retry also failed: {retry.error}",
+                exception=retry.exception,
             )
 
         response = result.response
@@ -295,11 +337,30 @@ class CoachingEngine:
         attempt: int,
         system: str,
         user_message: str,
+        variables: Mapping[str, str],
         model: str,
         max_tokens: int,
         response_model: type[T],
+        previous_error: str | None = None,
     ) -> Generation[T]:
-        """One call-and-parse attempt. ``attempt`` is 1 for the first try, 2 for the retry."""
+        """One call-and-parse attempt, recorded as one generation.
+
+        ``attempt`` is 1 for the first try, 2 for the retry; a retry carries
+        the parse error of the attempt it follows as ``previous_error``. The
+        generation is opened and ended here, on the event loop, so the
+        provider's worker thread never touches the tracer.
+        """
+        traced = self._tracer.generation(
+            GenerationStart(
+                operation=operation,
+                attempt=attempt,
+                provider=self._provider,
+                model=model,
+                max_tokens=max_tokens,
+                input=variables,
+                previous_error=previous_error,
+            )
+        )
         response: LLMResponse | None = None
         try:
             response = await self._call_llm(
@@ -308,14 +369,13 @@ class CoachingEngine:
                 model=model,
                 max_tokens=max_tokens,
             )
-            return Generation(
-                response=response,
-                parsed=parse_response(response.content, response_model),
-                error=None,
-            )
+            parsed = parse_response(response.content, response_model)
         except Exception as e:
             logger.error("%s attempt %d failed: %s", operation, attempt, e)
-            return Generation(response=response, parsed=None, error=str(e))
+            traced.failed(error=str(e), exception=e, response=response)
+            return Generation(response=response, parsed=None, error=str(e), exception=e)
+        traced.succeeded(response)
+        return Generation(response=response, parsed=parsed, error=None)
 
     async def _materialize_availability(
         self, session: AsyncSession, user_id: int, week_start: date
@@ -432,209 +492,220 @@ class CoachingEngine:
         all_raw_outputs: list[str] = []
         summaries: list[str] = []
 
-        # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed)
-        for i, slot in enumerate(gym_slots):
-            if not sorted_routine_days:
-                logger.warning(
-                    "No routine days defined, skipping gym slot day %d",
-                    slot["day_of_week"],
-                )
-                continue
-            routine_day = sorted_routine_days[i % len(sorted_routine_days)]
-
-            variables = gym_adjustment_variables(
-                routine_day_name=routine_day["name"],
-                routine_exercises=routine_day["exercises"],
-                health_trends=health_trends_avg,
-                last_week_activities=last_week_activities,
-                mesocycle_context=mesocycle_ctx,
-                sport_profiles=sport_profiles,
-            )
-            system_prompt, user_message = compile_prompt(
-                Operation.GYM_ADJUSTMENT, variables, version=PROMPT_VERSION
-            )
-
-            gym = await self._generate(
-                session,
-                operation="gym_adjustment",
-                system=system_prompt,
-                user_message=user_message,
-                model=self._llm.daily_model,
-                max_tokens=8192,
-                response_model=GymAdjustmentResponse,
-            )
-
-            if gym.response and gym.response.content:
-                all_raw_outputs.append(gym.response.content)
-
-            if gym.parsed is not None:
-                parsed = gym.parsed
-                # Build from the routine so a hallucinated response can never
-                # invent a prescribed exercise. Names remain display labels;
-                # the echoed catalogue id is the only matching key.
-                exercises_detail = []
-                known_ids = {
-                    ex["exercise_id"]
-                    for ex in routine_day["exercises"]
-                    if ex.get("exercise_id") is not None
-                }
-                adjustments: dict[str, GymAdjustmentExercise] = {}
-                for adjustment in parsed.exercises:
-                    if adjustment.exercise_id is None or adjustment.exercise_id not in known_ids:
-                        logger.warning(
-                            "Ignoring gym adjustment for unknown exercise_id %r",
-                            adjustment.exercise_id,
-                        )
-                        continue
-                    adjustments.setdefault(adjustment.exercise_id, adjustment)
-
-                for routine_ex in routine_day["exercises"]:
-                    ex = adjustments.get(routine_ex.get("exercise_id"))
-                    exercises_detail.append(
-                        {
-                            "exercise_id": routine_ex.get("exercise_id"),
-                            "name": routine_ex["exercise_name"],
-                            "target_weight_kg": ex.target_weight_kg if ex else None,
-                            "sets": routine_ex["sets"],
-                            "reps": routine_ex["rep_range"],
-                            "rpe": ex.target_rpe if ex else None,
-                            "rest_seconds": ex.rest_seconds if ex else None,
-                            "adjustment_rationale": ex.adjustment_rationale if ex else None,
-                            "notes": ex.notes if ex else routine_ex.get("notes"),
-                            "superset_group": routine_ex.get("superset_group"),
-                        }
+        # One trace for the whole plan: a generation per gym slot plus the
+        # cardio generation. plan.id exists now, after the flush above.
+        with self._tracer.run(weekly_plan_run(plan.id, user_id, week_start)):
+            # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed)
+            for i, slot in enumerate(gym_slots):
+                if not sorted_routine_days:
+                    logger.warning(
+                        "No routine days defined, skipping gym slot day %d",
+                        slot["day_of_week"],
                     )
+                    continue
+                routine_day = sorted_routine_days[i % len(sorted_routine_days)]
 
-                details = {"exercises": exercises_detail}
-                planned = PlannedSession(
-                    plan_id=plan.id,
-                    day_of_week=slot["day_of_week"],
-                    sport="gym",
-                    title=routine_day["name"],
-                    duration_minutes=parsed.estimated_duration_minutes,
-                    details=json.dumps(details),
-                    notes=parsed.session_notes,
-                    track="gym",
+                variables = gym_adjustment_variables(
+                    routine_day_name=routine_day["name"],
+                    routine_exercises=routine_day["exercises"],
+                    health_trends=health_trends_avg,
+                    last_week_activities=last_week_activities,
+                    mesocycle_context=mesocycle_ctx,
+                    sport_profiles=sport_profiles,
                 )
-                session.add(planned)
-            else:
-                logger.warning(
-                    "Gym adjustment failed for %s, creating session from routine only",
-                    routine_day["name"],
+                system_prompt, user_message = compile_prompt(
+                    Operation.GYM_ADJUSTMENT, variables, version=PROMPT_VERSION
                 )
-                exercises_detail = [
-                    {
-                        "exercise_id": ex.get("exercise_id"),
-                        "name": ex["exercise_name"],
-                        "sets": ex["sets"],
-                        "reps": ex["rep_range"],
-                        "notes": ex.get("notes"),
-                        "superset_group": ex.get("superset_group"),
+
+                gym = await self._generate(
+                    session,
+                    operation="gym_adjustment",
+                    system=system_prompt,
+                    user_message=user_message,
+                    variables=variables,
+                    model=self._llm.daily_model,
+                    max_tokens=8192,
+                    response_model=GymAdjustmentResponse,
+                )
+
+                if gym.response and gym.response.content:
+                    all_raw_outputs.append(gym.response.content)
+
+                if gym.parsed is not None:
+                    parsed = gym.parsed
+                    # Build from the routine so a hallucinated response can never
+                    # invent a prescribed exercise. Names remain display labels;
+                    # the echoed catalogue id is the only matching key.
+                    exercises_detail = []
+                    known_ids = {
+                        ex["exercise_id"]
+                        for ex in routine_day["exercises"]
+                        if ex.get("exercise_id") is not None
                     }
-                    for ex in routine_day["exercises"]
-                ]
-                planned = PlannedSession(
-                    plan_id=plan.id,
-                    day_of_week=slot["day_of_week"],
-                    sport="gym",
-                    title=routine_day["name"],
-                    duration_minutes=None,
-                    details=json.dumps({"exercises": exercises_detail}),
-                    notes="LLM adjustment failed — using base routine.",
-                    track="gym",
-                )
-                session.add(planned)
-
-        # 5. CARDIO TRACK — single LLM call (weekly model, creative task)
-        if cardio_slots:
-            last_cardio = await get_last_week_cardio_performance(session, user_id, week_start)
-            health_trends_list = await get_health_trends(session, user_id, days=7, today=week_start)
-
-            variables = cardio_plan_variables(
-                cardio_slots=cardio_slots,
-                last_week_cardio=last_cardio,
-                health_trends=health_trends_list,
-                mesocycle_context=mesocycle_ctx,
-                sport_profiles=sport_profiles,
-            )
-            system_prompt, user_message = compile_prompt(
-                Operation.CARDIO_PLAN, variables, version=PROMPT_VERSION
-            )
-
-            cardio = await self._generate(
-                session,
-                operation="cardio_plan",
-                system=system_prompt,
-                user_message=user_message,
-                model=self._llm.weekly_model,
-                max_tokens=8192,
-                response_model=CardioPlanResponse,
-            )
-
-            if cardio.response and cardio.response.content:
-                all_raw_outputs.append(cardio.response.content)
-
-            if cardio.parsed is not None:
-                cardio_plan = cardio.parsed
-                summaries.append(cardio_plan.weekly_summary)
-                # Match LLM sessions to slots by sport — don't trust LLM's day_of_week
-                # Group LLM sessions by sport for matching
-                llm_by_sport: dict[str, list] = {}
-                for s in cardio_plan.sessions:
-                    llm_by_sport.setdefault(s.sport, []).append(s)
-
-                for slot in cardio_slots:
-                    sport = slot["sport"]
-                    candidates = llm_by_sport.get(sport, [])
-                    if candidates:
-                        s = candidates.pop(0)
-                        if s.day_of_week != slot["day_of_week"]:
+                    adjustments: dict[str, GymAdjustmentExercise] = {}
+                    for adjustment in parsed.exercises:
+                        if (
+                            adjustment.exercise_id is None
+                            or adjustment.exercise_id not in known_ids
+                        ):
                             logger.warning(
-                                "LLM returned day_of_week=%d for %s, slot is day %d — using slot",
-                                s.day_of_week,
-                                sport,
-                                slot["day_of_week"],
+                                "Ignoring gym adjustment for unknown exercise_id %r",
+                                adjustment.exercise_id,
                             )
-                        planned = PlannedSession(
-                            plan_id=plan.id,
-                            day_of_week=slot["day_of_week"],
-                            sport=sport,
-                            title=s.title,
-                            duration_minutes=s.duration_minutes,
-                            details=json.dumps(s.details) if s.details else None,
-                            notes=s.notes,
-                            track="cardio",
+                            continue
+                        adjustments.setdefault(adjustment.exercise_id, adjustment)
+
+                    for routine_ex in routine_day["exercises"]:
+                        ex = adjustments.get(routine_ex.get("exercise_id"))
+                        exercises_detail.append(
+                            {
+                                "exercise_id": routine_ex.get("exercise_id"),
+                                "name": routine_ex["exercise_name"],
+                                "target_weight_kg": ex.target_weight_kg if ex else None,
+                                "sets": routine_ex["sets"],
+                                "reps": routine_ex["rep_range"],
+                                "rpe": ex.target_rpe if ex else None,
+                                "rest_seconds": ex.rest_seconds if ex else None,
+                                "adjustment_rationale": ex.adjustment_rationale if ex else None,
+                                "notes": ex.notes if ex else routine_ex.get("notes"),
+                                "superset_group": routine_ex.get("superset_group"),
+                            }
                         )
-                    else:
-                        logger.warning(
-                            "No LLM session for %s on day %d — creating placeholder",
-                            sport,
-                            slot["day_of_week"],
-                        )
-                        planned = PlannedSession(
-                            plan_id=plan.id,
-                            day_of_week=slot["day_of_week"],
-                            sport=sport,
-                            title=f"{sport.capitalize()} Session",
-                            duration_minutes=None,
-                            notes="LLM did not generate a session for this slot.",
-                            track="cardio",
-                        )
-                    session.add(planned)
-            else:
-                logger.error("Cardio plan generation failed: %s", cardio.error)
-                # Create placeholder sessions
-                for slot in cardio_slots:
+
+                    details = {"exercises": exercises_detail}
                     planned = PlannedSession(
                         plan_id=plan.id,
                         day_of_week=slot["day_of_week"],
-                        sport=slot["sport"],
-                        title=f"{slot['sport'].capitalize()} Session (plan generation failed)",
-                        duration_minutes=None,
-                        notes="LLM plan generation failed — please reschedule.",
-                        track="cardio",
+                        sport="gym",
+                        title=routine_day["name"],
+                        duration_minutes=parsed.estimated_duration_minutes,
+                        details=json.dumps(details),
+                        notes=parsed.session_notes,
+                        track="gym",
                     )
                     session.add(planned)
+                else:
+                    logger.warning(
+                        "Gym adjustment failed for %s, creating session from routine only",
+                        routine_day["name"],
+                    )
+                    exercises_detail = [
+                        {
+                            "exercise_id": ex.get("exercise_id"),
+                            "name": ex["exercise_name"],
+                            "sets": ex["sets"],
+                            "reps": ex["rep_range"],
+                            "notes": ex.get("notes"),
+                            "superset_group": ex.get("superset_group"),
+                        }
+                        for ex in routine_day["exercises"]
+                    ]
+                    planned = PlannedSession(
+                        plan_id=plan.id,
+                        day_of_week=slot["day_of_week"],
+                        sport="gym",
+                        title=routine_day["name"],
+                        duration_minutes=None,
+                        details=json.dumps({"exercises": exercises_detail}),
+                        notes="LLM adjustment failed — using base routine.",
+                        track="gym",
+                    )
+                    session.add(planned)
+
+            # 5. CARDIO TRACK — single LLM call (weekly model, creative task)
+            if cardio_slots:
+                last_cardio = await get_last_week_cardio_performance(session, user_id, week_start)
+                health_trends_list = await get_health_trends(
+                    session, user_id, days=7, today=week_start
+                )
+
+                variables = cardio_plan_variables(
+                    cardio_slots=cardio_slots,
+                    last_week_cardio=last_cardio,
+                    health_trends=health_trends_list,
+                    mesocycle_context=mesocycle_ctx,
+                    sport_profiles=sport_profiles,
+                )
+                system_prompt, user_message = compile_prompt(
+                    Operation.CARDIO_PLAN, variables, version=PROMPT_VERSION
+                )
+
+                cardio = await self._generate(
+                    session,
+                    operation="cardio_plan",
+                    system=system_prompt,
+                    user_message=user_message,
+                    variables=variables,
+                    model=self._llm.weekly_model,
+                    max_tokens=8192,
+                    response_model=CardioPlanResponse,
+                )
+
+                if cardio.response and cardio.response.content:
+                    all_raw_outputs.append(cardio.response.content)
+
+                if cardio.parsed is not None:
+                    cardio_plan = cardio.parsed
+                    summaries.append(cardio_plan.weekly_summary)
+                    # Match LLM sessions to slots by sport — don't trust LLM's day_of_week
+                    # Group LLM sessions by sport for matching
+                    llm_by_sport: dict[str, list] = {}
+                    for s in cardio_plan.sessions:
+                        llm_by_sport.setdefault(s.sport, []).append(s)
+
+                    for slot in cardio_slots:
+                        sport = slot["sport"]
+                        candidates = llm_by_sport.get(sport, [])
+                        if candidates:
+                            s = candidates.pop(0)
+                            if s.day_of_week != slot["day_of_week"]:
+                                logger.warning(
+                                    "LLM returned day_of_week=%d for %s, slot is day %d"
+                                    " — using slot",
+                                    s.day_of_week,
+                                    sport,
+                                    slot["day_of_week"],
+                                )
+                            planned = PlannedSession(
+                                plan_id=plan.id,
+                                day_of_week=slot["day_of_week"],
+                                sport=sport,
+                                title=s.title,
+                                duration_minutes=s.duration_minutes,
+                                details=json.dumps(s.details) if s.details else None,
+                                notes=s.notes,
+                                track="cardio",
+                            )
+                        else:
+                            logger.warning(
+                                "No LLM session for %s on day %d — creating placeholder",
+                                sport,
+                                slot["day_of_week"],
+                            )
+                            planned = PlannedSession(
+                                plan_id=plan.id,
+                                day_of_week=slot["day_of_week"],
+                                sport=sport,
+                                title=f"{sport.capitalize()} Session",
+                                duration_minutes=None,
+                                notes="LLM did not generate a session for this slot.",
+                                track="cardio",
+                            )
+                        session.add(planned)
+                else:
+                    logger.error("Cardio plan generation failed: %s", cardio.error)
+                    # Create placeholder sessions
+                    for slot in cardio_slots:
+                        planned = PlannedSession(
+                            plan_id=plan.id,
+                            day_of_week=slot["day_of_week"],
+                            sport=slot["sport"],
+                            title=f"{slot['sport'].capitalize()} Session (plan generation failed)",
+                            duration_minutes=None,
+                            notes="LLM plan generation failed — please reschedule.",
+                            track="cardio",
+                        )
+                        session.add(planned)
 
         # 6. Finalize plan
         plan.summary = " | ".join(summaries) if summaries else "Weekly training plan"
@@ -668,8 +739,10 @@ class CoachingEngine:
                 CoachingInsight.insight_type == "post_workout",
             )
         )
+        replaced = False
         if existing.scalar_one_or_none() is not None:
             if force:
+                replaced = True
                 await session.execute(
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
@@ -712,19 +785,28 @@ class CoachingEngine:
             Operation.POST_WORKOUT, variables, version=PROMPT_VERSION
         )
 
-        generation = await self._generate(
-            session,
-            operation="post_workout",
-            system=system_prompt,
-            user_message=user_message,
-            model=self._llm.daily_model,
-            response_model=PostWorkoutResponse,
+        # The week session follows the activity's date, not the run's.
+        run = post_workout_run(
+            activity_id,
+            user_id,
+            activity_date,
+            regenerated_at=self._clock() if replaced else None,
         )
-        parsed = generation.parsed
+        with self._tracer.run(run):
+            generation = await self._generate(
+                session,
+                operation="post_workout",
+                system=system_prompt,
+                user_message=user_message,
+                variables=variables,
+                model=self._llm.daily_model,
+                response_model=PostWorkoutResponse,
+            )
+            parsed = generation.parsed
 
-        if parsed is None:
-            await session.commit()
-            raise RuntimeError(f"Failed to generate post-workout analysis: {generation.error}")
+            if parsed is None:
+                await session.commit()
+                raise RuntimeError(f"Failed to generate post-workout analysis: {generation.error}")
 
         # Link activity to planned session if found
         if planned_session:
@@ -771,8 +853,10 @@ class CoachingEngine:
                 CoachingInsight.insight_type == "weekly_recap",
             )
         )
+        replaced = False
         if existing.scalar_one_or_none() is not None:
             if force:
+                replaced = True
                 await session.execute(
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
@@ -811,21 +895,27 @@ class CoachingEngine:
             Operation.WEEKLY_RECAP, variables, version=PROMPT_VERSION
         )
 
-        # Call LLM (daily model for cost efficiency)
-        generation = await self._generate(
-            session,
-            operation="weekly_recap",
-            system=system_prompt,
-            user_message=user_message,
-            model=self._llm.daily_model,
-            max_tokens=8192,
-            response_model=WeeklyRecapResponse,
+        # week_start is the recapped week, so the recap joins that week's session.
+        run = weekly_recap_run(
+            user_id, week_start, regenerated_at=self._clock() if replaced else None
         )
-        parsed = generation.parsed
+        with self._tracer.run(run):
+            # Call LLM (daily model for cost efficiency)
+            generation = await self._generate(
+                session,
+                operation="weekly_recap",
+                system=system_prompt,
+                user_message=user_message,
+                variables=variables,
+                model=self._llm.daily_model,
+                max_tokens=8192,
+                response_model=WeeklyRecapResponse,
+            )
+            parsed = generation.parsed
 
-        if parsed is None:
-            await session.commit()
-            raise RuntimeError(f"Failed to generate weekly recap: {generation.error}")
+            if parsed is None:
+                await session.commit()
+                raise RuntimeError(f"Failed to generate weekly recap: {generation.error}")
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()

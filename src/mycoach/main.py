@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import time
@@ -42,6 +43,7 @@ from mycoach.api.routes.system import router as system_router
 from mycoach.config import announce_email_config, get_settings
 from mycoach.database import Base, engine
 from mycoach.logging_config import setup_logging
+from mycoach.observability.tracing import announce_langfuse_config, shutdown_tracer
 from mycoach.scheduler.scheduler import create_scheduler
 
 _BASE_DIR = Path(__file__).resolve().parent
@@ -93,6 +95,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if scheduler is not None:
         scheduler.shutdown(wait=False)
         logger.info("Background scheduler stopped")
+    # After the scheduler, so a finished job's spans are in the flush.
+    await asyncio.to_thread(shutdown_tracer)
     await engine.dispose()
 
 
@@ -100,6 +104,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     setup_logging(settings.log_level)
     announce_email_config(settings)
+    announce_langfuse_config(settings)
     app = FastAPI(
         title="MyCoach",
         version="0.1.0",

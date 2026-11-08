@@ -25,6 +25,8 @@ def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 class AnthropicClient(LLMClient):
     """LLM client backed by the Anthropic Claude API."""
 
+    provider_name = "anthropic"
+
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
         self._api_key = api_key or settings.claude_api_key

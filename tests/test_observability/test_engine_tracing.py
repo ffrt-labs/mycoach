@@ -312,6 +312,51 @@ class TestThreadHop:
         assert trace_in_thread == "ef2156ef5a01aa2158bfb9e1b4a8fb29"
 
 
+async def _briefing_generation(captured: Captured, response: LLMResponse) -> ReadableSpan:
+    llm = _briefing_llm()
+    llm.call.return_value = response
+    async with new_session() as session:
+        user_id = await _create_briefing_user(session)
+        await _add_recovery_snapshot(session, user_id, MONDAY)
+        engine = CoachingEngine(llm_client=llm, tracer=captured.tracer)
+        await engine.generate_daily_briefing(session, user_id, MONDAY)
+    [gen] = captured.generations()
+    return gen
+
+
+class TestBillingAndQuota:
+    async def test_subscription_generation_sends_zero_cost_and_its_quota(
+        self, captured: Captured
+    ) -> None:
+        response: LLMResponse = _briefing_llm().call.return_value
+        response.billing = "subscription"
+        response.quota_usage = {"unit": "usd_notional", "amount": 0.0421}
+        response.estimated_cost_usd = 0.0421
+
+        gen = await _briefing_generation(captured, response)
+
+        assert json_attr(gen, "langfuse.observation.cost_details") == {"total": 0}
+        assert json_attr(gen, "langfuse.observation.usage_details") == {
+            "input": 500,
+            "output": 200,
+        }
+        assert json_attr(gen, "langfuse.observation.metadata.billing") == "subscription"
+        assert json_attr(gen, "langfuse.observation.metadata.quota_usage") == {
+            "unit": "usd_notional",
+            "amount": 0.0421,
+        }
+
+    async def test_paid_generation_sends_its_cost_unchanged(self, captured: Captured) -> None:
+        response: LLMResponse = _briefing_llm().call.return_value
+        response.billing = "paid"
+        response.estimated_cost_usd = 0.0105
+
+        gen = await _briefing_generation(captured, response)
+
+        assert json_attr(gen, "langfuse.observation.cost_details") == {"total": 0.0105}
+        assert json_attr(gen, "langfuse.observation.metadata.billing") == "paid"
+
+
 class _FailingExporter(SpanExporter):
     def __init__(self) -> None:
         self.calls = 0

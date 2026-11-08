@@ -10,14 +10,32 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Literal, TypedDict
 
 logger = logging.getLogger(__name__)
+
+Billing = Literal["subscription", "free-tier", "paid"]
+"""How a provider charges: what runs out is quota, unless it is ``paid``."""
+
+
+class QuotaUsage(TypedDict):
+    """What one call consumed of the provider's quota, in the provider's own unit.
+
+    Claude Code reports a notional ``total_cost_usd`` (``usd_notional``); a
+    free tier would count neurons or requests.
+    """
+
+    unit: str
+    amount: float
 
 
 @dataclass
 class LLMResponse:
-    """Result of an LLM API call."""
+    """Result of an LLM API call.
+
+    ``estimated_cost_usd`` is money spent only when ``billing`` is ``paid``;
+    otherwise it is informational and ``quota_usage`` is what the call used up.
+    """
 
     content: str
     model: str
@@ -26,6 +44,8 @@ class LLMResponse:
     latency_ms: int
     estimated_cost_usd: float
     stop_reason: str | None = None
+    billing: Billing = "subscription"
+    quota_usage: QuotaUsage | None = None
 
 
 class LLMClient(ABC):

@@ -174,6 +174,10 @@ class ClaudeCodeClient(LLMClient):
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
             stop_reason="max_tokens" if truncated else payload.get("stop_reason"),
+            # The Claude Pro subscription pays; total_cost_usd is notional and
+            # measures what the call drew from the usage window.
+            billing="subscription",
+            quota_usage={"unit": "usd_notional", "amount": cost},
         )
 
     def _env(self, max_tokens: int) -> dict[str, str]:

@@ -1,0 +1,46 @@
+Adjust the weights, RPE, and volume for today's gym session based on last week's performance data. Do NOT redesign the workout — the exercises, sets, and rep ranges are fixed by the user's routine. Your job is to set appropriate targets.
+
+## Routine Day: Legs
+
+### Exercises
+No exercises defined.
+
+## Last Week's Full Training Log
+No training logged last week.
+
+## Health Summary (7-day avg)
+No recent health data.
+
+## Mesocycle Context
+No mesocycle configured. Use general progressive programming.
+
+## Sport Profiles
+No sport profiles configured.
+
+## Instructions
+- For each exercise, recommend a target weight (kg) and RPE based on last week's actual performance
+- Where a set shows both a prescribed and a performed value, judge "completed all reps" against the prescribed target, not by guessing intent from the rep range. A set with no prescription (manual entry, imported history) is unprescribed, not missed — judge it on the performed reps alone.
+- If last week's data shows the user completed all reps at a given weight with RPE < 8, suggest a small increase (1-2.5kg upper body, 2.5-5kg lower body)
+- If RPE was high (9-10) or reps were not completed, keep or slightly reduce the weight
+- If this is a deload week, reduce weights by ~20% and RPE targets to 5-6
+- Consider health summary: poor sleep/recovery averages → conservative targets
+- Consider the full training log: high total volume across all sports → more conservative gym targets
+- Add coaching notes for form cues or technique reminders where helpful
+- Echo each routine exercise's `exercise_id` exactly; use null for a custom exercise
+
+Respond with a JSON object matching this exact schema:
+{
+  "exercises": [
+    {
+      "exercise_id": "Barbell_Bench_Press_-_Medium_Grip",
+      "exercise_name": "Exercise name (must match routine)",
+      "target_weight_kg": 80.0,
+      "target_rpe": 7,
+      "rest_seconds": 90,
+      "adjustment_rationale": "Brief explanation of why this weight/RPE was chosen",
+      "notes": "Optional form cues or technique notes"
+    }
+  ],
+  "session_notes": "Overall session-level coaching notes",
+  "estimated_duration_minutes": 60
+}

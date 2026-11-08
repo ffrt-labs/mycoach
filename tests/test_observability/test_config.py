@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from langfuse._client.resource_manager import LangfuseResourceManager
 
+from mycoach.coaching.prompt_store import BundledPrompts, LangfusePrompts, build_prompt_store
 from mycoach.config import Settings
 from mycoach.observability.tracing import announce_langfuse_config, build_tracer
 
@@ -65,3 +66,26 @@ def test_enabled_with_all_three(caplog: pytest.LogCaptureFixture) -> None:
     assert "Langfuse enabled: http://langfuse-web:3000" in caplog.text
     assert "pk-lf-config-test" not in caplog.text
     assert "sk-lf-config-test" not in caplog.text
+
+
+def test_prompt_cache_ttl_defaults_to_five_minutes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LANGFUSE_PROMPT_CACHE_TTL", raising=False)
+    assert _settings().langfuse_prompt_cache_ttl == 300
+
+
+def test_prompt_cache_ttl_reads_the_unprefixed_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LANGFUSE_PROMPT_CACHE_TTL", "45")
+    assert _settings().langfuse_prompt_cache_ttl == 45
+
+
+def test_prompts_come_from_langfuse_exactly_when_tracing_is_on() -> None:
+    on = build_tracer(
+        _settings(
+            langfuse_base_url="http://langfuse.invalid",
+            langfuse_public_key="pk-lf",
+            langfuse_secret_key="sk-lf",
+        )
+    )
+    assert isinstance(build_prompt_store(getattr(on, "client", None), 300), LangfusePrompts)
+    off = build_tracer(_settings())
+    assert isinstance(build_prompt_store(getattr(off, "client", None), 300), BundledPrompts)

@@ -1,0 +1,38 @@
+Analyze the following completed workout and provide a post-workout coaching analysis.
+
+## Glossary
+- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.
+- EPOC: excess post-exercise oxygen consumption. Indicates training load and recovery need.
+- Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.
+- Training Status: Not available
+
+## Completed Activity
+- Title: Run
+- Sport: running
+- Duration (min): 30
+
+## Planned Session
+- Title: Easy Run
+- Sport: running
+- Duration: ? min
+
+## Recent Similar Activities (last 5 of same sport)
+No recent activities.
+
+## Today's Health Context
+- Resting Heart Rate: 50
+
+Provide a detailed post-workout analysis. Compare actual performance to the planned session. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
+
+Respond with a JSON object matching this exact schema:
+{{
+  "performance_summary": "Brief overall assessment of the workout quality and effort",
+  "planned_vs_actual": "Comparison to planned session — adherence, deviations, and why",
+  "performance_trends": "How this session compares to recent similar workouts — improvements, regressions, plateaus",
+  "hr_analysis": "Heart rate zone analysis and cardiovascular response (or 'No HR data available')",
+  "training_effect_assessment": "Assessment of aerobic/anaerobic training effect and what it means for adaptation",
+  "key_highlights": ["List of 2-4 specific positive highlights"],
+  "areas_for_improvement": ["List of 1-3 areas to work on next"],
+  "next_session_recommendations": "Specific recommendations for next workout (distance, pace targets, interval structure)",
+  "recovery_notes": "Post-workout recovery recommendations based on effort level and health context"
+}}

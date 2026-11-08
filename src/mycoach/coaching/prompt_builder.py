@@ -1,10 +1,12 @@
 """Loads prompt templates and formats them with context data."""
 
 import json
+from collections.abc import Callable, Mapping
 from datetime import date
+from enum import StrEnum
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 _PROMPT_DIR: Path | None = None
 
@@ -30,6 +32,37 @@ def _load_template(name: str, version: str = "v1") -> str:
 
 def get_system_prompt(version: str = "v1") -> str:
     return _load_template("system.txt", version)
+
+
+class Operation(StrEnum):
+    """A coaching LLM call. The value names its bundled template file."""
+
+    DAILY_BRIEFING = "daily_briefing"
+    GYM_ADJUSTMENT = "gym_adjustment"
+    CARDIO_PLAN = "cardio_plan"
+    POST_WORKOUT = "post_workout"
+    WEEKLY_RECAP = "weekly_recap"
+
+
+PromptVariables = dict[str, str]
+"""An operation's formatted Coaching context, keyed by template placeholder."""
+
+
+class CompiledPrompt(NamedTuple):
+    system: str
+    user: str
+
+
+def compile_prompt(
+    operation: Operation, variables: Mapping[str, str], *, version: str = "v2"
+) -> CompiledPrompt:
+    """Render an operation's bundled template with its variable map.
+
+    Returns the shared system prompt and the user message sent to the model.
+    Raises ``KeyError`` when the map lacks a placeholder the template uses.
+    """
+    template = _load_template(f"{operation.value}.txt", version)
+    return CompiledPrompt(system=get_system_prompt(version), user=template.format(**variables))
 
 
 _TRAINING_STATUS_MAP = {
@@ -259,6 +292,26 @@ def _format_routine_summary(routine: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def daily_briefing_variables(
+    *,
+    health_today: dict[str, Any],
+    health_trends: list[dict[str, Any]],
+    recent_activities: list[dict[str, Any]],
+    planned_workout: str | list[dict[str, Any]] | None = None,
+) -> PromptVariables:
+    """Format the Coaching context of a daily briefing LLM call."""
+    if isinstance(planned_workout, list):
+        formatted_workout = _format_planned_sessions(planned_workout)
+    else:
+        formatted_workout = planned_workout or "No planned workout for today."
+    return {
+        "health_data": _format_health(health_today),
+        "health_trends": _format_health_trends(health_trends),
+        "recent_activities": _format_activities(recent_activities),
+        "planned_workout": formatted_workout,
+    }
+
+
 def build_daily_briefing_prompt(
     *,
     health_today: dict[str, Any],
@@ -268,17 +321,13 @@ def build_daily_briefing_prompt(
     version: str = "v1",
 ) -> str:
     """Build the user message for a daily briefing LLM call."""
-    template = _load_template("daily_briefing.txt", version)
-    if isinstance(planned_workout, list):
-        formatted_workout = _format_planned_sessions(planned_workout)
-    else:
-        formatted_workout = planned_workout or "No planned workout for today."
-    return template.format(
-        health_data=_format_health(health_today),
-        health_trends=_format_health_trends(health_trends),
-        recent_activities=_format_activities(recent_activities),
-        planned_workout=formatted_workout,
+    variables = daily_briefing_variables(
+        health_today=health_today,
+        health_trends=health_trends,
+        recent_activities=recent_activities,
+        planned_workout=planned_workout,
     )
+    return compile_prompt(Operation.DAILY_BRIEFING, variables, version=version).user
 
 
 def _format_availability(slots: list[dict[str, Any]]) -> str:
@@ -585,6 +634,45 @@ def _build_post_workout_schema(sport: str, has_planned: bool) -> str:
     return "{{\n" + ",\n".join(lines) + "\n}}"
 
 
+def post_workout_variables(
+    *,
+    activity: dict[str, Any],
+    gym_details: list[dict[str, Any]],
+    planned_session: dict[str, Any] | None,
+    similar_activities: list[dict[str, Any]],
+    health_context: dict[str, Any],
+) -> PromptVariables:
+    """Format the Coaching context of a post-workout analysis LLM call.
+
+    The gym-details and planned-session sections are conditional, so their
+    variables carry their own heading and are empty when absent.
+    """
+    sport = activity.get("sport", "unknown")
+    has_planned = planned_session is not None
+
+    ts_val = health_context.get("training_status")
+    ts_label = _format_training_status(ts_val) if ts_val else "Not available"
+
+    gym_section = (
+        f"\n\n## Gym Workout Details\n{_format_gym_details(gym_details)}" if gym_details else ""
+    )
+    planned_section = (
+        f"\n\n## Planned Session\n{_format_planned_session(planned_session)}" if has_planned else ""
+    )
+    return {
+        "training_status_label": ts_label,
+        "activity_data": _format_activity_detail(activity),
+        "gym_details_section": gym_section,
+        "planned_session_section": planned_section,
+        "similar_activities": _format_activities(similar_activities),
+        "health_context": _format_health(health_context),
+        "planned_comparison": (
+            " Compare actual performance to the planned session." if has_planned else ""
+        ),
+        "output_schema": _build_post_workout_schema(sport, has_planned),
+    }
+
+
 def build_post_workout_prompt(
     *,
     activity: dict[str, Any],
@@ -595,54 +683,14 @@ def build_post_workout_prompt(
     version: str = "v1",
 ) -> str:
     """Build the user message for a post-workout analysis LLM call."""
-    sport = activity.get("sport", "unknown")
-    has_planned = planned_session is not None
-
-    # Build training status label for glossary
-    ts_val = health_context.get("training_status")
-    ts_label = _format_training_status(ts_val) if ts_val else "Not available"
-
-    # Build sections conditionally
-    sections = [
-        "Analyze the following completed workout and provide a post-workout coaching analysis.",
-        "",
-        "## Glossary",
-        "- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.",
-        "- EPOC: excess post-exercise oxygen consumption."
-        " Indicates training load and recovery need.",
-        "- Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.",
-        f"- Training Status: {ts_label}",
-        "",
-        "## Completed Activity",
-        _format_activity_detail(activity),
-    ]
-
-    if gym_details:
-        sections.extend(["", "## Gym Workout Details", _format_gym_details(gym_details)])
-
-    if has_planned:
-        sections.extend(["", "## Planned Session", _format_planned_session(planned_session)])
-
-    sections.extend(
-        [
-            "",
-            "## Recent Similar Activities (last 5 of same sport)",
-            _format_activities(similar_activities),
-            "",
-            "## Today's Health Context",
-            _format_health(health_context),
-            "",
-            "Provide a detailed post-workout analysis."
-            + (" Compare actual performance to the planned session." if has_planned else "")
-            + " Identify performance trends by comparing to recent similar workouts."
-            + " Be specific about what went well and what to improve.",
-            "",
-            "Respond with a JSON object matching this exact schema:",
-            _build_post_workout_schema(sport, has_planned),
-        ]
+    variables = post_workout_variables(
+        activity=activity,
+        gym_details=gym_details,
+        planned_session=planned_session,
+        similar_activities=similar_activities,
+        health_context=health_context,
     )
-
-    return "\n".join(sections)
+    return compile_prompt(Operation.POST_WORKOUT, variables, version=version).user
 
 
 def _fmt_kg(w: float | None) -> str:
@@ -793,6 +841,39 @@ def _format_plan_adherence(adherence: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def weekly_recap_variables(
+    *,
+    week_start: date,
+    plan_adherence: dict[str, Any] | None,
+    weekly_activities: list[dict[str, Any]],
+    health_trends: list[dict[str, Any]],
+    mesocycle_context: str | None = None,
+    routine: dict[str, Any] | None = None,
+    availability: list[dict[str, Any]] | None = None,
+    weekly_gym_details: list[dict[str, Any]] | None = None,
+    gym_history: list[dict[str, Any]] | None = None,
+    sport_profiles: list[dict[str, Any]] | None = None,
+) -> PromptVariables:
+    """Format the Coaching context of a weekly recap LLM call."""
+    from datetime import timedelta
+
+    week_end = week_start + timedelta(days=6)
+    return {
+        "week_start": str(week_start),
+        "week_end": str(week_end),
+        "plan_adherence": _format_plan_adherence(plan_adherence),
+        "weekly_activities": _format_activities(weekly_activities),
+        "weekly_gym_details": _format_weekly_gym_details(weekly_gym_details or []),
+        "gym_history": _format_gym_history(gym_history or []),
+        "health_trends": _format_health_trends(health_trends),
+        "mesocycle_context": mesocycle_context
+        or "No mesocycle configured. Use general progressive programming.",
+        "routine_summary": _format_routine_summary(routine),
+        "availability": _format_availability(availability or []),
+        "sport_profiles": _format_sport_profiles(sport_profiles or []),
+    }
+
+
 def build_weekly_recap_prompt(
     *,
     week_start: date,
@@ -808,24 +889,19 @@ def build_weekly_recap_prompt(
     version: str = "v1",
 ) -> str:
     """Build the user message for a weekly recap LLM call."""
-    from datetime import timedelta
-
-    week_end = week_start + timedelta(days=6)
-    template = _load_template("weekly_recap.txt", version)
-    return template.format(
-        week_start=str(week_start),
-        week_end=str(week_end),
-        plan_adherence=_format_plan_adherence(plan_adherence),
-        weekly_activities=_format_activities(weekly_activities),
-        weekly_gym_details=_format_weekly_gym_details(weekly_gym_details or []),
-        gym_history=_format_gym_history(gym_history or []),
-        health_trends=_format_health_trends(health_trends),
-        mesocycle_context=mesocycle_context
-        or "No mesocycle configured. Use general progressive programming.",
-        routine_summary=_format_routine_summary(routine),
-        availability=_format_availability(availability or []),
-        sport_profiles=_format_sport_profiles(sport_profiles or []),
+    variables = weekly_recap_variables(
+        week_start=week_start,
+        plan_adherence=plan_adherence,
+        weekly_activities=weekly_activities,
+        health_trends=health_trends,
+        mesocycle_context=mesocycle_context,
+        routine=routine,
+        availability=availability,
+        weekly_gym_details=weekly_gym_details,
+        gym_history=gym_history,
+        sport_profiles=sport_profiles,
     )
+    return compile_prompt(Operation.WEEKLY_RECAP, variables, version=version).user
 
 
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
@@ -1113,6 +1189,27 @@ def _format_last_week_training_log(activities: list[dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
+def gym_adjustment_variables(
+    *,
+    routine_day_name: str,
+    routine_exercises: list[dict[str, Any]],
+    health_trends: dict[str, Any],
+    last_week_activities: list[dict[str, Any]] | None = None,
+    mesocycle_context: str | None = None,
+    sport_profiles: list[dict[str, Any]] | None = None,
+) -> PromptVariables:
+    """Format the Coaching context of a gym adjustment LLM call."""
+    return {
+        "routine_day_name": routine_day_name,
+        "routine_exercises": _format_routine_exercises(routine_exercises),
+        "last_week_activities": _format_last_week_training_log(last_week_activities or []),
+        "health_trends": _format_health_trends_averaged(health_trends),
+        "mesocycle_context": mesocycle_context
+        or "No mesocycle configured. Use general progressive programming.",
+        "sport_profiles": _format_sport_profiles(sport_profiles or []),
+    }
+
+
 def build_gym_adjustment_prompt(
     *,
     routine_day_name: str,
@@ -1124,16 +1221,34 @@ def build_gym_adjustment_prompt(
     version: str = "v2",
 ) -> str:
     """Build the user message for a gym adjustment LLM call."""
-    template = _load_template("gym_adjustment.txt", version)
-    return template.format(
+    variables = gym_adjustment_variables(
         routine_day_name=routine_day_name,
-        routine_exercises=_format_routine_exercises(routine_exercises),
-        last_week_activities=_format_last_week_training_log(last_week_activities or []),
-        health_trends=_format_health_trends_averaged(health_trends),
-        mesocycle_context=mesocycle_context
-        or "No mesocycle configured. Use general progressive programming.",
-        sport_profiles=_format_sport_profiles(sport_profiles or []),
+        routine_exercises=routine_exercises,
+        health_trends=health_trends,
+        last_week_activities=last_week_activities,
+        mesocycle_context=mesocycle_context,
+        sport_profiles=sport_profiles,
     )
+    return compile_prompt(Operation.GYM_ADJUSTMENT, variables, version=version).user
+
+
+def cardio_plan_variables(
+    *,
+    cardio_slots: list[dict[str, Any]],
+    last_week_cardio: list[dict[str, Any]],
+    health_trends: list[dict[str, Any]],
+    mesocycle_context: str | None = None,
+    sport_profiles: list[dict[str, Any]] | None = None,
+) -> PromptVariables:
+    """Format the Coaching context of a cardio plan LLM call."""
+    return {
+        "cardio_slots": _format_cardio_slots(cardio_slots),
+        "last_week_cardio": _format_cardio_activities(last_week_cardio),
+        "health_trends": _format_health_trends(health_trends),
+        "mesocycle_context": mesocycle_context
+        or "No mesocycle configured. Use general progressive programming.",
+        "sport_profiles": _format_sport_profiles(sport_profiles or []),
+    }
 
 
 def build_cardio_plan_prompt(
@@ -1146,12 +1261,21 @@ def build_cardio_plan_prompt(
     version: str = "v2",
 ) -> str:
     """Build the user message for a cardio plan LLM call."""
-    template = _load_template("cardio_plan.txt", version)
-    return template.format(
-        cardio_slots=_format_cardio_slots(cardio_slots),
-        last_week_cardio=_format_cardio_activities(last_week_cardio),
-        health_trends=_format_health_trends(health_trends),
-        mesocycle_context=mesocycle_context
-        or "No mesocycle configured. Use general progressive programming.",
-        sport_profiles=_format_sport_profiles(sport_profiles or []),
+    variables = cardio_plan_variables(
+        cardio_slots=cardio_slots,
+        last_week_cardio=last_week_cardio,
+        health_trends=health_trends,
+        mesocycle_context=mesocycle_context,
+        sport_profiles=sport_profiles,
     )
+    return compile_prompt(Operation.CARDIO_PLAN, variables, version=version).user
+
+
+PROMPT_VARIABLES: Mapping[Operation, Callable[..., PromptVariables]] = {
+    Operation.DAILY_BRIEFING: daily_briefing_variables,
+    Operation.GYM_ADJUSTMENT: gym_adjustment_variables,
+    Operation.CARDIO_PLAN: cardio_plan_variables,
+    Operation.POST_WORKOUT: post_workout_variables,
+    Operation.WEEKLY_RECAP: weekly_recap_variables,
+}
+"""Each operation's variable-map builder, keyed by operation."""

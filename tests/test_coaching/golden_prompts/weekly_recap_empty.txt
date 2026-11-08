@@ -1,0 +1,63 @@
+You are reviewing the past week as a personal trainer. Act on the data below with full coaching authority.
+
+## Week: 2024-06-10 to 2024-06-16
+
+## Plan Adherence
+No training plan was active this week.
+
+## This Week's Activities (Cardio & General)
+No recent activities.
+
+## This Week's Gym Sessions (Detailed)
+No gym sessions this week.
+
+## Gym Performance History (Last 3 Weeks)
+No gym history data (first week or no prior logged gym sessions).
+
+## Health Trends This Week
+No recent health data.
+
+## Athlete Profile & Goals
+No sport profiles configured.
+
+## Mesocycle Status
+No mesocycle configured. Use general progressive programming.
+
+## Planned Routine
+No active workout routine.
+
+## Weekly Availability
+No availability slots set.
+
+As their personal trainer, analyze the week and provide:
+1. STRENGTH ANALYSIS: For each exercise, assess progress vs last weeks. Flag failed reps, regression, or plateau (same weight/RPE for 3+ weeks). For stagnant exercises, propose a concrete alternative or technique change.
+2. CARDIO ANALYSIS: Assess pace/HR trends vs goals. If not progressing, suggest specific drill sessions (e.g., fartlek, tempo run, drill sets for swimming).
+3. SCHEDULE/PLAN ADJUSTMENTS: Recommend any changes to frequency, intensity, or structure based on recovery data and adherence patterns.
+4. PRIORITY ACTION: Identify the single most important thing to fix or focus on next week.
+
+Respond with a JSON object matching this exact schema:
+{
+  "week_summary": "High-level summary of the training week (volume, intensity, adherence)",
+  "adherence_analysis": "Analysis of plan adherence — what was completed, what was missed, and why it matters",
+  "performance_highlights": ["List of 2-4 notable performances or achievements this week"],
+  "areas_of_concern": ["List of 1-3 concerns or areas that need attention"],
+  "recovery_assessment": "Assessment of recovery status based on health trends (sleep, HRV, stress, Body Battery)",
+  "training_load_analysis": "Analysis of training load distribution and balance across sports",
+  "gym_coaching": [
+    {
+      "day_label": "Day 1 (Session Name)",
+      "exercises": ["Exercise Name: Progression/plateau/regression analysis with data"]
+    }
+  ],
+  "exercise_substitutions": ["For each stagnant or regressing exercise: '<Exercise> → <Alternative> because <reason>'"],
+  "cardio_coaching": [
+    {
+      "sport": "Swimming",
+      "analysis": "Pace/HR/efficiency analysis with specific data points",
+      "recommendation": "Specific drill or session recommendation"
+    }
+  ],
+  "coach_recommendations": ["3-5 specific, prioritized actions for next week — most important first"],
+  "next_week_recommendations": "Overall next-week training focus and structure",
+  "mesocycle_progress": "Progress within the current mesocycle block and any phase transition suggestions"
+}

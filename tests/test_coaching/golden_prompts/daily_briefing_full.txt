@@ -1,0 +1,43 @@
+Generate a daily coaching briefing based on the following data.
+
+## Today's Health Data
+- Resting Heart Rate: 55
+- HRV last night avg (ms): 82.0
+- Sleep score: 82
+- Training status: Productive
+- HRV Status: BALANCED
+
+## Recent Health Trends (last 3 days)
+### 2024-06-09
+
+- Resting Heart Rate: 56
+- Sleep score: 75
+
+### 2024-06-08
+
+- Resting Heart Rate: 54
+
+## Recent Activities (last 3 days)
+- 2024-06-10: Push Day [gym] (60 min, avg HR 120)
+- 2024-06-08 18:30:00: Evening Swim [swimming] (45 min, 2000m, pace 2:15/100m)
+
+## Today's Planned Workout
+- Pull Day [gym] (60 min)
+
+Respond with a JSON object matching this exact schema:
+{
+  "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",
+  "recovery_status": "Assessment of current recovery state based on Body Battery, HRV, stress",
+  "readiness_verdict": "go_hard | moderate | active_recovery | rest",
+  "readiness_explanation": "Why this verdict, referencing specific metrics",
+  "workout_adjustments": "Specific adjustments to today's planned workout (or 'No adjustments needed')",
+  "sleep_recommendation": "Recommended bedtime and sleep hygiene tips for tonight",
+  "key_metrics": {
+    "body_battery": <number or null>,
+    "hrv_last_night_avg": <last night's average HRV in ms, a number, or null>,
+    "hrv_status_text": <the HRV status word as a string, e.g. "BALANCED", or null>,
+    "sleep_score": <number or null>,
+    "training_readiness": <number or null>,
+    "resting_hr": <number or null>
+  }
+}

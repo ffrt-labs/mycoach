@@ -1,0 +1,57 @@
+Design progressive cardio sessions for the upcoming week based on the sport pre-assigned to each slot, recent performance, and user profile.
+
+## Available Cardio Slots
+- Tuesday — Running
+- Thursday — Swimming
+
+Each slot shows the day, time, duration, and sport the user has pre-assigned. Design exactly one session per slot matching the assigned sport.
+
+## Last Week's Cardio Performance
+- 2024-06-08 18:30:00: Evening Swim [swimming] (45 min, 2.0km, pace 2:15/100m, avg HR 140, max HR 165, TE 3.2)
+
+## Health Trends
+### 2024-06-09
+
+- Resting Heart Rate: 56
+- Sleep score: 75
+
+### 2024-06-08
+
+- Resting Heart Rate: 54
+
+## Mesocycle Context
+Week 2 of 4
+
+## Sport Profiles
+### Running — intermediate
+- Goals: Sub-50 10k
+- Preferences: Mornings
+- Benchmarks: 5k in 24:00
+
+## Instructions
+- Design one session per available slot using the sport shown for that slot
+- For swimming: specify drills, distances, intervals, stroke focus, and pace targets
+- For running: specify run type (easy, tempo, intervals, long run), distance/duration, pace targets, and heart rate zones
+- For padel: specify session type (match play, drills, fitness), focus areas, and intensity
+- Progress from last week's performance — increase volume or intensity gradually (max 10% per week)
+- Consider health trends when setting intensity: poor sleep/recovery → easier sessions
+- If this is a deload week, reduce volume by ~40% and keep intensity low
+
+Respond with a JSON object matching this exact schema:
+{
+  "sessions": [
+    {
+      "day_of_week": 0,
+      "sport": "swimming | running | padel",
+      "title": "Session title (e.g. 'Easy Recovery Run', 'Endurance Swim')",
+      "duration_minutes": 45,
+      "details": {
+        "type": "Session type (e.g. 'easy', 'tempo', 'intervals', 'drills')",
+        "description": "Detailed session breakdown"
+      },
+      "notes": "Session-level coaching notes"
+    }
+  ],
+  "goal_assessment": "Assessment of training progression based on recent performance and sport profiles",
+  "weekly_summary": "Brief overview of the cardio plan for the week"
+}

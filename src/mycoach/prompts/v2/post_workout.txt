@@ -1,24 +1,13 @@
-NOTE: This template is no longer used directly. The post-workout prompt is now
-built dynamically in prompt_builder.py:build_post_workout_prompt() to support
-conditional sections (glossary, gym details, planned session) and sport-aware
-output schema. This file is kept as a reference for the prompt structure.
-
----
+Analyze the following completed workout and provide a post-workout coaching analysis.
 
 ## Glossary
-- SWOLF: swim efficiency = seconds per length + strokes per length. Lower = better.
+- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.
 - EPOC: excess post-exercise oxygen consumption. Indicates training load and recovery need.
 - Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.
 - Training Status: {training_status_label}
 
 ## Completed Activity
-{activity_data}
-
-## Gym Workout Details (conditional — only if gym session with data)
-{gym_details}
-
-## Planned Session (conditional — only if planned session exists)
-{planned_session}
+{activity_data}{gym_details_section}{planned_session_section}
 
 ## Recent Similar Activities (last 5 of same sport)
 {similar_activities}
@@ -26,10 +15,7 @@ output schema. This file is kept as a reference for the prompt structure.
 ## Today's Health Context
 {health_context}
 
-Provide a detailed post-workout analysis. Compare actual performance to the
-planned session (if available). Identify performance trends by comparing to
-recent similar workouts. Be specific about what went well and what to improve.
+Provide a detailed post-workout analysis.{planned_comparison} Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
 
 Respond with a JSON object matching this exact schema:
-(schema is built dynamically — planned_vs_actual omitted when no planned session,
-next_session_recommendations uses sport-aware labels)
+{output_schema}

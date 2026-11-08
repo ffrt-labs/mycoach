@@ -39,12 +39,13 @@ from mycoach.coaching.exceptions import (
 )
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
-    build_cardio_plan_prompt,
-    build_daily_briefing_prompt,
-    build_gym_adjustment_prompt,
-    build_post_workout_prompt,
-    build_weekly_recap_prompt,
-    get_system_prompt,
+    Operation,
+    cardio_plan_variables,
+    compile_prompt,
+    daily_briefing_variables,
+    gym_adjustment_variables,
+    post_workout_variables,
+    weekly_recap_variables,
 )
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.coaching.response_parser import (
@@ -141,13 +142,14 @@ class CoachingEngine:
         planned_sessions = await get_today_planned_sessions(session, user_id, today)
 
         # Build prompts
-        system_prompt = get_system_prompt(PROMPT_VERSION)
-        user_message = build_daily_briefing_prompt(
+        variables = daily_briefing_variables(
             health_today=health_today,
             health_trends=health_trends,
             recent_activities=recent_activities,
             planned_workout=planned_sessions if planned_sessions else None,
-            version=PROMPT_VERSION,
+        )
+        system_prompt, user_message = compile_prompt(
+            Operation.DAILY_BRIEFING, variables, version=PROMPT_VERSION
         )
 
         generation = await self._generate(
@@ -403,7 +405,6 @@ class CoachingEngine:
             session, user_id, days=7, today=week_start
         )
         mesocycle_ctx = await get_mesocycle_context(session, user_id)
-        system_prompt = get_system_prompt(PROMPT_VERSION)
 
         # 2. Fetch routine + sport profiles + last week's full training log
         routine = await get_active_routine(session, user_id)
@@ -441,14 +442,16 @@ class CoachingEngine:
                 continue
             routine_day = sorted_routine_days[i % len(sorted_routine_days)]
 
-            user_message = build_gym_adjustment_prompt(
+            variables = gym_adjustment_variables(
                 routine_day_name=routine_day["name"],
                 routine_exercises=routine_day["exercises"],
                 health_trends=health_trends_avg,
                 last_week_activities=last_week_activities,
                 mesocycle_context=mesocycle_ctx,
                 sport_profiles=sport_profiles,
-                version=PROMPT_VERSION,
+            )
+            system_prompt, user_message = compile_prompt(
+                Operation.GYM_ADJUSTMENT, variables, version=PROMPT_VERSION
             )
 
             gym = await self._generate(
@@ -547,13 +550,15 @@ class CoachingEngine:
             last_cardio = await get_last_week_cardio_performance(session, user_id, week_start)
             health_trends_list = await get_health_trends(session, user_id, days=7, today=week_start)
 
-            user_message = build_cardio_plan_prompt(
+            variables = cardio_plan_variables(
                 cardio_slots=cardio_slots,
                 last_week_cardio=last_cardio,
                 health_trends=health_trends_list,
                 mesocycle_context=mesocycle_ctx,
                 sport_profiles=sport_profiles,
-                version=PROMPT_VERSION,
+            )
+            system_prompt, user_message = compile_prompt(
+                Operation.CARDIO_PLAN, variables, version=PROMPT_VERSION
             )
 
             cardio = await self._generate(
@@ -696,14 +701,15 @@ class CoachingEngine:
         health_ctx = await get_today_health(session, user_id, activity_date)
 
         # Build prompts
-        system_prompt = get_system_prompt(PROMPT_VERSION)
-        user_message = build_post_workout_prompt(
+        variables = post_workout_variables(
             activity=activity_dict,
             gym_details=gym_details,
             planned_session=planned_session,
             similar_activities=similar,
             health_context=health_ctx,
-            version=PROMPT_VERSION,
+        )
+        system_prompt, user_message = compile_prompt(
+            Operation.POST_WORKOUT, variables, version=PROMPT_VERSION
         )
 
         generation = await self._generate(
@@ -789,8 +795,7 @@ class CoachingEngine:
         gym_history = await get_gym_performance_history(session, user_id, week_start, weeks=3)
 
         # Build prompts
-        system_prompt = get_system_prompt(PROMPT_VERSION)
-        user_message = build_weekly_recap_prompt(
+        variables = weekly_recap_variables(
             week_start=week_start,
             plan_adherence=plan_adherence,
             weekly_activities=weekly_activities,
@@ -801,7 +806,9 @@ class CoachingEngine:
             weekly_gym_details=weekly_gym_details,
             gym_history=gym_history,
             sport_profiles=sport_profiles,
-            version=PROMPT_VERSION,
+        )
+        system_prompt, user_message = compile_prompt(
+            Operation.WEEKLY_RECAP, variables, version=PROMPT_VERSION
         )
 
         # Call LLM (daily model for cost efficiency)

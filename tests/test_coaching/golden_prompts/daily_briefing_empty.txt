@@ -1,0 +1,31 @@
+Generate a daily coaching briefing based on the following data.
+
+## Today's Health Data
+No health data available for today.
+
+## Recent Health Trends (last 3 days)
+No recent health data.
+
+## Recent Activities (last 3 days)
+No recent activities.
+
+## Today's Planned Workout
+No planned workout for today.
+
+Respond with a JSON object matching this exact schema:
+{
+  "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",
+  "recovery_status": "Assessment of current recovery state based on Body Battery, HRV, stress",
+  "readiness_verdict": "go_hard | moderate | active_recovery | rest",
+  "readiness_explanation": "Why this verdict, referencing specific metrics",
+  "workout_adjustments": "Specific adjustments to today's planned workout (or 'No adjustments needed')",
+  "sleep_recommendation": "Recommended bedtime and sleep hygiene tips for tonight",
+  "key_metrics": {
+    "body_battery": <number or null>,
+    "hrv_last_night_avg": <last night's average HRV in ms, a number, or null>,
+    "hrv_status_text": <the HRV status word as a string, e.g. "BALANCED", or null>,
+    "sleep_score": <number or null>,
+    "training_readiness": <number or null>,
+    "resting_hr": <number or null>
+  }
+}

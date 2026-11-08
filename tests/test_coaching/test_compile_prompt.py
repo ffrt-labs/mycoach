@@ -2,6 +2,8 @@
 
 Golden files were captured from the string builders before they were split
 into variable maps (#171); the compiled messages must match them exactly.
+One intended change since: the post-workout output schema has single braces
+(#174), where the old builder leaked str.format's doubled ones to the model.
 """
 
 from pathlib import Path

@@ -26,7 +26,7 @@ No health data available for today.
 Provide a detailed post-workout analysis. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
 
 Respond with a JSON object matching this exact schema:
-{{
+{
   "performance_summary": "Brief overall assessment of the workout quality and effort",
   "performance_trends": "How this session compares to recent similar workouts — improvements, regressions, plateaus",
   "hr_analysis": "Heart rate zone analysis and cardiovascular response (or 'No HR data available')",
@@ -35,4 +35,4 @@ Respond with a JSON object matching this exact schema:
   "areas_for_improvement": ["List of 1-3 areas to work on next"],
   "next_session_recommendations": "Specific recommendations for next workout (sets, distance, intensity, stroke technique focus)",
   "recovery_notes": "Post-workout recovery recommendations based on effort level and health context"
-}}
+}

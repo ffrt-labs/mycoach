@@ -631,7 +631,10 @@ def _build_post_workout_schema(sport: str, has_planned: bool) -> str:
             lines.append(f'  "{key}": {desc}')
         else:
             lines.append(f'  "{key}": "{desc}"')
-    return "{{\n" + ",\n".join(lines) + "\n}}"
+    # Single braces: this is a variable *value*, so it is never formatted.
+    # (Before #174 it kept the doubled braces of a str.format template, and
+    # the model saw them literally.)
+    return "{\n" + ",\n".join(lines) + "\n}"
 
 
 def post_workout_variables(

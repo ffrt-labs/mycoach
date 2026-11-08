@@ -81,6 +81,13 @@ class TestSuccessfulCall:
         assert result.stop_reason == "end_turn"
         assert result.latency_ms >= 0
 
+    def test_bills_the_subscription_and_reports_notional_cost_as_quota(self) -> None:
+        with patch(RUN, return_value=_completed()):
+            result = _client().call(system="Sys", user_message="Msg")
+
+        assert result.billing == "subscription"
+        assert result.quota_usage == {"unit": "usd_notional", "amount": pytest.approx(0.0421)}
+
     def test_records_the_model_the_alias_resolved_to(self) -> None:
         with patch(RUN, return_value=_completed()):
             result = _client().call(system="Sys", user_message="Msg")

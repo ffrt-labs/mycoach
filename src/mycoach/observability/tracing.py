@@ -230,12 +230,23 @@ def response_fields(response: LLMResponse) -> dict[str, Any]:
 
     The single mapping from ``LLMResponse`` to generation fields, used for
     successful and failed attempts alike.
+
+    Cost is always explicit, so Langfuse never infers API prices from its
+    model table: zero unless the provider is ``paid``, whose real cost is sent
+    unchanged.
     """
+    cost = response.estimated_cost_usd if response.billing == "paid" else 0
     return {
         "model": response.model,
         "output": response.content,
         "usage_details": {"input": response.input_tokens, "output": response.output_tokens},
-        "metadata": {"stop_reason": response.stop_reason, "latency_ms": response.latency_ms},
+        "cost_details": {"total": cost},
+        "metadata": {
+            "stop_reason": response.stop_reason,
+            "latency_ms": response.latency_ms,
+            "billing": response.billing,
+            "quota_usage": response.quota_usage,
+        },
     }
 
 

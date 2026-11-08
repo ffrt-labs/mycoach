@@ -70,6 +70,9 @@ class TestAnthropicClient:
         assert result.output_tokens == 50
         assert result.latency_ms >= 0
         assert result.estimated_cost_usd > 0
+        # A paid API: money is what it spends ($3/M input + $15/M output).
+        assert result.billing == "paid"
+        assert result.quota_usage == {"unit": "usd", "amount": pytest.approx(0.00105)}
 
         mock_client.messages.create.assert_called_once_with(
             model="claude-sonnet-4-5-20250929",

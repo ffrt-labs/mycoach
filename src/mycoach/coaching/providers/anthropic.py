@@ -79,6 +79,9 @@ class AnthropicClient(LLMClient):
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
             stop_reason=response.stop_reason,
+            # A paid API: what each call uses up is money.
+            billing="paid",
+            quota_usage={"unit": "usd", "amount": cost},
         )
 
     @property

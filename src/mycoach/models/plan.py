@@ -18,6 +18,10 @@ class WeeklyPlan(Base):
         String(30), default=None
     )  # build, peak, deload
     prompt_version: Mapped[str] = mapped_column(String(10), default="v1")
+    # Where the gym-adjustment and cardio-plan prompts came from: "lf:<n>" or
+    # "bundled:v2". Null when that track had no slots, and for older plans.
+    gym_prompt_version: Mapped[str | None] = mapped_column(String(20), default=None)
+    cardio_prompt_version: Mapped[str | None] = mapped_column(String(20), default=None)
     status: Mapped[str] = mapped_column(
         String(20), default="active"
     )  # draft, active, completed, superseded

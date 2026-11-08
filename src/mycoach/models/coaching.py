@@ -16,7 +16,9 @@ class CoachingInsight(Base):
         String(30)
     )  # daily_briefing, post_workout, sleep, weekly_recap
     content: Mapped[str] = mapped_column(Text)  # JSON structured output
-    prompt_version: Mapped[str] = mapped_column(String(10), default="v1")
+    # Where the prompt came from: "lf:<n>" (Langfuse version n) or
+    # "bundled:v2". Older rows hold a bare template version ("v1", "v2").
+    prompt_version: Mapped[str] = mapped_column(String(20), default="v1")
     activity_id: Mapped[int | None] = mapped_column(
         ForeignKey("activities.id"), default=None
     )  # For post_workout type

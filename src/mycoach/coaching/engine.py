@@ -42,12 +42,12 @@ from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
     Operation,
     cardio_plan_variables,
-    compile_prompt,
     daily_briefing_variables,
     gym_adjustment_variables,
     post_workout_variables,
     weekly_recap_variables,
 )
+from mycoach.coaching.prompt_store import PromptStore, ServedPrompt, get_prompt_store
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.coaching.response_parser import (
     CardioPlanResponse,
@@ -78,6 +78,8 @@ from mycoach.plan_linking import link_activity_to_planned_session
 
 logger = logging.getLogger(__name__)
 
+# The template version a weekly plan's legacy ``prompt_version`` records; the
+# prompt actually served is recorded per track (``gym_prompt_version``, ...).
 PROMPT_VERSION = "v2"
 
 T = TypeVar("T", bound=BaseModel)
@@ -120,9 +122,11 @@ class CoachingEngine:
         tracer: Tracer | None = None,
         clock: Callable[[], datetime] = _utc_now,
         scores: ScoreSink | None = None,
+        prompts: PromptStore | None = None,
     ) -> None:
         self._llm = llm_client or get_llm_client()
         self._tracer = tracer or get_tracer()
+        self._prompts = prompts or get_prompt_store()
         # Stamps the trace seed of a forced regeneration and the code-check scores.
         self._clock = clock
         self._scores = scores or score_sink_for(self._tracer)
@@ -194,9 +198,7 @@ class CoachingEngine:
             recent_activities=recent_activities,
             planned_workout=planned_sessions if planned_sessions else None,
         )
-        system_prompt, user_message = compile_prompt(
-            Operation.DAILY_BRIEFING, variables, version=PROMPT_VERSION
-        )
+        prompt = await self._serve(Operation.DAILY_BRIEFING, variables)
 
         now = self._clock()
         run = daily_briefing_run(user_id, today, regenerated_at=now if replaced else None)
@@ -204,8 +206,7 @@ class CoachingEngine:
             generation = await self._generate(
                 session,
                 operation="daily_briefing",
-                system=system_prompt,
-                user_message=user_message,
+                prompt=prompt,
                 variables=variables,
                 model=self._llm.daily_model,
                 response_model=DailyBriefingResponse,
@@ -226,13 +227,18 @@ class CoachingEngine:
             insight_date=today,
             insight_type="daily_briefing",
             content=content_json,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt.artifact_version,
         )
         session.add(insight)
         await session.commit()
         await session.refresh(insight)
 
         return insight
+
+    async def _serve(self, operation: Operation, variables: Mapping[str, str]) -> ServedPrompt:
+        """The operation's prompt, compiled. Off the event loop: a cache miss
+        fetches from Langfuse synchronously."""
+        return await asyncio.to_thread(self._prompts.serve, operation, variables)
 
     def _score_code_checks(
         self,
@@ -334,8 +340,7 @@ class CoachingEngine:
         session: AsyncSession,
         *,
         operation: str,
-        system: str,
-        user_message: str,
+        prompt: ServedPrompt,
         variables: Mapping[str, str],
         model: str,
         response_model: type[T],
@@ -350,15 +355,17 @@ class CoachingEngine:
         (``daily_briefing``, ``gym_adjustment``, ...) and becomes the log's
         ``prompt_type``. Each attempt runs through ``_attempt``, which records
         it as its own generation in the current trace; ``variables`` (the
-        prompt's variable map) is that generation's input.
+        prompt's variable map) is that generation's input, and ``prompt``
+        (the compiled messages and where they came from) is linked to it.
 
         Never raises for an LLM or parse failure: the caller reads
         ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
         """
+        user_message = prompt.user
         result = await self._attempt(
             operation=operation,
             attempt=1,
-            system=system,
+            prompt=prompt,
             user_message=user_message,
             variables=variables,
             model=model,
@@ -382,7 +389,7 @@ class CoachingEngine:
             retry = await self._attempt(
                 operation=operation,
                 attempt=2,
-                system=system,
+                prompt=prompt,
                 user_message=(
                     user_message
                     + "\n\nIMPORTANT: Respond ONLY with valid JSON. "
@@ -409,7 +416,7 @@ class CoachingEngine:
         session.add(
             PromptLog(
                 prompt_type=operation,
-                prompt_version=PROMPT_VERSION,
+                prompt_version=prompt.artifact_version,
                 model=response.model if response else model,
                 input_tokens=response.input_tokens if response else None,
                 output_tokens=response.output_tokens if response else None,
@@ -428,7 +435,7 @@ class CoachingEngine:
         *,
         operation: str,
         attempt: int,
-        system: str,
+        prompt: ServedPrompt,
         user_message: str,
         variables: Mapping[str, str],
         model: str,
@@ -452,12 +459,17 @@ class CoachingEngine:
                 max_tokens=max_tokens,
                 input=variables,
                 previous_error=previous_error,
+                metadata={
+                    "prompt_source": prompt.source,
+                    "prompt_version": prompt.artifact_version,
+                },
+                prompt=prompt.link,
             )
         )
         response: LLMResponse | None = None
         try:
             response = await self._call_llm(
-                system=system,
+                system=prompt.system,
                 user_message=user_message,
                 model=model,
                 max_tokens=max_tokens,
@@ -608,15 +620,13 @@ class CoachingEngine:
                     mesocycle_context=mesocycle_ctx,
                     sport_profiles=sport_profiles,
                 )
-                system_prompt, user_message = compile_prompt(
-                    Operation.GYM_ADJUSTMENT, variables, version=PROMPT_VERSION
-                )
+                prompt = await self._serve(Operation.GYM_ADJUSTMENT, variables)
+                plan.gym_prompt_version = prompt.artifact_version
 
                 gym = await self._generate(
                     session,
                     operation="gym_adjustment",
-                    system=system_prompt,
-                    user_message=user_message,
+                    prompt=prompt,
                     variables=variables,
                     model=self._llm.daily_model,
                     max_tokens=8192,
@@ -731,15 +741,13 @@ class CoachingEngine:
                     mesocycle_context=mesocycle_ctx,
                     sport_profiles=sport_profiles,
                 )
-                system_prompt, user_message = compile_prompt(
-                    Operation.CARDIO_PLAN, variables, version=PROMPT_VERSION
-                )
+                prompt = await self._serve(Operation.CARDIO_PLAN, variables)
+                plan.cardio_prompt_version = prompt.artifact_version
 
                 cardio = await self._generate(
                     session,
                     operation="cardio_plan",
-                    system=system_prompt,
-                    user_message=user_message,
+                    prompt=prompt,
                     variables=variables,
                     model=self._llm.weekly_model,
                     max_tokens=8192,
@@ -890,9 +898,7 @@ class CoachingEngine:
             similar_activities=similar,
             health_context=health_ctx,
         )
-        system_prompt, user_message = compile_prompt(
-            Operation.POST_WORKOUT, variables, version=PROMPT_VERSION
-        )
+        prompt = await self._serve(Operation.POST_WORKOUT, variables)
 
         # The week session follows the activity's date, not the run's.
         now = self._clock()
@@ -906,8 +912,7 @@ class CoachingEngine:
             generation = await self._generate(
                 session,
                 operation="post_workout",
-                system=system_prompt,
-                user_message=user_message,
+                prompt=prompt,
                 variables=variables,
                 model=self._llm.daily_model,
                 response_model=PostWorkoutResponse,
@@ -932,7 +937,7 @@ class CoachingEngine:
             insight_date=activity_date,
             insight_type="post_workout",
             content=content_json,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt.artifact_version,
             activity_id=activity_id,
         )
         session.add(insight)
@@ -1004,9 +1009,7 @@ class CoachingEngine:
             gym_history=gym_history,
             sport_profiles=sport_profiles,
         )
-        system_prompt, user_message = compile_prompt(
-            Operation.WEEKLY_RECAP, variables, version=PROMPT_VERSION
-        )
+        prompt = await self._serve(Operation.WEEKLY_RECAP, variables)
 
         # week_start is the recapped week, so the recap joins that week's session.
         now = self._clock()
@@ -1018,8 +1021,7 @@ class CoachingEngine:
             generation = await self._generate(
                 session,
                 operation="weekly_recap",
-                system=system_prompt,
-                user_message=user_message,
+                prompt=prompt,
                 variables=variables,
                 model=self._llm.daily_model,
                 max_tokens=8192,
@@ -1041,7 +1043,7 @@ class CoachingEngine:
             insight_date=week_start,
             insight_type="weekly_recap",
             content=content_json,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt.artifact_version,
         )
         session.add(insight)
         await session.commit()

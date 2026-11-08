@@ -80,6 +80,13 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("langfuse_secret_key", "LANGFUSE_SECRET_KEY"),
     )
+    # How long a coaching prompt fetched from Langfuse is served before it is
+    # fetched again, in seconds (a failed refresh keeps the cached version).
+    langfuse_prompt_cache_ttl: int = Field(
+        default=300,
+        ge=0,
+        validation_alias=AliasChoices("langfuse_prompt_cache_ttl", "LANGFUSE_PROMPT_CACHE_TTL"),
+    )
 
     # Email
     email_enabled: bool = False

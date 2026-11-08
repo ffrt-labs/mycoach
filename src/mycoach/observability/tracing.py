@@ -136,6 +136,7 @@ class GenerationStart:
     ``input`` is the prompt's variable map, so a trace can become a dataset
     item. ``previous_error`` is the parse error of the attempt a retry follows.
     ``metadata`` carries anything else worth recording on the generation.
+    ``prompt`` is the Langfuse prompt the generation is linked to, if any.
     """
 
     operation: str
@@ -146,6 +147,7 @@ class GenerationStart:
     input: Mapping[str, str]
     previous_error: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    prompt: Any = None
 
 
 class GenerationHandle(Protocol):
@@ -307,7 +309,8 @@ class LangfuseTracer:
 
     @property
     def client(self) -> Langfuse:
-        """The Langfuse client, shared with the score sink (one client per key)."""
+        """The Langfuse client, shared with the score sink and prompt management
+        (one client per key)."""
         return self._lf
 
     @contextmanager
@@ -359,6 +362,7 @@ class LangfuseTracer:
                 model=start.model,
                 input=dict(start.input),
                 model_parameters={"max_tokens": start.max_tokens},
+                prompt=start.prompt,
                 metadata={
                     "provider": start.provider,
                     "attempt": start.attempt,

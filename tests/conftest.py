@@ -5,6 +5,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from mycoach.coaching.prompt_store import set_prompt_store
 from mycoach.database import Base, get_db
 from mycoach.main import app
 from mycoach.observability.tracing import NoopTracer, set_tracer
@@ -69,11 +70,14 @@ def _restore_logging_state() -> Generator[None, None, None]:
 def _langfuse_off() -> Generator[None, None, None]:
     """No test traces to a real Langfuse, whatever LANGFUSE_* the shell or .env holds.
 
-    Tracing tests pass their own tracer (tests/test_observability/conftest.py).
+    Tracing tests pass their own tracer (tests/test_observability/conftest.py)
+    and prompt tests their own store; by default prompts are the bundled files.
     """
     set_tracer(NoopTracer())
+    set_prompt_store(None)
     yield
     set_tracer(None)
+    set_prompt_store(None)
 
 
 @pytest.fixture(autouse=True)

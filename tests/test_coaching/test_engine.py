@@ -289,3 +289,63 @@ class TestGenerateDailyBriefing:
 
             assert "go_hard" in insight.content
             assert mock_llm.call.call_count == 2
+
+    async def test_truncated_response_retries_with_doubled_budget_and_the_parse_error(
+        self,
+    ) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+
+            mock_llm = _mock_llm_client()
+            mock_llm.call.side_effect = [
+                LLMResponse(
+                    content='{"sleep_assessment": "Good sl',
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=500,
+                    output_tokens=4096,
+                    latency_ms=800,
+                    estimated_cost_usd=0.002,
+                    stop_reason="max_tokens",
+                ),
+                LLMResponse(
+                    content=VALID_LLM_RESPONSE,
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=550,
+                    output_tokens=200,
+                    latency_ms=1200,
+                    estimated_cost_usd=0.0045,
+                ),
+            ]
+            engine = CoachingEngine(llm_client=mock_llm)
+            await engine.generate_daily_briefing(session, user_id, today)
+
+            first, retry = mock_llm.call.call_args_list
+            assert first.kwargs["max_tokens"] == 4096
+            assert retry.kwargs["max_tokens"] == 8192
+            assert "Your previous response had this error:" in retry.kwargs["user_message"]
+
+            log = (await session.execute(select(PromptLog))).scalar_one()
+            assert log.success is True
+            assert log.input_tokens == 550
+
+    async def test_retry_that_also_fails_raises_and_logs_one_failure(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+
+            mock_llm = _mock_llm_client(content="not valid json")
+            engine = CoachingEngine(llm_client=mock_llm)
+
+            with pytest.raises(RuntimeError, match="Retry also failed"):
+                await engine.generate_daily_briefing(session, user_id, today)
+
+            assert mock_llm.call.call_count == 2
+            retry = mock_llm.call.call_args_list[1]
+            assert retry.kwargs["max_tokens"] == 4096
+            log = (await session.execute(select(PromptLog))).scalar_one()
+            assert log.success is False
+            assert log.prompt_type == "daily_briefing"
+            assert "Retry also failed" in (log.error or "")

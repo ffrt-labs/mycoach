@@ -3,9 +3,11 @@
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Generic, TypeVar
 
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,6 +65,21 @@ from mycoach.plan_linking import link_activity_to_planned_session
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "v2"
+
+T = TypeVar("T", bound=BaseModel)
+
+
+@dataclass
+class Generation(Generic[T]):
+    """Outcome of one coaching generation (or of a single attempt within it).
+
+    ``parsed`` is ``None`` when the generation failed; ``error`` then says why.
+    ``response`` is the last LLM response received, if any.
+    """
+
+    response: LLMResponse | None
+    parsed: T | None
+    error: str | None
 
 
 class CoachingEngine:
@@ -133,55 +150,19 @@ class CoachingEngine:
             version=PROMPT_VERSION,
         )
 
-        # Call LLM
-        llm_response: LLMResponse | None = None
-        error_msg: str | None = None
-        parsed: DailyBriefingResponse | None = None
-
-        try:
-            llm_response = await self._call_llm(
-                system=system_prompt,
-                user_message=user_message,
-                model=self._llm.daily_model,
-            )
-            parsed = parse_response(llm_response.content, DailyBriefingResponse)
-        except Exception as e:
-            error_msg = str(e)
-            logger.error("Daily briefing generation failed: %s", error_msg)
-
-            # Retry once on parse failure if we got an LLM response
-            if llm_response is not None:
-                try:
-                    llm_response = await self._call_llm(
-                        system=system_prompt,
-                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
-                        model=self._llm.daily_model,
-                    )
-                    parsed = parse_response(llm_response.content, DailyBriefingResponse)
-                    error_msg = None
-                except Exception as retry_err:
-                    error_msg = f"Retry also failed: {retry_err}"
-                    logger.error("Daily briefing retry failed: %s", retry_err)
-
-        # Log the prompt call
-        prompt_log = PromptLog(
-            prompt_type="daily_briefing",
-            prompt_version=PROMPT_VERSION,
-            model=llm_response.model if llm_response else self._llm.daily_model,
-            input_tokens=llm_response.input_tokens if llm_response else None,
-            output_tokens=llm_response.output_tokens if llm_response else None,
-            latency_ms=llm_response.latency_ms if llm_response else None,
-            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
-            prompt_text=user_message,
-            response_text=llm_response.content if llm_response else None,
-            success=parsed is not None,
-            error=error_msg,
+        generation = await self._generate(
+            session,
+            operation="daily_briefing",
+            system=system_prompt,
+            user_message=user_message,
+            model=self._llm.daily_model,
+            response_model=DailyBriefingResponse,
         )
-        session.add(prompt_log)
+        parsed = generation.parsed
 
         if parsed is None:
             await session.commit()
-            raise RuntimeError(f"Failed to generate daily briefing: {error_msg}")
+            raise RuntimeError(f"Failed to generate daily briefing: {generation.error}")
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()
@@ -221,61 +202,118 @@ class CoachingEngine:
             max_tokens=max_tokens,
         )
 
-    async def _call_llm_with_retry(
+    async def _generate(
         self,
+        session: AsyncSession,
         *,
+        operation: str,
         system: str,
         user_message: str,
         model: str,
+        response_model: type[T],
         max_tokens: int = 4096,
-        response_model: type,
-    ) -> tuple[LLMResponse | None, Any | None, str | None]:
-        """Call LLM with one retry on parse failure. Returns (response, parsed, error)."""
-        llm_response: LLMResponse | None = None
-        error_msg: str | None = None
-        parsed: Any = None
+    ) -> Generation[T]:
+        """The one generation seam every coaching operation goes through.
 
+        Calls the LLM, parses the response, retries once on a parse failure
+        (doubling the token budget when the first response was truncated and
+        telling the model what was wrong), and writes the single ``PromptLog``
+        row for the operation. ``operation`` names what is being served
+        (``daily_briefing``, ``gym_adjustment``, ...) and becomes the log's
+        ``prompt_type``. Each attempt runs through ``_attempt`` so a later
+        tracing layer can record attempts individually.
+
+        Never raises for an LLM or parse failure: the caller reads
+        ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
+        """
+        result = await self._attempt(
+            operation=operation,
+            attempt=1,
+            system=system,
+            user_message=user_message,
+            model=model,
+            max_tokens=max_tokens,
+            response_model=response_model,
+        )
+
+        # A provider failure (no response at all) is not retried: only a
+        # response that came back but did not parse earns a second attempt.
+        if result.parsed is None and result.response is not None:
+            first_error = result.error
+            retry_tokens = max_tokens
+            if result.response.stop_reason == "max_tokens":
+                retry_tokens = max_tokens * 2
+                logger.warning(
+                    "Response truncated (stop_reason=max_tokens, used %d tokens). "
+                    "Retrying with max_tokens=%d",
+                    result.response.output_tokens,
+                    retry_tokens,
+                )
+            retry = await self._attempt(
+                operation=operation,
+                attempt=2,
+                system=system,
+                user_message=(
+                    user_message
+                    + "\n\nIMPORTANT: Respond ONLY with valid JSON. "
+                    + f"Your previous response had this error: {first_error}"
+                ),
+                model=model,
+                max_tokens=retry_tokens,
+                response_model=response_model,
+            )
+            result = Generation(
+                response=retry.response or result.response,
+                parsed=retry.parsed,
+                error=None if retry.parsed is not None else f"Retry also failed: {retry.error}",
+            )
+
+        response = result.response
+        session.add(
+            PromptLog(
+                prompt_type=operation,
+                prompt_version=PROMPT_VERSION,
+                model=response.model if response else model,
+                input_tokens=response.input_tokens if response else None,
+                output_tokens=response.output_tokens if response else None,
+                latency_ms=response.latency_ms if response else None,
+                estimated_cost_usd=response.estimated_cost_usd if response else None,
+                prompt_text=user_message,
+                response_text=response.content if response else None,
+                success=result.parsed is not None,
+                error=result.error,
+            )
+        )
+        return result
+
+    async def _attempt(
+        self,
+        *,
+        operation: str,
+        attempt: int,
+        system: str,
+        user_message: str,
+        model: str,
+        max_tokens: int,
+        response_model: type[T],
+    ) -> Generation[T]:
+        """One call-and-parse attempt. ``attempt`` is 1 for the first try, 2 for the retry."""
+        response: LLMResponse | None = None
         try:
-            llm_response = await self._call_llm(
+            response = await self._call_llm(
                 system=system,
                 user_message=user_message,
                 model=model,
                 max_tokens=max_tokens,
             )
-            parsed = parse_response(llm_response.content, response_model)
+            return Generation(
+                response=response,
+                parsed=parse_response(response.content, response_model),
+                error=None,
+            )
         except Exception as e:
-            error_msg = str(e)
-            logger.error("LLM call failed (%s): %s", response_model.__name__, error_msg)
-
-            if llm_response is not None:
-                # If truncated, retry with doubled token budget
-                retry_tokens = max_tokens
-                if llm_response.stop_reason == "max_tokens":
-                    retry_tokens = max_tokens * 2
-                    logger.warning(
-                        "Response truncated (stop_reason=max_tokens, used %d tokens). "
-                        "Retrying with max_tokens=%d",
-                        llm_response.output_tokens,
-                        retry_tokens,
-                    )
-
-                try:
-                    llm_response = await self._call_llm(
-                        system=system,
-                        user_message=(
-                            user_message
-                            + "\n\nIMPORTANT: Respond ONLY with valid JSON. "
-                            + f"Your previous response had this error: {error_msg}"
-                        ),
-                        model=model,
-                        max_tokens=retry_tokens,
-                    )
-                    parsed = parse_response(llm_response.content, response_model)
-                    error_msg = None
-                except Exception as retry_err:
-                    error_msg = f"Retry also failed: {retry_err}"
-
-        return llm_response, parsed, error_msg
+            logger.error("%s attempt %d failed: %s", operation, attempt, e)
+            return Generation(response=response, parsed=None, error=str(e))
 
     async def _materialize_availability(
         self, session: AsyncSession, user_id: int, week_start: date
@@ -413,7 +451,9 @@ class CoachingEngine:
                 version=PROMPT_VERSION,
             )
 
-            llm_response, parsed, error_msg = await self._call_llm_with_retry(
+            gym = await self._generate(
+                session,
+                operation="gym_adjustment",
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.daily_model,
@@ -421,26 +461,11 @@ class CoachingEngine:
                 response_model=GymAdjustmentResponse,
             )
 
-            # Log prompt
-            prompt_log = PromptLog(
-                prompt_type="gym_adjustment",
-                prompt_version=PROMPT_VERSION,
-                model=llm_response.model if llm_response else self._llm.daily_model,
-                input_tokens=llm_response.input_tokens if llm_response else None,
-                output_tokens=llm_response.output_tokens if llm_response else None,
-                latency_ms=llm_response.latency_ms if llm_response else None,
-                estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
-                prompt_text=user_message,
-                response_text=llm_response.content if llm_response else None,
-                success=parsed is not None,
-                error=error_msg,
-            )
-            session.add(prompt_log)
+            if gym.response and gym.response.content:
+                all_raw_outputs.append(gym.response.content)
 
-            if llm_response and llm_response.content:
-                all_raw_outputs.append(llm_response.content)
-
-            if parsed is not None:
+            if gym.parsed is not None:
+                parsed = gym.parsed
                 # Build from the routine so a hallucinated response can never
                 # invent a prescribed exercise. Names remain display labels;
                 # the echoed catalogue id is the only matching key.
@@ -452,7 +477,7 @@ class CoachingEngine:
                 }
                 adjustments: dict[str, GymAdjustmentExercise] = {}
                 for adjustment in parsed.exercises:
-                    if adjustment.exercise_id not in known_ids:
+                    if adjustment.exercise_id is None or adjustment.exercise_id not in known_ids:
                         logger.warning(
                             "Ignoring gym adjustment for unknown exercise_id %r",
                             adjustment.exercise_id,
@@ -531,7 +556,9 @@ class CoachingEngine:
                 version=PROMPT_VERSION,
             )
 
-            llm_response, parsed, error_msg = await self._call_llm_with_retry(
+            cardio = await self._generate(
+                session,
+                operation="cardio_plan",
                 system=system_prompt,
                 user_message=user_message,
                 model=self._llm.weekly_model,
@@ -539,31 +566,16 @@ class CoachingEngine:
                 response_model=CardioPlanResponse,
             )
 
-            # Log prompt
-            prompt_log = PromptLog(
-                prompt_type="cardio_plan",
-                prompt_version=PROMPT_VERSION,
-                model=llm_response.model if llm_response else self._llm.weekly_model,
-                input_tokens=llm_response.input_tokens if llm_response else None,
-                output_tokens=llm_response.output_tokens if llm_response else None,
-                latency_ms=llm_response.latency_ms if llm_response else None,
-                estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
-                prompt_text=user_message,
-                response_text=llm_response.content if llm_response else None,
-                success=parsed is not None,
-                error=error_msg,
-            )
-            session.add(prompt_log)
+            if cardio.response and cardio.response.content:
+                all_raw_outputs.append(cardio.response.content)
 
-            if llm_response and llm_response.content:
-                all_raw_outputs.append(llm_response.content)
-
-            if parsed is not None:
-                summaries.append(parsed.weekly_summary)
+            if cardio.parsed is not None:
+                cardio_plan = cardio.parsed
+                summaries.append(cardio_plan.weekly_summary)
                 # Match LLM sessions to slots by sport — don't trust LLM's day_of_week
                 # Group LLM sessions by sport for matching
                 llm_by_sport: dict[str, list] = {}
-                for s in parsed.sessions:
+                for s in cardio_plan.sessions:
                     llm_by_sport.setdefault(s.sport, []).append(s)
 
                 for slot in cardio_slots:
@@ -605,7 +617,7 @@ class CoachingEngine:
                         )
                     session.add(planned)
             else:
-                logger.error("Cardio plan generation failed: %s", error_msg)
+                logger.error("Cardio plan generation failed: %s", cardio.error)
                 # Create placeholder sessions
                 for slot in cardio_slots:
                     planned = PlannedSession(
@@ -694,54 +706,19 @@ class CoachingEngine:
             version=PROMPT_VERSION,
         )
 
-        # Call LLM
-        llm_response: LLMResponse | None = None
-        error_msg: str | None = None
-        parsed: PostWorkoutResponse | None = None
-
-        try:
-            llm_response = await self._call_llm(
-                system=system_prompt,
-                user_message=user_message,
-                model=self._llm.daily_model,
-            )
-            parsed = parse_response(llm_response.content, PostWorkoutResponse)
-        except Exception as e:
-            error_msg = str(e)
-            logger.error("Post-workout analysis failed: %s", error_msg)
-
-            if llm_response is not None:
-                try:
-                    llm_response = await self._call_llm(
-                        system=system_prompt,
-                        user_message=user_message + "\n\nIMPORTANT: Respond ONLY with valid JSON.",
-                        model=self._llm.daily_model,
-                    )
-                    parsed = parse_response(llm_response.content, PostWorkoutResponse)
-                    error_msg = None
-                except Exception as retry_err:
-                    error_msg = f"Retry also failed: {retry_err}"
-                    logger.error("Post-workout analysis retry failed: %s", retry_err)
-
-        # Log the prompt call
-        prompt_log = PromptLog(
-            prompt_type="post_workout",
-            prompt_version=PROMPT_VERSION,
-            model=llm_response.model if llm_response else self._llm.daily_model,
-            input_tokens=llm_response.input_tokens if llm_response else None,
-            output_tokens=llm_response.output_tokens if llm_response else None,
-            latency_ms=llm_response.latency_ms if llm_response else None,
-            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
-            prompt_text=user_message,
-            response_text=llm_response.content if llm_response else None,
-            success=parsed is not None,
-            error=error_msg,
+        generation = await self._generate(
+            session,
+            operation="post_workout",
+            system=system_prompt,
+            user_message=user_message,
+            model=self._llm.daily_model,
+            response_model=PostWorkoutResponse,
         )
-        session.add(prompt_log)
+        parsed = generation.parsed
 
         if parsed is None:
             await session.commit()
-            raise RuntimeError(f"Failed to generate post-workout analysis: {error_msg}")
+            raise RuntimeError(f"Failed to generate post-workout analysis: {generation.error}")
 
         # Link activity to planned session if found
         if planned_session:
@@ -828,33 +805,20 @@ class CoachingEngine:
         )
 
         # Call LLM (daily model for cost efficiency)
-        llm_response, parsed, error_msg = await self._call_llm_with_retry(
+        generation = await self._generate(
+            session,
+            operation="weekly_recap",
             system=system_prompt,
             user_message=user_message,
             model=self._llm.daily_model,
             max_tokens=8192,
             response_model=WeeklyRecapResponse,
         )
-
-        # Log the prompt call
-        prompt_log = PromptLog(
-            prompt_type="weekly_recap",
-            prompt_version=PROMPT_VERSION,
-            model=llm_response.model if llm_response else self._llm.daily_model,
-            input_tokens=llm_response.input_tokens if llm_response else None,
-            output_tokens=llm_response.output_tokens if llm_response else None,
-            latency_ms=llm_response.latency_ms if llm_response else None,
-            estimated_cost_usd=llm_response.estimated_cost_usd if llm_response else None,
-            prompt_text=user_message,
-            response_text=llm_response.content if llm_response else None,
-            success=parsed is not None,
-            error=error_msg,
-        )
-        session.add(prompt_log)
+        parsed = generation.parsed
 
         if parsed is None:
             await session.commit()
-            raise RuntimeError(f"Failed to generate weekly recap: {error_msg}")
+            raise RuntimeError(f"Failed to generate weekly recap: {generation.error}")
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()

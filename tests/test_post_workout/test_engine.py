@@ -152,6 +152,76 @@ class TestGeneratePostWorkoutAnalysis:
             log = result.scalar_one()
             assert log.success is False
 
+    async def test_invalid_json_retries_with_the_parse_error(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            activity_id = await _create_activity(session, user_id)
+
+            mock_llm = _mock_llm_client()
+            mock_llm.call.side_effect = [
+                LLMResponse(
+                    content="not valid json",
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=800,
+                    output_tokens=20,
+                    latency_ms=900,
+                    estimated_cost_usd=0.003,
+                ),
+                LLMResponse(
+                    content=VALID_POST_WORKOUT_RESPONSE,
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=850,
+                    output_tokens=300,
+                    latency_ms=1500,
+                    estimated_cost_usd=0.007,
+                ),
+            ]
+            engine = CoachingEngine(llm_client=mock_llm)
+            insight = await engine.generate_post_workout_analysis(session, user_id, activity_id)
+
+            assert "performance_summary" in insight.content
+            first, retry = mock_llm.call.call_args_list
+            assert retry.kwargs["max_tokens"] == first.kwargs["max_tokens"] == 4096
+            assert "Your previous response had this error:" in retry.kwargs["user_message"]
+            log = (await session.execute(select(PromptLog))).scalar_one()
+            assert log.success is True
+            assert log.input_tokens == 850
+
+    async def test_truncated_response_retries_with_doubled_budget(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            activity_id = await _create_activity(session, user_id)
+
+            mock_llm = _mock_llm_client()
+            mock_llm.call.side_effect = [
+                LLMResponse(
+                    content='{"performance_summary": "Solid',
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=800,
+                    output_tokens=4096,
+                    latency_ms=900,
+                    estimated_cost_usd=0.003,
+                    stop_reason="max_tokens",
+                ),
+                LLMResponse(
+                    content="still not json",
+                    model="claude-sonnet-4-5-20250929",
+                    input_tokens=850,
+                    output_tokens=30,
+                    latency_ms=1500,
+                    estimated_cost_usd=0.007,
+                ),
+            ]
+            engine = CoachingEngine(llm_client=mock_llm)
+
+            with pytest.raises(RuntimeError, match="Retry also failed"):
+                await engine.generate_post_workout_analysis(session, user_id, activity_id)
+
+            assert mock_llm.call.call_args_list[1].kwargs["max_tokens"] == 8192
+            log = (await session.execute(select(PromptLog))).scalar_one()
+            assert log.success is False
+            assert log.prompt_type == "post_workout"
+
     async def test_links_to_planned_session(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)

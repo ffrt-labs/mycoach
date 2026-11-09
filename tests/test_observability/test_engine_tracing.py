@@ -180,6 +180,20 @@ class TestWeeklyPlanTrace:
         assert {trace_hex(g) for g in gens} == {trace_hex(root)}
         assert {parent_hex(g) for g in gens} == {span_hex(root)}
 
+        # Each gym attempt, the retry included, names its slot as the
+        # qualifier its code-check and adherence scores reference.
+        assert [json_attr(g, "langfuse.observation.metadata.qualifier") for g in gens] == [
+            "gym_adjustment:0",
+            "gym_adjustment:1",
+            "gym_adjustment:1",
+            "cardio_plan",
+        ]
+        assert [json_attr(g, "langfuse.observation.metadata.day_of_week") for g in gens[:3]] == [
+            0,
+            2,
+            2,
+        ]
+
         failed, retry = gens[1], gens[2]
         assert json_attr(failed, "langfuse.observation.metadata.attempt") == 1
         assert attr(failed, "langfuse.observation.level") == "WARNING"

@@ -206,14 +206,7 @@ def _send_pending(sync_session: Session) -> None:
     pending: list[tuple[ScoreSink, Score]] = sync_session.info.get(_PENDING) or []
     batch, pending[:] = list(pending), []
     for sink, score in batch:
-        try:
-            sink.emit(score)
-        except Exception:
-            logger.warning(
-                "Langfuse: sending the %s score failed; the commit stands",
-                score.name,
-                exc_info=True,
-            )
+        sink.emit(score)  # never raises: the sink guards itself
 
 
 def _drop_pending(sync_session: Session, previous_transaction: SessionTransaction) -> None:

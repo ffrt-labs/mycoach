@@ -9,7 +9,7 @@ Langfuse stays optional. Without the three `LANGFUSE_*` variables, or with Langf
 - Each prompt is cached in memory for `LANGFUSE_PROMPT_CACHE_TTL` seconds (default 300). A failed refresh keeps the cached version.
 - A fetch is a single attempt with a 2-second timeout. After a failure it isn't retried for 60 seconds. The SDK's default of 3 attempts at 5 seconds each, with no negative cache, would add about 15 seconds to every coaching call while Langfuse was down.
 - If Langfuse returns 404 (for example, because the `production` label was removed), the cached copy is dropped and the bundled prompt is served. Unlike an outage, a 404 is a deliberate change.
-- The compile is strict, which the SDK's isn't: the prompt must be exactly `[system, user]`, and the `{{var}}` names it uses must equal the operation's variable map, with no unknown and no unused variables. A version that fails these checks is ignored with a warning, and the bundled prompt is served. Otherwise schema drift between code and a Langfuse version would silently send a literal `{{name}}` to the model.
+- The compile is strict, which the SDK's isn't: the prompt must be exactly `[system, user]`, and every `{{var}}` name it uses must be in the operation's variable map. A version may leave variables out (an experiment dropping context), which is logged at info level and served. A version that fails these checks is ignored with a warning, and the bundled prompt is served. Otherwise schema drift between code and a Langfuse version would silently send a literal `{{name}}` to the model.
 
 ## Recording
 

@@ -140,8 +140,9 @@ def compile_langfuse(prompt: ChatPromptClient, variables: Mapping[str, str]) -> 
 
     The SDK never fails a compile: it leaves an unknown ``{{name}}`` in the
     text. Here the prompt must be exactly [system, user] messages and use
-    exactly the variable map's names (an empty value still counts as used),
-    or ``InvalidPromptError`` is raised.
+    only the variable map's names, or ``InvalidPromptError`` is raised. A
+    prompt may drop a variable (an experiment leaving context out); that is
+    logged at info level, not rejected.
     """
     messages = prompt.prompt
     shape = [(m.get("type"), m.get("role")) for m in messages]
@@ -155,8 +156,13 @@ def compile_langfuse(prompt: ChatPromptClient, variables: Mapping[str, str]) -> 
             raise InvalidPromptError("a {{ ... }} that is not a variable name")
     if unknown := used - set(variables):
         raise InvalidPromptError(f"unknown variables {sorted(unknown)}")
-    if unused := set(variables) - used:
-        raise InvalidPromptError(f"unused variables {sorted(unused)}")
+    if dropped := set(variables) - used:
+        logger.info(
+            "Langfuse prompt %s v%s drops variables %s",
+            prompt.name,
+            prompt.version,
+            sorted(dropped),
+        )
     system, user = (dict(m) for m in prompt.compile(**variables))
     return str(system["content"]), str(user["content"])
 

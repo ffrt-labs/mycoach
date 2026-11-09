@@ -37,20 +37,21 @@ _REP_RANGE = re.compile(r"^\s*(\d+)\s*(?:-\s*(\d+))?\s*$")
 @dataclass(frozen=True)
 class _Prescribed:
     sets: int
-    reps: tuple[int, int] | None
+    reps: float | None
+    """The target reps: a range's midpoint (``"8-10"`` → 9.0)."""
     weight_kg: float | None
     rpe: float | None
 
 
-def _rep_range(value: Any) -> tuple[int, int] | None:
-    """``"8-10"`` → (8, 10), ``"8"`` or 8 → (8, 8); anything else → None."""
+def _target_reps(value: Any) -> float | None:
+    """``"8-10"`` → 9.0 (the range's midpoint), ``"8"`` or 8 → 8.0; anything else → None."""
     if isinstance(value, int) and not isinstance(value, bool):
-        return (value, value)
+        return float(value)
     match = _REP_RANGE.match(value) if isinstance(value, str) else None
     if match is None:
         return None
     low = int(match.group(1))
-    return (low, int(match.group(2) or low))
+    return (low + int(match.group(2) or low)) / 2
 
 
 def _number(value: Any) -> float | None:
@@ -79,21 +80,11 @@ def _prescriptions(details: Mapping[str, Any] | None) -> dict[str, _Prescribed]:
             continue
         out[exercise_id] = _Prescribed(
             sets=sets,
-            reps=_rep_range(ex.get("reps")),
+            reps=_target_reps(ex.get("reps")),
             weight_kg=_number(ex.get("target_weight_kg")),
             rpe=_number(ex.get("rpe")),
         )
     return out
-
-
-def _reps_off(reps: int, target: tuple[int, int]) -> float:
-    """Reps outside the prescribed range: negative below its floor, positive above its ceiling."""
-    low, high = target
-    if reps < low:
-        return float(reps - low)
-    if reps > high:
-        return float(reps - high)
-    return 0.0
 
 
 def _mean(values: Iterable[float]) -> float | None:
@@ -107,8 +98,9 @@ def gym_adherence(
     """The gym adherence scores of ``sets`` against the plan's ``details``.
 
     A set's own ``prescribed_weight_kg``/``prescribed_reps`` (what the logger
-    showed on that set) win over the plan's per-exercise targets. Reps are
-    on target anywhere inside a prescribed range. The weight delta is a
+    showed on that set) win over the plan's per-exercise targets. The reps
+    delta is the mean of performed minus prescribed reps, a prescribed range
+    counting as its midpoint (``"8-10"`` is 9). The weight delta is a
     percentage of the prescribed weight.
     """
     prescriptions = _prescriptions(details)
@@ -132,11 +124,9 @@ def gym_adherence(
         if s.weight_kg is not None and target_weight:
             weight_deltas.append((s.weight_kg - target_weight) / target_weight * 100)
 
-        target_reps = (
-            (s.prescribed_reps, s.prescribed_reps) if s.prescribed_reps is not None else p.reps
-        )
+        target_reps = float(s.prescribed_reps) if s.prescribed_reps is not None else p.reps
         if s.reps is not None and target_reps is not None:
-            reps_deltas.append(_reps_off(s.reps, target_reps))
+            reps_deltas.append(s.reps - target_reps)
 
         if s.rpe is not None and p.rpe is not None:
             rpe_deltas.append(s.rpe - p.rpe)

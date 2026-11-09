@@ -115,16 +115,16 @@ class TestGymAdherence:
 
         assert gym_adherence(details, sets)["adherence_rpe_delta"] == 1.0
 
-    def test_reps_inside_a_range_are_on_target(self) -> None:
+    def test_reps_against_a_range_are_measured_from_its_midpoint(self) -> None:
         details = {"exercises": [prescribed("bench", 3, reps="8-10")]}
         sets = [
-            performed("bench", reps=9),
+            performed("bench", reps=10),
             performed("bench", reps=6),
-            performed("bench", reps=13),
+            performed("bench", reps=8),
         ]
 
-        # 0 inside the range, 6 - 8 below its floor, 13 - 10 above its ceiling.
-        assert gym_adherence(details, sets)["adherence_reps_delta"] == pytest.approx(1 / 3)
+        # Against the midpoint 9: +1, -3 and -1, a mean of -1.
+        assert gym_adherence(details, sets)["adherence_reps_delta"] == pytest.approx(-1.0)
 
     def test_the_sets_own_prescription_wins_over_the_plan_details(self) -> None:
         details = {"exercises": [prescribed("bench", 1, reps="8", weight=100)]}

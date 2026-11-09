@@ -83,3 +83,25 @@ An exercise with an Exercise ID that can participate in prescriptions, history c
 
 **Custom exercise**:
 A freely entered exercise with no Exercise ID. It remains visible in workout history but is excluded from cross-session reasoning. No promotion or mapping path into the catalogue exists yet.
+
+## Coaching observability
+
+**Coaching run**:
+One execution of a coaching operation for an athlete: a daily briefing, a weekly plan, a post-workout analysis, or a weekly recap. Each run is one Langfuse trace with a deterministic ID seeded from what the run is about, and one generation per LLM attempt inside it. A forced regeneration is a new run that names the trace it supersedes.
+_Avoid_: Job, request, LLM call
+
+**Week session**:
+The Langfuse session grouping every Coaching run about one athlete's training week, from its plan to its recap. A run joins the week its subject falls in (the recapped week, the activity's day), not the week it ran.
+_Avoid_: User session, login session
+
+**Langfuse score**:
+A named value attached to a Coaching run's trace, with a deterministic ID so re-sending it overwrites rather than duplicates. Scores observe a run; they never steer it.
+_Avoid_: Metric, eval result, rating
+
+**Code check**:
+A Langfuse score computed by code from what a generation already produced: `parse_ok`, `needed_retry`, `truncated`, and `fallback_used` for a gym slot. Every generation emits them, a provider failure included, and the evals harness emits the same ones.
+_Avoid_: Validation, LLM judge
+
+**Adherence score**:
+A Langfuse score measuring how a Canonical activity compares with the Planned session it fulfils, sent on the weekly plan's trace at Prescription fulfillment: set completion, weight, reps and RPE deltas for gym, duration ratio for cardio. A score with nothing to measure is left out rather than sent as zero.
+_Avoid_: Compliance, completion rate

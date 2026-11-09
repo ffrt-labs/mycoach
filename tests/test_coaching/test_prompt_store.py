@@ -199,13 +199,12 @@ class TestBundledFallback:
         [
             "{{cardio_slots}} {{unknown_variable}} {{sport_profiles}} {{last_week_cardio}}"
             " {{health_trends}} {{mesocycle_context}}",
-            "{{cardio_slots}} {{sport_profiles}} {{last_week_cardio}} {{health_trends}}",
             "{{cardio_slots}} {{sport_profiles}} {{last_week_cardio}} {{health_trends}}"
             " {{mesocycle_context}} {{ not a name }}",
             "{{cardio_slots}} {{sport_profiles}} {{last_week_cardio}} {{health_trends}}"
             " {{mesocycle_context}} {{ unclosed",
         ],
-        ids=["unknown-variable", "unused-variable", "not-an-identifier", "unclosed"],
+        ids=["unknown-variable", "not-an-identifier", "unclosed"],
     )
     def test_invalid_template_serves_bundled(
         self,
@@ -222,6 +221,25 @@ class TestBundledFallback:
         assert (served.system, served.user) == bundled()
         assert served.source == "bundled"
         assert "mycoach/cardio-plan v1" in caplog.text
+
+    def test_template_that_drops_a_variable_is_served(
+        self,
+        fake: FakeLangfusePrompts,
+        client: Langfuse,
+        clock: Clock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        # An experiment may leave a variable out; only unknown ones are rejected.
+        user = "{{cardio_slots}} {{sport_profiles}} {{last_week_cardio}} {{health_trends}}"
+        fake.add(NAME, [{"role": "system", "content": "s"}, {"role": "user", "content": user}])
+
+        with caplog.at_level("DEBUG", logger="mycoach.coaching.prompt_store"):
+            served = store(client, clock).serve(Operation.CARDIO_PLAN, VARIABLES)
+
+        assert served.source == "langfuse"
+        assert served.user == "Tue run runner none fine"
+        [record] = [r for r in caplog.records if "mesocycle_context" in r.getMessage()]
+        assert record.levelname == "INFO"
 
     def test_template_not_shaped_system_then_user_serves_bundled(
         self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock

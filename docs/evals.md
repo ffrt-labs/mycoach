@@ -16,8 +16,9 @@ one, and both use the same datasets:
 ### Item input is the prompt's variable map
 
 A dataset item's `input` is exactly the variable map of the prompt it is for:
-a JSON object with one string per variable, the same keys the prompt uses, no
-more and no fewer. This is what each coaching generation records as its
+a JSON object with one string per variable. The prompt may leave some of those
+variables out (an experiment dropping context is fine), but it must not use a
+name the map lacks. This is what each coaching generation records as its
 input, so **Add to dataset** on a generation in a trace gives an item that
 works in both the harness and the UI. Add it from the generation (named after
 the operation, e.g. `gym_adjustment`), not from the trace's root span.

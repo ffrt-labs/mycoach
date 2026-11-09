@@ -1,0 +1,51 @@
+name: Trace coverage
+
+# Daily evidence for the gate that retires prompt_logs (#180): every scheduled
+# coaching run of the last 14 days must have a Langfuse trace. A missing trace
+# fails the run, and 14 green runs in a row pass the gate. Delete this
+# workflow together with prompt_logs in #180.
+
+on:
+  schedule:
+    # 23:37 UTC: after the last briefing poll (20:00 Europe/London) and the
+    # Sunday weekly plan, so the whole day's runs are in the window.
+    - cron: '37 23 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Days to check (1-89). Empty means 14, capped at the days since tracing started.'
+        required: false
+
+env:
+  # The first full day with Langfuse tracing in production. Runs before it
+  # have no trace, so the window never reaches back past it.
+  TRACING_START: '2026-11-10'
+  GATE_DAYS: '14'
+
+jobs:
+  coverage:
+    name: Check every coaching run has a trace
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Setup PATH
+        run: echo "/usr/bin" >> $GITHUB_PATH
+
+      - name: Run the trace-coverage check
+        env:
+          DAYS_INPUT: ${{ inputs.days }}
+        run: |
+          if [ -n "$DAYS_INPUT" ]; then
+            days="$DAYS_INPUT"
+          else
+            now=$(date -u +%s)
+            start=$(date -u -d "$TRACING_START" +%s)
+            if [ "$now" -lt "$start" ]; then
+              echo "Tracing starts on $TRACING_START; nothing to check yet."
+              exit 0
+            fi
+            days=$(( (now - start) / 86400 + 1 ))
+            [ "$days" -gt "$GATE_DAYS" ] && days="$GATE_DAYS"
+          fi
+          echo "Checking the last $days day(s)."
+          docker exec mycoach python -m mycoach.tools.trace_coverage --days "$days"

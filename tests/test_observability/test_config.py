@@ -89,3 +89,12 @@ def test_prompts_come_from_langfuse_exactly_when_tracing_is_on() -> None:
     assert isinstance(build_prompt_store(getattr(on, "client", None), 300), LangfusePrompts)
     off = build_tracer(_settings())
     assert isinstance(build_prompt_store(getattr(off, "client", None), 300), BundledPrompts)
+
+
+@pytest.mark.parametrize("empty", ["", "  "])
+def test_an_empty_prompt_cache_ttl_means_the_default(
+    monkeypatch: pytest.MonkeyPatch, empty: str
+) -> None:
+    # The deploy writes the variable even when it is unset in GitHub.
+    monkeypatch.setenv("LANGFUSE_PROMPT_CACHE_TTL", empty)
+    assert _settings().langfuse_prompt_cache_ttl == 300

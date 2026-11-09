@@ -78,8 +78,9 @@ version, and these scores:
 
 These are the code checks production scores coaching runs with, so a run
 compares directly with a `production` run in the dataset's runs view. The
-run is named `<label>-v<version>-<UTC time>`. A provider error scores nothing
-for that item except `fallback_used`. The command prints a summary and exits
+run is named `<label>-v<version>-<UTC time>`. A provider error still scores
+every check: `parse_ok`, `needed_retry` and `truncated` are 0, and
+`fallback_used` is 1. The command prints a summary and exits
 non-zero if any item failed.
 
 ## Langfuse UI experiments

@@ -44,6 +44,10 @@ class Operation(StrEnum):
     WEEKLY_RECAP = "weekly_recap"
 
 
+BUNDLED_VERSION = "v2"
+"""The bundled template set (``prompts/v2``): the default compile, the
+fallback the prompt store serves, and the seed of each Langfuse prompt."""
+
 PromptVariables = dict[str, str]
 """An operation's formatted Coaching context, keyed by template placeholder."""
 
@@ -53,15 +57,20 @@ class CompiledPrompt(NamedTuple):
     user: str
 
 
+def operation_template(operation: Operation, version: str = BUNDLED_VERSION) -> str:
+    """An operation's bundled user-message template, uncompiled (``str.format`` syntax)."""
+    return _load_template(f"{operation.value}.txt", version)
+
+
 def compile_prompt(
-    operation: Operation, variables: Mapping[str, str], *, version: str = "v2"
+    operation: Operation, variables: Mapping[str, str], *, version: str = BUNDLED_VERSION
 ) -> CompiledPrompt:
     """Render an operation's bundled template with its variable map.
 
     Returns the shared system prompt and the user message sent to the model.
     Raises ``KeyError`` when the map lacks a placeholder the template uses.
     """
-    template = _load_template(f"{operation.value}.txt", version)
+    template = operation_template(operation, version)
     return CompiledPrompt(system=get_system_prompt(version), user=template.format(**variables))
 
 
@@ -1221,7 +1230,7 @@ def build_gym_adjustment_prompt(
     last_week_activities: list[dict[str, Any]] | None = None,
     mesocycle_context: str | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
-    version: str = "v2",
+    version: str = BUNDLED_VERSION,
 ) -> str:
     """Build the user message for a gym adjustment LLM call."""
     variables = gym_adjustment_variables(
@@ -1261,7 +1270,7 @@ def build_cardio_plan_prompt(
     health_trends: list[dict[str, Any]],
     mesocycle_context: str | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
-    version: str = "v2",
+    version: str = BUNDLED_VERSION,
 ) -> str:
     """Build the user message for a cardio plan LLM call."""
     variables = cardio_plan_variables(

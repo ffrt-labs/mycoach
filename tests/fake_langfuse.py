@@ -1,7 +1,8 @@
-"""An in-memory Langfuse prompts API, served to a real client over httpx.
+"""An in-memory Langfuse prompts and datasets API, served to a real client over httpx.
 
-Implements the three endpoints MyCoach uses: list by name, get by label, and
-create. ``down = True`` makes every request fail as a connection error.
+Implements the endpoints MyCoach uses: prompts (list by name, get by label,
+create) and datasets (get by name, list its items). ``down = True`` makes
+every request fail as a connection error.
 """
 
 import json
@@ -16,13 +17,37 @@ from langfuse import Langfuse
 from langfuse._client.resource_manager import LangfuseResourceManager
 
 _PREFIX = "/api/public/v2/prompts"
+_DATASETS = "/api/public/v2/datasets/"
+_DATASET_ITEMS = "/api/public/dataset-items"
+_STAMP = "2026-11-08T00:00:00Z"
 
 
 @dataclass
 class FakeLangfusePrompts:
     versions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    datasets: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
     down: bool = False
+
+    def add_item(self, dataset: str, input: Any, *, status: str = "ACTIVE") -> str:
+        """Store a dataset item (creating the dataset); returns its id."""
+        items = self.datasets.setdefault(dataset, [])
+        item_id = f"item-{len(items) + 1}"
+        items.append(
+            {
+                "id": item_id,
+                "status": status,
+                "input": input,
+                "expectedOutput": None,
+                "metadata": None,
+                "datasetId": f"ds-{dataset}",
+                "datasetName": dataset,
+                "createdAt": _STAMP,
+                "updatedAt": _STAMP,
+                "mediaReferences": [],
+            }
+        )
+        return item_id
 
     def add(
         self, name: str, messages: list[dict[str, str]], labels: list[str] | None = None
@@ -66,7 +91,31 @@ class FakeLangfusePrompts:
         if raw_path.startswith(_PREFIX + "/") and request.method == "GET":
             name = unquote(raw_path[len(_PREFIX) + 1 :])
             return self._get(name, request.url.params.get("label", "production"))
+        if raw_path.startswith(_DATASETS) and request.method == "GET":
+            return self._dataset(unquote(raw_path[len(_DATASETS) :]))
+        if raw_path == _DATASET_ITEMS and request.method == "GET":
+            return self._items(unquote(request.url.params.get("datasetName", "")))
         return httpx.Response(404, json={"message": "no such route"})
+
+    def _dataset(self, name: str) -> httpx.Response:
+        if name not in self.datasets:
+            return httpx.Response(404, json={"message": "Dataset not found"})
+        return httpx.Response(
+            200,
+            json={
+                "id": f"ds-{name}",
+                "name": name,
+                "metadata": None,
+                "projectId": "project-1",
+                "createdAt": _STAMP,
+                "updatedAt": _STAMP,
+            },
+        )
+
+    def _items(self, name: str) -> httpx.Response:
+        items = self.datasets.get(name, [])
+        meta = {"page": 1, "limit": 50, "totalItems": len(items), "totalPages": 1}
+        return httpx.Response(200, json={"data": items, "meta": meta})
 
     def _list(self, name: str) -> httpx.Response:
         history = self.versions.get(name, [])

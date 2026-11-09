@@ -266,6 +266,11 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 To check that every scheduled coaching run has a trace, run
 `python -m mycoach.tools.trace_coverage --days 30`. See [docs/trace-coverage.md](docs/trace-coverage.md).
 
+To test a prompt change on a Langfuse dataset before promoting it, run
+`python -m mycoach.evals run --dataset <name> --label staging --limit N`, or a
+prompt experiment in the Langfuse UI. See [docs/evals.md](docs/evals.md) for the
+UI's LLM connection setup, the dataset item contract and dataset sizes.
+
 ## Data Pipeline
 
 MyCoach collects data from two sources, stores it in a normalized database, then assembles relevant subsets into LLM prompts for each coaching feature.

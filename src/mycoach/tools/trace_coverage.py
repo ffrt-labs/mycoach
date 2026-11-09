@@ -24,7 +24,7 @@ import json
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Literal, Protocol
 from zoneinfo import ZoneInfo
 
@@ -45,10 +45,7 @@ from mycoach.observability.tracing import (
     weekly_plan_run,
     weekly_recap_run,
 )
-
-# The scheduler's single user (``mycoach.scheduler.jobs.USER_ID``), used only
-# when a run's artifact has been replaced and its key is rebuilt from the clock.
-SCHEDULER_USER_ID = 1
+from mycoach.scheduler.weeks import SCHEDULER_USER_ID, plan_week_start, recap_week_start
 
 # Langfuse deletes traces after 90 days, so a longer window reports false gaps.
 MAX_DAYS = 89
@@ -216,7 +213,7 @@ async def _check_run(
             # A forced regeneration deletes the plan and writes a new one, with
             # a new ID and so a new trace: the replacement's trace is the one
             # that can still be checked, and it counts.
-            week_start = _next_monday(local_day)
+            week_start = plan_week_start(local_day)
             plans = (
                 await session.scalars(
                     select(WeeklyPlan).where(
@@ -276,7 +273,7 @@ async def _check_run(
     # old row is deleted, the new one keeps the key). Scheduled runs never
     # force, so this run's own trace is the natural one; a regeneration's
     # trace, which supersedes it, also counts.
-    day = local_day if run.job_name == DAILY_BRIEFING else _previous_week_monday(local_day)
+    day = local_day if run.job_name == DAILY_BRIEFING else recap_week_start(local_day)
     replacement = await session.scalar(
         select(CoachingInsight).where(
             CoachingInsight.insight_type == insight_type,
@@ -319,19 +316,6 @@ def _insight_spec(insight: CoachingInsight) -> tuple[RunSpec, str]:
         return spec, f"weekly recap {insight.insight_date}"
     spec = daily_briefing_run(insight.user_id, insight.insight_date)
     return spec, f"daily briefing {insight.insight_date}"
-
-
-# The date math below mirrors the scheduler jobs, which use ``date.today()``.
-
-
-def _next_monday(day: date) -> date:
-    """``_weekly_plan``: the Monday after ``day`` (a week ahead on a Monday)."""
-    return day + timedelta(days=(7 - day.weekday()) % 7 or 7)
-
-
-def _previous_week_monday(day: date) -> date:
-    """``_weekly_recap``: the Monday of the week before ``day``'s."""
-    return day - timedelta(days=day.weekday() + 7)
 
 
 def format_report(report: CoverageReport, *, days: int) -> str:

@@ -61,6 +61,9 @@ It needs the app's settings: the three `LANGFUSE_*` variables and the LLM
 provider's settings. **It refuses to run when `MYCOACH_LLM_PROVIDER` is
 `claude_code`**, so an experiment can never use up the Claude Pro window that
 daily coaching relies on. Run it with the free provider configured instead.
+**It also refuses a provider billed per call (`anthropic`) unless you pass
+`--allow-paid`**, so an experiment never spends money by accident.
+`--allow-paid` never lifts the `claude_code` refusal.
 
 For each item it compiles the labelled prompt with the item's variables, using
 the same strict compile production uses, then calls the LLM with the

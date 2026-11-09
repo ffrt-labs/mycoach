@@ -106,6 +106,9 @@ class ClaudeCodeClient(LLMClient):
     """LLM client backed by ``claude -p``, one subprocess per call."""
 
     provider_name = "claude_code"
+    # The Claude Pro subscription pays; total_cost_usd is notional and
+    # measures what a call drew from the usage window.
+    billing = "subscription"
 
     def __init__(self, oauth_token: str | None = None) -> None:
         settings = get_settings()
@@ -174,9 +177,7 @@ class ClaudeCodeClient(LLMClient):
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
             stop_reason="max_tokens" if truncated else payload.get("stop_reason"),
-            # The Claude Pro subscription pays; total_cost_usd is notional and
-            # measures what the call drew from the usage window.
-            billing="subscription",
+            billing=self.billing,
             quota_usage={"unit": "usd_notional", "amount": cost},
         )
 

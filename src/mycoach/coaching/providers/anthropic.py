@@ -26,6 +26,8 @@ class AnthropicClient(LLMClient):
     """LLM client backed by the Anthropic Claude API."""
 
     provider_name = "anthropic"
+    # A paid API: what each call uses up is money.
+    billing = "paid"
 
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
@@ -79,8 +81,7 @@ class AnthropicClient(LLMClient):
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
             stop_reason=response.stop_reason,
-            # A paid API: what each call uses up is money.
-            billing="paid",
+            billing=self.billing,
             quota_usage={"unit": "usd", "amount": cost},
         )
 

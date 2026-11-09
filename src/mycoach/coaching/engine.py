@@ -259,32 +259,67 @@ class CoachingEngine:
 
         now = self._clock()
         run = daily_briefing_run(user_id, today, regenerated_at=now if replaced else None)
+        parsed = await self._generate_insight(
+            session,
+            DAILY_BRIEFING,
+            run,
+            prompt=prompt,
+            variables=variables,
+            now=now,
+            what="daily briefing",
+        )
+
+        return await self._store_insight(
+            session, user_id, InsightType.DAILY_BRIEFING, today, parsed, prompt
+        )
+
+    async def _generate_insight(
+        self,
+        session: AsyncSession,
+        spec: OperationSpec[T],
+        run: RunSpec,
+        *,
+        prompt: ServedPrompt,
+        variables: Mapping[str, str],
+        now: datetime,
+        what: str,
+    ) -> T:
+        """An insight run's one generation, traced and scored on ``run``'s trace.
+
+        Returns the parsed answer. On failure the PromptLog row is committed
+        and ``RuntimeError`` names ``what`` failed.
+        """
         with self._tracer.run(run):
-            generation = await self._generate(
-                session, DAILY_BRIEFING, prompt=prompt, variables=variables
-            )
-            self._score_code_checks(
-                run, generation, DAILY_BRIEFING, at=score_timestamp(run.about, now)
-            )
-            parsed = generation.parsed
-
-            if parsed is None:
+            generation = await self._generate(session, spec, prompt=prompt, variables=variables)
+            self._score_code_checks(run, generation, spec, at=score_timestamp(run.about, now))
+            if generation.parsed is None:
                 await session.commit()
-                raise RuntimeError(f"Failed to generate daily briefing: {generation.error}")
+                raise RuntimeError(f"Failed to generate {what}: {generation.error}")
+            return generation.parsed
 
-        # Store the coaching insight
-        content_json = parsed.model_dump_json()
+    async def _store_insight(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        insight_type: InsightType,
+        insight_date: date,
+        parsed: BaseModel,
+        prompt: ServedPrompt,
+        *,
+        activity_id: int | None = None,
+    ) -> CoachingInsight:
+        """Commit the insight a run produced, recording the prompt that made it."""
         insight = CoachingInsight(
             user_id=user_id,
-            insight_date=today,
-            insight_type=InsightType.DAILY_BRIEFING,
-            content=content_json,
+            insight_date=insight_date,
+            insight_type=insight_type,
+            content=parsed.model_dump_json(),
             prompt_version=prompt.artifact_version,
+            activity_id=activity_id,
         )
         session.add(insight)
         await session.commit()
         await session.refresh(insight)
-
         return insight
 
     async def _serve(self, operation: Operation, variables: Mapping[str, str]) -> ServedPrompt:
@@ -314,9 +349,7 @@ class CoachingEngine:
                 )
             )
 
-    def _score_plan_completion(
-        self, plan_adherence: PlanAdherence | None, *, at: datetime
-    ) -> None:
+    def _score_plan_completion(self, plan_adherence: PlanAdherence | None, *, at: datetime) -> None:
         """Emit ``plan_sessions_completed_ratio`` on the recapped week's plan trace.
 
         A skipped session never reaches prescription fulfillment, so only the
@@ -954,18 +987,15 @@ class CoachingEngine:
             activity_date,
             regenerated_at=now if replaced else None,
         )
-        with self._tracer.run(run):
-            generation = await self._generate(
-                session, POST_WORKOUT, prompt=prompt, variables=variables
-            )
-            self._score_code_checks(
-                run, generation, POST_WORKOUT, at=score_timestamp(run.about, now)
-            )
-            parsed = generation.parsed
-
-            if parsed is None:
-                await session.commit()
-                raise RuntimeError(f"Failed to generate post-workout analysis: {generation.error}")
+        parsed = await self._generate_insight(
+            session,
+            POST_WORKOUT,
+            run,
+            prompt=prompt,
+            variables=variables,
+            now=now,
+            what="post-workout analysis",
+        )
 
         # Link activity to planned session if found
         if planned_session:
@@ -977,21 +1007,15 @@ class CoachingEngine:
                 clock=self._clock,
             )
 
-        # Store the coaching insight
-        content_json = parsed.model_dump_json()
-        insight = CoachingInsight(
-            user_id=user_id,
-            insight_date=activity_date,
-            insight_type=InsightType.POST_WORKOUT,
-            content=content_json,
-            prompt_version=prompt.artifact_version,
+        return await self._store_insight(
+            session,
+            user_id,
+            InsightType.POST_WORKOUT,
+            activity_date,
+            parsed,
+            prompt,
             activity_id=activity_id,
         )
-        session.add(insight)
-        await session.commit()
-        await session.refresh(insight)
-
-        return insight
 
     async def generate_weekly_recap(
         self,
@@ -1063,31 +1087,16 @@ class CoachingEngine:
         # Midnight of the recapped Monday, so a regenerated recap overwrites the ratio.
         self._score_plan_completion(plan_adherence, at=score_timestamp(week_start, now))
         run = weekly_recap_run(user_id, week_start, regenerated_at=now if replaced else None)
-        with self._tracer.run(run):
-            # Call LLM (daily model for cost efficiency)
-            generation = await self._generate(
-                session, WEEKLY_RECAP, prompt=prompt, variables=variables
-            )
-            self._score_code_checks(
-                run, generation, WEEKLY_RECAP, at=score_timestamp(run.about, now)
-            )
-            parsed = generation.parsed
-
-            if parsed is None:
-                await session.commit()
-                raise RuntimeError(f"Failed to generate weekly recap: {generation.error}")
-
-        # Store the coaching insight
-        content_json = parsed.model_dump_json()
-        insight = CoachingInsight(
-            user_id=user_id,
-            insight_date=week_start,
-            insight_type=InsightType.WEEKLY_RECAP,
-            content=content_json,
-            prompt_version=prompt.artifact_version,
+        parsed = await self._generate_insight(
+            session,
+            WEEKLY_RECAP,
+            run,
+            prompt=prompt,
+            variables=variables,
+            now=now,
+            what="weekly recap",
         )
-        session.add(insight)
-        await session.commit()
-        await session.refresh(insight)
 
-        return insight
+        return await self._store_insight(
+            session, user_id, InsightType.WEEKLY_RECAP, week_start, parsed, prompt
+        )

@@ -191,8 +191,7 @@ class CoachingEngine:
     @property
     def _provider(self) -> str:
         """The provider name recorded on each generation."""
-        name = getattr(type(self._llm), "provider_name", None)
-        return name if isinstance(name, str) and name else type(self._llm).__name__
+        return self._llm.provider_name
 
     async def generate_daily_briefing(
         self,

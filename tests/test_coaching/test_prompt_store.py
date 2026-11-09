@@ -11,7 +11,7 @@ from langfuse import Langfuse
 
 from mycoach.coaching.prompt_builder import Operation, compile_prompt
 from mycoach.coaching.prompt_store import BundledPrompts, LangfusePrompts
-from tests.fake_langfuse import FakeLangfusePrompts, langfuse_over
+from tests.fake_langfuse import FakeLangfuseAPI, langfuse_over
 
 NAME = "mycoach/cardio-plan"
 VARIABLES = {
@@ -43,12 +43,12 @@ class Clock:
 
 
 @pytest.fixture
-def fake() -> FakeLangfusePrompts:
-    return FakeLangfusePrompts()
+def fake() -> FakeLangfuseAPI:
+    return FakeLangfuseAPI()
 
 
 @pytest.fixture
-def client(fake: FakeLangfusePrompts) -> Generator[Langfuse, None, None]:
+def client(fake: FakeLangfuseAPI) -> Generator[Langfuse, None, None]:
     with langfuse_over(fake) as lf:
         yield lf
 
@@ -68,7 +68,7 @@ def bundled() -> tuple[str, str]:
 
 class TestServedFromLangfuse:
     def test_production_version_is_compiled_and_linked(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.add(NAME, TEMPLATE)
         fake.add(NAME, TEMPLATE, labels=["production", "latest"])
@@ -83,7 +83,7 @@ class TestServedFromLangfuse:
         assert served.link is not None
 
     def test_cache_hit_within_ttl_makes_no_request(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.add(NAME, TEMPLATE)
         prompts = store(client, clock)
@@ -97,7 +97,7 @@ class TestServedFromLangfuse:
         assert fake.fetches() == 1
 
     def test_refreshes_after_ttl(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.add(NAME, TEMPLATE)
         prompts = store(client, clock)
@@ -111,7 +111,7 @@ class TestServedFromLangfuse:
         assert fake.fetches() == 2
 
     def test_failed_refresh_keeps_the_stale_version(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.add(NAME, TEMPLATE)
         prompts = store(client, clock)
@@ -128,7 +128,7 @@ class TestServedFromLangfuse:
         assert fake.fetches() == 2
 
     def test_unlabelled_prompt_falls_back_and_drops_the_stale_copy(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         """Removing the production label is deliberate, unlike an outage."""
         fake.add(NAME, TEMPLATE)
@@ -144,7 +144,7 @@ class TestServedFromLangfuse:
 
 class TestBundledFallback:
     def test_cold_start_with_langfuse_down_serves_bundled(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.down = True
 
@@ -157,7 +157,7 @@ class TestBundledFallback:
         assert served.link is None
 
     def test_cold_failure_is_not_retried_on_every_call(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         """Langfuse down must not add a fetch timeout to every coaching call."""
         fake.down = True
@@ -209,7 +209,7 @@ class TestBundledFallback:
     def test_invalid_template_serves_bundled(
         self,
         user: str,
-        fake: FakeLangfusePrompts,
+        fake: FakeLangfuseAPI,
         client: Langfuse,
         clock: Clock,
         caplog: pytest.LogCaptureFixture,
@@ -224,7 +224,7 @@ class TestBundledFallback:
 
     def test_template_that_drops_a_variable_is_served(
         self,
-        fake: FakeLangfusePrompts,
+        fake: FakeLangfuseAPI,
         client: Langfuse,
         clock: Clock,
         caplog: pytest.LogCaptureFixture,
@@ -242,7 +242,7 @@ class TestBundledFallback:
         assert record.levelname == "INFO"
 
     def test_template_not_shaped_system_then_user_serves_bundled(
-        self, fake: FakeLangfusePrompts, client: Langfuse, clock: Clock
+        self, fake: FakeLangfuseAPI, client: Langfuse, clock: Clock
     ) -> None:
         fake.add(NAME, [TEMPLATE[1], TEMPLATE[0]])
         served = store(client, clock).serve(Operation.CARDIO_PLAN, VARIABLES)

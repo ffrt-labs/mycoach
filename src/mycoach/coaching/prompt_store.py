@@ -18,7 +18,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 from langfuse import Langfuse
 from langfuse.api import NotFoundError
@@ -66,7 +66,7 @@ class ServedPrompt:
     source: PromptSource
     name: str
     version: int | None = None
-    link: Any = None
+    link: ChatPromptClient | None = None
 
     @property
     def artifact_version(self) -> str:

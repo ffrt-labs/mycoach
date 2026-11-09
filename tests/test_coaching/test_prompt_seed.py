@@ -8,7 +8,7 @@ from langfuse import Langfuse
 from mycoach.coaching.prompt_builder import PROMPT_VARIABLES, Operation, compile_prompt
 from mycoach.coaching.prompt_store import LangfusePrompts, to_langfuse_template
 from mycoach.tools.seed_langfuse_prompts import seed_prompts
-from tests.fake_langfuse import FakeLangfusePrompts, langfuse_over
+from tests.fake_langfuse import FakeLangfuseAPI, langfuse_over
 from tests.test_coaching.prompt_cases import CASES
 
 ALL_NAMES = [
@@ -21,18 +21,18 @@ ALL_NAMES = [
 
 
 @pytest.fixture
-def fake() -> FakeLangfusePrompts:
-    return FakeLangfusePrompts()
+def fake() -> FakeLangfuseAPI:
+    return FakeLangfuseAPI()
 
 
 @pytest.fixture
-def client(fake: FakeLangfusePrompts) -> Generator[Langfuse, None, None]:
+def client(fake: FakeLangfuseAPI) -> Generator[Langfuse, None, None]:
     with langfuse_over(fake) as lf:
         yield lf
 
 
 def test_seed_creates_version_1_of_each_prompt_labelled_production(
-    fake: FakeLangfusePrompts, client: Langfuse
+    fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     created = seed_prompts(client)
 
@@ -45,7 +45,7 @@ def test_seed_creates_version_1_of_each_prompt_labelled_production(
         assert [m["role"] for m in version["prompt"]] == ["system", "user"]
 
 
-def test_seeding_twice_is_a_no_op(fake: FakeLangfusePrompts, client: Langfuse) -> None:
+def test_seeding_twice_is_a_no_op(fake: FakeLangfuseAPI, client: Langfuse) -> None:
     seed_prompts(client)
     posts = sum(1 for r in fake.requests if r.method == "POST")
 
@@ -54,7 +54,7 @@ def test_seeding_twice_is_a_no_op(fake: FakeLangfusePrompts, client: Langfuse) -
 
 
 def test_seed_skips_a_prompt_that_exists_without_the_production_label(
-    fake: FakeLangfusePrompts, client: Langfuse
+    fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     fake.add("mycoach/weekly-recap", [{"role": "user", "content": "draft"}], labels=["staging"])
 
@@ -66,7 +66,7 @@ def test_seed_skips_a_prompt_that_exists_without_the_production_label(
 
 @pytest.mark.parametrize("case", sorted(CASES))
 def test_seeded_prompts_compile_to_the_bundled_messages(
-    case: str, fake: FakeLangfusePrompts, client: Langfuse
+    case: str, fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     seed_prompts(client)
     operation, inputs = CASES[case]

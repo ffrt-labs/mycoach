@@ -42,6 +42,7 @@ def _mock_llm_client(content: str = VALID_LLM_RESPONSE) -> MagicMock:
         latency_ms=1200,
         estimated_cost_usd=0.0045,
     )
+    client.provider_name = "anthropic"
     client.daily_model = "claude-sonnet-4-5-20250929"
     client.weekly_model = "claude-opus-4-6"
     return client

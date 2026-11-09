@@ -71,6 +71,7 @@ class TestDailyBriefingTrace:
             "output": 200,
         }
         assert json_attr(gen, "langfuse.observation.metadata.attempt") == 1
+        assert json_attr(gen, "langfuse.observation.metadata.provider") == "anthropic"
         assert json_attr(gen, "langfuse.observation.metadata.latency_ms") == 1200
         assert "langfuse.observation.level" not in (gen.attributes or {})
         # Input is the prompt's variable map, not the compiled prompt.

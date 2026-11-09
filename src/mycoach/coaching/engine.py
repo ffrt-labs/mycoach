@@ -420,20 +420,14 @@ class CoachingEngine:
         Never raises for an LLM or parse failure: the caller reads
         ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
         """
-        operation = spec.operation.value
-        model = spec.model(self._llm)
-        max_tokens = spec.max_tokens
-        response_model = spec.response_model
         user_message = prompt.user
         result = await self._attempt(
-            operation=operation,
+            spec,
             attempt=1,
             prompt=prompt,
             user_message=user_message,
             variables=variables,
-            model=model,
-            max_tokens=max_tokens,
-            response_model=response_model,
+            max_tokens=spec.max_tokens,
             metadata=metadata,
         )
 
@@ -441,9 +435,9 @@ class CoachingEngine:
         # response that came back but did not parse earns a second attempt.
         if result.parsed is None and result.response is not None:
             first_error = result.error
-            retry_tokens = max_tokens
+            retry_tokens = spec.max_tokens
             if result.response.stop_reason == "max_tokens":
-                retry_tokens = max_tokens * 2
+                retry_tokens = spec.max_tokens * 2
                 logger.warning(
                     "Response truncated (stop_reason=max_tokens, used %d tokens). "
                     "Retrying with max_tokens=%d",
@@ -451,7 +445,7 @@ class CoachingEngine:
                     retry_tokens,
                 )
             retry = await self._attempt(
-                operation=operation,
+                spec,
                 attempt=2,
                 prompt=prompt,
                 user_message=(
@@ -460,9 +454,7 @@ class CoachingEngine:
                     + f"Your previous response had this error: {first_error}"
                 ),
                 variables=variables,
-                model=model,
                 max_tokens=retry_tokens,
-                response_model=response_model,
                 previous_error=first_error,
                 metadata=metadata,
             )
@@ -481,25 +473,26 @@ class CoachingEngine:
 
     async def _attempt(
         self,
+        spec: OperationSpec[T],
         *,
-        operation: str,
         attempt: int,
         prompt: ServedPrompt,
         user_message: str,
         variables: Mapping[str, str],
-        model: str,
         max_tokens: int,
-        response_model: type[T],
         previous_error: str | None = None,
         metadata: Mapping[str, object] | None = None,
     ) -> Generation[T]:
-        """One call-and-parse attempt, recorded as one generation.
+        """One call-and-parse attempt of ``spec``'s operation, recorded as one generation.
 
         ``attempt`` is 1 for the first try, 2 for the retry; a retry carries
-        the parse error of the attempt it follows as ``previous_error``. The
-        generation is opened and ended here, on the event loop, so the
-        provider's worker thread never touches the tracer.
+        the parse error of the attempt it follows as ``previous_error`` and
+        may raise ``max_tokens`` above the spec's budget. The generation is
+        opened and ended here, on the event loop, so the provider's worker
+        thread never touches the tracer.
         """
+        operation = spec.operation.value
+        model = spec.model(self._llm)
         traced = self._tracer.generation(
             GenerationStart(
                 operation=operation,
@@ -525,7 +518,7 @@ class CoachingEngine:
                 model=model,
                 max_tokens=max_tokens,
             )
-            parsed = parse_response(response.content, response_model)
+            parsed = parse_response(response.content, spec.response_model)
         except Exception as e:
             logger.error("%s attempt %d failed: %s", operation, attempt, e)
             traced.failed(error=str(e), exception=e, response=response)

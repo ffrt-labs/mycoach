@@ -161,6 +161,25 @@ class TestScoreContent:
             # A stable day, so a later re-link overwrites.
             assert score.timestamp == datetime(2024, 6, 10, tzinfo=UTC)
 
+    async def test_the_timestamp_comes_from_the_injected_clock_before_the_plans_week(
+        self,
+    ) -> None:
+        sink = RecordingScoreSink()
+        before_the_week = datetime(2024, 6, 9, 18, tzinfo=UTC)
+        async with test_session() as session:
+            user_id, _, planned, activity = await _gym_setup(session)
+            await claim_planned_session(
+                session,
+                user_id,
+                activity.id,
+                planned.id,
+                scores=sink,
+                clock=lambda: before_the_week,
+            )
+            await session.commit()
+
+        assert {s.timestamp for s in sink.scores} == {before_the_week}
+
     async def test_cardio_scores_the_duration_ratio(self) -> None:
         sink = RecordingScoreSink()
         async with test_session() as session:

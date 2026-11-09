@@ -15,6 +15,7 @@ to trust it.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -26,6 +27,12 @@ from mycoach.observability.adherence import adherence_scores
 from mycoach.observability.scores import ScoreSink, emit_after_commit, get_score_sink
 
 logger = logging.getLogger(__name__)
+
+Clock = Callable[[], datetime]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 async def has_performed_sets(session: AsyncSession, activity_id: int) -> bool:
@@ -46,12 +53,14 @@ async def link_activity_to_planned_session(
     planned_session_id: int,
     *,
     scores: ScoreSink | None = None,
+    clock: Clock = _utc_now,
 ) -> None:
     """Mark a planned session as completed and link it to the actual activity.
 
     An activity with no performed sets is a logged no-op: the prescription
     stays open (see ``has_performed_sets``) and no adherence is scored.
-    ``scores`` defaults to the process-wide sink.
+    ``scores`` defaults to the process-wide sink; ``clock`` stamps the
+    adherence scores.
     """
     if not await has_performed_sets(session, activity_id):
         logger.warning(
@@ -64,7 +73,7 @@ async def link_activity_to_planned_session(
     result = await session.execute(stmt)
     planned = result.scalar_one_or_none()
     if planned is not None:
-        await _fulfil(session, planned, activity_id, scores)
+        await _fulfil(session, planned, activity_id, scores, clock)
 
 
 async def claim_planned_session(
@@ -74,6 +83,7 @@ async def claim_planned_session(
     planned_session_id: int,
     *,
     scores: ScoreSink | None = None,
+    clock: Clock = _utc_now,
 ) -> str | None:
     """Link an imported activity to the prescription it claims to answer.
 
@@ -133,7 +143,7 @@ async def claim_planned_session(
             "performed sets — workout imported without a prescription link"
         )
 
-    await _fulfil(session, planned, activity_id, scores)
+    await _fulfil(session, planned, activity_id, scores, clock)
     return None
 
 
@@ -142,6 +152,7 @@ async def _fulfil(
     planned: PlannedSession,
     activity_id: int,
     scores: ScoreSink | None,
+    clock: Clock,
 ) -> None:
     """Prescription fulfillment: the one place both entry points record the link.
 
@@ -177,7 +188,7 @@ async def _fulfil(
             activity=activity,
             sets=sets,
             gym_slot=await _gym_slot(session, planned),
-            now=datetime.now(UTC),
+            now=clock(),
         ),
     )
 

@@ -105,14 +105,19 @@ class TestDailyBriefingCodeChecks:
             f"{BRIEFING}:truncated": 0.0,
         }
 
-    async def test_provider_error_has_no_answer_to_check(self) -> None:
+    async def test_provider_error_still_emits_every_code_check(self) -> None:
         llm = _briefing_llm()
         llm.call.side_effect = LLMQuotaExceeded("Claude Code: usage limit reached")
         sink = RecordingScoreSink()
         with pytest.raises(RuntimeError):
             await _briefing(llm, sink)
 
-        assert sink.scores == []
+        # No answer parsed, a provider failure is never retried, nothing was cut off.
+        assert sink.values() == {
+            f"{BRIEFING}:parse_ok": 0.0,
+            f"{BRIEFING}:needed_retry": 0.0,
+            f"{BRIEFING}:truncated": 0.0,
+        }
 
     async def test_a_retried_run_on_a_later_day_overwrites_its_scores(self) -> None:
         """Same trace, same IDs and the same timestamp day, so Langfuse overwrites."""
@@ -188,10 +193,11 @@ class TestWeeklyPlanCodeChecks:
                 session, user_id, MONDAY
             )
 
-        assert sink.values() == {
-            f"{PLAN}:fallback_used:gym_adjustment:0": 1.0,
-            f"{PLAN}:fallback_used:gym_adjustment:1": 1.0,
-        }
+        for slot in ("gym_adjustment:0", "gym_adjustment:1"):
+            assert {
+                name: sink.values()[f"{PLAN}:{name}:{slot}"]
+                for name in ("parse_ok", "needed_retry", "truncated", "fallback_used")
+            } == {"parse_ok": 0.0, "needed_retry": 0.0, "truncated": 0.0, "fallback_used": 1.0}
 
 
 class TestOtherRuns:

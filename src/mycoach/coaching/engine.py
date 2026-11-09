@@ -156,17 +156,18 @@ def code_checks(generation: Generation[Any], *, falls_back: bool = False) -> lis
     """The code-check scores of one generation, as (name, value) pairs.
 
     The checks observe values the run already computed and never steer it.
-    With no answer at all (the provider failed) there is nothing to check,
-    so only ``fallback_used`` (when the operation ``falls_back``) remains.
+    Every generation emits them, a provider failure included: with no answer,
+    ``parse_ok`` and ``needed_retry`` are false (a provider failure is never
+    retried) and ``truncated`` is whether the failure was a truncation (no
+    provider raises one today; a truncated answer comes back as a response).
+    ``fallback_used`` is added when the operation ``falls_back``.
     Production scores and the evals harness both come from here.
     """
-    checks: list[tuple[str, bool]] = []
-    if generation.response is not None:
-        checks += [
-            ("parse_ok", generation.parsed is not None),
-            ("needed_retry", generation.retried),
-            ("truncated", generation.truncated),
-        ]
+    checks: list[tuple[str, bool]] = [
+        ("parse_ok", generation.parsed is not None),
+        ("needed_retry", generation.retried),
+        ("truncated", generation.truncated),
+    ]
     if falls_back:
         checks.append(("fallback_used", generation.parsed is None))
     return checks

@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -113,6 +113,65 @@ def _truncated(response: LLMResponse | None) -> bool:
     return response is not None and response.stop_reason == "max_tokens"
 
 
+ModelTier = Literal["daily", "weekly"]
+
+
+@dataclass(frozen=True)
+class OperationSpec(Generic[T]):
+    """How production calls the LLM for one operation.
+
+    The response model it parses, the model tier, the token budget, and
+    whether a failed generation falls back to a default (a gym slot keeps the
+    routine), which is scored as ``fallback_used``. Shared with the evals
+    harness, so an experiment calls the LLM exactly as production does.
+    """
+
+    operation: Operation
+    response_model: type[T]
+    model_tier: ModelTier = "daily"
+    max_tokens: int = 4096
+    falls_back: bool = False
+
+    def model(self, llm: LLMClient) -> str:
+        return llm.weekly_model if self.model_tier == "weekly" else llm.daily_model
+
+
+DAILY_BRIEFING = OperationSpec(Operation.DAILY_BRIEFING, DailyBriefingResponse)
+GYM_ADJUSTMENT = OperationSpec(
+    Operation.GYM_ADJUSTMENT, GymAdjustmentResponse, max_tokens=8192, falls_back=True
+)
+CARDIO_PLAN = OperationSpec(
+    Operation.CARDIO_PLAN, CardioPlanResponse, model_tier="weekly", max_tokens=8192
+)
+POST_WORKOUT = OperationSpec(Operation.POST_WORKOUT, PostWorkoutResponse)
+WEEKLY_RECAP = OperationSpec(Operation.WEEKLY_RECAP, WeeklyRecapResponse, max_tokens=8192)
+
+OPERATION_SPECS: Mapping[Operation, OperationSpec[Any]] = {
+    spec.operation: spec
+    for spec in (DAILY_BRIEFING, GYM_ADJUSTMENT, CARDIO_PLAN, POST_WORKOUT, WEEKLY_RECAP)
+}
+
+
+def code_checks(generation: Generation[Any], *, falls_back: bool = False) -> list[tuple[str, bool]]:
+    """The code-check scores of one generation, as (name, value) pairs.
+
+    The checks observe values the run already computed and never steer it.
+    With no answer at all (the provider failed) there is nothing to check,
+    so only ``fallback_used`` (when the operation ``falls_back``) remains.
+    Production scores and the evals harness both come from here.
+    """
+    checks: list[tuple[str, bool]] = []
+    if generation.response is not None:
+        checks += [
+            ("parse_ok", generation.parsed is not None),
+            ("needed_retry", generation.retried),
+            ("truncated", generation.truncated),
+        ]
+    if falls_back:
+        checks.append(("fallback_used", generation.parsed is None))
+    return checks
+
+
 class CoachingEngine:
     """Orchestrates coaching insight generation."""
 
@@ -204,15 +263,10 @@ class CoachingEngine:
         run = daily_briefing_run(user_id, today, regenerated_at=now if replaced else None)
         with self._tracer.run(run):
             generation = await self._generate(
-                session,
-                operation="daily_briefing",
-                prompt=prompt,
-                variables=variables,
-                model=self._llm.daily_model,
-                response_model=DailyBriefingResponse,
+                session, DAILY_BRIEFING, prompt=prompt, variables=variables
             )
             self._score_code_checks(
-                run, generation, operation="daily_briefing", at=score_timestamp(run.about, now)
+                run, generation, DAILY_BRIEFING, at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 
@@ -244,31 +298,18 @@ class CoachingEngine:
         self,
         run: RunSpec,
         generation: Generation[T],
+        spec: OperationSpec[T],
         *,
-        operation: str,
         at: datetime,
         qualifier: str | None = None,
         metadata: Mapping[str, object] | None = None,
-        fallback_used: bool | None = None,
     ) -> None:
         """Emit the code-check scores of one generation on the run's trace.
 
-        The checks observe values the run already computed and never steer
-        it. With no answer at all (the provider failed) there is nothing to
-        check, so only ``fallback_used`` can still be emitted. ``qualifier``
-        tells apart several generations on one trace.
+        ``qualifier`` tells apart several generations on one trace.
         """
-        meta = {"operation": operation, **(metadata or {})}
-        checks: list[tuple[str, bool]] = []
-        if generation.response is not None:
-            checks += [
-                ("parse_ok", generation.parsed is not None),
-                ("needed_retry", generation.retried),
-                ("truncated", generation.truncated),
-            ]
-        if fallback_used is not None:
-            checks.append(("fallback_used", fallback_used))
-        for name, value in checks:
+        meta = {"operation": spec.operation.value, **(metadata or {})}
+        for name, value in code_checks(generation, falls_back=spec.falls_back):
             self._emit(
                 Score.boolean(
                     run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
@@ -338,29 +379,59 @@ class CoachingEngine:
     async def _generate(
         self,
         session: AsyncSession,
+        spec: OperationSpec[T],
         *,
-        operation: str,
         prompt: ServedPrompt,
         variables: Mapping[str, str],
-        model: str,
-        response_model: type[T],
-        max_tokens: int = 4096,
     ) -> Generation[T]:
         """The one generation seam every coaching operation goes through.
 
-        Calls the LLM, parses the response, retries once on a parse failure
-        (doubling the token budget when the first response was truncated and
-        telling the model what was wrong), and writes the single ``PromptLog``
-        row for the operation. ``operation`` names what is being served
-        (``daily_briefing``, ``gym_adjustment``, ...) and becomes the log's
-        ``prompt_type``. Each attempt runs through ``_attempt``, which records
-        it as its own generation in the current trace; ``variables`` (the
-        prompt's variable map) is that generation's input, and ``prompt``
-        (the compiled messages and where they came from) is linked to it.
+        Runs ``generate`` and writes the single ``PromptLog`` row for the
+        operation (its ``prompt_type`` is the operation's name).
+        """
+        result = await self.generate(spec, prompt=prompt, variables=variables)
+        response = result.response
+        session.add(
+            PromptLog(
+                prompt_type=spec.operation.value,
+                prompt_version=prompt.artifact_version,
+                model=response.model if response else spec.model(self._llm),
+                input_tokens=response.input_tokens if response else None,
+                output_tokens=response.output_tokens if response else None,
+                latency_ms=response.latency_ms if response else None,
+                estimated_cost_usd=response.estimated_cost_usd if response else None,
+                prompt_text=prompt.user,
+                response_text=response.content if response else None,
+                success=result.parsed is not None,
+                error=result.error,
+            )
+        )
+        return result
+
+    async def generate(
+        self,
+        spec: OperationSpec[T],
+        *,
+        prompt: ServedPrompt,
+        variables: Mapping[str, str],
+    ) -> Generation[T]:
+        """Call the LLM with a compiled prompt and parse the answer; no database.
+
+        Uses the operation's model tier and token budget, and retries once on
+        a parse failure (doubling the token budget when the first response
+        was truncated and telling the model what was wrong). Each attempt runs
+        through ``_attempt``, which records it as its own generation in the
+        current trace; ``variables`` (the prompt's variable map) is that
+        generation's input, and ``prompt`` (the compiled messages and where
+        they came from) is linked to it. The evals harness calls this too.
 
         Never raises for an LLM or parse failure: the caller reads
         ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
         """
+        operation = spec.operation.value
+        model = spec.model(self._llm)
+        max_tokens = spec.max_tokens
+        response_model = spec.response_model
         user_message = prompt.user
         result = await self._attempt(
             operation=operation,
@@ -412,22 +483,6 @@ class CoachingEngine:
         elif result.response is not None:
             result.truncated = _truncated(result.response)
 
-        response = result.response
-        session.add(
-            PromptLog(
-                prompt_type=operation,
-                prompt_version=prompt.artifact_version,
-                model=response.model if response else model,
-                input_tokens=response.input_tokens if response else None,
-                output_tokens=response.output_tokens if response else None,
-                latency_ms=response.latency_ms if response else None,
-                estimated_cost_usd=response.estimated_cost_usd if response else None,
-                prompt_text=user_message,
-                response_text=response.content if response else None,
-                success=result.parsed is not None,
-                error=result.error,
-            )
-        )
         return result
 
     async def _attempt(
@@ -624,23 +679,16 @@ class CoachingEngine:
                 plan.gym_prompt_version = prompt.artifact_version
 
                 gym = await self._generate(
-                    session,
-                    operation="gym_adjustment",
-                    prompt=prompt,
-                    variables=variables,
-                    model=self._llm.daily_model,
-                    max_tokens=8192,
-                    response_model=GymAdjustmentResponse,
+                    session, GYM_ADJUSTMENT, prompt=prompt, variables=variables
                 )
 
                 self._score_code_checks(
                     run,
                     gym,
-                    operation="gym_adjustment",
+                    GYM_ADJUSTMENT,
                     at=scored_at,
                     qualifier=f"gym_adjustment:{i}",
                     metadata={"day_of_week": slot["day_of_week"]},
-                    fallback_used=gym.parsed is None,
                 )
 
                 if gym.response and gym.response.content:
@@ -745,17 +793,11 @@ class CoachingEngine:
                 plan.cardio_prompt_version = prompt.artifact_version
 
                 cardio = await self._generate(
-                    session,
-                    operation="cardio_plan",
-                    prompt=prompt,
-                    variables=variables,
-                    model=self._llm.weekly_model,
-                    max_tokens=8192,
-                    response_model=CardioPlanResponse,
+                    session, CARDIO_PLAN, prompt=prompt, variables=variables
                 )
 
                 self._score_code_checks(
-                    run, cardio, operation="cardio_plan", at=scored_at, qualifier="cardio_plan"
+                    run, cardio, CARDIO_PLAN, at=scored_at, qualifier="cardio_plan"
                 )
 
                 if cardio.response and cardio.response.content:
@@ -910,15 +952,10 @@ class CoachingEngine:
         )
         with self._tracer.run(run):
             generation = await self._generate(
-                session,
-                operation="post_workout",
-                prompt=prompt,
-                variables=variables,
-                model=self._llm.daily_model,
-                response_model=PostWorkoutResponse,
+                session, POST_WORKOUT, prompt=prompt, variables=variables
             )
             self._score_code_checks(
-                run, generation, operation="post_workout", at=score_timestamp(run.about, now)
+                run, generation, POST_WORKOUT, at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 
@@ -1021,16 +1058,10 @@ class CoachingEngine:
         with self._tracer.run(run):
             # Call LLM (daily model for cost efficiency)
             generation = await self._generate(
-                session,
-                operation="weekly_recap",
-                prompt=prompt,
-                variables=variables,
-                model=self._llm.daily_model,
-                max_tokens=8192,
-                response_model=WeeklyRecapResponse,
+                session, WEEKLY_RECAP, prompt=prompt, variables=variables
             )
             self._score_code_checks(
-                run, generation, operation="weekly_recap", at=score_timestamp(run.about, now)
+                run, generation, WEEKLY_RECAP, at=score_timestamp(run.about, now)
             )
             parsed = generation.parsed
 

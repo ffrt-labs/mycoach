@@ -46,13 +46,14 @@ from mycoach.scheduler.briefing_window import (
     BriefingWindow,
     load_briefing_window,
 )
+from mycoach.scheduler.weeks import SCHEDULER_USER_ID, plan_week_start, recap_week_start
 from mycoach.sources.base import ImportResult
 from mycoach.sources.garmin.source import DeviceUpload, GarminSource
 from mycoach.sources.merger import MergeResult
 
 logger = logging.getLogger(__name__)
 
-USER_ID = 1  # Single-user MVP
+USER_ID = SCHEDULER_USER_ID
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -423,11 +424,7 @@ def job_weekly_plan() -> None:
 
 async def _weekly_plan() -> None:
     engine = CoachingEngine()
-    today = date.today()
-    days_until_monday = (7 - today.weekday()) % 7
-    if days_until_monday == 0:
-        days_until_monday = 7
-    next_monday = today + timedelta(days=days_until_monday)
+    next_monday = plan_week_start(date.today())
 
     async with async_session() as session:
         try:
@@ -482,8 +479,7 @@ def job_weekly_recap() -> None:
 
 async def _weekly_recap() -> None:
     engine = CoachingEngine()
-    today = date.today()
-    last_monday = today - timedelta(days=today.weekday() + 7)
+    last_monday = recap_week_start(date.today())
 
     async with async_session() as session:
         insight = await engine.generate_weekly_recap(session, USER_ID, last_monday)

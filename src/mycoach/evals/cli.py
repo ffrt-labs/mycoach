@@ -25,7 +25,8 @@ Each item costs one or two LLM calls from the provider's free daily quota."""
 
 REFUSED_PROVIDERS = frozenset({"claude_code"})
 """Providers an experiment may never use: ``claude_code`` spends the Claude
-Pro window the daily coaching runs depend on."""
+Pro window the daily coaching runs depend on. A provider whose ``billing`` is
+``paid`` (``anthropic``) is refused too unless ``--allow-paid`` is passed."""
 
 
 def _limit(value: str) -> int:
@@ -69,6 +70,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         required=True,
         help=f"how many active items to run, at most {LIMIT_CAP} (each spends provider quota)",
     )
+    run.add_argument(
+        "--allow-paid",
+        action="store_true",
+        help="allow a provider billed per call (e.g. anthropic); claude_code is always refused",
+    )
     return parser.parse_args(argv)
 
 
@@ -93,8 +99,18 @@ def main(
             file=sys.stderr,
         )
         return 2
+    from mycoach.coaching.llm_client import get_llm_client
+
+    llm = llm_client or get_llm_client()
+    if llm.billing == "paid" and not args.allow_paid:
+        print(
+            f"MYCOACH_LLM_PROVIDER={provider} bills per call: pass --allow-paid to spend "
+            "money on this experiment, or configure a free-tier provider.",
+            file=sys.stderr,
+        )
+        return 2
     try:
-        return _run(args, settings, langfuse, llm_client)
+        return _run(args, settings, langfuse, llm)
     except HarnessError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -104,13 +120,12 @@ def _run(
     args: argparse.Namespace,
     settings: Settings,
     langfuse: Langfuse | None,
-    llm_client: LLMClient | None,
+    llm: LLMClient,
 ) -> int:
     from langfuse.api import NotFoundError
     from langfuse.model import ChatPromptClient
 
     from mycoach.coaching.engine import OPERATION_SPECS, CoachingEngine
-    from mycoach.coaching.llm_client import get_llm_client
     from mycoach.coaching.prompt_store import LANGFUSE_PROMPT_NAMES, BundledPrompts
     from mycoach.evals.harness import (
         HarnessError,
@@ -154,7 +169,6 @@ def _run(
         raise HarnessError(f"dataset {args.dataset} has no active items")
     check_items(prompt, items)
 
-    llm = llm_client or get_llm_client()
     # The engine's real generate path, tracing into the experiment's traces.
     # Production scores (the score sink) and the prompt store stay out of it.
     engine = CoachingEngine(

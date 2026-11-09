@@ -15,7 +15,7 @@ from langfuse._client.resource_manager import LangfuseResourceManager
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from mycoach.coaching.llm_client import LLMClient, LLMResponse
+from mycoach.coaching.llm_client import Billing, LLMClient, LLMResponse
 from mycoach.coaching.prompt_builder import PROMPT_VARIABLES, Operation, compile_prompt
 from mycoach.coaching.prompt_store import langfuse_messages
 from mycoach.config import Settings
@@ -32,6 +32,7 @@ class FakeLLM(LLMClient):
     """Answers with ``replies`` in order and records every call."""
 
     provider_name = "fake"
+    billing: Billing = "free-tier"
 
     def __init__(self, *replies: LLMResponse) -> None:
         self.replies = list(replies)
@@ -57,6 +58,12 @@ class FakeLLM(LLMClient):
     @property
     def weekly_model(self) -> str:
         return "weekly-model"
+
+
+class PaidLLM(FakeLLM):
+    """A fake provider that bills per call, as ``anthropic`` does."""
+
+    billing = "paid"
 
 
 def reply(content: str, stop_reason: str | None = None) -> LLMResponse:
@@ -262,6 +269,45 @@ class TestProviderRefusal:
         assert code != 0
         assert llm.calls == []
         assert langfuse.score_calls == []
+
+    def test_claude_code_is_refused_even_with_allow_paid(self, langfuse: Any) -> None:
+        llm = FakeLLM(reply(VALID_LLM_RESPONSE))
+
+        code = run(
+            *("--dataset", DATASET, "--label", "candidate", "--limit", "1", "--allow-paid"),
+            langfuse=langfuse,
+            llm=llm,
+            provider="claude_code",
+        )
+
+        assert code != 0
+        assert llm.calls == []
+
+    def test_a_paid_provider_is_refused_without_allow_paid(
+        self, langfuse: Any, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        llm = PaidLLM(reply(VALID_LLM_RESPONSE))
+
+        code = run(
+            "--dataset", DATASET, "--label", "candidate", "--limit", "1", langfuse=langfuse, llm=llm
+        )
+
+        assert code != 0
+        assert llm.calls == []
+        assert langfuse.score_calls == []
+        assert "--allow-paid" in capsys.readouterr().err
+
+    def test_a_paid_provider_runs_with_allow_paid(self, langfuse: Any) -> None:
+        llm = PaidLLM(reply(VALID_LLM_RESPONSE))
+
+        code = run(
+            *("--dataset", DATASET, "--label", "candidate", "--limit", "1", "--allow-paid"),
+            langfuse=langfuse,
+            llm=llm,
+        )
+
+        assert code == 0
+        assert len(llm.calls) == 1
 
 
 class TestLimit:

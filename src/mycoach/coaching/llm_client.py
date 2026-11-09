@@ -54,10 +54,14 @@ class LLMClient(ABC):
     Subclasses must implement ``call`` and expose ``daily_model`` / ``weekly_model``
     properties so the coaching engine can select the appropriate model tier.
     ``provider_name`` (the ``MYCOACH_LLM_PROVIDER`` value) is recorded on each
-    Langfuse generation.
+    Langfuse generation. ``billing`` is how the provider charges; a provider
+    that does not say is taken to be ``paid``, so nothing spends money by
+    omission (the evals harness refuses a paid provider without
+    ``--allow-paid``).
     """
 
     provider_name: ClassVar[str] = ""
+    billing: ClassVar[Billing] = "paid"
 
     @abstractmethod
     def call(

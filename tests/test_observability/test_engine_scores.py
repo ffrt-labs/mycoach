@@ -16,7 +16,7 @@ from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
-from mycoach.observability.scores import NoopScoreSink, Score, ScoreSink
+from mycoach.observability.scores import LangfuseScoreSink, NoopScoreSink, ScoreSink
 from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import _add_recovery_snapshot
 from tests.test_coaching.test_engine import _create_user as _create_briefing_user
@@ -323,25 +323,28 @@ class TestPlanCompletionScore:
         assert sink.values()[RATIO] == 0.0
 
 
-class _FailingSink:
+class _FailingClient:
+    """A Langfuse client whose score API is unreachable."""
+
     def __init__(self) -> None:
         self.calls = 0
 
-    def emit(self, score: Score) -> None:
+    def create_score(self, **kwargs: object) -> None:
         self.calls += 1
         raise ConnectionError("langfuse-web:3000 unreachable")
 
 
 class TestSinkFailure:
-    async def test_a_failing_sink_never_affects_the_run(
+    async def test_a_failing_langfuse_never_affects_the_run(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        failing = _FailingSink()
+        failing = _FailingClient()
+        sink = LangfuseScoreSink(failing)  # type: ignore[arg-type]
         async with new_session() as session:
             user_id = await _create_briefing_user(session)
             await _add_recovery_snapshot(session, user_id, MONDAY)
-            engine = CoachingEngine(llm_client=_briefing_llm(), scores=failing)
-            with caplog.at_level(logging.WARNING, logger="mycoach.coaching.engine"):
+            engine = CoachingEngine(llm_client=_briefing_llm(), scores=sink)
+            with caplog.at_level(logging.WARNING, logger="mycoach.observability.scores"):
                 insight = await engine.generate_daily_briefing(session, user_id, MONDAY)
 
         # The sink was really called (so the run did try to score) ...

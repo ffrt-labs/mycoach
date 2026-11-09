@@ -311,7 +311,7 @@ class CoachingEngine:
         """
         meta = {"operation": spec.operation.value, **(metadata or {})}
         for name, value in code_checks(generation, falls_back=spec.falls_back):
-            self._emit(
+            self._scores.emit(
                 Score.boolean(
                     run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
                 )
@@ -330,7 +330,7 @@ class CoachingEngine:
             return
         completed = plan_adherence["completed_sessions"]
         planned = plan_adherence["total_sessions"]
-        self._emit(
+        self._scores.emit(
             Score.numeric(
                 trace_id(weekly_plan_seed(plan_adherence["plan_id"])),
                 "plan_sessions_completed_ratio",
@@ -343,16 +343,6 @@ class CoachingEngine:
                 },
             )
         )
-
-    def _emit(self, score: Score) -> None:
-        try:
-            self._scores.emit(score)
-        except Exception:
-            logger.warning(
-                "Langfuse: sending the %s score failed; the coaching run continues",
-                score.name,
-                exc_info=True,
-            )
 
     async def _call_llm(
         self,

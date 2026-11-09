@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from sqlalchemy import event
 
-from mycoach.observability.tracing import LangfuseTracer, Tracer, get_tracer
+from mycoach.observability.tracing import Tracer, get_tracer, langfuse_client
 
 if TYPE_CHECKING:
     from langfuse import Langfuse
@@ -172,9 +172,8 @@ def score_sink_for(tracer: Tracer) -> ScoreSink:
     Scores share the tracer's client, so they go to the same Langfuse project
     and Langfuse being off disables both.
     """
-    if isinstance(tracer, LangfuseTracer):
-        return LangfuseScoreSink(tracer.client)
-    return NoopScoreSink()
+    client = langfuse_client(tracer)
+    return NoopScoreSink() if client is None else LangfuseScoreSink(client)
 
 
 def get_score_sink() -> ScoreSink:

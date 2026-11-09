@@ -136,20 +136,19 @@ def _run(
         select_items,
     )
     from mycoach.observability.scores import NoopScoreSink
-    from mycoach.observability.tracing import LangfuseTracer, build_tracer
+    from mycoach.observability.tracing import LangfuseTracer, build_tracer, langfuse_client
 
     operation = operation_for_dataset(args.dataset)
     spec = OPERATION_SPECS[operation]
     prompt_name = LANGFUSE_PROMPT_NAMES[operation]
 
     if langfuse is None:
-        tracer = build_tracer(settings)
-        if not isinstance(tracer, LangfuseTracer):
+        langfuse = langfuse_client(build_tracer(settings))
+        if langfuse is None:
             raise HarnessError(
                 "Langfuse is not configured: set LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY "
                 "and LANGFUSE_SECRET_KEY"
             )
-        langfuse = tracer.client
 
     try:
         prompt = langfuse.get_prompt(

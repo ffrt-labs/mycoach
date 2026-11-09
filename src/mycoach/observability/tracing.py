@@ -388,6 +388,15 @@ class LangfuseTracer:
             _warn("shutting down")
 
 
+def langfuse_client(tracer: Tracer) -> Langfuse | None:
+    """The Langfuse client behind ``tracer``, or ``None`` when Langfuse is off.
+
+    The one way the score sink and the prompt store reach the client, so
+    scores, prompts and traces are on exactly together.
+    """
+    return tracer.client if isinstance(tracer, LangfuseTracer) else None
+
+
 class WarnOnExportFailure(SpanExporter):
     """Wraps the span exporter so every failed export is logged at warn level.
 

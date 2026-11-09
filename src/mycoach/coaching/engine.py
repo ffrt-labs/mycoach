@@ -60,8 +60,8 @@ from mycoach.coaching.response_parser import (
     parse_response,
 )
 from mycoach.models.availability import WeeklyAvailability
-from mycoach.models.coaching import CoachingInsight
-from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.models.coaching import CoachingInsight, InsightType
+from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
@@ -214,7 +214,7 @@ class CoachingEngine:
             select(CoachingInsight).where(
                 CoachingInsight.user_id == user_id,
                 CoachingInsight.insight_date == today,
-                CoachingInsight.insight_type == "daily_briefing",
+                CoachingInsight.insight_type == InsightType.DAILY_BRIEFING,
             )
         )
         replaced = False
@@ -225,7 +225,7 @@ class CoachingEngine:
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
                         CoachingInsight.insight_date == today,
-                        CoachingInsight.insight_type == "daily_briefing",
+                        CoachingInsight.insight_type == InsightType.DAILY_BRIEFING,
                     )
                 )
             else:
@@ -276,7 +276,7 @@ class CoachingEngine:
         insight = CoachingInsight(
             user_id=user_id,
             insight_date=today,
-            insight_type="daily_briefing",
+            insight_type=InsightType.DAILY_BRIEFING,
             content=content_json,
             prompt_version=prompt.artifact_version,
         )
@@ -743,7 +743,7 @@ class CoachingEngine:
                         duration_minutes=parsed.estimated_duration_minutes,
                         details=json.dumps(details),
                         notes=parsed.session_notes,
-                        track="gym",
+                        track=Track.GYM,
                     )
                     session.add(planned)
                 else:
@@ -770,7 +770,7 @@ class CoachingEngine:
                         duration_minutes=None,
                         details=json.dumps({"exercises": exercises_detail}),
                         notes="LLM adjustment failed — using base routine.",
-                        track="gym",
+                        track=Track.GYM,
                     )
                     session.add(planned)
 
@@ -836,7 +836,7 @@ class CoachingEngine:
                                 duration_minutes=s.duration_minutes,
                                 details=json.dumps(s.details) if s.details else None,
                                 notes=s.notes,
-                                track="cardio",
+                                track=Track.CARDIO,
                             )
                         else:
                             logger.warning(
@@ -851,7 +851,7 @@ class CoachingEngine:
                                 title=f"{sport.capitalize()} Session",
                                 duration_minutes=None,
                                 notes="LLM did not generate a session for this slot.",
-                                track="cardio",
+                                track=Track.CARDIO,
                             )
                         session.add(planned)
                 else:
@@ -865,7 +865,7 @@ class CoachingEngine:
                             title=f"{slot['sport'].capitalize()} Session (plan generation failed)",
                             duration_minutes=None,
                             notes="LLM plan generation failed — please reschedule.",
-                            track="cardio",
+                            track=Track.CARDIO,
                         )
                         session.add(planned)
 
@@ -898,7 +898,7 @@ class CoachingEngine:
             select(CoachingInsight).where(
                 CoachingInsight.user_id == user_id,
                 CoachingInsight.activity_id == activity_id,
-                CoachingInsight.insight_type == "post_workout",
+                CoachingInsight.insight_type == InsightType.POST_WORKOUT,
             )
         )
         replaced = False
@@ -909,7 +909,7 @@ class CoachingEngine:
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
                         CoachingInsight.activity_id == activity_id,
-                        CoachingInsight.insight_type == "post_workout",
+                        CoachingInsight.insight_type == InsightType.POST_WORKOUT,
                     )
                 )
             else:
@@ -981,7 +981,7 @@ class CoachingEngine:
         insight = CoachingInsight(
             user_id=user_id,
             insight_date=activity_date,
-            insight_type="post_workout",
+            insight_type=InsightType.POST_WORKOUT,
             content=content_json,
             prompt_version=prompt.artifact_version,
             activity_id=activity_id,
@@ -1014,7 +1014,7 @@ class CoachingEngine:
             select(CoachingInsight).where(
                 CoachingInsight.user_id == user_id,
                 CoachingInsight.insight_date == week_start,
-                CoachingInsight.insight_type == "weekly_recap",
+                CoachingInsight.insight_type == InsightType.WEEKLY_RECAP,
             )
         )
         replaced = False
@@ -1025,7 +1025,7 @@ class CoachingEngine:
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
                         CoachingInsight.insight_date == week_start,
-                        CoachingInsight.insight_type == "weekly_recap",
+                        CoachingInsight.insight_type == InsightType.WEEKLY_RECAP,
                     )
                 )
             else:
@@ -1081,7 +1081,7 @@ class CoachingEngine:
         insight = CoachingInsight(
             user_id=user_id,
             insight_date=week_start,
-            insight_type="weekly_recap",
+            insight_type=InsightType.WEEKLY_RECAP,
             content=content_json,
             prompt_version=prompt.artifact_version,
         )

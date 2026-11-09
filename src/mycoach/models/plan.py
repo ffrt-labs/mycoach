@@ -1,9 +1,17 @@
 from datetime import date, datetime
+from enum import StrEnum
 
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import Base
+
+
+class Track(StrEnum):
+    """Which track of the weekly plan a planned session belongs to."""
+
+    GYM = "gym"  # the routine, adjusted per gym slot
+    CARDIO = "cardio"  # designed from goals in one cardio-plan call
 
 
 class WeeklyPlan(Base):
@@ -46,7 +54,7 @@ class PlannedSession(Base):
     details: Mapped[str | None] = mapped_column(Text, default=None)  # JSON structured
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     completed: Mapped[bool] = mapped_column(default=False)
-    track: Mapped[str] = mapped_column(String(20), default="cardio")  # "gym" or "cardio"
+    track: Mapped[str] = mapped_column(String(20), default=Track.CARDIO.value)  # a Track
     activity_id: Mapped[int | None] = mapped_column(
         ForeignKey("activities.id"), default=None
     )  # Link to actual workout

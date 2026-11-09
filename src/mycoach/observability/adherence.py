@@ -21,7 +21,7 @@ from statistics import fmean
 from typing import Any
 
 from mycoach.models.activity import Activity, GymWorkoutDetail
-from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.observability.scores import Score, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
 
@@ -171,7 +171,7 @@ def adherence_scores(
     run) as ``gym_adjustment:<slot index>``, the qualifier the code-check
     scores of that generation use.
     """
-    if planned.track == "gym":
+    if planned.track == Track.GYM:
         details = json.loads(planned.details) if planned.details else None
         values = gym_adherence(details, sets)
     else:
@@ -184,7 +184,7 @@ def adherence_scores(
         "track": planned.track,
         "day_of_week": planned.day_of_week,
     }
-    if planned.track == "gym" and gym_slot is not None:
+    if planned.track == Track.GYM and gym_slot is not None:
         metadata["generation"] = f"gym_adjustment:{gym_slot}"
     trace = trace_id(weekly_plan_seed(plan.id))
     at = score_timestamp(plan.week_start, now)

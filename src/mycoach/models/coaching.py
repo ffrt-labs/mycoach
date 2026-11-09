@@ -1,9 +1,18 @@
 from datetime import date, datetime
+from enum import StrEnum
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import Base
+
+
+class InsightType(StrEnum):
+    """The coaching insights the engine writes (``CoachingInsight.insight_type``)."""
+
+    DAILY_BRIEFING = "daily_briefing"
+    POST_WORKOUT = "post_workout"
+    WEEKLY_RECAP = "weekly_recap"
 
 
 class CoachingInsight(Base):

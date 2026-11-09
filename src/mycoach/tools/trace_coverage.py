@@ -34,7 +34,7 @@ from langfuse.api.core.api_error import ApiError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.models.coaching import CoachingInsight
+from mycoach.models.coaching import CoachingInsight, InsightType
 from mycoach.models.job_run import JobRun
 from mycoach.models.plan import WeeklyPlan
 from mycoach.observability.trace_ids import is_regen_of, trace_id
@@ -60,6 +60,12 @@ WEEKLY_RECAP = "weekly_recap"
 POST_WORKOUT = "post_workout_analysis"
 # Jobs that call the LLM. ``daily_briefing_alert`` and ``garmin_sync`` don't.
 LLM_JOBS = (DAILY_BRIEFING, WEEKLY_PLAN, WEEKLY_RECAP, POST_WORKOUT)
+# The insight each insight-writing job leaves behind.
+_INSIGHT_OF_JOB = {
+    DAILY_BRIEFING: InsightType.DAILY_BRIEFING,
+    WEEKLY_RECAP: InsightType.WEEKLY_RECAP,
+    POST_WORKOUT: InsightType.POST_WORKOUT,
+}
 
 
 class TraceLookup(Protocol):
@@ -239,7 +245,7 @@ async def _check_run(
             out.append(check(status, subject, spec.trace_id, note))
         return out
 
-    insight_type = "post_workout" if run.job_name == POST_WORKOUT else run.job_name
+    insight_type = _INSIGHT_OF_JOB[run.job_name]
     insights = (
         await session.scalars(
             select(CoachingInsight)
@@ -306,12 +312,12 @@ async def _check_run(
 
 
 def _insight_spec(insight: CoachingInsight) -> tuple[RunSpec, str]:
-    if insight.insight_type == "post_workout":
+    if insight.insight_type == InsightType.POST_WORKOUT:
         if insight.activity_id is None:
             raise ValueError(f"post-workout insight {insight.id} has no activity")
         spec = post_workout_run(insight.activity_id, insight.user_id, insight.insight_date)
         return spec, f"post-workout activity {insight.activity_id}"
-    if insight.insight_type == WEEKLY_RECAP:
+    if insight.insight_type == InsightType.WEEKLY_RECAP:
         spec = weekly_recap_run(insight.user_id, insight.insight_date)
         return spec, f"weekly recap {insight.insight_date}"
     spec = daily_briefing_run(insight.user_id, insight.insight_date)

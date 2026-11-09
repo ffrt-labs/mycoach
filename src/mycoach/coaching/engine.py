@@ -928,7 +928,9 @@ class CoachingEngine:
 
         # Link activity to planned session if found
         if planned_session:
-            await link_activity_to_planned_session(session, activity_id, planned_session["id"])
+            await link_activity_to_planned_session(
+                session, activity_id, planned_session["id"], scores=self._scores
+            )
 
         # Store the coaching insight
         content_json = parsed.model_dump_json()

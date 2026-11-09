@@ -23,7 +23,7 @@ _STAMP = "2026-11-08T00:00:00Z"
 
 
 @dataclass
-class FakeLangfusePrompts:
+class FakeLangfuseAPI:
     versions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     datasets: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
@@ -143,7 +143,7 @@ class FakeLangfusePrompts:
 
 
 @contextmanager
-def langfuse_over(fake: FakeLangfusePrompts) -> Generator[Langfuse, None, None]:
+def langfuse_over(fake: FakeLangfuseAPI) -> Generator[Langfuse, None, None]:
     """A real Langfuse client whose API calls go to ``fake``; tracing off."""
     LangfuseResourceManager.reset()
     client = Langfuse(

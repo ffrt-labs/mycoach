@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from langfuse import Langfuse, propagate_attributes
 from langfuse._version import __version__ as langfuse_version
+from langfuse.model import PromptClient
 from opentelemetry.exporter.otlp.proto.http import Compression
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -147,7 +148,7 @@ class GenerationStart:
     input: Mapping[str, str]
     previous_error: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
-    prompt: Any = None
+    prompt: PromptClient | None = None
 
 
 class GenerationHandle(Protocol):

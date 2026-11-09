@@ -21,7 +21,7 @@ from mycoach.coaching.prompt_store import langfuse_messages
 from mycoach.config import Settings
 from mycoach.evals.cli import LIMIT_CAP, main
 from mycoach.evals.harness import HarnessError, operation_for_dataset
-from tests.fake_langfuse import FakeLangfusePrompts
+from tests.fake_langfuse import FakeLangfuseAPI
 from tests.test_coaching.prompt_cases import CASES
 from tests.test_coaching.test_engine import VALID_LLM_RESPONSE
 
@@ -94,8 +94,8 @@ def briefing_variables(case: str) -> dict[str, str]:
 
 
 @pytest.fixture
-def fake() -> FakeLangfusePrompts:
-    fake = FakeLangfusePrompts()
+def fake() -> FakeLangfuseAPI:
+    fake = FakeLangfuseAPI()
     fake.add("mycoach/daily-briefing", langfuse_messages(Operation.DAILY_BRIEFING), ["candidate"])
     fake.add_item(DATASET, briefing_variables("daily_briefing_full"))
     fake.add_item(DATASET, {"stale": "archived item"}, status="ARCHIVED")
@@ -104,7 +104,7 @@ def fake() -> FakeLangfusePrompts:
 
 
 @pytest.fixture
-def langfuse(fake: FakeLangfusePrompts) -> Generator[Any, None, None]:
+def langfuse(fake: FakeLangfuseAPI) -> Generator[Any, None, None]:
     """A real client: API calls go to ``fake``, spans to memory, scores to a list."""
     LangfuseResourceManager.reset()
     exporter = InMemorySpanExporter()
@@ -138,7 +138,7 @@ def scores_by_item(langfuse: Any) -> list[dict[str, float]]:
 
 class TestRun:
     def test_each_item_is_scored_with_the_production_code_checks(
-        self, langfuse: Any, fake: FakeLangfusePrompts
+        self, langfuse: Any, fake: FakeLangfuseAPI
     ) -> None:
         llm = FakeLLM(
             reply(VALID_LLM_RESPONSE),
@@ -207,7 +207,7 @@ class TestRun:
         assert scored == {format(generation.context.trace_id, "032x")}
 
     def test_archived_items_are_skipped_and_limit_caps_the_items_run(
-        self, langfuse: Any, fake: FakeLangfusePrompts
+        self, langfuse: Any, fake: FakeLangfuseAPI
     ) -> None:
         fake.add_item(DATASET, briefing_variables("daily_briefing_full"))
         llm = FakeLLM(*(reply(VALID_LLM_RESPONSE) for _ in range(3)))
@@ -220,7 +220,7 @@ class TestRun:
         assert len(scores_by_item(langfuse)) == 2
 
     def test_an_item_that_is_not_the_prompts_variable_map_stops_the_run_before_any_call(
-        self, langfuse: Any, fake: FakeLangfusePrompts
+        self, langfuse: Any, fake: FakeLangfuseAPI
     ) -> None:
         fake.add_item(DATASET, {"health_today": "only one variable"})
         llm = FakeLLM()

@@ -40,6 +40,7 @@ from mycoach.coaching.exceptions import (
 )
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
+    BUNDLED_VERSION,
     Operation,
     cardio_plan_variables,
     daily_briefing_variables,
@@ -77,10 +78,6 @@ from mycoach.observability.tracing import (
 from mycoach.plan_linking import link_activity_to_planned_session
 
 logger = logging.getLogger(__name__)
-
-# The template version a weekly plan's legacy ``prompt_version`` records; the
-# prompt actually served is recorded per track (``gym_prompt_version``, ...).
-PROMPT_VERSION = "v2"
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -641,7 +638,9 @@ class CoachingEngine:
         plan = WeeklyPlan(
             user_id=user_id,
             week_start=week_start,
-            prompt_version=PROMPT_VERSION,
+            # The legacy column keeps the bare template version; the prompt
+            # actually served is recorded per track (gym_prompt_version, ...).
+            prompt_version=BUNDLED_VERSION,
             status="active",
             availability_source=availability_source,
         )

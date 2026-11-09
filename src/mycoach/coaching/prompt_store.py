@@ -25,16 +25,14 @@ from langfuse.api import NotFoundError
 from langfuse.model import ChatPromptClient
 
 from mycoach.coaching.prompt_builder import (
+    BUNDLED_VERSION,
     Operation,
-    _load_template,
     compile_prompt,
     get_system_prompt,
+    operation_template,
 )
 
 logger = logging.getLogger(__name__)
-
-BUNDLED_VERSION = "v2"
-"""The bundled template set served as the fallback (and seeded as version 1)."""
 
 PRODUCTION_LABEL = "production"
 
@@ -121,7 +119,7 @@ def to_langfuse_template(template: str) -> str:
 
 def langfuse_messages(operation: Operation) -> list[dict[str, str]]:
     """The bundled prompt as a Langfuse chat prompt: system, then user."""
-    template = _load_template(f"{operation.value}.txt", BUNDLED_VERSION)
+    template = operation_template(operation, BUNDLED_VERSION)
     return [
         {"role": "system", "content": to_langfuse_template(get_system_prompt(BUNDLED_VERSION))},
         {"role": "user", "content": to_langfuse_template(template)},

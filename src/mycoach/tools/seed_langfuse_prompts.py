@@ -14,8 +14,8 @@ import sys
 from langfuse import Langfuse
 from langfuse.model import ChatMessageDict
 
+from mycoach.coaching.prompt_builder import BUNDLED_VERSION
 from mycoach.coaching.prompt_store import (
-    BUNDLED_VERSION,
     LANGFUSE_PROMPT_NAMES,
     PRODUCTION_LABEL,
     langfuse_messages,

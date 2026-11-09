@@ -2,8 +2,10 @@
 
 import json
 from datetime import UTC, date, datetime
+from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.engine import CoachingEngine
@@ -14,6 +16,8 @@ from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
 from mycoach.plan_linking import claim_planned_session, link_activity_to_planned_session
 from tests.conftest import test_session
 from tests.test_observability.conftest import RecordingScoreSink
+from tests.test_observability.test_engine_tracing import _gym_response, _setup_two_gym_one_cardio
+from tests.test_plans.test_engine import VALID_CARDIO_RESPONSE, VALID_GYM_ADJUSTMENT
 from tests.test_post_workout.test_engine import _mock_llm_client as _post_workout_llm
 
 WEEK = date(2024, 6, 10)
@@ -269,3 +273,49 @@ class TestPostWorkoutRun:
             await engine.generate_post_workout_analysis(session, user_id, activity.id)
 
         assert sink.values()[_id(plan, "adherence_duration_ratio", planned)] == 0.8
+
+
+class TestGymSlotContract:
+    async def test_each_gym_sessions_adherence_names_the_generation_that_planned_it(
+        self,
+    ) -> None:
+        """The ordering contract between the weekly plan and ``_gym_slot``.
+
+        The engine adds one gym planned session per gym slot, in slot order,
+        and fulfillment recovers the slot index from that order. If either
+        side changes, an adherence score would name another slot's generation.
+        """
+        sink = RecordingScoreSink()
+        llm = MagicMock()
+        llm.daily_model = "claude-sonnet-4-5-20250929"
+        llm.weekly_model = "claude-opus-4-6"
+        llm.call.side_effect = [
+            _gym_response(VALID_GYM_ADJUSTMENT),
+            _gym_response(VALID_GYM_ADJUSTMENT),
+            _gym_response(VALID_CARDIO_RESPONSE),
+        ]
+        async with test_session() as session:
+            user_id = await _setup_two_gym_one_cardio(session)
+            engine = CoachingEngine(llm_client=llm, scores=sink)
+            plan = await engine.generate_weekly_plan(session, user_id, WEEK)
+            slot_of_day = {
+                s.metadata["day_of_week"]: s.qualifier
+                for s in sink.scores
+                if s.name == "parse_ok" and s.metadata["operation"] == "gym_adjustment"
+            }
+            assert slot_of_day == {0: "gym_adjustment:0", 2: "gym_adjustment:1"}
+
+            stmt = select(PlannedSession).where(
+                PlannedSession.plan_id == plan.id, PlannedSession.track == "gym"
+            )
+            gym_sessions = (await session.execute(stmt)).scalars().all()
+            sink.scores.clear()
+            for planned in gym_sessions:
+                activity = await _activity(session, user_id)
+                await link_activity_to_planned_session(
+                    session, activity.id, planned.id, scores=sink
+                )
+            await session.commit()
+
+        linked = {s.metadata["day_of_week"]: s.metadata["generation"] for s in sink.scores}
+        assert linked == slot_of_day

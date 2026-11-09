@@ -383,13 +383,14 @@ class CoachingEngine:
         *,
         prompt: ServedPrompt,
         variables: Mapping[str, str],
+        metadata: Mapping[str, object] | None = None,
     ) -> Generation[T]:
         """The one generation seam every coaching operation goes through.
 
         Runs ``generate`` and writes the single ``PromptLog`` row for the
         operation (its ``prompt_type`` is the operation's name).
         """
-        result = await self.generate(spec, prompt=prompt, variables=variables)
+        result = await self.generate(spec, prompt=prompt, variables=variables, metadata=metadata)
         response = result.response
         session.add(
             PromptLog(
@@ -414,6 +415,7 @@ class CoachingEngine:
         *,
         prompt: ServedPrompt,
         variables: Mapping[str, str],
+        metadata: Mapping[str, object] | None = None,
     ) -> Generation[T]:
         """Call the LLM with a compiled prompt and parse the answer; no database.
 
@@ -423,7 +425,9 @@ class CoachingEngine:
         through ``_attempt``, which records it as its own generation in the
         current trace; ``variables`` (the prompt's variable map) is that
         generation's input, and ``prompt`` (the compiled messages and where
-        they came from) is linked to it. The evals harness calls this too.
+        they came from) is linked to it. ``metadata`` is recorded on every
+        attempt's generation (a gym slot's ``qualifier``, which its scores
+        reference). The evals harness calls this too.
 
         Never raises for an LLM or parse failure: the caller reads
         ``Generation.parsed`` (``None`` on failure) and ``Generation.error``.
@@ -442,6 +446,7 @@ class CoachingEngine:
             model=model,
             max_tokens=max_tokens,
             response_model=response_model,
+            metadata=metadata,
         )
 
         # A provider failure (no response at all) is not retried: only a
@@ -471,6 +476,7 @@ class CoachingEngine:
                 max_tokens=retry_tokens,
                 response_model=response_model,
                 previous_error=first_error,
+                metadata=metadata,
             )
             result = Generation(
                 response=retry.response or result.response,
@@ -497,6 +503,7 @@ class CoachingEngine:
         max_tokens: int,
         response_model: type[T],
         previous_error: str | None = None,
+        metadata: Mapping[str, object] | None = None,
     ) -> Generation[T]:
         """One call-and-parse attempt, recorded as one generation.
 
@@ -515,6 +522,7 @@ class CoachingEngine:
                 input=variables,
                 previous_error=previous_error,
                 metadata={
+                    **(metadata or {}),
                     "prompt_source": prompt.source,
                     "prompt_version": prompt.artifact_version,
                 },
@@ -657,7 +665,9 @@ class CoachingEngine:
         run = weekly_plan_run(plan.id, user_id, week_start)
         scored_at = score_timestamp(run.about, self._clock())
         with self._tracer.run(run):
-            # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed)
+            # 4. GYM TRACK — one LLM call per gym slot (cycle routine days if needed).
+            # Each slot adds exactly one gym PlannedSession, in slot order:
+            # plan_linking._gym_slot recovers the slot index from that order.
             for i, slot in enumerate(gym_slots):
                 if not sorted_routine_days:
                     logger.warning(
@@ -678,8 +688,15 @@ class CoachingEngine:
                 prompt = await self._serve(Operation.GYM_ADJUSTMENT, variables)
                 plan.gym_prompt_version = prompt.artifact_version
 
+                # The slot's qualifier ties its generations (the retry
+                # included) to its code-check and adherence scores.
+                qualifier = f"gym_adjustment:{i}"
                 gym = await self._generate(
-                    session, GYM_ADJUSTMENT, prompt=prompt, variables=variables
+                    session,
+                    GYM_ADJUSTMENT,
+                    prompt=prompt,
+                    variables=variables,
+                    metadata={"qualifier": qualifier, "day_of_week": slot["day_of_week"]},
                 )
 
                 self._score_code_checks(
@@ -687,7 +704,7 @@ class CoachingEngine:
                     gym,
                     GYM_ADJUSTMENT,
                     at=scored_at,
-                    qualifier=f"gym_adjustment:{i}",
+                    qualifier=qualifier,
                     metadata={"day_of_week": slot["day_of_week"]},
                 )
 
@@ -793,7 +810,11 @@ class CoachingEngine:
                 plan.cardio_prompt_version = prompt.artifact_version
 
                 cardio = await self._generate(
-                    session, CARDIO_PLAN, prompt=prompt, variables=variables
+                    session,
+                    CARDIO_PLAN,
+                    prompt=prompt,
+                    variables=variables,
+                    metadata={"qualifier": "cardio_plan"},
                 )
 
                 self._score_code_checks(

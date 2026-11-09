@@ -188,6 +188,12 @@ async def _gym_slot(session: AsyncSession, planned: PlannedSession) -> int | Non
     The weekly plan makes one gym-track planned session per gym slot, in slot
     order, so the slot index is the session's rank by id among its plan's gym
     sessions: the ``i`` of the run's ``gym_adjustment:<i>`` generation.
+
+    This couples to ``CoachingEngine.generate_weekly_plan``'s insertion
+    order. No stable key exists without a migration: two gym slots may share
+    a ``day_of_week``, and ``PlannedSession`` does not store its slot. The
+    contract is pinned by ``TestGymSlotContract`` in
+    tests/test_observability/test_adherence_scores.py.
     """
     if planned.track != "gym":
         return None

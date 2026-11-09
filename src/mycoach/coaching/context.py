@@ -3,7 +3,7 @@
 import logging
 from collections import Counter
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -144,9 +144,29 @@ async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | No
     return "Current mesocycle status:\n" + "\n".join(parts)
 
 
+class SessionAdherence(TypedDict):
+    """One planned session of the week and whether it was done."""
+
+    day: str
+    sport: str
+    title: str
+    completed: bool
+
+
+class PlanAdherence(TypedDict):
+    """How much of a week's plan was done (``get_plan_adherence_for_week``)."""
+
+    plan_id: int
+    plan_summary: str | None
+    total_sessions: int
+    completed_sessions: int
+    adherence_pct: float
+    sessions: list[SessionAdherence]
+
+
 async def get_plan_adherence_for_week(
     session: AsyncSession, user_id: int, week_start: date
-) -> dict[str, Any] | None:
+) -> PlanAdherence | None:
     """Get plan adherence data for a given week.
 
     Returns a dict with the plan_id it measured (the week's latest plan),
@@ -247,7 +267,7 @@ async def get_plan_adherence_for_week(
             done.add(s.id)
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    session_list = []
+    session_list: list[SessionAdherence] = []
     completed = 0
     for s in sessions:
         is_done = s.id in done

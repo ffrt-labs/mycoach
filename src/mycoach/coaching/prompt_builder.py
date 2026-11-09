@@ -836,7 +836,7 @@ def _format_gym_history(history: list[dict[str, Any]]) -> str:
     return "\n\n".join(parts)
 
 
-def _format_plan_adherence(adherence: dict[str, Any] | None) -> str:
+def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
     """Format plan adherence data for the weekly recap prompt."""
     if not adherence:
         return "No training plan was active this week."
@@ -856,7 +856,7 @@ def _format_plan_adherence(adherence: dict[str, Any] | None) -> str:
 def weekly_recap_variables(
     *,
     week_start: date,
-    plan_adherence: dict[str, Any] | None,
+    plan_adherence: Mapping[str, Any] | None,
     weekly_activities: list[dict[str, Any]],
     health_trends: list[dict[str, Any]],
     mesocycle_context: str | None = None,
@@ -889,7 +889,7 @@ def weekly_recap_variables(
 def build_weekly_recap_prompt(
     *,
     week_start: date,
-    plan_adherence: dict[str, Any] | None,
+    plan_adherence: Mapping[str, Any] | None,
     weekly_activities: list[dict[str, Any]],
     health_trends: list[dict[str, Any]],
     mesocycle_context: str | None = None,

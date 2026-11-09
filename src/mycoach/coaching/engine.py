@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.context import (
+    PlanAdherence,
     find_matching_planned_session,
     get_active_routine,
     get_activities_for_week,
@@ -314,7 +315,7 @@ class CoachingEngine:
             )
 
     def _score_plan_completion(
-        self, plan_adherence: dict[str, Any] | None, *, at: datetime
+        self, plan_adherence: PlanAdherence | None, *, at: datetime
     ) -> None:
         """Emit ``plan_sessions_completed_ratio`` on the recapped week's plan trace.
 

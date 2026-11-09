@@ -1,10 +1,12 @@
 import logging
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PROMPT_CACHE_TTL = 300
 
 
 class Settings(BaseSettings):
@@ -83,7 +85,7 @@ class Settings(BaseSettings):
     # How long a coaching prompt fetched from Langfuse is served before it is
     # fetched again, in seconds (a failed refresh keeps the cached version).
     langfuse_prompt_cache_ttl: int = Field(
-        default=300,
+        default=DEFAULT_PROMPT_CACHE_TTL,
         ge=0,
         validation_alias=AliasChoices("langfuse_prompt_cache_ttl", "LANGFUSE_PROMPT_CACHE_TTL"),
     )
@@ -122,6 +124,15 @@ class Settings(BaseSettings):
     scheduler_weekly_recap_day: str = "mon"
     scheduler_weekly_recap_hour: int = 7
     scheduler_weekly_recap_minute: int = 0
+
+    @field_validator("langfuse_prompt_cache_ttl", mode="before")
+    @classmethod
+    def _empty_ttl_is_default(cls, value: object) -> object:
+        # The deploy writes LANGFUSE_PROMPT_CACHE_TTL even when the GitHub
+        # variable is unset, so an empty value must mean the default.
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_PROMPT_CACHE_TTL
+        return value
 
     @model_validator(mode="after")
     def _default_scheduler_timezone(self) -> "Settings":

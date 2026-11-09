@@ -18,15 +18,19 @@ scores for a background thread), so it is safe to call from an SQLAlchemy
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, Any, Literal, Protocol
+
+from sqlalchemy import event
 
 from mycoach.observability.tracing import LangfuseTracer, Tracer, get_tracer
 
 if TYPE_CHECKING:
     from langfuse import Langfuse
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import Session, SessionTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -176,3 +180,43 @@ def score_sink_for(tracer: Tracer) -> ScoreSink:
 def get_score_sink() -> ScoreSink:
     """The process-wide sink, following the process-wide tracer."""
     return score_sink_for(get_tracer())
+
+
+_PENDING = "mycoach_pending_scores"
+
+
+def emit_after_commit(session: AsyncSession, sink: ScoreSink, scores: Iterable[Score]) -> None:
+    """Hand ``scores`` to ``sink`` once ``session``'s transaction commits.
+
+    For scores about data the transaction writes (a fulfilled prescription):
+    a rollback discards them, so a link that never landed never posts a
+    phantom score. They are held on the session itself and go on its next
+    commit, whichever code path makes it.
+    """
+    sync_session = session.sync_session
+    pending = sync_session.info.get(_PENDING)
+    if pending is None:
+        pending = sync_session.info[_PENDING] = []
+        event.listen(sync_session, "after_commit", _send_pending)
+        event.listen(sync_session, "after_soft_rollback", _drop_pending)
+    pending.extend((sink, score) for score in scores)
+
+
+def _send_pending(sync_session: Session) -> None:
+    pending: list[tuple[ScoreSink, Score]] = sync_session.info.get(_PENDING) or []
+    batch, pending[:] = list(pending), []
+    for sink, score in batch:
+        try:
+            sink.emit(score)
+        except Exception:
+            logger.warning(
+                "Langfuse: sending the %s score failed; the commit stands",
+                score.name,
+                exc_info=True,
+            )
+
+
+def _drop_pending(sync_session: Session, previous_transaction: SessionTransaction) -> None:
+    pending = sync_session.info.get(_PENDING)
+    if pending:
+        pending.clear()

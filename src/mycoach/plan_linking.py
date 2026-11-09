@@ -15,12 +15,15 @@ to trust it.
 """
 
 import logging
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.models.activity import GymWorkoutDetail
+from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.observability.adherence import adherence_scores
+from mycoach.observability.scores import ScoreSink, emit_after_commit, get_score_sink
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +44,14 @@ async def link_activity_to_planned_session(
     session: AsyncSession,
     activity_id: int,
     planned_session_id: int,
+    *,
+    scores: ScoreSink | None = None,
 ) -> None:
     """Mark a planned session as completed and link it to the actual activity.
 
     An activity with no performed sets is a logged no-op: the prescription
-    stays open (see ``has_performed_sets``).
+    stays open (see ``has_performed_sets``) and no adherence is scored.
+    ``scores`` defaults to the process-wide sink.
     """
     if not await has_performed_sets(session, activity_id):
         logger.warning(
@@ -58,9 +64,7 @@ async def link_activity_to_planned_session(
     result = await session.execute(stmt)
     planned = result.scalar_one_or_none()
     if planned is not None:
-        planned.completed = True
-        planned.activity_id = activity_id
-        await session.flush()
+        await _fulfil(session, planned, activity_id, scores)
 
 
 async def claim_planned_session(
@@ -68,6 +72,8 @@ async def claim_planned_session(
     user_id: int,
     activity_id: int,
     planned_session_id: int,
+    *,
+    scores: ScoreSink | None = None,
 ) -> str | None:
     """Link an imported activity to the prescription it claims to answer.
 
@@ -127,10 +133,71 @@ async def claim_planned_session(
             "performed sets — workout imported without a prescription link"
         )
 
+    await _fulfil(session, planned, activity_id, scores)
+    return None
+
+
+async def _fulfil(
+    session: AsyncSession,
+    planned: PlannedSession,
+    activity_id: int,
+    scores: ScoreSink | None,
+) -> None:
+    """Prescription fulfillment: the one place both entry points record the link.
+
+    It also scores the fulfillment's adherence on the weekly plan's trace.
+    The scores go to the sink only once the caller's transaction commits
+    (``emit_after_commit``), so a rolled-back link never posts one.
+
+    This emit point is a stand-in for a ``CanonicalActivitySettled`` handler
+    (ADR 0002, docs/adr/0002-in-process-events-vocabulary-now-transport-later.md).
+    When that event exists, the scoring below moves into its handler
+    unchanged.
+    """
     planned.completed = True
     planned.activity_id = activity_id
     await session.flush()
-    return None
+
+    plan = await session.get(WeeklyPlan, planned.plan_id)
+    activity = await session.get(Activity, activity_id)
+    if plan is None or activity is None:
+        return
+    sets_stmt = (
+        select(GymWorkoutDetail)
+        .where(GymWorkoutDetail.activity_id == activity_id)
+        .order_by(GymWorkoutDetail.set_index)
+    )
+    sets = (await session.execute(sets_stmt)).scalars().all()
+    emit_after_commit(
+        session,
+        scores or get_score_sink(),
+        adherence_scores(
+            plan=plan,
+            planned=planned,
+            activity=activity,
+            sets=sets,
+            gym_slot=await _gym_slot(session, planned),
+            now=datetime.now(UTC),
+        ),
+    )
+
+
+async def _gym_slot(session: AsyncSession, planned: PlannedSession) -> int | None:
+    """The index of ``planned``'s gym slot in the plan run that made it.
+
+    The weekly plan makes one gym-track planned session per gym slot, in slot
+    order, so the slot index is the session's rank by id among its plan's gym
+    sessions: the ``i`` of the run's ``gym_adjustment:<i>`` generation.
+    """
+    if planned.track != "gym":
+        return None
+    stmt = (
+        select(PlannedSession.id)
+        .where(PlannedSession.plan_id == planned.plan_id, PlannedSession.track == "gym")
+        .order_by(PlannedSession.id)
+    )
+    ids = list((await session.execute(stmt)).scalars().all())
+    return ids.index(planned.id) if planned.id in ids else None
 
 
 async def unlink_planned_session(

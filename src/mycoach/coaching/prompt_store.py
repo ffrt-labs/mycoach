@@ -286,9 +286,9 @@ def get_prompt_store() -> PromptStore:
     with _store_lock:
         if _store is None:
             from mycoach.config import get_settings
-            from mycoach.observability.tracing import get_tracer
+            from mycoach.observability.tracing import get_tracer, langfuse_client
 
-            client = getattr(get_tracer(), "client", None)
+            client = langfuse_client(get_tracer())
             _store = build_prompt_store(client, get_settings().langfuse_prompt_cache_ttl)
         return _store
 

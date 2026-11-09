@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.models.activity import Activity, GymWorkoutDetail
-from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.observability.adherence import adherence_scores
 from mycoach.observability.scores import ScoreSink, emit_after_commit, get_score_sink
 
@@ -206,11 +206,11 @@ async def _gym_slot(session: AsyncSession, planned: PlannedSession) -> int | Non
     contract is pinned by ``TestGymSlotContract`` in
     tests/test_observability/test_adherence_scores.py.
     """
-    if planned.track != "gym":
+    if planned.track != Track.GYM:
         return None
     stmt = (
         select(PlannedSession.id)
-        .where(PlannedSession.plan_id == planned.plan_id, PlannedSession.track == "gym")
+        .where(PlannedSession.plan_id == planned.plan_id, PlannedSession.track == Track.GYM)
         .order_by(PlannedSession.id)
     )
     ids = list((await session.execute(stmt)).scalars().all())

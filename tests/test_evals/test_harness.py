@@ -6,7 +6,7 @@ fake and whose spans go to an in-memory exporter; scores are recorded on
 """
 
 from collections.abc import Generator
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
@@ -32,7 +32,7 @@ class FakeLLM(LLMClient):
     """Answers with ``replies`` in order and records every call."""
 
     provider_name = "fake"
-    billing: Billing = "free-tier"
+    billing: ClassVar[Billing] = "free-tier"
 
     def __init__(self, *replies: LLMResponse) -> None:
         self.replies = list(replies)
@@ -63,7 +63,7 @@ class FakeLLM(LLMClient):
 class PaidLLM(FakeLLM):
     """A fake provider that bills per call, as ``anthropic`` does."""
 
-    billing = "paid"
+    billing: ClassVar[Billing] = "paid"
 
 
 def reply(content: str, stop_reason: str | None = None) -> LLMResponse:

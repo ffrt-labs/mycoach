@@ -64,7 +64,7 @@ def at_184(pg_db: str, monkeypatch: pytest.MonkeyPatch) -> str:  # noqa: F811
 
 @pytest.fixture
 def migrated(at_184: str, monkeypatch: pytest.MonkeyPatch) -> str:
-    command.upgrade(_health(at_184, monkeypatch), "head")
+    command.upgrade(_health(at_184, monkeypatch), H185)
     return at_184
 
 
@@ -146,7 +146,7 @@ def test_analytics_views_stay_readable_and_additive(
     at_184: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     before = {v: _view_columns(at_184, v) for v in ("daily_metrics", "activities", "gym_sets")}
-    command.upgrade(_health(at_184, monkeypatch), "head")
+    command.upgrade(_health(at_184, monkeypatch), H185)
     after = {v: _view_columns(at_184, v) for v in before}
 
     for view, columns in before.items():
@@ -214,7 +214,7 @@ def test_it_refuses_a_merged_row_and_changes_nothing(
 ) -> None:
     _sql(at_184, "UPDATE health.activities SET data_source = 'merged' WHERE data_source = 'logger'")
     with pytest.raises(Exception, match="merged"):
-        command.upgrade(_health(at_184, monkeypatch), "head")
+        command.upgrade(_health(at_184, monkeypatch), H185)
     assert _scalar(at_184, "SELECT to_regclass('health.activities')::text") == "health.activities"
     assert _scalar(at_184, "SELECT version_num FROM health.alembic_version") == H184
 
@@ -233,7 +233,7 @@ def test_upgrade_downgrade_upgrade_round_trips(
     )
     assert _scalar(migrated, "SELECT to_regclass('health.source_records')::text") is None
     assert _scalar(migrated, "SELECT count(*) FROM health_analytics.gym_sets") == 2
-    command.upgrade(_health(migrated, monkeypatch), "head")
+    command.upgrade(_health(migrated, monkeypatch), H185)
     assert _scalar(migrated, "SELECT count(*) FROM health.source_records") == 2
     assert db_roles.HEALTH.owner == _scalar(
         migrated, "SELECT tableowner FROM pg_tables WHERE tablename = 'source_records'"

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.database import get_db
 from mycoach import health
+from mycoach.database import get_db
 from mycoach.models.user import User
 from mycoach.schemas.user import UserCreate, UserRead, UserUpdate
 

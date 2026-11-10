@@ -41,6 +41,7 @@ from mycoach.email.sender import (
     send_weekly_plan,
     send_weekly_recap,
 )
+from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession
@@ -55,7 +56,6 @@ from mycoach.scheduler.briefing_window import (
 from mycoach.scheduler.weeks import SCHEDULER_USER_ID, plan_week_start, recap_week_start
 from mycoach.sources.base import ImportResult
 from mycoach.sources.garmin.source import DeviceUpload, GarminSource
-from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
 
 logger = logging.getLogger(__name__)
 

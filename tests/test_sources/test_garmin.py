@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.athlete import Athlete
 from mycoach.models.user import User
 from mycoach.sources.garmin.mappers import (
     import_activities,
@@ -332,6 +333,9 @@ class TestMapActivity:
 async def _create_user(session):  # type: ignore[no-untyped-def]
     user = User(name="Test User", email="test@example.com", fitness_level="intermediate")
     session.add(user)
+    await session.flush()
+    # the health side knows the athlete (the same id, by the interim convention)
+    session.add(Athlete(id=user.id))
     await session.flush()
     return user
 

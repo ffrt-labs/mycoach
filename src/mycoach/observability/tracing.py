@@ -111,10 +111,10 @@ def daily_briefing_run(
 
 
 def post_workout_run(
-    activity_id: int, user_id: int, activity_date: date, *, regenerated_at: datetime | None = None
+    activity_external_id: str, user_id: int, activity_date: date, *, regenerated_at: datetime | None = None
 ) -> RunSpec:
     return _insight_run(
-        "post-workout", post_workout_seed(activity_id), user_id, activity_date, regenerated_at
+        "post-workout", post_workout_seed(activity_external_id), user_id, activity_date, regenerated_at
     )
 
 

@@ -5,18 +5,16 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
+from mycoach.coaching.workout_log import log_workouts
 from mycoach.database import get_db
-from mycoach.models.health import DailyHealthSnapshot
-from mycoach.models.source_record import SourceRecord
 from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.schemas.workout_import import WorkoutImportBatch
 from mycoach.sources.garmin.source import GarminSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
-from mycoach.sources.importer import import_workouts
-from mycoach.sources.reconcile import link_garmin_to_gym
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 logger = logging.getLogger(__name__)
@@ -70,13 +68,12 @@ async def import_workouts_endpoint(
     with any overlapping Garmin gym activities. Idempotent: re-posting the same
     workouts (matched by external_id, else title+start_time) creates nothing new.
     """
-    import_result = await import_workouts(
+    import_result = await log_workouts(
         session, DEFAULT_USER_ID, batch.to_dataclasses(), source=batch.source
     )
 
     # Link Garmin onto gym canonical activities (non-destructive; #185).
-    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
-    await session.commit()
+    merge_result = await health.link_garmin(await athlete_id_for(session, DEFAULT_USER_ID))
 
     all_errors = list(import_result.errors or [])
     if merge_result.errors:
@@ -104,14 +101,13 @@ async def import_hevy_csv(
     csv_text = content.decode("utf-8-sig")  # handle BOM from some exports
 
     parse_result = parse_hevy_csv(csv_text)
-    import_result = await import_workouts(
+    import_result = await log_workouts(
         session, DEFAULT_USER_ID, parse_result.workouts, source="hevy"
     )
     import_result.errors = list(parse_result.errors) + (import_result.errors or [])
 
     # Link Garmin onto gym canonical activities (non-destructive; #185).
-    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
-    await session.commit()
+    merge_result = await health.link_garmin(await athlete_id_for(session, DEFAULT_USER_ID))
 
     all_errors = list(import_result.errors or [])
     if merge_result.errors:
@@ -148,11 +144,13 @@ async def sync_garmin(
     since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     since = since - timedelta(days=days)
 
-    result = await source.fetch_and_import(session, DEFAULT_USER_ID, since=since)
-
-    # Link Garmin onto gym canonical activities (non-destructive; #185).
-    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
-    await session.commit()
+    # Fetch, import, link Garmin onto gym activities (non-destructive; #185) and settle
+    # what is due, all on the health side. The events it raised are dispatched by the
+    # scheduled sync; a manual sync leaves final coaching to the nightly catch-up scan.
+    outcome = await health.sync_garmin(
+        await athlete_id_for(session, DEFAULT_USER_ID), source, since=since
+    )
+    result, merge_result = outcome.result, outcome.link
 
     all_errors = list(result.errors or [])
     if merge_result.errors:
@@ -177,8 +175,7 @@ async def merge_activities(
     Non-destructive (#185): both source records are kept; the Garmin-only canonical
     activity is replaced by a link on the gym one. Re-running is a no-op.
     """
-    result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
-    await session.commit()
+    result = await health.link_garmin(await athlete_id_for(session, DEFAULT_USER_ID))
     return MergeResponse(activities_merged=result.linked, errors=list(result.errors or []))
 
 
@@ -197,25 +194,12 @@ async def get_sources_status(
     """
     sources: list[DataSourceStatus] = []
 
-    # Garmin status: check health snapshots and activities from garmin
-    garmin_latest_health = await session.scalar(
-        select(
-            func.max(func.coalesce(DailyHealthSnapshot.updated_at, DailyHealthSnapshot.created_at))
-        ).where(
-            DailyHealthSnapshot.user_id == DEFAULT_USER_ID,
-            DailyHealthSnapshot.data_source == "garmin",
-        )
-    )
-    garmin_latest_activity = await session.scalar(
-        select(func.max(SourceRecord.received_at)).where(
-            SourceRecord.athlete_id == DEFAULT_USER_ID,
-            SourceRecord.source == "garmin",
-        )
-    )
-    garmin_last_sync = max(
-        filter(None, [garmin_latest_health, garmin_latest_activity]),
-        default=None,
-    )
+    synced = await health.get_last_sync(await athlete_id_for(session, DEFAULT_USER_ID))
+
+    def _when(value: str | None) -> datetime | None:
+        return datetime.fromisoformat(value) if value else None
+
+    garmin_last_sync = _when(synced["garmin"])
     sources.append(
         DataSourceStatus(
             source_type="garmin",
@@ -224,14 +208,7 @@ async def get_sources_status(
             last_sync_at=garmin_last_sync,
         )
     )
-
-    # Hevy status: check activities from hevy
-    hevy_last_import = await session.scalar(
-        select(func.max(SourceRecord.received_at)).where(
-            SourceRecord.athlete_id == DEFAULT_USER_ID,
-            SourceRecord.source == "hevy",
-        )
-    )
+    hevy_last_import = _when(synced["hevy"])
     sources.append(
         DataSourceStatus(
             source_type="hevy_csv",

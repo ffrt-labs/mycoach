@@ -8,7 +8,8 @@ class CoachingInsightBase(BaseModel):
     insight_type: str = Field(pattern=r"^(daily_briefing|post_workout|sleep|weekly_recap)$")
     content: str
     prompt_version: str = "v1"
-    activity_id: int | None = None
+    activity_external_id: str | None = None
+    revision: int = 1
 
 
 class CoachingInsightCreate(CoachingInsightBase):

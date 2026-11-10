@@ -41,7 +41,7 @@ from mycoach.api.routes.sources import router as sources_router
 from mycoach.api.routes.sport_profiles import router as sport_profiles_router
 from mycoach.api.routes.system import router as system_router
 from mycoach.config import announce_email_config, get_settings
-from mycoach.database import Base, async_session, engine
+from mycoach.database import Base, engine, health_async_session
 from mycoach.exercise_catalogue import sync_exercises
 from mycoach.logging_config import setup_logging
 from mycoach.observability.tracing import announce_langfuse_config, shutdown_tracer
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await conn.run_sync(Base.metadata.create_all)
 
     # Mirror the exercise catalogue into health.exercises (FK target of performed sets).
-    async with async_session() as session:
+    async with health_async_session() as session:
         await sync_exercises(session)
         await session.commit()
 

@@ -124,12 +124,12 @@ async def get_plan_sessions(
 async def mark_session_completed(
     plan_id: int,
     session_id: int,
-    activity_id: int | None = None,
+    activity_external_id: str | None = None,
     session: AsyncSession = Depends(get_db),
 ) -> PlannedSession:
     """Mark a planned session as completed, optionally linking to an activity.
 
-    With an ``activity_id``, delegates to the shared claim guard
+    With an ``activity_external_id``, delegates to the shared claim guard
     (``plan_linking.claim_planned_session``): refuses an empty activity or one
     already linked to another planned session, with a 409 and the reason.
     Without one, stays unrestricted — the only way to credit a session with
@@ -150,8 +150,10 @@ async def mark_session_completed(
     if plan_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Plan not found.")
 
-    if activity_id is not None:
-        declined = await claim_planned_session(session, USER_ID, activity_id, session_id)
+    if activity_external_id is not None:
+        declined = await claim_planned_session(
+            session, USER_ID, activity_external_id, session_id
+        )
         if declined:
             raise HTTPException(status_code=409, detail=declined)
     else:
@@ -203,7 +205,7 @@ async def get_plan_adherence(
                 sport=s.sport,
                 title=s.title,
                 completed=s.completed,
-                activity_id=s.activity_id,
+                activity_external_id=s.activity_external_id,
             )
             for s in sessions
         ],

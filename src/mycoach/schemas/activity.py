@@ -31,9 +31,6 @@ class GymWorkoutDetailCreate(GymWorkoutDetailBase):
 
 
 class GymWorkoutDetailRead(GymWorkoutDetailBase):
-    id: int
-    activity_id: int
-
     model_config = {"from_attributes": True}
 
 
@@ -55,8 +52,6 @@ class ActivityBase(BaseModel):
     recovery_time_minutes: int | None = None
     avg_cadence: int | None = None
     avg_swolf: float | None = None
-    data_source: str = Field(max_length=20)
-    garmin_activity_id: str | None = None
     notes: str | None = None
 
 
@@ -65,8 +60,11 @@ class ActivityCreate(ActivityBase):
 
 
 class ActivityRead(ActivityBase):
-    id: int
-    user_id: int
+    """An activity as the health module returns it: named by its external id."""
+
+    external_id: str
+    sources: list[str] = []
+    settled: bool = False
     created_at: datetime
     gym_details: list[GymWorkoutDetailRead] | None = None
 

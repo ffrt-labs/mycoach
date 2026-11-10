@@ -13,10 +13,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.coaching.prescriptions import record_fulfillments
 from mycoach.exercise_catalogue import exercise_id_for_name, is_known_exercise_id
 from mycoach.models.activity import Activity, GymWorkoutDetail
-from mycoach.plan_linking import claim_planned_session
 from mycoach.sources.base import ImportResult
 from mycoach.sources.intake import intake_source_record
 from mycoach.sources.workout_import import WorkoutImport
@@ -65,60 +63,55 @@ def _compute_duration(workout: WorkoutImport) -> int | None:
 
 async def import_workouts(
     session: AsyncSession,
-    user_id: int,
+    athlete_id: int,
     workouts: list[WorkoutImport],
     source: str,
 ) -> ImportResult:
-    """Import canonical workouts into the database.
+    """Import canonical workouts into the health schema (the health side of the intake).
 
     Funnels each workout through the shared ``intake_source_record`` (idempotent on
     (athlete, source, external_id)), then attaches its sets to the canonical activity it
-    created. Does not commit — the caller commits (typically after Garmin linking).
+    created. Does not commit: ``health.record_workouts`` owns the transaction.
 
-    A workout carrying a ``planned_session_id`` is linked to that prescription,
-    which is marked completed. Deduplicated workouts are not re-linked: the
-    first import already did it, so a re-post stays a no-op.
+    A prescription (``prescribed_*`` on a set, ``planned_session_id`` on a workout) is
+    coaching's, never stored here: the call site hands it to coaching after this commits
+    (``coaching.workout_log``). Deduplicated workouts raise no events.
 
-    Args:
-        session: Active database session.
-        user_id: The user to import data for.
-        workouts: Parsed canonical workouts.
-        source: data_source tag for created activities (e.g. "hevy", "logger").
-
-    Returns:
-        ImportResult with created/skipped counts.
+    Returns an ``ImportResult`` with created/skipped counts, the events raised and the
+    external id each workout was recorded under.
     """
     result = ImportResult(source_type=f"{source}_import")
 
     for workout in workouts:
+        external_id = source_external_id(workout)
         intake = await intake_source_record(
             session,
-            athlete_id=user_id,
+            athlete_id=athlete_id,
             source=source,
-            external_id=source_external_id(workout),
+            external_id=external_id,
             raw_payload=_raw_payload(workout),
             canonical=Activity(
-                user_id=user_id,
+                user_id=athlete_id,
                 sport=workout.sport,
                 title=workout.title,
                 start_time=workout.start_time,
                 end_time=workout.end_time,
                 duration_minutes=_compute_duration(workout),
                 data_source=source,
-                external_id=workout.external_id,
+                external_id=external_id,
                 notes=workout.notes,
                 created_at=datetime.utcnow(),
             ),
         )
         if not intake.created:
             result.activities_skipped += 1
+            result.external_ids.append(external_id)
             continue
-        activity_id = intake.canonical_activity_id
 
         for s in workout.sets:
             session.add(
                 GymWorkoutDetail(
-                    activity_id=activity_id,
+                    activity_id=intake.canonical_activity_id,
                     exercise_id=_catalogue_id(s.exercise_id, s.exercise_title),
                     exercise_title=s.exercise_title,
                     superset_id=s.superset_id,
@@ -132,19 +125,9 @@ async def import_workouts(
                     rpe=s.rpe,
                 )
             )
-        # What the plan called for is coaching's, written in this same request.
-        await record_fulfillments(session, workout.external_id, workout.sets)
-        await session.flush()  # the claim guard reads the stored sets
-
-        if workout.planned_session_id is not None:
-            # The log is the precious thing; the link is bookkeeping. A claim
-            # that cannot be honoured is reported and the workout still lands.
-            declined = await claim_planned_session(
-                session, user_id, activity_id, workout.planned_session_id
-            )
-            if declined:
-                result.errors = (result.errors or []) + [declined]
-
+        await session.flush()
+        result.events.extend(intake.events)
+        result.external_ids.append(external_id)
         result.activities_created += 1
 
     return result

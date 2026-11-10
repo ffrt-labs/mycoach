@@ -218,7 +218,7 @@ class TestGeneratePlan:
 async def _seed_activity(
     session: object, user_id: int, with_performed_sets: bool = True
 ) -> int:
-    """Create an Activity, optionally with a performed set. Returns activity id."""
+    """Create an Activity, optionally with a performed set. Returns the activity's external id."""
     activity = Activity(
         user_id=user_id,
         sport="gym",
@@ -236,7 +236,7 @@ async def _seed_activity(
         )
         await session.flush()  # type: ignore[union-attr]
     await session.commit()  # type: ignore[union-attr]
-    return activity.id
+    return activity.external_id
 
 
 class TestMarkSessionCompleted:
@@ -248,7 +248,7 @@ class TestMarkSessionCompleted:
         assert resp.status_code == 200
         data = resp.json()
         assert data["completed"] is True
-        assert data["activity_id"] is None
+        assert data["activity_external_id"] is None
 
     async def test_mark_completed_with_activity_id(self, client: AsyncClient) -> None:
         async with test_session() as session:
@@ -256,12 +256,12 @@ class TestMarkSessionCompleted:
             activity_id = await _seed_activity(session, user_id)
 
         resp = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_external_id={activity_id}"
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["completed"] is True
-        assert data["activity_id"] == activity_id
+        assert data["activity_external_id"] == activity_id
 
     async def test_mark_completed_refuses_empty_activity(self, client: AsyncClient) -> None:
         """An activity with no performed sets is a claim guard refusal, not a success."""
@@ -270,7 +270,7 @@ class TestMarkSessionCompleted:
             activity_id = await _seed_activity(session, user_id, with_performed_sets=False)
 
         resp = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_external_id={activity_id}"
         )
         assert resp.status_code == 409
         assert "performed sets" in resp.json()["detail"]
@@ -280,7 +280,7 @@ class TestMarkSessionCompleted:
             s for s in adherence.json()["sessions"] if s["session_id"] == session_ids[1]
         )
         assert session_data["completed"] is False
-        assert session_data["activity_id"] is None
+        assert session_data["activity_external_id"] is None
 
     async def test_mark_completed_refuses_already_answered_session(
         self, client: AsyncClient
@@ -292,12 +292,12 @@ class TestMarkSessionCompleted:
             second_activity_id = await _seed_activity(session, user_id)
 
         first = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={first_activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_external_id={first_activity_id}"
         )
         assert first.status_code == 200
 
         second = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={second_activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_external_id={second_activity_id}"
         )
         assert second.status_code == 409
         assert "already answered" in second.json()["detail"]
@@ -311,12 +311,12 @@ class TestMarkSessionCompleted:
             activity_id = await _seed_activity(session, user_id)
 
         first = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_id={activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[0]}?activity_external_id={activity_id}"
         )
         assert first.status_code == 200
 
         second = await client.patch(
-            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_id={activity_id}"
+            f"/api/plans/{plan_id}/sessions/{session_ids[1]}?activity_external_id={activity_id}"
         )
         assert second.status_code == 409
         assert "already claims" in second.json()["detail"]
@@ -326,7 +326,7 @@ class TestMarkSessionCompleted:
             s for s in adherence.json()["sessions"] if s["session_id"] == session_ids[1]
         )
         assert session_data["completed"] is False
-        assert session_data["activity_id"] is None
+        assert session_data["activity_external_id"] is None
 
     async def test_mark_session_not_found(self, client: AsyncClient) -> None:
         async with test_session() as session:

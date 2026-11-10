@@ -147,7 +147,9 @@ class TestArtifactsRecordThePrompt:
                 tracer=captured.tracer,
                 prompts=FromLangfuse({Operation.POST_WORKOUT: 12}),
             )
-            insight = await engine.generate_post_workout_analysis(session, user.id, activity.id)
+            insight = await engine.generate_post_workout_analysis(
+                session, user.id, activity.external_id
+            )
 
         assert insight.prompt_version == "lf:12"
 

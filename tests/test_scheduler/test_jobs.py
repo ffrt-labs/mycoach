@@ -27,13 +27,23 @@ from mycoach.scheduler.jobs import (
 )
 
 
-@pytest.fixture(autouse=True)
-def link_garmin() -> AsyncMock:
-    """The sync job links Garmin onto gym activities (#185); these tests mock the session."""
-    from mycoach.sources.reconcile import LinkResult
+_SETTLED = "mycoach.scheduler.jobs.health.list_settled_activities_since"
 
-    link = AsyncMock(return_value=LinkResult())
-    with patch("mycoach.scheduler.jobs.link_garmin_to_gym", link):
+
+@pytest.fixture(autouse=True)
+def athlete_mapping() -> None:
+    """These tests mock coaching's session; the user -> athlete mapping is not under test."""
+    with patch("mycoach.scheduler.jobs.athlete_id_for", AsyncMock(return_value=1)):
+        yield
+
+
+@pytest.fixture
+def link_garmin() -> AsyncMock:
+    """Health links Garmin onto gym activities inside its sync (#185); observed, not run."""
+    from mycoach.health.commands import LinkOutcome
+
+    link = AsyncMock(return_value=LinkOutcome(linked=0, errors=[], events=[]))
+    with patch("mycoach.health.commands.link_garmin", link):
         yield link
 
 
@@ -55,7 +65,7 @@ def mock_engine(mock_session: AsyncMock) -> MagicMock:
 
 
 async def test_garmin_sync_success(mock_session: AsyncMock) -> None:
-    """Garmin sync job should authenticate, fetch, merge, and commit."""
+    """Garmin sync job should authenticate, then fetch, import and merge inside health."""
     mock_source = MagicMock()
     mock_source.authenticate = AsyncMock(return_value=True)
     mock_result = MagicMock()
@@ -70,7 +80,6 @@ async def test_garmin_sync_success(mock_session: AsyncMock) -> None:
 
     mock_source.authenticate.assert_awaited_once()
     mock_source.fetch_and_import.assert_awaited_once()
-    mock_session.commit.assert_awaited_once()
 
 
 async def test_garmin_sync_links_garmin_onto_gym_activities(
@@ -716,23 +725,25 @@ async def test_post_workout_analysis_processes_new_activities(
     mock_engine.generate_post_workout_analysis = AsyncMock()
 
     # Simulate two activities returned by the query
-    mock_activity_1 = MagicMock(id=10, title="Morning Swim")
-    mock_activity_2 = MagicMock(id=11, title="Gym Session")
+    mock_activity_1 = {"external_id": "ext-10", "title": "Morning Swim"}
+    mock_activity_2 = {"external_id": "ext-11", "title": "Gym Session"}
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [mock_activity_1, mock_activity_2]
+    mock_result.scalars.return_value.all.return_value = []  # no insight exists yet
+    settled = [mock_activity_1, mock_activity_2]
     mock_session.execute = AsyncMock(return_value=mock_result)
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
     ):
         await _post_workout_analysis()
 
     assert mock_engine.generate_post_workout_analysis.await_count == 2
-    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, 10)
-    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, 11)
+    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, "ext-10")
+    mock_engine.generate_post_workout_analysis.assert_any_await(mock_session, 1, "ext-11")
 
 
 async def test_post_workout_analysis_no_activities_raises_skip(
@@ -744,9 +755,11 @@ async def test_post_workout_analysis_no_activities_raises_skip(
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = []
     mock_session.execute = AsyncMock(return_value=mock_result)
+    settled: list[dict] = []
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         pytest.raises(PipelineSkip, match="no new activities"),
     ):
@@ -759,8 +772,8 @@ async def test_post_workout_analysis_skips_existing_per_activity(
     mock_session: AsyncMock, mock_engine: MagicMock,
 ) -> None:
     """A per-activity PipelineSkip is caught in the loop so the batch continues."""
-    mock_activity_1 = MagicMock(id=10, title="Morning Swim")
-    mock_activity_2 = MagicMock(id=11, title="Gym Session")
+    mock_activity_1 = {"external_id": "ext-10", "title": "Morning Swim"}
+    mock_activity_2 = {"external_id": "ext-11", "title": "Gym Session"}
     mock_engine.generate_post_workout_analysis = AsyncMock(
         side_effect=[
             PipelineSkip("Post-workout analysis already exists for activity 10"),
@@ -769,11 +782,13 @@ async def test_post_workout_analysis_skips_existing_per_activity(
     )
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [mock_activity_1, mock_activity_2]
+    mock_result.scalars.return_value.all.return_value = []  # no insight exists yet
+    settled = [mock_activity_1, mock_activity_2]
     mock_session.execute = AsyncMock(return_value=mock_result)
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
     ):
@@ -791,8 +806,8 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
     Continuing the batch is resilience, not absolution: the surviving activity is
     analysed, then the coroutine raises so the run is recorded as a failure.
     """
-    mock_activity_1 = MagicMock(id=10, title="Morning Swim")
-    mock_activity_2 = MagicMock(id=11, title="Gym Session")
+    mock_activity_1 = {"external_id": "ext-10", "title": "Morning Swim"}
+    mock_activity_2 = {"external_id": "ext-11", "title": "Gym Session"}
     mock_engine.generate_post_workout_analysis = AsyncMock(
         side_effect=[
             RuntimeError("Failed to generate post-workout analysis: bad JSON"),
@@ -801,11 +816,13 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
     )
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [mock_activity_1, mock_activity_2]
+    mock_result.scalars.return_value.all.return_value = []  # no insight exists yet
+    settled = [mock_activity_1, mock_activity_2]
     mock_session.execute = AsyncMock(return_value=mock_result)
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
         caplog.at_level(logging.INFO),
@@ -815,7 +832,7 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
 
     assert mock_engine.generate_post_workout_analysis.await_count == 2
     assert any(
-        r.levelno == logging.ERROR and "post-workout analysis failed for activity 10" in r.message
+        r.levelno == logging.ERROR and "post-workout analysis failed for activity ext-10" in r.message
         for r in caplog.records
     )
 
@@ -832,14 +849,16 @@ async def test_post_workout_analysis_all_skipped_raises_skip(
     )
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [
-        MagicMock(id=10, title="Morning Swim"),
-        MagicMock(id=11, title="Gym Session"),
+    mock_result.scalars.return_value.all.return_value = []  # no insight exists yet
+    settled = [
+        {"external_id": "ext-10", "title": "Morning Swim"},
+        {"external_id": "ext-11", "title": "Gym Session"},
     ]
     mock_session.execute = AsyncMock(return_value=mock_result)
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=False)),
         pytest.raises(PipelineSkip, match="all 2 activities already analysed"),
@@ -855,13 +874,15 @@ async def test_post_workout_analysis_sends_email(
     mock_insight.content = '{"performance_summary": "Great workout"}'
     mock_engine.generate_post_workout_analysis = AsyncMock(return_value=mock_insight)
 
-    mock_activity = MagicMock(id=10, title="Morning Swim")
+    mock_activity = {"external_id": "ext-10", "title": "Morning Swim"}
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [mock_activity]
+    mock_result.scalars.return_value.all.return_value = []  # no insight exists yet
+    settled = [mock_activity]
     mock_session.execute = AsyncMock(return_value=mock_result)
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch(_SETTLED, AsyncMock(return_value=settled)),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
         patch("mycoach.scheduler.jobs.send_post_workout") as mock_send,

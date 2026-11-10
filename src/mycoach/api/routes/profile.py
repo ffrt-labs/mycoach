@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.database import get_db
-from mycoach.models.athlete import Athlete
+from mycoach import health
 from mycoach.models.user import User
 from mycoach.schemas.user import UserCreate, UserRead, UserUpdate
 
@@ -33,15 +33,13 @@ async def create_profile(
     if existing:
         raise HTTPException(status_code=409, detail="Profile already exists")
 
-    # The health side issues the Athlete ID; coaching only stores it. Until the
-    # health module boundary maps it (ticket #186), health-side queries still pass
-    # the user id as the athlete id, so the single athlete is issued that same id.
-    athlete = Athlete(id=USER_ID)
-    db.add(athlete)
-    await db.flush()
+    # The health side issues the Athlete ID; coaching only stores it
+    # (``users.health_athlete_id``) and maps every health call through it. The first
+    # deployment serves one athlete, issued the same id as the one user.
+    athlete_id = await health.issue_athlete(USER_ID)
     user = User(
         id=USER_ID,
-        health_athlete_id=athlete.id,
+        health_athlete_id=athlete_id,
         name=body.name,
         email=body.email,
         fitness_level=body.fitness_level,

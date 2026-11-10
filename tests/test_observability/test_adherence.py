@@ -5,7 +5,6 @@ from typing import Any
 import pytest
 
 from mycoach.coaching.prescriptions import Prescription
-from mycoach.models.activity import GymWorkoutDetail
 from mycoach.observability.adherence import cardio_adherence, gym_adherence
 
 
@@ -16,16 +15,16 @@ def performed(
     reps: int | None = None,
     rpe: float | None = None,
     set_type: str = "normal",
-) -> GymWorkoutDetail:
-    return GymWorkoutDetail(
-        exercise_id=exercise_id,
-        exercise_title=exercise_id or "?",
-        set_index=0,
-        set_type=set_type,
-        weight_kg=weight,
-        reps=reps,
-        rpe=rpe,
-    )
+) -> dict[str, Any]:
+    return {
+        "exercise_id": exercise_id,
+        "exercise_title": exercise_id or "?",
+        "set_index": 0,
+        "set_type": set_type,
+        "weight_kg": weight,
+        "reps": reps,
+        "rpe": rpe,
+    }
 
 
 def prescribed(

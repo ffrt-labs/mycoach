@@ -29,10 +29,14 @@ class CoachingInsight(Base):
     # Where the prompt came from: "lf:<n>" (Langfuse version n) or
     # "bundled:v2". Older rows hold a bare template version ("v1", "v2").
     prompt_version: Mapped[str] = mapped_column(String(20), default="v1")
-    # health.activities.id by value, not by FK: the seam allows no cross-schema
-    # constraint (ticket #108). Replacing it with the activity's external id is
-    # #185/#186 (plan_linking's use of the internal id as a cross-store key).
-    activity_id: Mapped[int | None] = mapped_column(default=None)  # For post_workout type
+    # The activity a post_workout insight is about, by its immutable external id (never an
+    # internal health id, never a cross-schema key: tickets #108, #186).
+    activity_external_id: Mapped[str | None] = mapped_column(String(100), default=None)
+    # Insight revisions (CONTEXT.md): an immutable version of a coaching insight. A settled
+    # activity that changes in a coaching-relevant way gets a new revision, never an overwrite.
+    revision: Mapped[int] = mapped_column(default=1)
+    # The deterministic health event id that produced this revision (idempotency key, #112).
+    source_event_id: Mapped[str | None] = mapped_column(String(64), default=None)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 

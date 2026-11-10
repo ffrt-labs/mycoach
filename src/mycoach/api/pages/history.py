@@ -2,16 +2,17 @@
 
 import contextlib
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.database import get_db
-from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
 
 router = APIRouter(tags=["pages"])
@@ -37,86 +38,59 @@ async def history_page(
     """Render the activity history page with paginated activities."""
     per_page = 20
 
-    # Base query
-    base_where = [Activity.user_id == USER_ID]
-    if sport:
-        base_where.append(Activity.sport == sport)
-
-    # Count total
-    count_result = await session.execute(select(func.count(Activity.id)).where(*base_where))
-    total = count_result.scalar() or 0
+    # Activities come through the health module (plain dicts, gym ones with their sets).
+    athlete_id = await athlete_id_for(session, USER_ID)
+    first = await health.list_activities(athlete_id, sport, 1, per_page)
+    total = first["total"]
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
+    found = first if page == 1 else await health.list_activities(athlete_id, sport, page, per_page)
+    activities = found["items"]
 
-    # Fetch activities
-    stmt = (
-        select(Activity)
-        .where(*base_where)
-        .order_by(Activity.start_time.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-    )
-    result = await session.execute(stmt)
-    activities = list(result.scalars().all())
-
-    # Fetch gym details for gym activities
-    gym_activity_ids = [a.id for a in activities if a.sport == "gym"]
-    gym_details: dict[int, list[GymWorkoutDetail]] = {}
-    if gym_activity_ids:
-        details_result = await session.execute(
-            select(GymWorkoutDetail)
-            .where(GymWorkoutDetail.activity_id.in_(gym_activity_ids))
-            .order_by(GymWorkoutDetail.activity_id, GymWorkoutDetail.set_index)
-        )
-        for detail in details_result.scalars().all():
-            gym_details.setdefault(detail.activity_id, []).append(detail)
-
-    # Check which activities have post-workout analyses and fetch content
-    activity_ids = [a.id for a in activities]
-    analyzed_ids: set[int] = set()
-    analysis_data: dict[int, dict] = {}
-    if activity_ids:
+    # Check which activities have post-workout analyses and fetch content: coaching's own
+    # insights, found by the activity's external id; the latest revision is the one shown.
+    external_ids = [a["external_id"] for a in activities]
+    analyzed_ids: set[str] = set()
+    analysis_data: dict[str, dict] = {}
+    if external_ids:
         analysis_result = await session.execute(
-            select(CoachingInsight).where(
+            select(CoachingInsight)
+            .where(
                 CoachingInsight.insight_type == "post_workout",
-                CoachingInsight.activity_id.in_(activity_ids),
+                CoachingInsight.activity_external_id.in_(external_ids),
             )
+            .order_by(CoachingInsight.revision)
         )
         for insight in analysis_result.scalars().all():
-            if insight.activity_id is not None:
-                analyzed_ids.add(insight.activity_id)
+            if insight.activity_external_id is not None:
+                analyzed_ids.add(insight.activity_external_id)
                 if insight.content:
                     with contextlib.suppress(json.JSONDecodeError, TypeError):
-                        analysis_data[insight.activity_id] = json.loads(insight.content)
+                        analysis_data[insight.activity_external_id] = json.loads(insight.content)
 
     # Build activity cards data
     activity_cards: list[dict[str, object]] = []
     for a in activities:
         # Group gym details by exercise
         exercises: list[dict] = []
-        if a.id in gym_details:
-            exercise_map: dict[str, list[GymWorkoutDetail]] = {}
-            for d in gym_details[a.id]:
-                identity = d.exercise_id or f"custom:{d.exercise_title}"
-                exercise_map.setdefault(identity, []).append(d)
-            for sets in exercise_map.values():
-                exercises.append(
-                    {
-                        "title": sets[0].exercise_title,
-                        "sets": sets,
-                    }
-                )
+        exercise_map: dict[str, list[dict]] = {}
+        for d in a.get("gym_details") or []:
+            identity = d["exercise_id"] or f"custom:{d['exercise_title']}"
+            exercise_map.setdefault(identity, []).append(d)
+        for sets in exercise_map.values():
+            exercises.append({"title": sets[0]["exercise_title"], "sets": sets})
 
-        color = SPORT_COLORS.get(a.sport, "gray")
+        started = datetime.fromisoformat(a["start_time"])
+        color = SPORT_COLORS.get(a["sport"], "gray")
         activity_cards.append(
             {
                 "activity": a,
                 "exercises": exercises,
-                "has_analysis": a.id in analyzed_ids,
-                "analysis_data": analysis_data.get(a.id),
+                "has_analysis": a["external_id"] in analyzed_ids,
+                "analysis_data": analysis_data.get(a["external_id"]),
                 "color": color,
-                "date_str": a.start_time.strftime("%b %d, %Y"),
-                "time_str": a.start_time.strftime("%H:%M"),
+                "date_str": started.strftime("%b %d, %Y"),
+                "time_str": started.strftime("%H:%M"),
             }
         )
 
@@ -127,13 +101,7 @@ async def history_page(
         grouped.setdefault(date_key, []).append(card)
 
     # Available sports for filter
-    sports_result = await session.execute(
-        select(Activity.sport)
-        .where(Activity.user_id == USER_ID)
-        .distinct()
-        .order_by(Activity.sport)
-    )
-    available_sports = [row[0] for row in sports_result.all()]
+    available_sports = await health.list_sports(athlete_id)
 
     # Week picker: determine which week to show
     today = date.today()

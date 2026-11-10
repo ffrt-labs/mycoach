@@ -20,9 +20,9 @@ def daily_briefing_seed(user_id: int, day: date) -> str:
     return f"mycoach:daily-briefing:{user_id}:{day.isoformat()}"
 
 
-def post_workout_seed(activity_id: int) -> str:
-    """``activity_id`` is the canonical activity's id."""
-    return f"mycoach:post-workout:{activity_id}"
+def post_workout_seed(activity_external_id: str) -> str:
+    """The canonical activity's external id, the one name both sides of the seam share."""
+    return f"mycoach:post-workout:{activity_external_id}"
 
 
 def weekly_recap_seed(user_id: int, week_start: date) -> str:

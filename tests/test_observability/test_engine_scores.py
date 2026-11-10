@@ -16,6 +16,7 @@ from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
+from mycoach.observability.trace_ids import post_workout_seed, trace_id
 from mycoach.observability.scores import LangfuseScoreSink, NoopScoreSink, ScoreSink
 from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import _add_recovery_snapshot
@@ -33,7 +34,7 @@ from tests.test_weekly_recap.test_engine import _mock_llm_client as _recap_llm
 MONDAY = date(2024, 6, 10)
 BRIEFING = "ef2156ef5a01aa2158bfb9e1b4a8fb29"
 PLAN = "136588f0a3f98a22572454bc98de0296"
-POST_WORKOUT = "cc0219ed55252b07dbd1fe039bc88333"
+POST_WORKOUT = trace_id(post_workout_seed("run-1"))  # the activity's external id seeds it
 RECAP = "0770cfbac563ba742e33b5e00d781155"
 
 
@@ -214,11 +215,14 @@ class TestOtherRuns:
                 start_time=datetime(2024, 6, 6, 9, 0),
                 duration_minutes=40,
                 data_source="garmin",
+                external_id="run-1",
             )
             session.add(activity)
             await session.commit()
             engine = CoachingEngine(llm_client=_post_workout_llm(), scores=sink)
-            await engine.generate_post_workout_analysis(session, user.id, activity.id)
+            await engine.generate_post_workout_analysis(
+                session, user.id, activity.external_id
+            )
 
         assert sink.values() == {
             f"{POST_WORKOUT}:parse_ok": 1.0,

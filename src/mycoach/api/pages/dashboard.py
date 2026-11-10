@@ -1,20 +1,21 @@
 """Dashboard page — today's readiness, health metrics, planned workout."""
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.context import get_today_health
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.database import get_db
 from mycoach.models.coaching import CoachingInsight
-from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.scheduler.briefing_window import load_briefing_window
 
@@ -30,20 +31,20 @@ _AVG_FIELDS = [
 ]
 
 
-def _compute_7day_averages(snapshots: list[DailyHealthSnapshot]) -> dict[str, Any]:
+def _compute_7day_averages(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute averages for key metrics over a list of snapshots."""
     if not snapshots:
         return {}
     avgs: dict[str, Any] = {}
     for field in _AVG_FIELDS:
-        values = [getattr(s, field) for s in snapshots if getattr(s, field) is not None]
+        values = [s[field] for s in snapshots if s.get(field) is not None]
         if values:
             avg = sum(values) / len(values)
             avgs[field] = round(avg, 1) if isinstance(values[0], float) else round(avg)
     # Prefer Garmin's hrv_7day_avg from most recent snapshot that has it
     for s in reversed(snapshots):
-        if s.hrv_7day_avg is not None:
-            avgs["hrv_7day_avg"] = round(s.hrv_7day_avg, 1)
+        if s.get("hrv_7day_avg") is not None:
+            avgs["hrv_7day_avg"] = round(s["hrv_7day_avg"], 1)
             break
     return avgs
 
@@ -57,35 +58,17 @@ async def dashboard(
     today = date.today()
     weekday_num = today.weekday()
 
-    # Fetch today's health snapshot
-    health_result = await session.execute(
-        select(DailyHealthSnapshot).where(
-            DailyHealthSnapshot.user_id == USER_ID,
-            DailyHealthSnapshot.snapshot_date == today,
-        )
-    )
-    health = health_result.scalar_one_or_none()
-
-    # Fetch yesterday's snapshot
+    # Health facts come through the health module (plain dicts), never SQL on its schema.
+    athlete_id = await athlete_id_for(session, USER_ID)
+    health_snapshot = await health.get_snapshot(athlete_id, today)
     yesterday = today - timedelta(days=1)
-    yesterday_result = await session.execute(
-        select(DailyHealthSnapshot).where(
-            DailyHealthSnapshot.user_id == USER_ID,
-            DailyHealthSnapshot.snapshot_date == yesterday,
-        )
-    )
-    yesterday_health = yesterday_result.scalar_one_or_none()
+    yesterday_health = await health.get_snapshot(athlete_id, yesterday)
 
-    # Fetch last 7 days for averages
+    # Last 7 days for averages
     week_ago = today - timedelta(days=7)
-    week_result = await session.execute(
-        select(DailyHealthSnapshot).where(
-            DailyHealthSnapshot.user_id == USER_ID,
-            DailyHealthSnapshot.snapshot_date >= week_ago,
-            DailyHealthSnapshot.snapshot_date < today,
-        ).order_by(DailyHealthSnapshot.snapshot_date)
+    week_snapshots = await health.list_snapshots(
+        athlete_id, week_ago, until=today, newest_first=False
     )
-    week_snapshots = list(week_result.scalars().all())
     avg_metrics = _compute_7day_averages(week_snapshots)
 
     # Fetch today's daily briefing
@@ -135,14 +118,8 @@ async def dashboard(
     # Last Garmin sync time. updated_at is bumped on every successful sync touch
     # (even ones that change nothing), so it's a truer "last synced" stamp than
     # created_at, which is only ever set once per row.
-    garmin_last_sync = await session.scalar(
-        select(
-            func.max(func.coalesce(DailyHealthSnapshot.updated_at, DailyHealthSnapshot.created_at))
-        ).where(
-            DailyHealthSnapshot.user_id == USER_ID,
-            DailyHealthSnapshot.data_source == "garmin",
-        )
-    )
+    last_snapshot_sync = (await health.get_last_sync(athlete_id))["garmin_snapshots"]
+    garmin_last_sync = datetime.fromisoformat(last_snapshot_sync) if last_snapshot_sync else None
 
     # Why there is no briefing, straight from the retry loop's own record. The
     # page is server-rendered Jinja and job_runs is an ordinary table, so this
@@ -169,7 +146,7 @@ async def dashboard(
             "active_page": "dashboard",
             "today_str": today.strftime("%B %d, %Y"),
             "weekday": DAY_NAMES[weekday_num],
-            "health": health,
+            "health": health_snapshot,
             "yesterday_health": yesterday_health,
             "avg_metrics": avg_metrics,
             "briefing": briefing,

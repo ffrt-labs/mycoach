@@ -1,5 +1,7 @@
 import logging
+import tempfile
 from collections.abc import AsyncGenerator, Generator
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -7,10 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from mycoach.coaching.prompt_store import set_prompt_store
 from mycoach.database import SQLITE_SCHEMA_TRANSLATE_MAP, Base, get_db
+from mycoach.health import runtime as health_runtime
 from mycoach.main import app
 from mycoach.observability.tracing import NoopTracer, set_tracer
 
-test_engine = create_async_engine("sqlite+aiosqlite://", echo=False).execution_options(
+# A file, not ``:memory:``: an in-memory engine shares one connection among every session, so
+# the health module's own session (a second connection in production) would roll back
+# whatever the test's coaching session has flushed and not yet committed. Real separate
+# connections keep the tests honest about the seam (ticket #186).
+_DB_FILE = Path(tempfile.mkdtemp(prefix="mycoach-tests-")) / "test.db"
+test_engine = create_async_engine(f"sqlite+aiosqlite:///{_DB_FILE}", echo=False).execution_options(
     schema_translate_map=SQLITE_SCHEMA_TRANSLATE_MAP
 )
 test_session = async_sessionmaker(test_engine, expire_on_commit=False)
@@ -22,6 +30,13 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 app.dependency_overrides[get_db] = override_get_db
+health_runtime.configure(test_session)
+
+
+@pytest.fixture(autouse=True)
+def _app_sessions_on_the_test_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Event handlers and jobs open their own sessions; point them at the test engine."""
+    monkeypatch.setattr("mycoach.database.async_session", test_session)
 
 
 @pytest.fixture(autouse=True)

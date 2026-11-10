@@ -494,7 +494,6 @@ def _format_activity_detail(activity: dict[str, Any]) -> str:
         "epoc": "EPOC",
         "recovery_time_minutes": "Recovery time (min)",
         "avg_swolf": "Avg SWOLF",
-        "data_source": "Data source",
     }
     for key, label in field_labels.items():
         val = activity.get(key)
@@ -914,70 +913,6 @@ def build_weekly_recap_prompt(
         sport_profiles=sport_profiles,
     )
     return compile_prompt(Operation.WEEKLY_RECAP, variables, version=version).user
-
-
-def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
-    """Convert a DailyHealthSnapshot ORM object to a plain dict."""
-    fields = [
-        "snapshot_date",
-        "resting_hr",
-        "max_hr",
-        "avg_hr",
-        "hrv_status",
-        "hrv_7day_avg",
-        "sleep_duration_minutes",
-        "sleep_score",
-        "sleep_deep_minutes",
-        "sleep_light_minutes",
-        "sleep_rem_minutes",
-        "avg_stress",
-        "training_readiness",
-        "training_load",
-        "training_status",
-        "vo2_max",
-        "steps",
-        "respiration_avg",
-        "spo2_avg",
-        "intensity_minutes",
-        "sleep_awake_minutes",
-        "recovery_time_hours",
-        "load_focus",
-        "body_battery_morning",
-        "hrv_status_text",
-    ]
-    result: dict[str, Any] = {}
-    for f in fields:
-        val = getattr(snapshot, f, None)
-        if val is not None:
-            result[f] = str(val) if isinstance(val, date) else val
-    return result
-
-
-def activity_to_dict(activity: Any) -> dict[str, Any]:
-    """Convert an Activity ORM object to a plain dict."""
-    return {
-        "title": activity.title,
-        "sport": activity.sport,
-        "start_time": str(activity.start_time) if activity.start_time else None,
-        "duration_minutes": activity.duration_minutes,
-        "distance_meters": activity.distance_meters,
-        "avg_speed_mps": activity.avg_speed_mps,
-        "avg_hr": activity.avg_hr,
-        "max_hr": activity.max_hr,
-        "calories": activity.calories,
-        "training_effect_aerobic": activity.training_effect_aerobic,
-        "end_time": str(activity.end_time) if activity.end_time else None,
-        "hr_zones": activity.hr_zones,
-        "training_effect_anaerobic": activity.training_effect_anaerobic,
-        "epoc": activity.epoc,
-        "recovery_time_minutes": activity.recovery_time_minutes,
-        "avg_cadence": activity.avg_cadence,
-        "avg_swolf": activity.avg_swolf,
-        "moving_duration_seconds": activity.moving_duration_seconds,
-        "fastest_split_100_seconds": activity.fastest_split_100_seconds,
-        "avg_strokes_per_length": activity.avg_strokes_per_length,
-        "data_source": activity.data_source,
-    }
 
 
 def _format_routine_exercises(exercises: list[dict[str, Any]]) -> str:

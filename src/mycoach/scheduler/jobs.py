@@ -17,11 +17,18 @@ from functools import partial
 
 from sqlalchemy import select
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
     NoAvailabilityConfigured,
     PipelineSkip,
+)
+from mycoach.coaching.health_events import (
+    dispatch,
+    post_workout_on_revised,
+    post_workout_on_settled,
 )
 from mycoach.config import get_settings
 from mycoach.database import async_session
@@ -34,7 +41,6 @@ from mycoach.email.sender import (
     send_weekly_plan,
     send_weekly_recap,
 )
-from mycoach.models.activity import Activity
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession
@@ -49,7 +55,7 @@ from mycoach.scheduler.briefing_window import (
 from mycoach.scheduler.weeks import SCHEDULER_USER_ID, plan_week_start, recap_week_start
 from mycoach.sources.base import ImportResult
 from mycoach.sources.garmin.source import DeviceUpload, GarminSource
-from mycoach.sources.reconcile import link_garmin_to_gym
+from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
 
 logger = logging.getLogger(__name__)
 
@@ -232,26 +238,69 @@ async def _garmin_sync(days: int | None = None) -> ImportResult:
         raise RuntimeError("Garmin authentication failed")
 
     async with async_session() as session:
-        since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        since = since - timedelta(days=days)
-        result = await source.fetch_and_import(session, USER_ID, since=since)
-        # Link Garmin onto gym canonical activities (non-destructive; #185).
-        merge_result = await link_garmin_to_gym(session, USER_ID)
-        await session.commit()
-        logger.info(
-            "Scheduler: Garmin sync complete — health=%d, activities=%d, merged=%d",
-            result.health_snapshots_created,
-            result.activities_created,
-            merge_result.linked,
+        athlete_id = await athlete_id_for(session, USER_ID)
+    since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    since = since - timedelta(days=days)
+
+    # Fetch, import, link Garmin onto gym canonical activities (non-destructive; #185) and
+    # settle the activities whose deadline has passed, all in health's own transactions.
+    # The settlement check lives here, not on a cron of its own: this is the job whose new
+    # data is what reconciles an activity (#112).
+    outcome = await health.sync_garmin(athlete_id, source, since=since)
+    result = outcome.result
+    logger.info(
+        "Scheduler: Garmin sync complete — health=%d, activities=%d, merged=%d, events=%d",
+        result.health_snapshots_created,
+        result.activities_created,
+        outcome.link.linked,
+        len(outcome.events),
+    )
+    # Health has committed. Only now do its events reach coaching, each handler isolated: a
+    # failing one is logged and never fails the sync (ADR 0002).
+    await _dispatch_health_events(outcome.events)
+    # ``fetch_and_import`` already worked out which endpoints failed and
+    # which days came back empty; logging only the three counts threw that
+    # away, and re-deriving it later cost four ad-hoc probe scripts. A
+    # counts-only line cannot distinguish "Garmin returned nulls" from
+    # "every call raised", and those need opposite responses.
+    for error in result.errors or []:
+        logger.warning("Scheduler: Garmin sync detail — %s", error)
+    return result
+
+
+async def _notify_post_workout(insight: CoachingInsight, activity_external_id: str) -> None:
+    """Email a freshly produced post-workout analysis, if the user wants it."""
+    if not await _get_user_email_pref("email_post_workout"):
+        return
+    async with async_session() as session:
+        athlete_id = await athlete_id_for(session, USER_ID)
+    activity = await health.get_activity(athlete_id, activity_external_id)
+    title = activity["title"] if activity else activity_external_id
+    _deliver(
+        partial(send_post_workout, json.loads(insight.content), title),
+        f"post-workout activity {activity_external_id}",
+    )
+
+
+async def _dispatch_health_events(events: list[HealthEvent]) -> None:
+    """Hand health's events to coaching's handlers: Settled -> final post-workout coaching,
+    Revised -> a retained Insight revision when a prompt field changed."""
+    outcome = await dispatch(
+        events,
+        {
+            CanonicalActivitySettled: [
+                post_workout_on_settled(USER_ID, notify=_notify_post_workout)
+            ],
+            CanonicalActivityRevised: [post_workout_on_revised(USER_ID)],
+        },
+    )
+    for failure in outcome.failures:
+        logger.error(
+            "Scheduler: %s handler failed for event %s: %s",
+            failure.event_type,
+            failure.event_id,
+            failure.error,
         )
-        # ``fetch_and_import`` already worked out which endpoints failed and
-        # which days came back empty; logging only the three counts threw that
-        # away, and re-deriving it later cost four ad-hoc probe scripts. A
-        # counts-only line cannot distinguish "Garmin returned nulls" from
-        # "every call raised", and those need opposite responses.
-        for error in result.errors or []:
-            logger.warning("Scheduler: Garmin sync detail — %s", error)
-        return result
 
 
 def job_daily_briefing_poll() -> None:
@@ -502,31 +551,34 @@ def job_post_workout_analysis() -> None:
 
 
 async def _post_workout_analysis() -> None:
+    """The catch-up scan: settled activities from the last 2 days with no analysis yet.
+
+    The Garmin sync dispatches ``CanonicalActivitySettled`` to the same handler as it
+    happens; this scan covers what no handler delivered (a failed handler, an activity settled
+    by a manual import) since nothing redelivers before the broker exists (ADR 0002). An
+    unsettled activity is not analysed: final coaching waits for the settled state.
+    """
     engine = CoachingEngine()
     since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     since = since - timedelta(days=2)
 
     async with async_session() as session:
-        # Find activities from the last 2 days that have no post-workout insight
-        existing_ids_stmt = (
-            select(CoachingInsight.activity_id)
-            .where(
-                CoachingInsight.user_id == USER_ID,
-                CoachingInsight.insight_type == "post_workout",
-                CoachingInsight.activity_id.isnot(None),
+        athlete_id = await athlete_id_for(session, USER_ID)
+        settled = await health.list_settled_activities_since(athlete_id, since)
+        existing_ids = set(
+            (
+                await session.execute(
+                    select(CoachingInsight.activity_external_id).where(
+                        CoachingInsight.user_id == USER_ID,
+                        CoachingInsight.insight_type == "post_workout",
+                        CoachingInsight.activity_external_id.isnot(None),
+                    )
+                )
             )
+            .scalars()
+            .all()
         )
-        activities_stmt = (
-            select(Activity)
-            .where(
-                Activity.user_id == USER_ID,
-                Activity.start_time >= since,
-                Activity.id.notin_(existing_ids_stmt),
-            )
-            .order_by(Activity.start_time)
-        )
-        result = await session.execute(activities_stmt)
-        activities = list(result.scalars().all())
+        activities = [a for a in settled if a["external_id"] not in existing_ids]
 
         if not activities:
             raise PipelineSkip("no new activities to analyse")
@@ -539,16 +591,17 @@ async def _post_workout_analysis() -> None:
         failures: list[str] = []
 
         for activity in activities:
+            external_id = activity["external_id"]
             # Per-activity resilience: one activity's skip or failure must not
             # abort the batch. A whole-batch skip (no activities) is raised above.
             try:
                 insight = await engine.generate_post_workout_analysis(
-                    session, USER_ID, activity.id
+                    session, USER_ID, external_id
                 )
                 logger.info(
-                    "Scheduler: post-workout analysis generated for activity %d (%s)",
-                    activity.id,
-                    activity.title,
+                    "Scheduler: post-workout analysis generated for activity %s (%s)",
+                    external_id,
+                    activity["title"],
                 )
 
                 if send_email:
@@ -557,8 +610,8 @@ async def _post_workout_analysis() -> None:
                     # per-activity failure, so one undelivered email neither
                     # aborts the batch nor passes as delivered.
                     _deliver(
-                        partial(send_post_workout, content, activity.title),
-                        f"post-workout activity {activity.id}",
+                        partial(send_post_workout, content, activity["title"]),
+                        f"post-workout activity {external_id}",
                     )
                 # Tallied last so an activity counts exactly once: a failure
                 # anywhere above (including the email send) lands in ``failures``
@@ -567,14 +620,14 @@ async def _post_workout_analysis() -> None:
             except PipelineSkip as e:
                 skipped += 1
                 logger.info(
-                    "Scheduler: post-workout analysis skipped for activity %d — %s",
-                    activity.id,
+                    "Scheduler: post-workout analysis skipped for activity %s — %s",
+                    external_id,
                     e,
                 )
             except Exception as e:  # noqa: BLE001 - tallied, then reported once below
-                failures.append(f"activity {activity.id}: {e}")
+                failures.append(f"activity {external_id}: {e}")
                 logger.exception(
-                    "Scheduler: post-workout analysis failed for activity %d", activity.id
+                    "Scheduler: post-workout analysis failed for activity %s", external_id
                 )
 
     _raise_post_workout_outcome(analysed, skipped, failures)

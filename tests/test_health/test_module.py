@@ -155,7 +155,7 @@ class TestSettlement:
         kinds = [type(e) for e in out.events]
         assert kinds == [CanonicalActivityRecorded, CanonicalActivitySettled]
         settled = out.events[1]
-        assert settled.settlement_reason == "reconciled"
+        assert settled.settlement_reason == "immediate"
         assert settled.activity_external_id == "11"
 
     async def test_a_gym_activity_settles_when_garmin_is_linked(self):
@@ -178,6 +178,22 @@ class TestSettlement:
         assert due[0].settlement_reason == "deadline"
         # settling is recorded, so a second check raises nothing
         assert await health.settle_due_activities(ATHLETE, now=START + timedelta(hours=30)) == []
+
+    async def test_the_deadline_applies_only_to_gym_sourced_activities(self):
+        from mycoach.health.runtime import health_session
+        from mycoach.models.activity import Activity
+
+        async with health_session() as session:
+            session.add(
+                Activity(
+                    user_id=ATHLETE, sport="running", title="Run", start_time=START,
+                    data_source="garmin", external_id="g-legacy",
+                )
+            )
+            await session.commit()
+        await health.record_workout(ATHLETE, "logger", _workout())
+        due = await health.settle_due_activities(ATHLETE, now=START + timedelta(hours=25))
+        assert [e.activity_external_id for e in due] == ["uuid-1"]
 
     async def test_late_garmin_data_on_a_settled_activity_is_a_revision(self):
         await health.record_workout(ATHLETE, "logger", _workout())

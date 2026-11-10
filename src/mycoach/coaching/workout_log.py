@@ -4,8 +4,9 @@ One call site for the Logger push, the universal import endpoint and the Hevy CS
 (map #85, tickets #111, #186). The order is the design:
 
 1. ``health.record_workouts``: one idempotent call, its own transaction, committed;
-2. ``record_prescription_fulfillment``: coaching's rows, keyed by the activity's *external*
-   id and set, in coaching's own transaction (never a cross-store foreign key);
+2. ``record_fulfillments``: coaching's rows, keyed by the activity's *external* id and set,
+   in coaching's own transaction (never a cross-store foreign key). Not atomic with step 1, so
+   it is retry-safe: a re-push of the same workout re-runs it and fills in what a crash lost;
 3. dispatch the ``CanonicalActivityRecorded`` events health returned, after both commits:
    the planned-session claim runs as a handler, isolated from the log it follows.
 """
@@ -31,8 +32,8 @@ async def log_workouts(
     """Record workouts with health, then their prescriptions and plan claims with coaching.
 
     A workout carrying a ``planned_session_id`` is linked to that prescription once it is
-    recorded. Deduplicated workouts are not re-linked: the first import already did it, so a
-    re-post stays a no-op. A claim that cannot be honoured is reported in ``errors`` and the
+    recorded. Deduplicated workouts are not re-linked (the first import already did it) but their
+    prescription rows are re-checked, which repairs a crash between the two commits. A claim that cannot be honoured is reported in ``errors`` and the
     workout still lands.
     """
     athlete_id = await athlete_id_for(db, user_id)
@@ -44,9 +45,12 @@ async def log_workouts(
     }
     planned_by_external_id: dict[str, int] = {}
     for workout, external_id in zip(workouts, result.external_ids, strict=True):
+        # Idempotent, and run for deduplicated workouts too: health and coaching commit in
+        # separate transactions, so a crash between them leaves a workout with no rows. The
+        # Logger re-pushes an unacknowledged workout, and that re-push repairs them here.
+        await record_fulfillments(db, external_id, workout.sets)
         if external_id not in created:
             continue
-        await record_fulfillments(db, external_id, workout.sets)
         if workout.planned_session_id is not None:
             planned_by_external_id[external_id] = workout.planned_session_id
     await db.commit()

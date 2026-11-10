@@ -90,6 +90,19 @@ def _legacy_layout(conn_sync: Any) -> None:
     Base.metadata.create_all(
         conn_sync.execution_options(schema_translate_map={"health": "public", "coaching": "public"})
     )
+    # The models describe the post-#185 layout; production before the seam had the
+    # pre-#185 one (``activities`` with provenance columns, no source records or exercises).
+    for statement in (
+        "DROP TABLE public.canonical_activity_sources",
+        "DROP TABLE public.source_records",
+        "ALTER TABLE public.gym_workout_details DROP CONSTRAINT gym_workout_details_exercise_id_fkey",
+        "DROP TABLE public.exercises",
+        "ALTER TABLE public.canonical_activities RENAME TO activities",
+        "ALTER TABLE public.gym_workout_details RENAME COLUMN canonical_activity_id TO activity_id",
+        "ALTER TABLE public.activities ADD COLUMN garmin_activity_id VARCHAR(100) UNIQUE, "
+        "ADD COLUMN raw_data TEXT",
+    ):
+        conn_sync.execute(text(statement))
     for table in ("activities", "daily_health_snapshots", "data_source_configs"):
         conn_sync.execute(text(f"ALTER TABLE public.{table} RENAME COLUMN athlete_id TO user_id"))
         conn_sync.execute(
@@ -214,8 +227,8 @@ COACHING_TABLES = {
     "prescription_fulfillments",
 }  # fmt: skip
 HEALTH_TABLES = {
-    "athletes", "activities", "gym_workout_details", "daily_health_snapshots",
-    "data_source_configs",
+    "athletes", "canonical_activities", "gym_workout_details", "daily_health_snapshots",
+    "data_source_configs", "source_records", "canonical_activity_sources", "exercises",
 }  # fmt: skip
 
 
@@ -244,7 +257,7 @@ def test_tables_land_in_their_schemas_owned_by_their_owner(migrated: str) -> Non
 
 def test_two_histories_each_have_their_own_version_table(migrated: str) -> None:
     assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c184a1b2c3d4"
-    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h184a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h185a1b2c3d4"
 
 
 def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> None:
@@ -253,11 +266,11 @@ def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> 
         is False
     )
     for statement in (
-        "SELECT * FROM health.activities",
+        "SELECT * FROM health.canonical_activities",
         "SELECT * FROM health.athletes",
         "SELECT * FROM health.gym_workout_details",
         # the cross-schema join the seam exists to make fail
-        "SELECT * FROM coaching.planned_sessions p JOIN health.activities a ON a.id = p.activity_id",
+        "SELECT * FROM coaching.planned_sessions p JOIN health.canonical_activities a ON a.id = p.activity_id",
     ):
         with pytest.raises(Exception) as err:
             _as_role(migrated, "coaching_role", statement)
@@ -274,13 +287,17 @@ def test_health_role_holds_nothing_on_coaching(migrated: str) -> None:
 
 
 def test_runtime_roles_do_dml_but_never_ddl(migrated: str) -> None:
-    assert _as_role(migrated, "health_role", "SELECT count(*) FROM health.activities") == [(1,)]
-    _as_role(migrated, "health_role", "UPDATE health.activities SET notes = 'x' WHERE id = 1")
+    assert _as_role(
+        migrated, "health_role", "SELECT count(*) FROM health.canonical_activities"
+    ) == [(1,)]
+    _as_role(
+        migrated, "health_role", "UPDATE health.canonical_activities SET notes = 'x' WHERE id = 1"
+    )
     _as_role(migrated, "coaching_role", "SELECT count(*) FROM coaching.users")
     for role, statement in (
         ("health_role", "CREATE TABLE health.evil (id int)"),
-        ("health_role", "ALTER TABLE health.activities ADD COLUMN evil int"),
-        ("health_role", "DROP TABLE health.activities"),
+        ("health_role", "ALTER TABLE health.canonical_activities ADD COLUMN evil int"),
+        ("health_role", "DROP TABLE health.canonical_activities"),
         ("coaching_role", "CREATE TABLE coaching.evil (id int)"),
         ("coaching_role", "DROP TABLE coaching.users"),
         ("health_role", "UPDATE health.alembic_version SET version_num = 'x'"),
@@ -297,7 +314,7 @@ def test_data_survives_and_the_prescription_moved_to_coaching(migrated: str) -> 
     ) == [("uuid-1", "Squat", 1, 102.5, 5)]
     assert _rows(migrated, "SELECT id FROM health.athletes") == [(7,)]
     assert _rows(migrated, "SELECT id, health_athlete_id FROM coaching.users") == [(7, 7)]
-    assert _rows(migrated, "SELECT athlete_id FROM health.activities") == [(7,)]
+    assert _rows(migrated, "SELECT athlete_id FROM health.canonical_activities") == [(7,)]
     assert _scalar(migrated, "SELECT count(*) FROM health.gym_workout_details") == 2
     cols = {
         r[0]
@@ -357,7 +374,7 @@ def test_analytics_views_read_health_and_grafana_still_reads_only_them(migrated:
         (2,)
     ]
     with pytest.raises(Exception, match="permission denied"):
-        _as_role(migrated, "grafana_role", "SELECT * FROM health.activities")
+        _as_role(migrated, "grafana_role", "SELECT * FROM health.canonical_activities")
 
 
 def test_the_unchanged_app_runs_on_the_seam_through_one_bridge_login(migrated: str) -> None:
@@ -479,6 +496,8 @@ def test_a_fresh_database_built_from_the_models_gets_the_same_seam(pg_db: str) -
 
     assert _tables(pg_db, "health") == HEALTH_TABLES
     assert _tables(pg_db, "coaching") == COACHING_TABLES
-    assert _as_role(pg_db, "health_role", "SELECT count(*) FROM health.activities") == [(0,)]
+    assert _as_role(pg_db, "health_role", "SELECT count(*) FROM health.canonical_activities") == [
+        (0,)
+    ]
     with pytest.raises(Exception, match="permission denied"):
-        _as_role(pg_db, "coaching_role", "SELECT count(*) FROM health.activities")
+        _as_role(pg_db, "coaching_role", "SELECT count(*) FROM health.canonical_activities")

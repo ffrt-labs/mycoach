@@ -16,6 +16,7 @@ from alembic import command
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_HEAD = "a7c41e9d2b56"  # coaching history, before the seam
+H184 = "h184a1b2c3d4"  # health history at the seam, before source records (#185)
 
 
 def _coaching_cfg(db_path: Path, monkeypatch: pytest.MonkeyPatch) -> Config:
@@ -103,7 +104,7 @@ def test_the_prescription_moves_to_coaching_keyed_by_set(
     legacy_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     command.upgrade(_coaching_cfg(legacy_db, monkeypatch), "head")
-    command.upgrade(_health_cfg(legacy_db, monkeypatch), "head")
+    command.upgrade(_health_cfg(legacy_db, monkeypatch), H184)
 
     assert _rows(
         legacy_db,
@@ -122,7 +123,7 @@ def test_health_issues_the_athlete_and_coaching_stores_its_id(
     legacy_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     command.upgrade(_coaching_cfg(legacy_db, monkeypatch), "head")
-    command.upgrade(_health_cfg(legacy_db, monkeypatch), "head")
+    command.upgrade(_health_cfg(legacy_db, monkeypatch), H184)
 
     assert _rows(legacy_db, "SELECT id FROM athletes") == [(7,)]
     assert _rows(legacy_db, "SELECT id, health_athlete_id FROM users") == [(7, 7)]
@@ -136,7 +137,7 @@ def test_the_two_histories_keep_separate_version_tables(
     legacy_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     command.upgrade(_coaching_cfg(legacy_db, monkeypatch), "head")
-    command.upgrade(_health_cfg(legacy_db, monkeypatch), "head")
+    command.upgrade(_health_cfg(legacy_db, monkeypatch), H184)
 
     coaching = _rows(legacy_db, "SELECT version_num FROM alembic_version")
     health = _rows(legacy_db, "SELECT version_num FROM alembic_version_health")

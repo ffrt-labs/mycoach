@@ -17,8 +17,8 @@ from mycoach.coaching.prescriptions import record_fulfillments
 from mycoach.exercise_catalogue import exercise_id_for_name, is_known_exercise_id
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.plan_linking import claim_planned_session
-from mycoach.sources.intake import intake_source_record
 from mycoach.sources.base import ImportResult
+from mycoach.sources.intake import intake_source_record
 from mycoach.sources.workout_import import WorkoutImport
 
 

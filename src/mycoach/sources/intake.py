@@ -83,6 +83,17 @@ async def intake_source_record(
     # Every canonical activity has an external id (#186): its gym source record's id, or, for a
     # Garmin-only one, the Garmin id. Coaching keys everything it stores about an activity by it.
     canonical.external_id = canonical.external_id or external_id
+    taken = (
+        await session.execute(
+            select(Activity.id).where(
+                Activity.user_id == athlete_id, Activity.external_id == canonical.external_id
+            )
+        )
+    ).first()
+    if taken is not None:
+        # Two sources may reuse one id (a source record is unique per source, not across
+        # them); the canonical external id is unique per athlete, so qualify it.
+        canonical.external_id = f"{source}:{canonical.external_id}"
     now = datetime.utcnow()
     events: list[HealthEvent] = [
         CanonicalActivityRecorded.build(

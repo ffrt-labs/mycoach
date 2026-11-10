@@ -7,7 +7,15 @@ from mycoach.database import HEALTH_SCHEMA, Base
 
 
 class Activity(Base):
-    __tablename__ = "activities"
+    """A Canonical activity (CONTEXT.md): the single observed activity for a session.
+
+    Mapped to ``health.canonical_activities`` (map #85, ticket #185, design #109). The
+    class keeps its pre-#185 name, as ``GymWorkoutDetail`` does, so the many callers do not
+    churn; the table says what it is. Provenance is the set of source records linked
+    through ``canonical_activity_sources``, never a value on this row.
+    """
+
+    __tablename__ = "canonical_activities"
     __table_args__ = {"schema": HEALTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -46,13 +54,15 @@ class Activity(Base):
     fastest_split_100_seconds: Mapped[float | None] = mapped_column(Float, default=None)
     avg_strokes_per_length: Mapped[float | None] = mapped_column(Float, default=None)
 
-    # Source tracking
-    data_source: Mapped[str] = mapped_column(String(20))  # garmin, hevy, logger, merged
-    # Source-native stable id (e.g. the offline logger's client UUID) for robust
-    # deduplication. Dedup: (user_id, data_source, external_id) when present.
+    # The source that created this activity (garmin, hevy, logger): a cache of the first
+    # contributing source record, never "merged". Reconciliation is not a value any more;
+    # provenance is the set of linked source records (``canonical_activity_sources``), and
+    # the Garmin HR/training-effect columns above are a cache copied from the Garmin one.
+    data_source: Mapped[str] = mapped_column(String(20))
+    # The gym source record's external id (the logger's client UUID), carried forward: this
+    # is what ``coaching.prescription_fulfillments.activity_external_id`` keys against.
+    # Null for a Garmin-only activity and for sources with no native id (Hevy CSV).
     external_id: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
-    garmin_activity_id: Mapped[str | None] = mapped_column(String(100), default=None, unique=True)
-    raw_data: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
@@ -63,8 +73,14 @@ class GymWorkoutDetail(Base):
     __table_args__ = {"schema": HEALTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    activity_id: Mapped[int] = mapped_column(ForeignKey(f"{HEALTH_SCHEMA}.activities.id"))
-    exercise_id: Mapped[str | None] = mapped_column(String(200), default=None, index=True)
+    # A Performed set attaches to the canonical activity, not to a source record (#109).
+    activity_id: Mapped[int] = mapped_column(
+        "canonical_activity_id", ForeignKey(f"{HEALTH_SCHEMA}.canonical_activities.id")
+    )
+    # Null means a custom exercise with no catalogue match (CONTEXT.md).
+    exercise_id: Mapped[str | None] = mapped_column(
+        ForeignKey(f"{HEALTH_SCHEMA}.exercises.id"), default=None, index=True
+    )
     exercise_title: Mapped[str] = mapped_column(String(200))
     superset_id: Mapped[int | None] = mapped_column(default=None)
     exercise_notes: Mapped[str | None] = mapped_column(Text, default=None)

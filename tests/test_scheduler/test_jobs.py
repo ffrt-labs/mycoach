@@ -27,6 +27,16 @@ from mycoach.scheduler.jobs import (
 )
 
 
+@pytest.fixture(autouse=True)
+def link_garmin() -> AsyncMock:
+    """The sync job links Garmin onto gym activities (#185); these tests mock the session."""
+    from mycoach.sources.reconcile import LinkResult
+
+    link = AsyncMock(return_value=LinkResult())
+    with patch("mycoach.scheduler.jobs.link_garmin_to_gym", link):
+        yield link
+
+
 @pytest.fixture
 def mock_session() -> AsyncMock:
     session = AsyncMock()
@@ -61,6 +71,25 @@ async def test_garmin_sync_success(mock_session: AsyncMock) -> None:
     mock_source.authenticate.assert_awaited_once()
     mock_source.fetch_and_import.assert_awaited_once()
     mock_session.commit.assert_awaited_once()
+
+
+async def test_garmin_sync_links_garmin_onto_gym_activities(
+    mock_session: AsyncMock, link_garmin: AsyncMock
+) -> None:
+    """#116's disabling is lifted: the sync reconciles again, non-destructively (#185)."""
+    mock_source = MagicMock()
+    mock_source.authenticate = AsyncMock(return_value=True)
+    mock_result = MagicMock()
+    mock_result.health_snapshots_created = 0
+    mock_result.activities_created = 1
+    mock_source.fetch_and_import = AsyncMock(return_value=mock_result)
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=mock_source),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+    ):
+        await _garmin_sync()
+
+    link_garmin.assert_awaited_once()
 
 
 async def test_garmin_sync_looks_back_seven_days_by_default(

@@ -5,46 +5,55 @@ Source-agnostic replacement for the old Hevy-specific mapper. Every gym source
 ``import_workouts`` with its source name.
 """
 
+import dataclasses
+import hashlib
+import json
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.prescriptions import record_fulfillments
-from mycoach.exercise_catalogue import exercise_id_for_name
+from mycoach.exercise_catalogue import exercise_id_for_name, is_known_exercise_id
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.plan_linking import claim_planned_session
+from mycoach.sources.intake import intake_source_record
 from mycoach.sources.base import ImportResult
 from mycoach.sources.workout_import import WorkoutImport
 
 
-async def _workout_exists(
-    session: AsyncSession, user_id: int, workout: WorkoutImport, source: str
-) -> bool:
-    """Check whether a workout is already imported.
+def source_external_id(workout: WorkoutImport) -> str:
+    """The identity a workout is recorded under: its own id, else one derived from it.
 
-    Dedup key: (user_id, data_source, external_id) when external_id is present,
-    else fall back to (user_id, title, start_time). A previously-imported
-    workout may since have been merged with Garmin data (data_source flipped to
-    "merged" while keeping its external_id / title / start_time), so "merged" is
-    always considered alongside the source.
+    A source with no native id (the Hevy CSV) still needs an identity for the intake's
+    (athlete, source, external_id) idempotency. The derivation is the old fallback key,
+    (title, start_time), made a single stable string.
     """
-    sources = (source, "merged")
     if workout.external_id:
-        stmt = select(Activity.id).where(
-            Activity.user_id == user_id,
-            Activity.external_id == workout.external_id,
-            Activity.data_source.in_(sources),
-        )
-    else:
-        stmt = select(Activity.id).where(
-            Activity.user_id == user_id,
-            Activity.title == workout.title,
-            Activity.start_time == workout.start_time,
-            Activity.data_source.in_(sources),
-        )
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none() is not None
+        return workout.external_id
+    digest = hashlib.sha256(f"{workout.title}|{workout.start_time.isoformat()}".encode())
+    return f"derived:{digest.hexdigest()[:32]}"
+
+
+def _raw_payload(workout: WorkoutImport) -> dict[str, Any]:
+    """What the source sent, JSON-safe: the workout and every set as received."""
+    return json.loads(json.dumps(dataclasses.asdict(workout), default=_iso))
+
+
+def _iso(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    raise TypeError(f"not JSON serializable: {type(value)!r}")
+
+
+def _catalogue_id(exercise_id: str | None, title: str) -> str | None:
+    """The catalogue id to store, or None (a custom exercise).
+
+    ``gym_workout_details.exercise_id`` is a FK to ``health.exercises``, the catalogue
+    mirror, so an id the catalogue does not know cannot be stored.
+    """
+    resolved = exercise_id or exercise_id_for_name(title)
+    return resolved if resolved and is_known_exercise_id(resolved) else None
 
 
 def _compute_duration(workout: WorkoutImport) -> int | None:
@@ -62,9 +71,9 @@ async def import_workouts(
 ) -> ImportResult:
     """Import canonical workouts into the database.
 
-    Deduplicates (see ``_workout_exists``) and creates Activity +
-    GymWorkoutDetail records tagged with ``source`` as their data_source.
-    Does not commit — the caller commits (typically after auto-merge).
+    Funnels each workout through the shared ``intake_source_record`` (idempotent on
+    (athlete, source, external_id)), then attaches its sets to the canonical activity it
+    created. Does not commit — the caller commits (typically after Garmin linking).
 
     A workout carrying a ``planned_session_id`` is linked to that prescription,
     which is marked completed. Deduplicated workouts are not re-linked: the
@@ -82,30 +91,35 @@ async def import_workouts(
     result = ImportResult(source_type=f"{source}_import")
 
     for workout in workouts:
-        if await _workout_exists(session, user_id, workout, source):
+        intake = await intake_source_record(
+            session,
+            athlete_id=user_id,
+            source=source,
+            external_id=source_external_id(workout),
+            raw_payload=_raw_payload(workout),
+            canonical=Activity(
+                user_id=user_id,
+                sport=workout.sport,
+                title=workout.title,
+                start_time=workout.start_time,
+                end_time=workout.end_time,
+                duration_minutes=_compute_duration(workout),
+                data_source=source,
+                external_id=workout.external_id,
+                notes=workout.notes,
+                created_at=datetime.utcnow(),
+            ),
+        )
+        if not intake.created:
             result.activities_skipped += 1
             continue
-
-        activity = Activity(
-            user_id=user_id,
-            sport=workout.sport,
-            title=workout.title,
-            start_time=workout.start_time,
-            end_time=workout.end_time,
-            duration_minutes=_compute_duration(workout),
-            data_source=source,
-            external_id=workout.external_id,
-            notes=workout.notes,
-            created_at=datetime.utcnow(),
-        )
-        session.add(activity)
-        await session.flush()  # get activity.id
+        activity_id = intake.canonical_activity_id
 
         for s in workout.sets:
             session.add(
                 GymWorkoutDetail(
-                    activity_id=activity.id,
-                    exercise_id=s.exercise_id or exercise_id_for_name(s.exercise_title),
+                    activity_id=activity_id,
+                    exercise_id=_catalogue_id(s.exercise_id, s.exercise_title),
                     exercise_title=s.exercise_title,
                     superset_id=s.superset_id,
                     exercise_notes=s.exercise_notes,
@@ -126,7 +140,7 @@ async def import_workouts(
             # The log is the precious thing; the link is bookkeeping. A claim
             # that cannot be honoured is reported and the workout still lands.
             declined = await claim_planned_session(
-                session, user_id, activity.id, workout.planned_session_id
+                session, user_id, activity_id, workout.planned_session_id
             )
             if declined:
                 result.errors = (result.errors or []) + [declined]

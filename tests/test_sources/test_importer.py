@@ -416,3 +416,88 @@ class TestPrescriptionLinking:
             ).scalar_one()
             assert refreshed.completed is False
             assert refreshed.activity_id is None
+
+
+class TestSourceRecordIntake:
+    """Every gym import goes through the shared intake (ticket #185)."""
+
+    @pytest.mark.asyncio
+    async def test_import_records_an_immutable_source_record_with_the_workout(
+        self, user: User
+    ) -> None:
+        from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            await import_workouts(session, user.id, [_workout("abc")], source="logger")
+            await session.commit()
+
+        async with test_session() as session:
+            record = (await session.execute(select(SourceRecord))).scalar_one()
+            assert (record.source, record.external_id) == ("logger", "abc")
+            assert record.raw_payload["title"] == "Push Day"
+            assert [s["exercise_title"] for s in record.raw_payload["sets"]] == [
+                "Bench Press",
+                "Bench Press",
+            ]
+            act = (await session.execute(select(Activity))).scalar_one()
+            link = (await session.execute(select(CanonicalActivitySource))).scalar_one()
+            assert link.canonical_activity_id == act.id
+            assert link.source_record_id == record.id
+
+    @pytest.mark.asyncio
+    async def test_a_source_without_an_external_id_is_still_idempotent(self, user: User) -> None:
+        """Hevy CSV rows carry no id: the (title, start_time) identity is derived, not lost."""
+        from mycoach.models.source_record import SourceRecord
+        from tests.conftest import test_session
+
+        for expected_created in (1, 0):
+            async with test_session() as session:
+                result = await import_workouts(session, user.id, [_workout(None)], source="hevy")
+                await session.commit()
+            assert result.activities_created == expected_created
+
+        async with test_session() as session:
+            assert len((await session.execute(select(SourceRecord))).scalars().all()) == 1
+            assert len((await session.execute(select(Activity))).scalars().all()) == 1
+            assert (await session.execute(select(Activity.external_id))).scalar_one() is None
+
+    @pytest.mark.asyncio
+    async def test_replay_after_a_garmin_link_is_still_a_no_op(self, user: User) -> None:
+        """The old dedup looked for ``merged``; now the source record is the memory."""
+        from mycoach.sources.reconcile import link_garmin_to_gym
+        from tests.conftest import test_session
+        from tests.test_sources.test_reconcile import _garmin
+
+        async with test_session() as session:
+            await import_workouts(session, user.id, [_workout("abc")], source="logger")
+            await _garmin(session, "g1", datetime(2024, 6, 10, 9, 0))
+            await session.commit()
+        async with test_session() as session:
+            assert (await link_garmin_to_gym(session, user.id)).linked == 1
+            await session.commit()
+
+        async with test_session() as session:
+            result = await import_workouts(session, user.id, [_workout("abc")], source="logger")
+            await session.commit()
+        assert (result.activities_created, result.activities_skipped) == (0, 1)
+        async with test_session() as session:
+            assert len((await session.execute(select(Activity))).scalars().all()) == 1
+            assert len((await session.execute(select(GymWorkoutDetail))).scalars().all()) == 2
+
+    @pytest.mark.asyncio
+    async def test_an_exercise_id_outside_the_catalogue_is_stored_as_custom(
+        self, user: User
+    ) -> None:
+        """``exercise_id`` is a FK to the catalogue mirror; an unknown id cannot be stored."""
+        from tests.conftest import test_session
+
+        workout = _workout("abc")
+        workout.sets[0].exercise_id = "not-in-the-catalogue"
+        async with test_session() as session:
+            await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+        async with test_session() as session:
+            ids = (await session.execute(select(GymWorkoutDetail.exercise_id))).scalars().all()
+            assert None in ids
+            assert "not-in-the-catalogue" not in ids

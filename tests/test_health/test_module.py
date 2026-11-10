@@ -39,7 +39,12 @@ def _workout(external_id: str = "uuid-1", start: datetime = START, **kw) -> Work
                 prescribed_weight_kg=82.5,
                 prescribed_reps=8,
             ),
-            WorkoutSetImport(exercise_title="Barbell Bench Press - Medium Grip", set_index=2, weight_kg=80, reps=7),
+            WorkoutSetImport(
+                exercise_title="Barbell Bench Press - Medium Grip",
+                set_index=2,
+                weight_kg=80,
+                reps=7,
+            ),
         ],
         **kw,
     )
@@ -136,7 +141,8 @@ class TestReadShapes:
         await health.record_workout(ATHLETE, "logger", _workout("a", START - timedelta(days=7)))
         await health.record_workout(ATHLETE, "logger", _workout("b", START))
         rows = await health.get_last_performed(ATHLETE)
-        assert [r["date"] for r in rows if r["title"] == "Barbell Bench Press - Medium Grip"] == ["2026-11-02"]
+        bench = "Barbell Bench Press - Medium Grip"
+        assert [r["date"] for r in rows if r["title"] == bench] == ["2026-11-02"]
 
     async def test_catalogue_listing(self):
         items = await health.list_exercise_catalogue()

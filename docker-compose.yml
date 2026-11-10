@@ -82,6 +82,10 @@ services:
       # Per-schema migration logins on Postgres (ticket #184): each Alembic history runs
       # as its schema's owner role; the app itself runs as the DML-only login above.
       # Empty keeps the single-URL behaviour (SQLite).
+      # The health module's own runtime login (ticket #186): ``health_role`` only. With it set,
+      # MYCOACH_DB_URL above must be the ``coaching_role``-only login, and the interim
+      # ``mycoach_app`` bridge login is dropped. Empty keeps the single-URL behaviour.
+      MYCOACH_HEALTH_DB_URL: ${MYCOACH_HEALTH_RUNTIME_DB_URL:-}
       MYCOACH_COACHING_OWNER_DB_URL: ${MYCOACH_COACHING_OWNER_DB_URL:-}
       MYCOACH_HEALTH_OWNER_DB_URL: ${MYCOACH_HEALTH_OWNER_DB_URL:-}
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens

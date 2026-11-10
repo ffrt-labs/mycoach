@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text
+from sqlalchemy import Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import HEALTH_SCHEMA, Base
@@ -17,7 +17,13 @@ class Activity(Base):
     """
 
     __tablename__ = "canonical_activities"
-    __table_args__ = {"schema": HEALTH_SCHEMA}
+    __table_args__ = (
+        # The external id names the activity across the seam, so it is unique per athlete.
+        Index(
+            "uq_canonical_activities_athlete_external_id", "athlete_id", "external_id", unique=True
+        ),
+        {"schema": HEALTH_SCHEMA},
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # The Athlete ID (health-owned, ``health.athletes``): "health issues its own

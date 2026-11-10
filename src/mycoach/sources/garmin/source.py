@@ -8,8 +8,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.athlete import Athlete
+from mycoach.models.health import DailyHealthSnapshot
 from mycoach.sources.base import DataSource, ImportResult
 from mycoach.sources.garmin.client import GarminClient
 from mycoach.sources.garmin.mappers import (

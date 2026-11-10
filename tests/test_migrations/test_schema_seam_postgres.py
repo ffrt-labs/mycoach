@@ -101,6 +101,14 @@ def _legacy_layout(conn_sync: Any) -> None:
         "ALTER TABLE public.gym_workout_details RENAME COLUMN canonical_activity_id TO activity_id",
         "ALTER TABLE public.activities ADD COLUMN garmin_activity_id VARCHAR(100) UNIQUE, "
         "ADD COLUMN raw_data TEXT",
+        # ... and before #186: internal ids held by value, no settlement, nullable external id.
+        "DROP INDEX public.uq_canonical_activities_athlete_external_id",
+        "ALTER TABLE public.activities DROP COLUMN settled_at, DROP COLUMN settlement_reason",
+        "ALTER TABLE public.activities ALTER COLUMN external_id DROP NOT NULL",
+        "ALTER TABLE public.planned_sessions DROP COLUMN activity_external_id, "
+        "ADD COLUMN activity_id INTEGER",
+        "ALTER TABLE public.coaching_insights DROP COLUMN activity_external_id, "
+        "DROP COLUMN revision, DROP COLUMN source_event_id, ADD COLUMN activity_id INTEGER",
     ):
         conn_sync.execute(text(statement))
     for table in ("activities", "daily_health_snapshots", "data_source_configs"):
@@ -256,8 +264,8 @@ def test_tables_land_in_their_schemas_owned_by_their_owner(migrated: str) -> Non
 
 
 def test_two_histories_each_have_their_own_version_table(migrated: str) -> None:
-    assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c184a1b2c3d4"
-    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h185a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c186a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h186a1b2c3d4"
 
 
 def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> None:
@@ -269,8 +277,10 @@ def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> 
         "SELECT * FROM health.canonical_activities",
         "SELECT * FROM health.athletes",
         "SELECT * FROM health.gym_workout_details",
+        "SELECT * FROM health.source_records",
+        "SELECT * FROM health.daily_health_snapshots",
         # the cross-schema join the seam exists to make fail
-        "SELECT * FROM coaching.planned_sessions p JOIN health.canonical_activities a ON a.id = p.activity_id",
+        "SELECT * FROM coaching.planned_sessions p JOIN health.canonical_activities a ON a.external_id = p.activity_external_id",
     ):
         with pytest.raises(Exception) as err:
             _as_role(migrated, "coaching_role", statement)
@@ -375,67 +385,6 @@ def test_analytics_views_read_health_and_grafana_still_reads_only_them(migrated:
     ]
     with pytest.raises(Exception, match="permission denied"):
         _as_role(migrated, "grafana_role", "SELECT * FROM health.canonical_activities")
-
-
-def test_the_unchanged_app_runs_on_the_seam_through_one_bridge_login(migrated: str) -> None:
-    """Behaviour unchanged: today's app, which still joins health and coaching in SQL,
-    runs on one login that is a member of both runtime roles (the interim bridge until the
-    in-process health module of #186 lets each side hold only its own role)."""
-    _sql(
-        migrated,
-        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'seam_app_probe') "
-        "THEN CREATE ROLE seam_app_probe NOLOGIN; END IF; END $$",
-        "GRANT health_role, coaching_role TO seam_app_probe",
-    )
-    from datetime import datetime
-
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    from mycoach.coaching.context import get_activity_with_details
-    from mycoach.models.activity import Activity
-    from mycoach.sources.importer import import_workouts
-    from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
-
-    async def go() -> None:
-        engine = create_async_engine(migrated)
-        try:
-            async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-                await session.execute(text("SET LOCAL ROLE seam_app_probe"))
-                result = await import_workouts(
-                    session,
-                    7,
-                    [
-                        WorkoutImport(
-                            title="Push",
-                            start_time=datetime(2024, 6, 11, 9, 0),
-                            external_id="uuid-2",
-                            sets=[
-                                WorkoutSetImport(
-                                    exercise_title="Bench Press",
-                                    set_index=1,
-                                    weight_kg=80,
-                                    reps=8,
-                                    prescribed_weight_kg=82.5,
-                                    prescribed_reps=6,
-                                )
-                            ],
-                        )
-                    ],
-                    source="logger",
-                )
-                assert result.activities_created == 1
-                activity = (
-                    await session.execute(select(Activity).where(Activity.external_id == "uuid-2"))
-                ).scalar_one()
-                _, details = await get_activity_with_details(session, activity.id, 7)
-                assert details[0]["prescribed_weight_kg"] == 82.5
-                assert details[0]["weight_kg"] == 80
-                await session.rollback()
-        finally:
-            await engine.dispose()
-
-    _run(go())
 
 
 def test_health_refuses_to_run_ahead_of_coaching(

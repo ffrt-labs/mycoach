@@ -5,9 +5,8 @@ transaction and return plain data, exactly the shape an HTTP client would have a
 physical split (map #85). Tests point this at their in-memory engine.
 """
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

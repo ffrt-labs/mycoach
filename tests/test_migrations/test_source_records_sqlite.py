@@ -101,7 +101,7 @@ def db_184(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def migrated(db_184: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    command.upgrade(_health(db_184, monkeypatch), "head")
+    command.upgrade(_health(db_184, monkeypatch), H185)
     return db_184
 
 
@@ -220,7 +220,7 @@ def test_it_refuses_rows_already_marked_merged(
     """#110: the provenance of a ``merged`` row was destroyed; do not invent it."""
     _exec(db_184, "UPDATE activities SET data_source = 'merged' WHERE id = 1")
     with pytest.raises(Exception, match="merged"):
-        command.upgrade(_health(db_184, monkeypatch), "head")
+        command.upgrade(_health(db_184, monkeypatch), H185)
     assert "activities" in {
         r[0] for r in _rows(db_184, "SELECT name FROM sqlite_master WHERE type = 'table'")
     }
@@ -234,7 +234,7 @@ def test_it_refuses_an_exercise_id_the_catalogue_does_not_know(
         "UPDATE gym_workout_details SET exercise_id = 'bogus-id' WHERE exercise_title = 'Squat'",
     )
     with pytest.raises(Exception, match="bogus-id"):
-        command.upgrade(_health(db_184, monkeypatch), "head")
+        command.upgrade(_health(db_184, monkeypatch), H185)
 
 
 def test_downgrade_restores_the_pre_185_layout(

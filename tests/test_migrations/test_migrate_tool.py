@@ -23,8 +23,8 @@ def test_a_fresh_sqlite_database_gets_both_histories_at_head(
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
-    assert coaching == [("c184a1b2c3d4",)]
-    assert health == [("h185a1b2c3d4",)]
+    assert coaching == [("c186a1b2c3d4",)]
+    assert health == [("h186a1b2c3d4",)]
     assert {
         "athletes",
         "prescription_fulfillments",

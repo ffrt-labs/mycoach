@@ -8,6 +8,7 @@ bridge login, and replay cleanly.
 from datetime import datetime
 
 import pytest
+from alembic import command
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -16,19 +17,28 @@ from mycoach.sources.intake import intake_source_record
 from mycoach.sources.reconcile import link_garmin_to_gym
 from tests.test_migrations.test_source_records_postgres import (  # noqa: F401  (fixtures)
     PG_URL,
+    _health,
     _run,
     _scalar,
     at_184,
-    migrated,
+    migrated,  # noqa: F401
     pg_db,
 )
 
 pytestmark = pytest.mark.skipif(not PG_URL, reason="MYCOACH_TEST_PG_URL not set")
 
 
+@pytest.fixture
+def at_head(migrated: str, monkeypatch: pytest.MonkeyPatch) -> str:  # noqa: F811
+    """The #185 layout carried to the head: the runtime path is the current one (#186)."""
+    command.upgrade(_health(migrated, monkeypatch), "head")
+    return migrated
+
+
 def test_intake_and_linking_run_as_the_health_runtime_role_and_replay_cleanly(
-    migrated: str,  # noqa: F811
+    at_head: str,
 ) -> None:
+    migrated = at_head  # the fixture name differs so it can build on ``migrated``  # noqa: F811
     # The #184 fixture's logger workout starts "now"; the Garmin record overlaps it.
     start = _scalar(
         migrated, "SELECT start_time FROM health.canonical_activities WHERE data_source = 'logger'"

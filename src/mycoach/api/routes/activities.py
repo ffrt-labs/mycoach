@@ -2,15 +2,16 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.database import get_db
-from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
-from mycoach.schemas.activity import ActivityRead, GymWorkoutDetailRead
+from mycoach.schemas.activity import ActivityRead
 from mycoach.schemas.coaching import CoachingInsightRead
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
@@ -34,81 +35,46 @@ async def list_activities(
     session: AsyncSession = Depends(get_db),
 ) -> PaginatedActivities:
     """List activities with pagination and optional sport filter."""
-    base_query = select(Activity).where(Activity.user_id == DEFAULT_USER_ID)
-    count_query = select(func.count(Activity.id)).where(Activity.user_id == DEFAULT_USER_ID)
-
-    if sport:
-        base_query = base_query.where(Activity.sport == sport)
-        count_query = count_query.where(Activity.sport == sport)
-
-    total_result = await session.execute(count_query)
-    total = total_result.scalar_one()
-
-    offset = (page - 1) * per_page
-    result = await session.execute(
-        base_query.order_by(Activity.start_time.desc()).offset(offset).limit(per_page)
+    found = await health.list_activities(
+        await athlete_id_for(session, DEFAULT_USER_ID), sport, page, per_page
     )
-    activities = list(result.scalars().all())
-
-    items = []
-    for activity in activities:
-        item = ActivityRead.model_validate(activity)
-        if activity.sport == "gym":
-            details_result = await session.execute(
-                select(GymWorkoutDetail)
-                .where(GymWorkoutDetail.activity_id == activity.id)
-                .order_by(GymWorkoutDetail.set_index)
-            )
-            item.gym_details = [
-                GymWorkoutDetailRead.model_validate(d) for d in details_result.scalars().all()
-            ]
-        items.append(item)
-
-    return PaginatedActivities(items=items, total=total, page=page, per_page=per_page)
+    return PaginatedActivities(
+        items=[ActivityRead.model_validate(item) for item in found["items"]],
+        total=found["total"],
+        page=page,
+        per_page=per_page,
+    )
 
 
-@router.get("/{activity_id}", response_model=ActivityRead)
+@router.get("/{activity_external_id}", response_model=ActivityRead)
 async def get_activity(
-    activity_id: int,
+    activity_external_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> ActivityRead:
-    """Get a single activity with gym workout details if applicable."""
-    result = await session.execute(
-        select(Activity).where(
-            Activity.id == activity_id,
-            Activity.user_id == DEFAULT_USER_ID,
-        )
+    """Get a single activity, named by its external id, with gym workout details if any."""
+    activity = await health.get_activity(
+        await athlete_id_for(session, DEFAULT_USER_ID), activity_external_id
     )
-    activity = result.scalar_one_or_none()
     if activity is None:
         raise HTTPException(status_code=404, detail="Activity not found")
-
-    item = ActivityRead.model_validate(activity)
-    if activity.sport == "gym":
-        details_result = await session.execute(
-            select(GymWorkoutDetail)
-            .where(GymWorkoutDetail.activity_id == activity.id)
-            .order_by(GymWorkoutDetail.set_index)
-        )
-        item.gym_details = [
-            GymWorkoutDetailRead.model_validate(d) for d in details_result.scalars().all()
-        ]
-
-    return item
+    return ActivityRead.model_validate(activity)
 
 
-@router.get("/{activity_id}/analysis", response_model=CoachingInsightRead)
+@router.get("/{activity_external_id}/analysis", response_model=CoachingInsightRead)
 async def get_activity_analysis(
-    activity_id: int,
+    activity_external_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> CoachingInsight:
     """Get the post-workout analysis for an activity."""
     result = await session.execute(
-        select(CoachingInsight).where(
-            CoachingInsight.activity_id == activity_id,
+        select(CoachingInsight)
+        .where(
+            CoachingInsight.activity_external_id == activity_external_id,
             CoachingInsight.user_id == DEFAULT_USER_ID,
             CoachingInsight.insight_type == "post_workout",
         )
+        .order_by(CoachingInsight.revision.desc())
+        .limit(1)
     )
     insight = result.scalar_one_or_none()
     if insight is None:
@@ -118,9 +84,9 @@ async def get_activity_analysis(
     return insight
 
 
-@router.post("/{activity_id}/analyze", response_model=CoachingInsightRead)
+@router.post("/{activity_external_id}/analyze", response_model=CoachingInsightRead)
 async def analyze_activity(
-    activity_id: int,
+    activity_external_id: str,
     force: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> CoachingInsight:
@@ -128,7 +94,7 @@ async def analyze_activity(
     engine = CoachingEngine()
     try:
         insight = await engine.generate_post_workout_analysis(
-            session, DEFAULT_USER_ID, activity_id, force=force
+            session, DEFAULT_USER_ID, activity_external_id, force=force
         )
     except (PipelineSkip, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from None

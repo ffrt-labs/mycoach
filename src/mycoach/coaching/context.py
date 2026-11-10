@@ -8,71 +8,22 @@ from typing import Any, TypedDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
-from mycoach.coaching.prompt_builder import activity_to_dict, snapshot_to_dict
-from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import MesocycleConfig
-from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
 from mycoach.models.sport_profile import SportProfile
-from mycoach.plan_linking import has_performed_sets
 
 logger = logging.getLogger(__name__)
 
 
-async def get_today_health(
-    session: AsyncSession, user_id: int, today: date | None = None
-) -> dict[str, Any]:
-    """Get today's health snapshot as a dict (empty dict if none)."""
-    today = today or date.today()
-    stmt = select(DailyHealthSnapshot).where(
-        DailyHealthSnapshot.user_id == user_id,
-        DailyHealthSnapshot.snapshot_date == today,
-    )
-    result = await session.execute(stmt)
-    snapshot = result.scalar_one_or_none()
-    if snapshot is None:
-        return {}
-    return snapshot_to_dict(snapshot)
 
 
-async def get_health_trends(
-    session: AsyncSession, user_id: int, days: int = 3, today: date | None = None
-) -> list[dict[str, Any]]:
-    """Get recent health snapshots (excluding today) as a list of dicts."""
-    today = today or date.today()
-    since = today - timedelta(days=days)
-    stmt = (
-        select(DailyHealthSnapshot)
-        .where(
-            DailyHealthSnapshot.user_id == user_id,
-            DailyHealthSnapshot.snapshot_date >= since,
-            DailyHealthSnapshot.snapshot_date < today,
-        )
-        .order_by(DailyHealthSnapshot.snapshot_date.desc())
-    )
-    result = await session.execute(stmt)
-    return [snapshot_to_dict(s) for s in result.scalars().all()]
 
 
-async def get_recent_activities(
-    session: AsyncSession, user_id: int, days: int = 3, today: date | None = None
-) -> list[dict[str, Any]]:
-    """Get recent activities as a list of dicts."""
-    today = today or date.today()
-    since = today - timedelta(days=days)
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.start_time >= since,
-        )
-        .order_by(Activity.start_time.desc())
-    )
-    result = await session.execute(stmt)
-    return [activity_to_dict(a) for a in result.scalars().all()]
 
 
 async def get_availability_for_week(
@@ -196,51 +147,39 @@ async def get_plan_adherence_for_week(
     sessions_result = await session.execute(sessions_stmt)
     sessions = sessions_result.scalars().all()
 
-    # Cross-reference actual activities to detect completions missed by post-workout flow
-    activities_stmt = select(Activity).where(
-        Activity.user_id == user_id,
-        Activity.start_time >= week_start,
-        Activity.start_time < (week_start + timedelta(days=7)),
+    # Cross-reference actual activities to detect completions missed by post-workout flow.
+    # The facts come from the health module, keyed by external id (never SQL on health).
+    linked_ids = {s.activity_external_id for s in sessions if s.activity_external_id is not None}
+    facts = await health.get_activity_facts(
+        await athlete_id_for(session, user_id), week_start, sorted(linked_ids)
     )
-    activities_result = await session.execute(activities_stmt)
-    activities = activities_result.scalars().all()
+    by_id = {f["external_id"]: f for f in facts}
+    in_week = [f for f in facts if f["in_week"]]
 
     # Claim guard (#129): a gym activity with no performed sets never fulfils a
     # prescription. Other sports count as before.
-    linked_ids = {s.activity_id for s in sessions if s.activity_id is not None}
-    candidate_ids = {a.id for a in activities if a.sport == "gym"} | linked_ids
-    performed_ids: set[int] = set()
-    if candidate_ids:
-        performed_stmt = select(GymWorkoutDetail.activity_id).where(
-            GymWorkoutDetail.activity_id.in_(candidate_ids)
-        )
-        performed_ids = set((await session.execute(performed_stmt)).scalars().all())
-
-    def fulfils(activity_id: int, sport: str) -> bool:
-        return sport != "gym" or activity_id in performed_ids
+    def fulfils(external_id: str, sport: str) -> bool:
+        return sport != "gym" or by_id[external_id]["has_performed_sets"]
 
     # Pass 1: a session whose linked activity still fulfils it consumes exactly
     # that activity, so it can't also fill a different session.
-    linked_sports: dict[int, str] = {}
-    if linked_ids:
-        linked_stmt = select(Activity.id, Activity.sport).where(
-            Activity.user_id == user_id, Activity.id.in_(linked_ids)
-        )
-        linked_sports = {row.id: row.sport for row in await session.execute(linked_stmt)}
-
     done: set[int] = set()
-    consumed: set[int] = set()
+    consumed: set[str] = set()
     for s in sessions:
-        if s.activity_id is None:
+        if s.activity_external_id is None:
             continue
-        sport = linked_sports.get(s.activity_id)
-        if sport is not None and s.activity_id not in consumed and fulfils(s.activity_id, sport):
+        fact = by_id.get(s.activity_external_id)
+        if (
+            fact is not None
+            and s.activity_external_id not in consumed
+            and fulfils(s.activity_external_id, fact["sport"])
+        ):
             done.add(s.id)
-            consumed.add(s.activity_id)
+            consumed.add(s.activity_external_id)
 
     # Manual completes: no linked activity, nothing consumed.
     for s in sessions:
-        if s.completed and s.activity_id is None:
+        if s.completed and s.activity_external_id is None:
             done.add(s.id)
 
     # Pass 2: match remaining eligible activities to leftover sessions by sport
@@ -254,11 +193,11 @@ async def get_plan_adherence_for_week(
     # athlete chose not to follow a prescription. Garmin/Hevy keep feeding the
     # pool since they can never carry that id.
     sport_budget: Counter[str] = Counter(
-        a.sport
-        for a in activities
-        if a.id not in consumed
-        and fulfils(a.id, a.sport)
-        and (a.data_source != "logger" or a.id in linked_ids)
+        a["sport"]
+        for a in in_week
+        if a["external_id"] not in consumed
+        and fulfils(a["external_id"], a["sport"])
+        and ("logger" not in a["sources"] or a["external_id"] in linked_ids)
     )
     for s in sessions:
         if s.id in done:
@@ -296,86 +235,19 @@ async def get_plan_adherence_for_week(
     }
 
 
-async def get_activities_for_week(
-    session: AsyncSession, user_id: int, week_start: date
-) -> list[dict[str, Any]]:
-    """Get all activities within a specific week (Monday to Sunday)."""
-    week_end = week_start + timedelta(days=7)
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.start_time >= week_start,
-            Activity.start_time < week_end,
-        )
-        .order_by(Activity.start_time)
-    )
-    result = await session.execute(stmt)
-    return [activity_to_dict(a) for a in result.scalars().all()]
-
-
-async def get_activity_with_details(
-    session: AsyncSession, activity_id: int, user_id: int
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Get an activity and its gym workout details as dicts.
-
-    Returns (activity_dict, gym_details_list). gym_details_list is empty for non-gym activities.
-    Raises ValueError if activity not found.
-    """
-    stmt = select(Activity).where(Activity.id == activity_id, Activity.user_id == user_id)
-    result = await session.execute(stmt)
-    activity = result.scalar_one_or_none()
-    if activity is None:
-        raise ValueError(f"Activity {activity_id} not found")
-
-    activity_dict = activity_to_dict(activity)
-    activity_dict["id"] = activity.id
-
-    gym_details: list[dict[str, Any]] = []
-    if activity.sport == "gym":
-        detail_stmt = (
-            select(GymWorkoutDetail)
-            .where(GymWorkoutDetail.activity_id == activity_id)
-            .order_by(GymWorkoutDetail.set_index)
-        )
-        detail_result = await session.execute(detail_stmt)
-        fulfilled = await prescriptions_for(session, [activity.external_id])
-        for d in detail_result.scalars().all():
-            own = fulfilled.get(
-                (activity.external_id or "", d.exercise_title, d.set_index), NO_PRESCRIPTION
-            )
-            gym_details.append(
-                {
-                    "exercise_id": d.exercise_id,
-                    "exercise_title": d.exercise_title,
-                    "set_index": d.set_index,
-                    "set_type": d.set_type,
-                    "weight_kg": d.weight_kg,
-                    "reps": d.reps,
-                    "rpe": d.rpe,
-                    "prescribed_weight_kg": own.weight_kg,
-                    "prescribed_reps": own.reps,
-                    "distance_meters": d.distance_meters,
-                    "duration_seconds": d.duration_seconds,
-                    "superset_id": d.superset_id,
-                }
-            )
-
-    return activity_dict, gym_details
-
 
 async def _planned_session_linked_to(
     session: AsyncSession, activity: dict[str, Any], user_id: int
 ) -> dict[str, Any] | None:
     """The planned session already pointing at this activity, if any."""
-    activity_id = activity.get("id")
-    if activity_id is None:
+    external_id = activity.get("external_id")
+    if external_id is None:
         return None
 
     stmt = (
         select(PlannedSession)
         .join(WeeklyPlan, PlannedSession.plan_id == WeeklyPlan.id)
-        .where(PlannedSession.activity_id == activity_id, WeeklyPlan.user_id == user_id)
+        .where(PlannedSession.activity_external_id == external_id, WeeklyPlan.user_id == user_id)
     )
     planned = (await session.execute(stmt)).scalars().first()
     return _planned_session_to_dict(planned) if planned is not None else None
@@ -401,7 +273,7 @@ async def find_matching_planned_session(
 
     An explicit link wins. A session logged in ``/logger`` carries the
     prescription's id on the wire, and ``sources.importer`` has already written
-    it onto ``PlannedSession.activity_id`` by the time post-workout runs — so
+    it onto ``PlannedSession.activity_external_id`` by the time post-workout runs — so
     the plan row itself says which prescription was answered, whatever day the
     lift actually happened on.
 
@@ -418,7 +290,7 @@ async def find_matching_planned_session(
     if linked is not None:
         return linked
 
-    if activity.get("data_source") == "logger":
+    if "logger" in (activity.get("sources") or []):
         return None
 
     start_time_str = activity.get("start_time")
@@ -456,8 +328,10 @@ async def find_matching_planned_session(
     # so the day-and-sport fallback must skip it same as an explicit claim.
     # Other sports are unaffected — they carry no performed-sets concept.
     if sport == "gym":
-        activity_id = activity.get("id")
-        if activity_id is None or not await has_performed_sets(session, activity_id):
+        external_id = activity.get("external_id")
+        if external_id is None or not await health.has_performed_sets(
+            await athlete_id_for(session, user_id), external_id
+        ):
             return None
 
     session_stmt = select(PlannedSession).where(
@@ -473,22 +347,6 @@ async def find_matching_planned_session(
     return _planned_session_to_dict(planned)
 
 
-async def get_similar_activities(
-    session: AsyncSession, user_id: int, sport: str, exclude_id: int, limit: int = 5
-) -> list[dict[str, Any]]:
-    """Get recent activities of the same sport for trend comparison."""
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.sport == sport,
-            Activity.id != exclude_id,
-        )
-        .order_by(Activity.start_time.desc())
-        .limit(limit)
-    )
-    result = await session.execute(stmt)
-    return [activity_to_dict(a) for a in result.scalars().all()]
 
 
 async def get_active_routine(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
@@ -531,195 +389,12 @@ async def get_active_routine(session: AsyncSession, user_id: int) -> dict[str, A
     }
 
 
-async def get_last_week_gym_performance(
-    session: AsyncSession,
-    user_id: int,
-    exercise_ids: list[str],
-    week_start: date,
-) -> list[dict[str, Any]]:
-    """Get last week's gym workout details for specific exercises.
-
-    Returns a list of dicts with exercise identity, display title, and set values.
-    """
-    prev_week_start = week_start - timedelta(days=7)
-    prev_week_end = week_start
-
-    # Find gym activities from previous week
-    stmt = select(Activity).where(
-        Activity.user_id == user_id,
-        Activity.sport == "gym",
-        Activity.start_time >= prev_week_start,
-        Activity.start_time < prev_week_end,
-    )
-    result = await session.execute(stmt)
-    activity_ids = [a.id for a in result.scalars().all()]
-
-    if not activity_ids:
-        return []
-
-    # Get gym details for those activities, filtered by exercise names
-    detail_stmt = (
-        select(GymWorkoutDetail)
-        .where(
-            GymWorkoutDetail.activity_id.in_(activity_ids),
-            GymWorkoutDetail.exercise_id.in_(exercise_ids),
-        )
-        .order_by(GymWorkoutDetail.exercise_id, GymWorkoutDetail.set_index)
-    )
-    detail_result = await session.execute(detail_stmt)
-
-    return [
-        {
-            "exercise_id": d.exercise_id,
-            "exercise_title": d.exercise_title,
-            "set_index": d.set_index,
-            "weight_kg": d.weight_kg,
-            "reps": d.reps,
-            "rpe": d.rpe,
-        }
-        for d in detail_result.scalars().all()
-    ]
 
 
-async def get_last_week_all_activities(
-    session: AsyncSession,
-    user_id: int,
-    week_start: date,
-) -> list[dict[str, Any]]:
-    """Get ALL activities from the previous week (all sports), with gym details nested.
-
-    Returns list of activity dicts. Gym activities include a 'gym_details' key
-    with set-level data.
-    """
-    prev_week_start = week_start - timedelta(days=7)
-    prev_week_end = week_start
-
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.start_time >= prev_week_start,
-            Activity.start_time < prev_week_end,
-        )
-        .order_by(Activity.start_time)
-    )
-    result = await session.execute(stmt)
-    activities = result.scalars().all()
-
-    output: list[dict[str, Any]] = []
-    for a in activities:
-        d = activity_to_dict(a)
-        if a.sport == "gym":
-            detail_stmt = (
-                select(GymWorkoutDetail)
-                .where(GymWorkoutDetail.activity_id == a.id)
-                .order_by(GymWorkoutDetail.exercise_id, GymWorkoutDetail.set_index)
-            )
-            detail_result = await session.execute(detail_stmt)
-            fulfilled = await prescriptions_for(session, [a.external_id])
-            d["gym_details"] = [
-                {
-                    "exercise_id": det.exercise_id,
-                    "exercise_title": det.exercise_title,
-                    "set_index": det.set_index,
-                    "weight_kg": det.weight_kg,
-                    "reps": det.reps,
-                    "rpe": det.rpe,
-                    "prescribed_weight_kg": fulfilled.get(
-                        (a.external_id or "", det.exercise_title, det.set_index), NO_PRESCRIPTION
-                    ).weight_kg,
-                    "prescribed_reps": fulfilled.get(
-                        (a.external_id or "", det.exercise_title, det.set_index), NO_PRESCRIPTION
-                    ).reps,
-                }
-                for det in detail_result.scalars().all()
-            ]
-        output.append(d)
-    return output
 
 
-async def get_health_trends_averaged(
-    session: AsyncSession, user_id: int, days: int = 7, today: date | None = None
-) -> dict[str, Any]:
-    """Get a 7-day averaged health summary instead of individual daily snapshots.
-
-    Computes averages for numeric fields, keeps latest value for text/status fields.
-    Returns a single dict with averaged metrics.
-    """
-    today = today or date.today()
-    since = today - timedelta(days=days)
-    stmt = (
-        select(DailyHealthSnapshot)
-        .where(
-            DailyHealthSnapshot.user_id == user_id,
-            DailyHealthSnapshot.snapshot_date >= since,
-            DailyHealthSnapshot.snapshot_date < today,
-        )
-        .order_by(DailyHealthSnapshot.snapshot_date.desc())
-    )
-    result = await session.execute(stmt)
-    snapshots = result.scalars().all()
-
-    if not snapshots:
-        return {}
-
-    numeric_fields = [
-        "resting_hr",
-        "avg_hr",
-        "hrv_status",
-        "sleep_duration_minutes",
-        "sleep_score",
-        "avg_stress",
-        "training_readiness",
-        "training_load",
-        "body_battery_morning",
-    ]
-    text_fields = ["training_status", "hrv_status_text", "load_focus"]
-    static_fields = ["vo2_max"]
-
-    averaged: dict[str, Any] = {"days_with_data": len(snapshots)}
-
-    # Compute averages for numeric fields
-    for field in numeric_fields:
-        values = [getattr(s, field) for s in snapshots if getattr(s, field, None) is not None]
-        if values:
-            averaged[field] = round(sum(values) / len(values), 1)
-
-    # Latest value for text/status fields (snapshots ordered desc, so [0] is latest)
-    latest = snapshots[0]
-    for field in text_fields:
-        val = getattr(latest, field, None)
-        if val is not None:
-            averaged[field] = val
-
-    # Latest for static fields
-    for field in static_fields:
-        val = getattr(latest, field, None)
-        if val is not None:
-            averaged[field] = val
-
-    return averaged
 
 
-async def get_last_week_cardio_performance(
-    session: AsyncSession, user_id: int, week_start: date
-) -> list[dict[str, Any]]:
-    """Get swimming and running activities from the previous week."""
-    prev_week_start = week_start - timedelta(days=7)
-    prev_week_end = week_start
-
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.sport.in_(["swimming", "running", "padel", "cardio"]),
-            Activity.start_time >= prev_week_start,
-            Activity.start_time < prev_week_end,
-        )
-        .order_by(Activity.start_time)
-    )
-    result = await session.execute(stmt)
-    return [activity_to_dict(a) for a in result.scalars().all()]
 
 
 async def get_sport_profiles(session: AsyncSession, user_id: int) -> list[dict[str, Any]]:
@@ -806,126 +481,8 @@ async def get_today_planned_sessions(
     return filtered
 
 
-async def get_gym_details_for_week(
-    session: AsyncSession, user_id: int, week_start: date
-) -> list[dict[str, Any]]:
-    """Get all gym set/rep/weight details for every gym session in the given week.
-
-    Returns set-level dicts including stable exercise ID and display title,
-    sorted by session date, then exercise, then set index.
-    """
-    week_end = week_start + timedelta(days=7)
-    stmt = (
-        select(Activity)
-        .where(
-            Activity.user_id == user_id,
-            Activity.sport == "gym",
-            Activity.start_time >= week_start,
-            Activity.start_time < week_end,
-        )
-        .order_by(Activity.start_time)
-    )
-    result = await session.execute(stmt)
-    activities = result.scalars().all()
-
-    rows: list[dict[str, Any]] = []
-    for act in activities:
-        detail_stmt = (
-            select(GymWorkoutDetail)
-            .where(GymWorkoutDetail.activity_id == act.id)
-            .order_by(GymWorkoutDetail.exercise_id, GymWorkoutDetail.set_index)
-        )
-        detail_result = await session.execute(detail_stmt)
-        for d in detail_result.scalars().all():
-            rows.append(
-                {
-                    "session_date": str(act.start_time)[:10] if act.start_time else None,
-                    "session_title": act.title,
-                    "exercise_id": d.exercise_id,
-                    "exercise_title": d.exercise_title,
-                    "set_index": d.set_index,
-                    "set_type": d.set_type,
-                    "weight_kg": d.weight_kg,
-                    "reps": d.reps,
-                    "rpe": d.rpe,
-                }
-            )
-    return rows
 
 
-async def get_gym_performance_history(
-    session: AsyncSession, user_id: int, week_start: date, weeks: int = 3
-) -> list[dict[str, Any]]:
-    """Get per-exercise aggregated performance for N weeks before week_start.
-
-    Returns id-keyed catalogue exercises only. Custom (null-id) exercises stay
-    visible in raw recap details but do not participate in cross-week reasoning.
-    """
-    rows: list[dict[str, Any]] = []
-    for i in range(weeks, 0, -1):
-        w_start = week_start - timedelta(days=7 * i)
-        w_end = w_start + timedelta(days=7)
-
-        act_stmt = select(Activity).where(
-            Activity.user_id == user_id,
-            Activity.sport == "gym",
-            Activity.start_time >= w_start,
-            Activity.start_time < w_end,
-        )
-        act_result = await session.execute(act_stmt)
-        activity_ids = [a.id for a in act_result.scalars().all()]
-
-        if not activity_ids:
-            continue
-
-        detail_stmt = (
-            select(GymWorkoutDetail)
-            .where(GymWorkoutDetail.activity_id.in_(activity_ids))
-            .order_by(GymWorkoutDetail.exercise_id, GymWorkoutDetail.set_index)
-        )
-        detail_result = await session.execute(detail_stmt)
-        details = detail_result.scalars().all()
-
-        # Aggregate per exercise
-        by_exercise: dict[str, dict[str, Any]] = {}
-        for d in details:
-            if d.exercise_id is None:
-                continue
-            if d.exercise_id not in by_exercise:
-                by_exercise[d.exercise_id] = {
-                    "exercise_title": d.exercise_title,
-                    "best_weight_kg": None,
-                    "best_reps": None,
-                    "total_sets": 0,
-                    "rpe_sum": 0.0,
-                    "rpe_count": 0,
-                }
-            entry = by_exercise[d.exercise_id]
-            entry["total_sets"] += 1
-            w = d.weight_kg
-            r = d.reps
-            if w is not None and (entry["best_weight_kg"] is None or w > entry["best_weight_kg"]):
-                entry["best_weight_kg"] = w
-                entry["best_reps"] = r  # reps at best weight
-            if d.rpe is not None:
-                entry["rpe_sum"] += d.rpe
-                entry["rpe_count"] += 1
-
-        for exercise_id, agg in sorted(by_exercise.items()):
-            avg_rpe = round(agg["rpe_sum"] / agg["rpe_count"], 1) if agg["rpe_count"] > 0 else None
-            rows.append(
-                {
-                    "week_start": str(w_start),
-                    "exercise_id": exercise_id,
-                    "exercise_title": agg["exercise_title"],
-                    "best_weight_kg": agg["best_weight_kg"],
-                    "best_reps": agg["best_reps"],
-                    "total_sets": agg["total_sets"],
-                    "avg_rpe": avg_rpe,
-                }
-            )
-
-    return rows
 
 
 async def get_recent_plan_summaries(
@@ -969,3 +526,141 @@ async def get_recent_plan_summaries(
         )
 
     return summaries
+
+
+# --- Coaching context from factual health queries -----------------------------------------
+#
+# The Observed health facts come from the health module (``mycoach.health``), as plain dicts,
+# never from SQL against the health schema (map #85, ticket #186). These adapters resolve the
+# user's Athlete ID, ask health, and (for set-level reads) join in coaching's own prescription
+# fulfillments. Health never returns prompt-shaped data; shaping stays here and in
+# ``prompt_builder``.
+
+
+async def get_today_health(
+    session: AsyncSession, user_id: int, today: date | None = None
+) -> dict[str, Any]:
+    """Get today's health snapshot as a dict (empty dict if none)."""
+    return await health.get_today_health(await athlete_id_for(session, user_id), today)
+
+
+async def get_health_trends(
+    session: AsyncSession, user_id: int, days: int = 3, today: date | None = None
+) -> list[dict[str, Any]]:
+    """Get recent health snapshots (excluding today) as a list of dicts."""
+    return await health.get_health_trends(await athlete_id_for(session, user_id), days, today)
+
+
+async def get_health_trends_averaged(
+    session: AsyncSession, user_id: int, days: int = 7, today: date | None = None
+) -> dict[str, Any]:
+    """Get a 7-day averaged health summary instead of individual daily snapshots."""
+    return await health.get_health_trends_averaged(
+        await athlete_id_for(session, user_id), days, today
+    )
+
+
+async def get_recent_activities(
+    session: AsyncSession, user_id: int, days: int = 3, today: date | None = None
+) -> list[dict[str, Any]]:
+    """Get recent activities as a list of dicts."""
+    return await health.get_recent_activities(await athlete_id_for(session, user_id), days, today)
+
+
+async def get_activities_for_week(
+    session: AsyncSession, user_id: int, week_start: date
+) -> list[dict[str, Any]]:
+    """Get all activities within a specific week (Monday to Sunday)."""
+    return await health.get_activities_for_week(await athlete_id_for(session, user_id), week_start)
+
+
+def _with_prescriptions(
+    activity_external_id: str | None,
+    sets: list[dict[str, Any]],
+    fulfilled: dict[tuple[str, str, int], Any],
+) -> list[dict[str, Any]]:
+    """Join coaching's prescription (what the plan called for) onto performed sets."""
+    out = []
+    for d in sets:
+        own = fulfilled.get(
+            (activity_external_id or "", d["exercise_title"], d["set_index"]), NO_PRESCRIPTION
+        )
+        out.append({**d, "prescribed_weight_kg": own.weight_kg, "prescribed_reps": own.reps})
+    return out
+
+
+async def get_activity_with_details(
+    session: AsyncSession, activity_external_id: str, user_id: int
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Get an activity and its gym workout details as dicts, keyed by external id.
+
+    Returns (activity_dict, gym_details_list). gym_details_list is empty for non-gym activities
+    and carries each set's prescription from coaching's fulfillments.
+    Raises ValueError if activity not found.
+    """
+    activity, sets = await health.get_activity_with_details(
+        await athlete_id_for(session, user_id), activity_external_id
+    )
+    fulfilled = await prescriptions_for(session, [activity["external_id"]])
+    return activity, _with_prescriptions(activity["external_id"], sets, fulfilled)
+
+
+async def get_similar_activities(
+    session: AsyncSession,
+    user_id: int,
+    sport: str,
+    exclude_external_id: str,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    """Get recent activities of the same sport for trend comparison."""
+    return await health.get_similar_activities(
+        await athlete_id_for(session, user_id), sport, exclude_external_id, limit
+    )
+
+
+async def get_last_week_gym_performance(
+    session: AsyncSession, user_id: int, exercise_ids: list[str], week_start: date
+) -> list[dict[str, Any]]:
+    """Get last week's gym workout details for specific exercises."""
+    return await health.get_last_week_gym_performance(
+        await athlete_id_for(session, user_id), exercise_ids, week_start
+    )
+
+
+async def get_last_week_all_activities(
+    session: AsyncSession, user_id: int, week_start: date
+) -> list[dict[str, Any]]:
+    """ALL activities from the previous week (all sports); gym ones carry 'gym_details'."""
+    activities = await health.get_last_week_all_activities(
+        await athlete_id_for(session, user_id), week_start
+    )
+    fulfilled = await prescriptions_for(session, [a["external_id"] for a in activities])
+    for a in activities:
+        if "gym_details" in a:
+            a["gym_details"] = _with_prescriptions(a["external_id"], a["gym_details"], fulfilled)
+    return activities
+
+
+async def get_last_week_cardio_performance(
+    session: AsyncSession, user_id: int, week_start: date
+) -> list[dict[str, Any]]:
+    """Get swimming and running activities from the previous week."""
+    return await health.get_last_week_cardio_performance(
+        await athlete_id_for(session, user_id), week_start
+    )
+
+
+async def get_gym_details_for_week(
+    session: AsyncSession, user_id: int, week_start: date
+) -> list[dict[str, Any]]:
+    """Get all gym set/rep/weight details for every gym session in the given week."""
+    return await health.get_gym_details_for_week(await athlete_id_for(session, user_id), week_start)
+
+
+async def get_gym_performance_history(
+    session: AsyncSession, user_id: int, week_start: date, weeks: int = 3
+) -> list[dict[str, Any]]:
+    """Get per-exercise aggregated performance for N weeks before week_start (health-owned)."""
+    return await health.get_gym_performance_history(
+        await athlete_id_for(session, user_id), week_start, weeks
+    )

@@ -21,7 +21,6 @@ from statistics import fmean
 from typing import Any
 
 from mycoach.coaching.prescriptions import Prescription
-from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.observability.scores import Score, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
@@ -95,7 +94,7 @@ def _mean(values: Iterable[float]) -> float | None:
 
 def gym_adherence(
     details: Mapping[str, Any] | None,
-    sets: Sequence[GymWorkoutDetail],
+    sets: Sequence[Mapping[str, Any]],
     fulfillments: Mapping[tuple[str, int], Prescription] | None = None,
 ) -> dict[str, float]:
     """The gym adherence scores of ``sets`` against the plan's ``details``.
@@ -111,27 +110,27 @@ def gym_adherence(
     if total == 0:
         return {}
 
-    matched = [s for s in sets if s.set_type != "warmup" and s.exercise_id in prescriptions]
+    matched = [s for s in sets if s["set_type"] != "warmup" and s["exercise_id"] in prescriptions]
     done: dict[str, int] = {}
     weight_deltas: list[float] = []
     reps_deltas: list[float] = []
     rpe_deltas: list[float] = []
     for s in matched:
-        assert s.exercise_id is not None
-        p = prescriptions[s.exercise_id]
-        done[s.exercise_id] = done.get(s.exercise_id, 0) + 1
+        assert s["exercise_id"] is not None
+        p = prescriptions[s["exercise_id"]]
+        done[s["exercise_id"]] = done.get(s["exercise_id"], 0) + 1
 
-        own = (fulfillments or {}).get((s.exercise_title, s.set_index), Prescription(None, None))
+        own = (fulfillments or {}).get((s["exercise_title"], s["set_index"]), Prescription(None, None))
         target_weight = own.weight_kg if own.weight_kg is not None else p.weight_kg
-        if s.weight_kg is not None and target_weight:
-            weight_deltas.append((s.weight_kg - target_weight) / target_weight * 100)
+        if s["weight_kg"] is not None and target_weight:
+            weight_deltas.append((s["weight_kg"] - target_weight) / target_weight * 100)
 
         target_reps = float(own.reps) if own.reps is not None else p.reps
-        if s.reps is not None and target_reps is not None:
-            reps_deltas.append(s.reps - target_reps)
+        if s["reps"] is not None and target_reps is not None:
+            reps_deltas.append(s["reps"] - target_reps)
 
-        if s.rpe is not None and p.rpe is not None:
-            rpe_deltas.append(s.rpe - p.rpe)
+        if s["rpe"] is not None and p.rpe is not None:
+            rpe_deltas.append(s["rpe"] - p.rpe)
 
     completed = sum(min(n, prescriptions[ex].sets) for ex, n in done.items())
     values = {SET_COMPLETION: completed / total}
@@ -159,8 +158,8 @@ def adherence_scores(
     *,
     plan: WeeklyPlan,
     planned: PlannedSession,
-    activity: Activity,
-    sets: Sequence[GymWorkoutDetail],
+    activity: Mapping[str, Any],
+    sets: Sequence[Mapping[str, Any]],
     gym_slot: int | None,
     now: datetime,
     fulfillments: Mapping[tuple[str, int], Prescription] | None = None,
@@ -179,11 +178,11 @@ def adherence_scores(
         values = gym_adherence(details, sets, fulfillments)
     else:
         values = cardio_adherence(
-            planned_minutes=planned.duration_minutes, actual_minutes=activity.duration_minutes
+            planned_minutes=planned.duration_minutes, actual_minutes=activity.get("duration_minutes")
         )
     metadata: dict[str, Any] = {
         "planned_session_id": planned.id,
-        "activity_id": activity.id,
+        "activity_external_id": activity.get("external_id"),
         "track": planned.track,
         "day_of_week": planned.day_of_week,
     }

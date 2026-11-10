@@ -24,6 +24,7 @@ from mycoach.models.activity import Activity
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
 from mycoach.models.user import User
+from mycoach.observability.trace_ids import post_workout_seed, trace_id
 from mycoach.observability.tracing import set_tracer
 from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import _add_recovery_snapshot
@@ -221,16 +222,18 @@ class TestPostWorkoutTrace:
                 start_time=datetime(2024, 6, 6, 9, 0),
                 duration_minutes=40,
                 data_source="garmin",
+                external_id="run-1",
             )
             session.add(activity)
             await session.commit()
-            assert activity.id == 1
 
             engine = CoachingEngine(llm_client=_post_workout_llm(), tracer=captured.tracer)
-            await engine.generate_post_workout_analysis(session, user.id, activity.id)
+            await engine.generate_post_workout_analysis(
+                session, user.id, activity.external_id
+            )
 
         [root] = captured.roots()
-        assert trace_hex(root) == "cc0219ed55252b07dbd1fe039bc88333"
+        assert trace_hex(root) == trace_id(post_workout_seed("run-1"))
         assert attr(root, "session.id") == "mycoach:week:1:2024-06-03"
         [gen] = captured.generations()
         assert gen.name == "post_workout"

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.prescriptions import prescriptions_for
+from mycoach.coaching.workout_log import log_workouts
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prescription import PrescriptionFulfillment
@@ -109,7 +110,7 @@ class TestImportWorkouts:
         )
 
         async with test_session() as session:
-            await import_workouts(session, user.id, [workout], source="logger")
+            await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         async with test_session() as session:
@@ -158,7 +159,7 @@ class TestImportWorkouts:
             ],
         )
         async with test_session() as session:
-            await import_workouts(session, user.id, [workout], source="logger")
+            await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         async with test_session() as session:
@@ -187,7 +188,7 @@ class TestImportWorkouts:
         )
         for _ in range(2):
             async with test_session() as session:
-                await import_workouts(session, user.id, [workout], source="logger")
+                await log_workouts(session, user.id, [workout], source="logger")
                 await session.commit()
 
         async with test_session() as session:
@@ -248,7 +249,7 @@ class TestImportWorkouts:
 class TestPrescriptionLinking:
     """A logged session says which prescription it answers (#69).
 
-    The link rides on ``PlannedSession.activity_id`` — there is no forward
+    The link rides on ``PlannedSession.activity_external_id`` — there is no forward
     column on ``activities``. A prescription id that no longer resolves is
     expected rather than exceptional (the plan may have been regenerated or
     superseded while the session sat unsynced), so it never costs the log.
@@ -274,10 +275,11 @@ class TestPrescriptionLinking:
             session.add(planned)
             await session.flush()
             planned_id = planned.id
+            await session.commit()
 
             workout = _workout("uuid-link")
             workout.planned_session_id = planned_id
-            result = await import_workouts(session, user.id, [workout], source="logger")
+            result = await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         assert result.activities_created == 1
@@ -289,7 +291,7 @@ class TestPrescriptionLinking:
                 await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
             ).scalar_one()
             assert refreshed.completed is True
-            assert refreshed.activity_id == act.id
+            assert refreshed.activity_external_id == act.external_id
 
     @pytest.mark.asyncio
     async def test_unknown_prescription_still_imports_the_log(self, user: User) -> None:
@@ -298,7 +300,7 @@ class TestPrescriptionLinking:
         async with test_session() as session:
             workout = _workout("uuid-stale")
             workout.planned_session_id = 4242
-            result = await import_workouts(session, user.id, [workout], source="logger")
+            result = await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         assert result.activities_created == 1
@@ -324,10 +326,11 @@ class TestPrescriptionLinking:
             session.add(planned)
             await session.flush()
             planned_id = planned.id
+            await session.commit()
 
             workout = _workout("uuid-foreign")
             workout.planned_session_id = planned_id
-            result = await import_workouts(session, user.id, [workout], source="logger")
+            result = await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         assert result.activities_created == 1
@@ -338,7 +341,7 @@ class TestPrescriptionLinking:
                 await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
             ).scalar_one()
             assert refreshed.completed is False
-            assert refreshed.activity_id is None
+            assert refreshed.activity_external_id is None
 
     @pytest.mark.asyncio
     async def test_a_claimed_prescription_is_left_alone(self, user: User) -> None:
@@ -352,16 +355,17 @@ class TestPrescriptionLinking:
                 sport="gym",
                 title="Push",
                 track="gym",
-                activity_id=999,
+                activity_external_id="existing-999",
                 completed=True,
             )
             session.add(planned)
             await session.flush()
             planned_id = planned.id
+            await session.commit()
 
             workout = _workout("uuid-claimed")
             workout.planned_session_id = planned_id
-            result = await import_workouts(session, user.id, [workout], source="logger")
+            result = await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         assert result.activities_created == 1
@@ -371,14 +375,14 @@ class TestPrescriptionLinking:
             refreshed = (
                 await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
             ).scalar_one()
-            assert refreshed.activity_id == 999
+            assert refreshed.activity_external_id == "existing-999"
 
     @pytest.mark.asyncio
     async def test_no_prescription_is_the_silent_case(self, user: User) -> None:
         from tests.conftest import test_session
 
         async with test_session() as session:
-            result = await import_workouts(
+            result = await log_workouts(
                 session, user.id, [_workout("uuid-none")], source="logger"
             )
             await session.commit()
@@ -398,11 +402,12 @@ class TestPrescriptionLinking:
             session.add(planned)
             await session.flush()
             planned_id = planned.id
+            await session.commit()
 
             workout = _workout("uuid-empty")
             workout.sets = []
             workout.planned_session_id = planned_id
-            result = await import_workouts(session, user.id, [workout], source="logger")
+            result = await log_workouts(session, user.id, [workout], source="logger")
             await session.commit()
 
         assert result.activities_created == 1
@@ -415,7 +420,7 @@ class TestPrescriptionLinking:
                 await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
             ).scalar_one()
             assert refreshed.completed is False
-            assert refreshed.activity_id is None
+            assert refreshed.activity_external_id is None
 
 
 class TestSourceRecordIntake:
@@ -460,7 +465,8 @@ class TestSourceRecordIntake:
         async with test_session() as session:
             assert len((await session.execute(select(SourceRecord))).scalars().all()) == 1
             assert len((await session.execute(select(Activity))).scalars().all()) == 1
-            assert (await session.execute(select(Activity.external_id))).scalar_one() is None
+            # the derived source identity is also the canonical external id
+            assert (await session.execute(select(Activity.external_id))).scalar_one() is not None
 
     @pytest.mark.asyncio
     async def test_replay_after_a_garmin_link_is_still_a_no_op(self, user: User) -> None:

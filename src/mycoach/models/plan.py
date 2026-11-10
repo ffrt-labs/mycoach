@@ -59,7 +59,6 @@ class PlannedSession(Base):
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     completed: Mapped[bool] = mapped_column(default=False)
     track: Mapped[str] = mapped_column(String(20), default=Track.CARDIO.value)  # a Track
-    # health.activities.id by value, not by FK: the seam allows no cross-schema
-    # constraint (ticket #108). Replacing it with the activity's external id is
-    # #185/#186 (plan_linking's use of the internal id as a cross-store key).
-    activity_id: Mapped[int | None] = mapped_column(default=None)  # Link to actual workout
+    # The fulfilling canonical activity's immutable external id, by value: the seam allows
+    # no cross-schema key and health's internal row id never crosses it (tickets #108, #186).
+    activity_external_id: Mapped[str | None] = mapped_column(String(100), default=None)

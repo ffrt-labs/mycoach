@@ -175,7 +175,7 @@ async def test_history_page_analysis_badge(client: AsyncClient) -> None:
             insight_type="post_workout",
             insight_date=activity.start_time.date(),
             content="analysis",
-            activity_id=activity.id,
+            activity_external_id=activity.external_id,
         )
         session.add(insight)
         await session.commit()
@@ -225,11 +225,30 @@ async def test_history_page_pagination(client: AsyncClient) -> None:
     assert "Prev" in resp2.text
 
 
-async def test_history_page_data_source_badge(client: AsyncClient) -> None:
-    """History page shows data source badge."""
+async def test_history_page_sources_badge(client: AsyncClient) -> None:
+    """History page shows the activity's provenance: the sources that contributed to it."""
+    from mycoach import health
+    from mycoach.sources.workout_import import WorkoutImport
+
     await _seed_user()
-    await _seed_activity(title="Merged Workout", data_source="merged")
+    start = datetime(2025, 6, 10, 9, 0)
+    await health.record_workout(
+        1, "logger", WorkoutImport(title="Linked Workout", start_time=start, external_id="u1")
+    )
+    await health.record_garmin_activities(
+        1,
+        [
+            {
+                "activityId": 7,
+                "activityName": "Strength",
+                "activityType": {"typeKey": "strength_training"},
+                "startTimeGMT": start.strftime("%Y-%m-%d %H:%M:%S"),
+                "duration": 3600,
+            }
+        ],
+    )
+    await health.link_garmin(1)
 
     resp = await client.get("/history")
     assert resp.status_code == 200
-    assert "merged" in resp.text.lower()
+    assert "garmin, logger" in resp.text.lower()

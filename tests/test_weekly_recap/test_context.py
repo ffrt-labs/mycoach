@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 
+from mycoach import health
 from mycoach.coaching.context import (
     get_activities_for_week,
     get_gym_details_for_week,
@@ -11,6 +12,7 @@ from mycoach.coaching.context import (
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
+from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
 from tests.conftest import test_session
 
 
@@ -247,17 +249,17 @@ class TestGetPlanAdherenceForWeek:
 
             # Logged from a routine day with no planned_session_id, with sets
             # performed (so the claim guard alone wouldn't explain it being skipped)
-            a1 = Activity(
-                user_id=user_id,
-                title="Gym Session",
-                sport="gym",
-                start_time=datetime(2024, 6, 12, 9, 0),
-                data_source="logger",
-            )
-            session.add(a1)
-            await session.flush()
-            session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
+            await health.record_workout(
+                user_id,
+                "logger",
+                WorkoutImport(
+                    title="Gym Session",
+                    start_time=datetime(2024, 6, 12, 9, 0),
+                    external_id="unlinked-logger-1",
+                    sets=[WorkoutSetImport(exercise_title="Bench", set_index=1, weight_kg=60, reps=5)],
+                ),
+            )
 
             result = await get_plan_adherence_for_week(session, user_id, week_start)
             assert result is not None
@@ -320,7 +322,7 @@ class TestGetPlanAdherenceForWeek:
                     sport="gym",
                     title="Push",
                     completed=True,
-                    activity_id=empty.id,
+                    activity_external_id=empty.external_id,
                 )
             )
             await session.commit()
@@ -344,7 +346,7 @@ class TestGetPlanAdherenceForWeek:
                         sport="gym",
                         title="B",
                         completed=True,
-                        activity_id=second.id,
+                        activity_external_id=second.external_id,
                     ),
                 ]
             )
@@ -362,10 +364,10 @@ class TestGetPlanAdherenceForWeek:
             session.add_all(
                 [
                     PlannedSession(
-                        plan_id=plan_id, day_of_week=0, sport="gym", title="A", activity_id=act.id
+                        plan_id=plan_id, day_of_week=0, sport="gym", title="A", activity_external_id=act.external_id
                     ),
                     PlannedSession(
-                        plan_id=plan_id, day_of_week=2, sport="gym", title="B", activity_id=act.id
+                        plan_id=plan_id, day_of_week=2, sport="gym", title="B", activity_external_id=act.external_id
                     ),
                 ]
             )

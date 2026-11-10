@@ -44,7 +44,7 @@ class TestLinkActivityToPlannedSession:
             await session.flush()
 
             assert planned.completed is False
-            assert planned.activity_id is None
+            assert planned.activity_external_id is None
 
             activity = Activity(
                 user_id=user_id,
@@ -60,12 +60,14 @@ class TestLinkActivityToPlannedSession:
                     activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
                 )
             )
-            await session.flush()
+            await session.commit()  # health reads on its own connection
 
-            await link_activity_to_planned_session(session, activity.id, planned.id)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id
+            )
 
             assert planned.completed is True
-            assert planned.activity_id == activity.id
+            assert planned.activity_external_id == activity.external_id
 
     async def test_activity_without_performed_sets_does_not_complete(self) -> None:
         async with test_session() as session:
@@ -87,12 +89,14 @@ class TestLinkActivityToPlannedSession:
                 data_source="logger",
             )
             session.add(activity)
-            await session.flush()
+            await session.commit()  # health reads on its own connection
 
-            await link_activity_to_planned_session(session, activity.id, planned.id)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id
+            )
 
             assert planned.completed is False
-            assert planned.activity_id is None
+            assert planned.activity_external_id is None
 
 
 class TestClaimPlannedSession:
@@ -127,18 +131,22 @@ class TestClaimPlannedSession:
                     activity_id=activity.id, exercise_title="Bench Press", set_index=1, reps=8
                 )
             )
-            await session.flush()
+            await session.commit()  # health reads on its own connection
 
-            declined = await claim_planned_session(session, user_id, activity.id, first.id)
+            declined = await claim_planned_session(
+                session, user_id, activity.external_id, first.id
+            )
             assert declined is None
             assert first.completed is True
-            assert first.activity_id == activity.id
+            assert first.activity_external_id == activity.external_id
 
-            declined = await claim_planned_session(session, user_id, activity.id, second.id)
+            declined = await claim_planned_session(
+                session, user_id, activity.external_id, second.id
+            )
             assert declined is not None
             assert "already claims" in declined
             assert second.completed is False
-            assert second.activity_id is None
+            assert second.activity_external_id is None
 
 
 class TestUnlinkPlannedSession:
@@ -166,7 +174,7 @@ class TestUnlinkPlannedSession:
                 title="Test",
                 duration_minutes=60,
                 completed=True,
-                activity_id=activity.id,
+                activity_external_id=activity.external_id,
             )
             session.add(planned)
             await session.flush()
@@ -175,7 +183,7 @@ class TestUnlinkPlannedSession:
 
             assert result is not None
             assert result.completed is False
-            assert result.activity_id is None
+            assert result.activity_external_id is None
             # The activity itself is untouched — unlink is not a delete.
             await session.refresh(activity)
             assert activity.title == "Push"
@@ -205,11 +213,11 @@ class TestUnlinkPlannedSession:
                 title="Test",
                 duration_minutes=60,
                 completed=True,
-                activity_id=1,
+                activity_external_id="ext-1",
             )
             session.add(planned)
             await session.flush()
 
             assert await unlink_planned_session(session, other.id, planned.id) is None
             assert planned.completed is True
-            assert planned.activity_id == 1
+            assert planned.activity_external_id == "ext-1"

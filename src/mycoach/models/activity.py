@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from sqlalchemy import Float, ForeignKey, String, Text
@@ -61,9 +62,18 @@ class Activity(Base):
     data_source: Mapped[str] = mapped_column(String(20))
     # The gym source record's external id (the logger's client UUID), carried forward: this
     # is what ``coaching.prescription_fulfillments.activity_external_id`` keys against.
-    # Null for a Garmin-only activity and for sources with no native id (Hevy CSV).
-    external_id: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
+    # A Garmin-only activity carries its Garmin id; a source with no native id, a derived one.
+    # Never null in practice (ticket #186): intake carries the source's id forward, and a row
+    # built any other way gets a fresh one, so coaching can always name the activity.
+    external_id: Mapped[str] = mapped_column(
+        String(100), default=lambda: uuid.uuid4().hex, index=True
+    )
     notes: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # Settled activity (CONTEXT.md, #112): reconciliation completed or its deadline passed.
+    # ``settlement_reason`` is "reconciled" or "deadline"; both null while unsettled.
+    settled_at: Mapped[datetime | None] = mapped_column(default=None)
+    settlement_reason: Mapped[str | None] = mapped_column(String(20), default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 

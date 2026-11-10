@@ -342,7 +342,7 @@ async def test_weekly_recap_body_records_failure() -> None:
 
 
 async def _add_activities(count: int) -> None:
-    """Persist unanalysed activities inside the post-workout scan window."""
+    """Persist unanalysed, settled activities inside the post-workout scan window."""
     async with test_session() as session:
         for i in range(count):
             session.add(
@@ -352,6 +352,8 @@ async def _add_activities(count: int) -> None:
                     title=f"Session {i}",
                     start_time=datetime.utcnow(),
                     data_source="garmin",
+                    settled_at=datetime.utcnow(),
+                    settlement_reason="reconciled",
                 )
             )
         await session.commit()

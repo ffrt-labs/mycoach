@@ -3,13 +3,13 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach import health
+from mycoach.coaching.athlete import athlete_id_for
 from mycoach.config import get_settings
 from mycoach.crypto import encrypt_credentials
 from mycoach.database import get_db
-from mycoach.models.data_source import DataSourceConfig
 from mycoach.schemas.data_source import CredentialsInput, CredentialsStored
 
 router = APIRouter(prefix="/api/credentials", tags=["credentials"])
@@ -43,25 +43,9 @@ async def store_credentials(
     key = _require_encryption_key()
     encrypted = encrypt_credentials(body.credentials, key)
 
-    result = await session.execute(
-        select(DataSourceConfig).where(
-            DataSourceConfig.user_id == DEFAULT_USER_ID,
-            DataSourceConfig.source_type == source_type,
-        )
+    await health.store_source_credentials(
+        await athlete_id_for(session, DEFAULT_USER_ID), source_type, encrypted
     )
-    config = result.scalar_one_or_none()
-
-    if config is None:
-        config = DataSourceConfig(
-            user_id=DEFAULT_USER_ID,
-            source_type=source_type,
-            credentials_encrypted=encrypted,
-        )
-        session.add(config)
-    else:
-        config.credentials_encrypted = encrypted
-
-    await session.commit()
     logger.info("Credentials stored for source_type=%s", source_type)
 
     return CredentialsStored(source_type=source_type)
@@ -73,19 +57,11 @@ async def delete_credentials(
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Remove stored credentials for a data source."""
-    result = await session.execute(
-        select(DataSourceConfig).where(
-            DataSourceConfig.user_id == DEFAULT_USER_ID,
-            DataSourceConfig.source_type == source_type,
-        )
+    deleted = await health.delete_source_credentials(
+        await athlete_id_for(session, DEFAULT_USER_ID), source_type
     )
-    config = result.scalar_one_or_none()
-
-    if config is None:
+    if not deleted:
         raise HTTPException(status_code=404, detail=f"No config found for source '{source_type}'.")
-
-    config.credentials_encrypted = None
-    await session.commit()
     logger.info("Credentials deleted for source_type=%s", source_type)
 
     return {"message": f"Credentials removed for {source_type}."}
@@ -97,13 +73,7 @@ async def credentials_status(
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
     """Check whether credentials are stored for a data source (without revealing them)."""
-    result = await session.execute(
-        select(DataSourceConfig).where(
-            DataSourceConfig.user_id == DEFAULT_USER_ID,
-            DataSourceConfig.source_type == source_type,
-        )
+    has_credentials = await health.has_source_credentials(
+        await athlete_id_for(session, DEFAULT_USER_ID), source_type
     )
-    config = result.scalar_one_or_none()
-
-    has_credentials = config is not None and config.credentials_encrypted is not None
     return {"source_type": source_type, "has_credentials": has_credentials}

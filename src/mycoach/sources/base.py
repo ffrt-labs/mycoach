@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,10 @@ class ImportResult:
     health_snapshots_updated: int = 0
     empty_health_days: list[date] = field(default_factory=list)
     errors: list[str] | None = None
+    events: list[Any] = field(default_factory=list)
+    """Observed-health events the import raised, for the call site to dispatch (#112)."""
+    external_ids: list[str] = field(default_factory=list)
+    """The external id of each imported workout, in input order (created or already known)."""
 
     @property
     def has_errors(self) -> bool:

@@ -21,7 +21,7 @@ class PlannedSessionRead(PlannedSessionBase):
     plan_id: int
     track: str = "cardio"
     completed: bool
-    activity_id: int | None = None
+    activity_external_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -56,7 +56,7 @@ class SessionAdherenceRead(BaseModel):
     sport: str
     title: str
     completed: bool
-    activity_id: int | None = None
+    activity_external_id: str | None = None
 
 
 class PlanAdherenceRead(BaseModel):

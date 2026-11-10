@@ -313,10 +313,10 @@ async def _check_run(
 
 def _insight_spec(insight: CoachingInsight) -> tuple[RunSpec, str]:
     if insight.insight_type == InsightType.POST_WORKOUT:
-        if insight.activity_id is None:
+        if insight.activity_external_id is None:
             raise ValueError(f"post-workout insight {insight.id} has no activity")
-        spec = post_workout_run(insight.activity_id, insight.user_id, insight.insight_date)
-        return spec, f"post-workout activity {insight.activity_id}"
+        spec = post_workout_run(insight.activity_external_id, insight.user_id, insight.insight_date)
+        return spec, f"post-workout activity {insight.activity_external_id}"
     if insight.insight_type == InsightType.WEEKLY_RECAP:
         spec = weekly_recap_run(insight.user_id, insight.insight_date)
         return spec, f"weekly recap {insight.insight_date}"

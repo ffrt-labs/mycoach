@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.models.health import DailyHealthSnapshot
-from mycoach.models.user import User
+from mycoach.models.athlete import Athlete
 from mycoach.sources.base import DataSource, ImportResult
 from mycoach.sources.garmin.client import GarminClient
 from mycoach.sources.garmin.mappers import (
@@ -57,10 +57,10 @@ class GarminSource(DataSource):
         result = ImportResult(source_type="garmin")
         errors: list[str] = []
 
-        user_exists = await session.execute(select(User.id).where(User.id == user_id))
-        if user_exists.scalar_one_or_none() is None:
+        athlete_exists = await session.execute(select(Athlete.id).where(Athlete.id == user_id))
+        if athlete_exists.scalar_one_or_none() is None:
             result.errors = [
-                f"No profile found for user_id={user_id}. Create one at /api/profile first."
+                f"No profile found for athlete_id={user_id}. Create one at /api/profile first."
             ]
             return result
 

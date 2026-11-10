@@ -81,7 +81,7 @@ async def _create_activity(
         )
 
     await session.commit()  # type: ignore[union-attr]
-    return activity.id
+    return activity.external_id
 
 
 class TestGeneratePostWorkoutAnalysis:
@@ -95,7 +95,7 @@ class TestGeneratePostWorkoutAnalysis:
             insight = await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             assert insight.insight_type == "post_workout"
-            assert insight.activity_id == activity_id
+            assert insight.activity_external_id == activity_id
             assert insight.user_id == user_id
             assert "performance_summary" in insight.content
             mock_llm.call.assert_called_once()
@@ -266,12 +266,12 @@ class TestGeneratePostWorkoutAnalysis:
 
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_post_workout_analysis(session, user_id, activity.id)
+            await engine.generate_post_workout_analysis(session, user_id, activity.external_id)
 
             # Verify planned session is now linked
             await session.refresh(planned)
             assert planned.completed is True
-            assert planned.activity_id == activity.id
+            assert planned.activity_external_id == activity.external_id
 
     async def test_empty_activity_does_not_complete_planned_session(self) -> None:
         async with test_session() as session:
@@ -311,12 +311,12 @@ class TestGeneratePostWorkoutAnalysis:
 
             mock_llm = _mock_llm_client()
             engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_post_workout_analysis(session, user_id, activity.id)
+            await engine.generate_post_workout_analysis(session, user_id, activity.external_id)
 
             # The insight is still produced, but the prescription stays open
             await session.refresh(planned)
             assert planned.completed is False
-            assert planned.activity_id is None
+            assert planned.activity_external_id is None
 
     async def test_swimming_activity(self) -> None:
         async with test_session() as session:
@@ -330,4 +330,4 @@ class TestGeneratePostWorkoutAnalysis:
             insight = await engine.generate_post_workout_analysis(session, user_id, activity_id)
 
             assert insight.insight_type == "post_workout"
-            assert insight.activity_id == activity_id
+            assert insight.activity_external_id == activity_id

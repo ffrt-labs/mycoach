@@ -306,7 +306,9 @@ class CoachingEngine:
         parsed: BaseModel,
         prompt: ServedPrompt,
         *,
-        activity_id: int | None = None,
+        activity_external_id: str | None = None,
+        revision: int = 1,
+        source_event_id: str | None = None,
     ) -> CoachingInsight:
         """Commit the insight a run produced, recording the prompt that made it."""
         insight = CoachingInsight(
@@ -315,7 +317,9 @@ class CoachingEngine:
             insight_type=insight_type,
             content=parsed.model_dump_json(),
             prompt_version=prompt.artifact_version,
-            activity_id=activity_id,
+            activity_external_id=activity_external_id,
+            revision=revision,
+            source_event_id=source_event_id,
         )
         session.add(insight)
         await session.commit()
@@ -916,46 +920,72 @@ class CoachingEngine:
         self,
         session: AsyncSession,
         user_id: int,
-        activity_id: int,
+        activity_external_id: str,
         force: bool = False,
+        *,
+        revision_event_id: str | None = None,
     ) -> CoachingInsight:
         """Generate a post-workout analysis for a completed activity.
 
-        Gathers activity data, matches to planned session, finds similar activities
-        for trend analysis, calls LLM, stores as CoachingInsight, and links to
-        the planned session if found.
+        The activity is named by its external id, the only name both sides of the health
+        seam share. Gathers activity data (through the health module), matches to planned
+        session, finds similar activities for trend analysis, calls LLM, stores as
+        CoachingInsight, and links to the planned session if found.
+
+        ``revision_event_id`` makes this an **Insight revision**: the earlier insight is
+        retained and a new version (revision n+1) is stored, deduplicated by the health
+        event id that asked for it, so re-handling the same event changes nothing.
 
         Returns the saved CoachingInsight.
         """
-        # Check for existing analysis for this activity
-        existing = await session.execute(
-            select(CoachingInsight).where(
-                CoachingInsight.user_id == user_id,
-                CoachingInsight.activity_id == activity_id,
-                CoachingInsight.insight_type == InsightType.POST_WORKOUT,
+        existing_rows = (
+            (
+                await session.execute(
+                    select(CoachingInsight)
+                    .where(
+                        CoachingInsight.user_id == user_id,
+                        CoachingInsight.activity_external_id == activity_external_id,
+                        CoachingInsight.insight_type == InsightType.POST_WORKOUT,
+                    )
+                    .order_by(CoachingInsight.revision.desc())
+                )
             )
+            .scalars()
+            .all()
         )
         replaced = False
-        if existing.scalar_one_or_none() is not None:
+        revision = 1
+        if revision_event_id is not None:
+            if any(r.source_event_id == revision_event_id for r in existing_rows):
+                raise PipelineSkip(f"Revision for event {revision_event_id} already exists")
+            if not existing_rows:
+                raise PipelineSkip(
+                    f"No post-workout analysis to revise for activity {activity_external_id}"
+                )
+            replaced = True
+            revision = existing_rows[0].revision + 1
+        elif existing_rows:
             if force:
                 replaced = True
                 await session.execute(
                     delete(CoachingInsight).where(
                         CoachingInsight.user_id == user_id,
-                        CoachingInsight.activity_id == activity_id,
+                        CoachingInsight.activity_external_id == activity_external_id,
                         CoachingInsight.insight_type == InsightType.POST_WORKOUT,
                     )
                 )
             else:
                 raise PipelineSkip(
-                    f"Post-workout analysis already exists for activity {activity_id}"
+                    f"Post-workout analysis already exists for activity {activity_external_id}"
                 )
 
         # Gather context
-        activity_dict, gym_details = await get_activity_with_details(session, activity_id, user_id)
+        activity_dict, gym_details = await get_activity_with_details(
+            session, activity_external_id, user_id
+        )
         planned_session = await find_matching_planned_session(session, activity_dict, user_id)
         similar = await get_similar_activities(
-            session, user_id, activity_dict["sport"], activity_id
+            session, user_id, activity_dict["sport"], activity_external_id
         )
 
         # Get health context for the activity date
@@ -982,7 +1012,7 @@ class CoachingEngine:
         # The week session follows the activity's date, not the run's.
         now = self._clock()
         run = post_workout_run(
-            activity_id,
+            activity_external_id,
             user_id,
             activity_date,
             regenerated_at=now if replaced else None,
@@ -1001,7 +1031,8 @@ class CoachingEngine:
         if planned_session:
             await link_activity_to_planned_session(
                 session,
-                activity_id,
+                user_id,
+                activity_external_id,
                 planned_session["id"],
                 scores=self._scores,
                 clock=self._clock,
@@ -1014,7 +1045,9 @@ class CoachingEngine:
             activity_date,
             parsed,
             prompt,
-            activity_id=activity_id,
+            activity_external_id=activity_external_id,
+            revision=revision,
+            source_event_id=revision_event_id,
         )
 
     async def generate_weekly_recap(

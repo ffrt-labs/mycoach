@@ -9,12 +9,18 @@ is ``sources.reconcile``'s job, not intake's.
 Health side: this module must never import coaching.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.health.events import (
+    CanonicalActivityRecorded,
+    CanonicalActivitySettled,
+    HealthEvent,
+)
 from mycoach.models.activity import Activity
 from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
 
@@ -25,6 +31,8 @@ class IntakeResult:
     canonical_activity_id: int
     created: bool
     """False when the (athlete, source, external_id) was already recorded: nothing changed."""
+    events: list[HealthEvent] = field(default_factory=list)
+    """What the intake raised, as data, for the call site to dispatch after the commit."""
 
 
 async def intake_source_record(
@@ -72,10 +80,28 @@ async def intake_source_record(
     )
     canonical.user_id = athlete_id
     canonical.data_source = source
+    # Every canonical activity has an external id (#186): its gym source record's id, or, for a
+    # Garmin-only one, the Garmin id. Coaching keys everything it stores about an activity by it.
+    canonical.external_id = canonical.external_id or external_id
+    now = datetime.utcnow()
+    events: list[HealthEvent] = [
+        CanonicalActivityRecorded.build(
+            athlete_id, canonical.external_id, canonical.sport, source, now
+        )
+    ]
+    if source == "garmin":
+        # No second source is expected for a Garmin-only activity: settled at creation (#112).
+        canonical.settled_at = now
+        canonical.settlement_reason = "reconciled"
+        events.append(
+            CanonicalActivitySettled.build(
+                athlete_id, canonical.external_id, canonical.sport, now, "reconciled"
+            )
+        )
     session.add_all([record, canonical])
     await session.flush()
     session.add(
         CanonicalActivitySource(canonical_activity_id=canonical.id, source_record_id=record.id)
     )
     await session.flush()
-    return IntakeResult(record.id, canonical.id, created=True)
+    return IntakeResult(record.id, canonical.id, created=True, events=events)

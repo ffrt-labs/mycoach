@@ -106,7 +106,7 @@ def _run(job: str, started: datetime, *, status: str = "success", ms: int = 20_0
 
 
 def _insight(
-    kind: str, day: date, created: datetime, activity_id: int | None = None
+    kind: str, day: date, created: datetime, activity_id: str | None = None
 ) -> CoachingInsight:
     return CoachingInsight(
         user_id=1,
@@ -114,7 +114,7 @@ def _insight(
         insight_type=kind,
         content="{}",
         created_at=created,
-        activity_id=activity_id,
+        activity_external_id=activity_id,
     )
 
 
@@ -167,10 +167,10 @@ async def test_post_workout_batch_expects_one_trace_per_activity(langfuse: FakeL
     t = datetime(2026, 10, 5, 21, 0)
     await _seed(
         _run("post_workout_analysis", t, ms=90_000),
-        _insight("post_workout", date(2026, 10, 4), t + timedelta(seconds=30), activity_id=7),
-        _insight("post_workout", date(2026, 10, 5), t + timedelta(seconds=80), activity_id=8),
+        _insight("post_workout", date(2026, 10, 4), t + timedelta(seconds=30), activity_id="7"),
+        _insight("post_workout", date(2026, 10, 5), t + timedelta(seconds=80), activity_id="8"),
         # Analysed later, by the manual route: not this batch's.
-        _insight("post_workout", date(2026, 10, 5), t + timedelta(hours=2), activity_id=9),
+        _insight("post_workout", date(2026, 10, 5), t + timedelta(hours=2), activity_id="9"),
     )
     langfuse.add_trace(
         "mycoach:post-workout:7", name="post-workout", session_id="mycoach:week:1:2026-09-28"

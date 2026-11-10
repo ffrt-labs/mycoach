@@ -64,10 +64,10 @@ class TestGetActivityWithDetails:
             )
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(session, activity.id, user_id)
+            act_dict, gym_details = await get_activity_with_details(session, activity.external_id, user_id)
             assert act_dict["sport"] == "gym"
             assert act_dict["title"] == "Upper Body"
-            assert act_dict["id"] == activity.id
+            assert act_dict["external_id"] == activity.external_id
             assert len(gym_details) == 1
             assert gym_details[0]["exercise_title"] == "Bench Press"
             assert gym_details[0]["weight_kg"] == 80.0
@@ -88,7 +88,7 @@ class TestGetActivityWithDetails:
             session.add(activity)
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(session, activity.id, user_id)
+            act_dict, gym_details = await get_activity_with_details(session, activity.external_id, user_id)
             assert act_dict["sport"] == "swimming"
             assert gym_details == []
 
@@ -146,7 +146,7 @@ class TestFindMatchingPlannedSession:
             await session.commit()
 
             activity_dict = {
-                "id": activity.id,
+                "external_id": activity.external_id,
                 "sport": "gym",
                 "start_time": "2024-06-12 09:00:00",
             }
@@ -189,7 +189,7 @@ class TestFindMatchingPlannedSession:
             await session.commit()
 
             activity_dict = {
-                "id": activity.id,
+                "external_id": activity.external_id,
                 "sport": "gym",
                 "start_time": "2024-06-12 09:00:00",
             }
@@ -230,7 +230,7 @@ class TestFindMatchingPlannedSession:
             await session.commit()
 
             activity_dict = {
-                "id": activity.id,
+                "external_id": activity.external_id,
                 "sport": "swimming",
                 "start_time": "2024-06-12 07:00:00",
             }
@@ -286,7 +286,7 @@ class TestFindMatchingPlannedSession:
             await session.commit()
 
             activity_dict = {
-                "id": activity.id,
+                "external_id": activity.external_id,
                 "sport": "gym",
                 "start_time": "2024-06-12 09:00:00",
             }
@@ -365,7 +365,7 @@ class TestFindMatchingPlannedSession:
                 day_of_week=0,
                 sport="gym",
                 title="Push",
-                activity_id=activity.id,
+                activity_external_id=activity.external_id,
                 completed=True,
             )
             planned_thursday = PlannedSession(
@@ -375,7 +375,7 @@ class TestFindMatchingPlannedSession:
             await session.commit()
 
             activity_dict = {
-                "id": activity.id,
+                "external_id": activity.external_id,
                 "sport": "gym",
                 "start_time": "2024-06-13 09:00:00",
             }
@@ -436,13 +436,13 @@ class TestFindMatchingPlannedSession:
                     day_of_week=0,
                     sport="gym",
                     title="Push",
-                    activity_id=999,
+                    activity_external_id="other-activity",
                     completed=True,
                 )
             )
             await session.commit()
 
-            activity_dict = {"id": 1, "sport": "gym", "start_time": "2024-06-13 09:00:00"}
+            activity_dict = {"external_id": "this-activity", "sport": "gym", "start_time": "2024-06-13 09:00:00"}
             result = await find_matching_planned_session(session, activity_dict, user_id)
             assert result is None
 
@@ -476,7 +476,7 @@ class TestGetSimilarActivities:
             await session.commit()
 
             # Exclude a2, should only get a1 (swimming excluded by sport filter)
-            similar = await get_similar_activities(session, user_id, "gym", a2.id)
+            similar = await get_similar_activities(session, user_id, "gym", a2.external_id)
             assert len(similar) == 1
             assert similar[0]["title"] == "Workout 1"
 
@@ -493,5 +493,5 @@ class TestGetSimilarActivities:
             session.add(a1)
             await session.commit()
 
-            similar = await get_similar_activities(session, user_id, "gym", a1.id)
+            similar = await get_similar_activities(session, user_id, "gym", a1.external_id)
             assert len(similar) == 0

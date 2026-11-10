@@ -192,7 +192,7 @@ class TestPushPrescriptionLink:
                 await session.execute(select(PlannedSession).where(PlannedSession.id == planned_id))
             ).scalar_one()
             assert planned.completed is True
-            assert planned.activity_id is not None
+            assert planned.activity_external_id is not None
 
     @pytest.mark.asyncio
     async def test_stale_id_reports_but_still_stores_the_workout(self, client, user: User) -> None:  # type: ignore[no-untyped-def]

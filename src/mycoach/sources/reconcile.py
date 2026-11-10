@@ -18,13 +18,14 @@ candidates, so a second run finds nothing. Health side: never imports coaching.
 """
 
 import logging
-from dataclasses import dataclass
-from datetime import timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
 from mycoach.models.activity import Activity
 from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
 
@@ -51,6 +52,8 @@ _GARMIN_CACHE_COLUMNS = (
 class LinkResult:
     linked: int = 0
     errors: list[str] | None = None
+    events: list[HealthEvent] = field(default_factory=list)
+    """Settled (a gym activity just reconciled) and Revised (late Garmin data on a settled one)."""
 
     @property
     def has_errors(self) -> bool:
@@ -110,9 +113,26 @@ async def link_garmin_to_gym(session: AsyncSession, athlete_id: int) -> LinkResu
             continue
         matched.add(match.id)
 
+        changed: list[str] = []
         for column in _GARMIN_CACHE_COLUMNS:
-            if getattr(gym, column) is None:
+            if getattr(gym, column) is None and getattr(match, column) is not None:
                 setattr(gym, column, getattr(match, column))
+                changed.append(column)
+        now = datetime.utcnow()
+        if gym.settled_at is None:
+            # Reconciliation completed: the expected second source arrived (#112).
+            gym.settled_at = now
+            gym.settlement_reason = "reconciled"
+            if gym.external_id:
+                result.events.append(
+                    CanonicalActivitySettled.build(
+                        athlete_id, gym.external_id, gym.sport, now, "reconciled"
+                    )
+                )
+        elif changed and gym.external_id:
+            result.events.append(
+                CanonicalActivityRevised.build(athlete_id, gym.external_id, gym.sport, now, changed)
+            )
         await session.flush()
 
         garmin_id, gym_id = match.id, gym.id

@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     # role, never as the DML-only runtime login in ``db_url``. Empty falls back to
     # ``db_url`` (SQLite, and the one-off cutover run as the instance's superuser).
     health_owner_db_url: str = ""
+    # The health module's own runtime login (ticket #186): ``health_role`` only. ``db_url`` is
+    # then the coaching login (``coaching_role`` only). Empty falls back to ``db_url``, which is
+    # SQLite, and the interim single bridge login until the cutover (docs/migrations/186).
+    health_db_url: str = ""
+    # A gym-sourced canonical activity settles on a Garmin match or this many hours after its
+    # start, whichever comes first (map #85, ticket #112).
+    activity_settlement_deadline_hours: int = 24
     coaching_owner_db_url: str = ""
 
     # Garmin

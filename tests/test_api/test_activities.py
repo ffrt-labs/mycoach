@@ -156,7 +156,7 @@ async def test_get_activity_gym(client: AsyncClient) -> None:
     async with test_session() as session:
         await _create_user(session)
         activity = await _create_gym_activity(session)
-        activity_id = activity.id
+        activity_id = activity.external_id
 
     response = await client.get(f"/api/activities/{activity_id}")
     assert response.status_code == 200
@@ -170,7 +170,7 @@ async def test_get_activity_swim(client: AsyncClient) -> None:
     async with test_session() as session:
         await _create_user(session)
         activity = await _create_swim_activity(session)
-        activity_id = activity.id
+        activity_id = activity.external_id
 
     response = await client.get(f"/api/activities/{activity_id}")
     assert response.status_code == 200

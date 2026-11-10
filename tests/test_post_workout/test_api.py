@@ -30,10 +30,10 @@ async def _seed_user_and_activity(sport: str = "gym", title: str = "Upper Body")
         )
         session.add(activity)
         await session.commit()
-        return user.id, activity.id
+        return user.id, activity.external_id
 
 
-async def _seed_analysis(user_id: int, activity_id: int) -> int:
+async def _seed_analysis(user_id: int, activity_id: str) -> int:
     """Create a post-workout analysis for an activity, return insight id."""
     async with test_session() as session:
         insight = CoachingInsight(
@@ -42,7 +42,7 @@ async def _seed_analysis(user_id: int, activity_id: int) -> int:
             insight_type="post_workout",
             content=json.dumps({"performance_summary": "Good session"}),
             prompt_version="v1",
-            activity_id=activity_id,
+            activity_external_id=activity_id,
         )
         session.add(insight)
         await session.commit()
@@ -58,7 +58,7 @@ class TestGetActivityAnalysis:
         assert resp.status_code == 200
         data = resp.json()
         assert data["insight_type"] == "post_workout"
-        assert data["activity_id"] == activity_id
+        assert data["activity_external_id"] == activity_id
 
     async def test_404_when_no_analysis(self, client: AsyncClient) -> None:
         user_id, activity_id = await _seed_user_and_activity()
@@ -119,12 +119,12 @@ class TestMarkSessionCompleted:
             await session.commit()
 
             resp = await client.patch(
-                f"/api/plans/{plan.id}/sessions/{planned.id}?activity_id={activity.id}"
+                f"/api/plans/{plan.id}/sessions/{planned.id}?activity_external_id={activity.external_id}"
             )
             assert resp.status_code == 200
             data = resp.json()
             assert data["completed"] is True
-            assert data["activity_id"] == activity.id
+            assert data["activity_external_id"] == activity.external_id
 
     async def test_mark_session_not_found(self, client: AsyncClient) -> None:
         resp = await client.patch("/api/plans/999/sessions/999")

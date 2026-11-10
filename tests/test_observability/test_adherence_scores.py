@@ -94,7 +94,7 @@ async def _activity(
                 rpe=9,
             )
         )
-    await session.flush()
+    await session.commit()  # health reads through its own session
     return activity
 
 
@@ -115,9 +115,11 @@ class TestBothFulfillmentPaths:
     async def test_post_workout_link_scores_the_weekly_plan_trace_after_commit(self) -> None:
         sink = RecordingScoreSink()
         async with test_session() as session:
-            _, plan, planned, activity = await _gym_setup(session)
+            user_id, plan, planned, activity = await _gym_setup(session)
 
-            await link_activity_to_planned_session(session, activity.id, planned.id, scores=sink)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             assert sink.scores == []  # nothing before the commit
 
             await session.commit()
@@ -135,7 +137,7 @@ class TestBothFulfillmentPaths:
             user_id, plan, planned, activity = await _gym_setup(session)
 
             declined = await claim_planned_session(
-                session, user_id, activity.id, planned.id, scores=sink
+                session, user_id, activity.external_id, planned.id, scores=sink
             )
             assert declined is None
             assert sink.scores == []
@@ -149,8 +151,10 @@ class TestScoreContent:
     async def test_gym_scores_carry_the_planned_session_and_the_slots_generation(self) -> None:
         sink = RecordingScoreSink()
         async with test_session() as session:
-            _, plan, planned, activity = await _gym_setup(session)
-            await link_activity_to_planned_session(session, activity.id, planned.id, scores=sink)
+            user_id, plan, planned, activity = await _gym_setup(session)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.commit()
 
         for score in sink.scores:
@@ -171,7 +175,7 @@ class TestScoreContent:
             await claim_planned_session(
                 session,
                 user_id,
-                activity.id,
+                activity.external_id,
                 planned.id,
                 scores=sink,
                 clock=lambda: before_the_week,
@@ -197,7 +201,9 @@ class TestScoreContent:
             await session.flush()
             activity = await _activity(session, user_id, sets=1, minutes=30, sport="running")
 
-            await link_activity_to_planned_session(session, activity.id, planned.id, scores=sink)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.commit()
 
         assert sink.values() == {_id(plan, "adherence_duration_ratio", planned): 0.75}
@@ -209,10 +215,12 @@ class TestWhenNothingIsSent:
     async def test_a_rolled_back_link_sends_nothing(self) -> None:
         sink = RecordingScoreSink()
         async with test_session() as session:
-            _, _, planned, activity = await _gym_setup(session)
+            user_id, _, planned, activity = await _gym_setup(session)
             await session.commit()
 
-            await link_activity_to_planned_session(session, activity.id, planned.id, scores=sink)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.rollback()
             await session.commit()  # a later commit must not resurrect them
 
@@ -226,9 +234,11 @@ class TestWhenNothingIsSent:
             planned = await _gym_session(session, plan, day=0)
             empty = await _activity(session, user_id, sets=0)
 
-            await link_activity_to_planned_session(session, empty.id, planned.id, scores=sink)
+            await link_activity_to_planned_session(
+                session, user_id, empty.external_id, planned.id, scores=sink
+            )
             declined = await claim_planned_session(
-                session, user_id, empty.id, planned.id, scores=sink
+                session, user_id, empty.external_id, planned.id, scores=sink
             )
             await session.commit()
 
@@ -240,11 +250,11 @@ class TestWhenNothingIsSent:
         async with test_session() as session:
             user_id, _, planned, activity = await _gym_setup(session)
             other = await _activity(session, user_id)
-            planned.activity_id = other.id
+            planned.activity_external_id = other.external_id
             await session.flush()
 
             declined = await claim_planned_session(
-                session, user_id, activity.id, planned.id, scores=sink
+                session, user_id, activity.external_id, planned.id, scores=sink
             )
             await session.commit()
 
@@ -257,12 +267,16 @@ class TestIdempotency:
         sink = RecordingScoreSink()
         async with test_session() as session:
             user_id, _, planned, activity = await _gym_setup(session)
-            await link_activity_to_planned_session(session, activity.id, planned.id, scores=sink)
+            await link_activity_to_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.commit()
             first = [s.id for s in sink.scores]
 
             sink.scores.clear()
-            await claim_planned_session(session, user_id, activity.id, planned.id, scores=sink)
+            await claim_planned_session(
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.commit()
 
         assert [s.id for s in sink.scores] == first
@@ -289,7 +303,7 @@ class TestPostWorkoutRun:
             await session.commit()
 
             engine = CoachingEngine(llm_client=_post_workout_llm(), scores=sink)
-            await engine.generate_post_workout_analysis(session, user_id, activity.id)
+            await engine.generate_post_workout_analysis(session, user_id, activity.external_id)
 
         assert sink.values()[_id(plan, "adherence_duration_ratio", planned)] == 0.8
 
@@ -332,8 +346,8 @@ class TestGymSlotContract:
             for planned in gym_sessions:
                 activity = await _activity(session, user_id)
                 await link_activity_to_planned_session(
-                    session, activity.id, planned.id, scores=sink
-                )
+                session, user_id, activity.external_id, planned.id, scores=sink
+            )
             await session.commit()
 
         linked = {s.metadata["day_of_week"]: s.metadata["generation"] for s in sink.scores}

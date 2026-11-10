@@ -1,7 +1,7 @@
 """Tests for POST /api/logger/sessions/{session_id}/unlink (#130).
 
 Releases a wrongly claimed prescription: clears the prescription side only
-(`activity_id`, `completed`) and leaves the activity untouched, so the
+(`activity_external_id`, `completed`) and leaves the activity untouched, so the
 prescription is to-do again in the logger's "This week" list.
 """
 
@@ -47,7 +47,7 @@ async def _claimed_session(week_start: date) -> tuple[int, int]:
             duration_minutes=55,
             track="gym",
             completed=True,
-            activity_id=activity.id,
+            activity_external_id=activity.external_id,
         )
         session.add(planned)
         await session.commit()
@@ -70,7 +70,7 @@ class TestUnlinkSession:
             planned = await session.get(PlannedSession, session_id)
             assert planned is not None
             assert planned.completed is False
-            assert planned.activity_id is None
+            assert planned.activity_external_id is None
 
             activity = await session.get(Activity, activity_id)
             assert activity is not None  # untouched, not deleted

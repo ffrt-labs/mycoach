@@ -51,6 +51,25 @@ if _is_sqlite:
 
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+# The health module's own connection (ticket #186). With ``MYCOACH_HEALTH_DB_URL`` unset it
+# is the same database and login as ``engine``; set, it is a second login that holds
+# ``health_role`` only, so the coaching connection needs no grant on the health schema.
+if settings.health_db_url and settings.health_db_url != settings.db_url:
+    _health_is_sqlite = settings.health_db_url.startswith("sqlite")
+    _health_raw = create_async_engine(
+        settings.health_db_url,
+        echo=settings.debug,
+        **({} if _health_is_sqlite else {"poolclass": NullPool}),
+    )
+    health_engine = (
+        _health_raw.execution_options(schema_translate_map=SQLITE_SCHEMA_TRANSLATE_MAP)
+        if _health_is_sqlite
+        else _health_raw
+    )
+else:
+    health_engine = engine
+health_async_session = async_sessionmaker(health_engine, expire_on_commit=False)
+
 
 class Base(DeclarativeBase):
     pass

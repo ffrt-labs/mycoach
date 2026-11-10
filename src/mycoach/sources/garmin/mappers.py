@@ -443,6 +443,7 @@ async def import_activities(
             )
             if intake.created:
                 result.activities_created += 1
+                result.events.extend(intake.events)
             else:
                 result.activities_skipped += 1
         except Exception as e:

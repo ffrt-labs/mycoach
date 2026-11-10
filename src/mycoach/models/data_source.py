@@ -1,16 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import HEALTH_SCHEMA, Base
 
 
 class DataSourceConfig(Base):
     __tablename__ = "data_source_configs"
+    __table_args__ = {"schema": HEALTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # Athlete ID, see Activity.user_id.
+    user_id: Mapped[int] = mapped_column("athlete_id")
     source_type: Mapped[str] = mapped_column(String(50))  # garmin, hevy_csv, strava, etc.
     credentials_encrypted: Mapped[str | None] = mapped_column(Text, default=None)
     enabled: Mapped[bool] = mapped_column(default=True)

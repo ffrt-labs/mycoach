@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from mycoach.coaching.prescriptions import Prescription
 from mycoach.models.activity import GymWorkoutDetail
 from mycoach.observability.adherence import cardio_adherence, gym_adherence
 
@@ -15,8 +16,6 @@ def performed(
     reps: int | None = None,
     rpe: float | None = None,
     set_type: str = "normal",
-    prescribed_weight: float | None = None,
-    prescribed_reps: int | None = None,
 ) -> GymWorkoutDetail:
     return GymWorkoutDetail(
         exercise_id=exercise_id,
@@ -26,8 +25,6 @@ def performed(
         weight_kg=weight,
         reps=reps,
         rpe=rpe,
-        prescribed_weight_kg=prescribed_weight,
-        prescribed_reps=prescribed_reps,
     )
 
 
@@ -128,9 +125,11 @@ class TestGymAdherence:
 
     def test_the_sets_own_prescription_wins_over_the_plan_details(self) -> None:
         details = {"exercises": [prescribed("bench", 1, reps="8", weight=100)]}
-        sets = [performed("bench", weight=90, reps=10, prescribed_weight=90, prescribed_reps=12)]
+        sets = [performed("bench", weight=90, reps=10)]
+        # The fulfillment is coaching's, keyed by the set's exercise and index (performed() uses title=id, 0).
+        fulfilled = {("bench", 0): Prescription(weight_kg=90, reps=12)}
 
-        values = gym_adherence(details, sets)
+        values = gym_adherence(details, sets, fulfilled)
 
         assert values["adherence_weight_delta_pct"] == 0.0
         assert values["adherence_reps_delta"] == -2.0

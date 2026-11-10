@@ -10,6 +10,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.prescriptions import record_fulfillments
 from mycoach.exercise_catalogue import exercise_id_for_name
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.plan_linking import claim_planned_session
@@ -115,10 +116,10 @@ async def import_workouts(
                     distance_meters=s.distance_meters,
                     duration_seconds=s.duration_seconds,
                     rpe=s.rpe,
-                    prescribed_weight_kg=s.prescribed_weight_kg,
-                    prescribed_reps=s.prescribed_reps,
                 )
             )
+        # What the plan called for is coaching's, written in this same request.
+        await record_fulfillments(session, workout.external_id, workout.sets)
         await session.flush()  # the claim guard reads the stored sets
 
         if workout.planned_session_id is not None:

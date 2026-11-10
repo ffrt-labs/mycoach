@@ -37,6 +37,11 @@ class Settings(BaseSettings):
 
     # Database
     db_url: str = "sqlite+aiosqlite:///./mycoach.db"
+    # Migration logins on Postgres (ticket #184): each history runs as its schema's owner
+    # role, never as the DML-only runtime login in ``db_url``. Empty falls back to
+    # ``db_url`` (SQLite, and the one-off cutover run as the instance's superuser).
+    health_owner_db_url: str = ""
+    coaching_owner_db_url: str = ""
 
     # Garmin
     garmin_email: str = ""

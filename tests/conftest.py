@@ -6,11 +6,13 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from mycoach.coaching.prompt_store import set_prompt_store
-from mycoach.database import Base, get_db
+from mycoach.database import SQLITE_SCHEMA_TRANSLATE_MAP, Base, get_db
 from mycoach.main import app
 from mycoach.observability.tracing import NoopTracer, set_tracer
 
-test_engine = create_async_engine("sqlite+aiosqlite://", echo=False)
+test_engine = create_async_engine("sqlite+aiosqlite://", echo=False).execution_options(
+    schema_translate_map=SQLITE_SCHEMA_TRANSLATE_MAP
+)
 test_session = async_sessionmaker(test_engine, expire_on_commit=False)
 
 

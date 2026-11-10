@@ -3,11 +3,12 @@ from datetime import datetime
 from sqlalchemy import Float, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import COACHING_SCHEMA, Base
 
 
 class PromptLog(Base):
     __tablename__ = "prompt_logs"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     prompt_type: Mapped[str] = mapped_column(

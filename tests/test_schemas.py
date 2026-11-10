@@ -197,22 +197,11 @@ class TestActivitySchemas:
         with pytest.raises(ValidationError):
             GymWorkoutDetailCreate(exercise_title="Squat", set_index=1, rpe=11.0)
 
-    def test_gym_detail_carries_prescribed_alongside_performed(self) -> None:
-        d = GymWorkoutDetailCreate(
-            exercise_title="Squat",
-            set_index=1,
-            weight_kg=100.0,
-            reps=5,
-            prescribed_weight_kg=102.5,
-            prescribed_reps=5,
-        )
-        assert d.prescribed_weight_kg == 102.5
-        assert d.prescribed_reps == 5
-
-    def test_gym_detail_prescribed_defaults_to_none(self) -> None:
-        d = GymWorkoutDetailCreate(exercise_title="Squat", set_index=1)
-        assert d.prescribed_weight_kg is None
-        assert d.prescribed_reps is None
+    def test_gym_detail_is_an_observed_fact_with_no_prescription(self) -> None:
+        """A performed set carries no prescription: that is coaching's
+        (``coaching.prescription_fulfillments``, ticket #108)."""
+        assert "prescribed_weight_kg" not in GymWorkoutDetailCreate.model_fields
+        assert "prescribed_reps" not in GymWorkoutDetailCreate.model_fields
 
 
 class TestWorkoutImportSchemas:

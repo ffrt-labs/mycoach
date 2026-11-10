@@ -4,7 +4,7 @@ from enum import StrEnum
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import COACHING_SCHEMA, Base
 
 
 class Track(StrEnum):
@@ -16,10 +16,13 @@ class Track(StrEnum):
 
 class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
-    __table_args__ = (UniqueConstraint("user_id", "week_start"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "week_start"),
+        {"schema": COACHING_SCHEMA},
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey(f"{COACHING_SCHEMA}.users.id"))
     week_start: Mapped[date]  # Monday of the plan week
     mesocycle_week: Mapped[int | None] = mapped_column(default=None)  # Week within block
     mesocycle_phase: Mapped[str | None] = mapped_column(
@@ -44,9 +47,10 @@ class WeeklyPlan(Base):
 
 class PlannedSession(Base):
     __tablename__ = "planned_sessions"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    plan_id: Mapped[int] = mapped_column(ForeignKey("weekly_plans.id"))
+    plan_id: Mapped[int] = mapped_column(ForeignKey(f"{COACHING_SCHEMA}.weekly_plans.id"))
     day_of_week: Mapped[int]  # 0=Monday, 6=Sunday
     sport: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(200))
@@ -55,6 +59,7 @@ class PlannedSession(Base):
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     completed: Mapped[bool] = mapped_column(default=False)
     track: Mapped[str] = mapped_column(String(20), default=Track.CARDIO.value)  # a Track
-    activity_id: Mapped[int | None] = mapped_column(
-        ForeignKey("activities.id"), default=None
-    )  # Link to actual workout
+    # health.activities.id by value, not by FK: the seam allows no cross-schema
+    # constraint (ticket #108). Replacing it with the activity's external id is
+    # #185/#186 (plan_linking's use of the internal id as a cross-store key).
+    activity_id: Mapped[int | None] = mapped_column(default=None)  # Link to actual workout

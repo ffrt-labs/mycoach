@@ -1,5 +1,10 @@
 """One-off faithful copy of the SQLite database into Postgres (map #85, ticket #107).
 
+HISTORICAL: this builds the schema from the *current* models, which since #184 are split
+into the ``health``/``coaching`` schemas with different columns than the SQLite file it
+copies from. It was run once for #107 and is not valid against the post-#184 models; do
+not re-run it (docs/migrations/184-cutover.md).
+
 Same tables, same shapes, no model changes. The Postgres schema is built from the
 ORM models (``Base.metadata.create_all``) and stamped at the Alembic head, rather
 than by replaying the SQLite-flavoured migration history.

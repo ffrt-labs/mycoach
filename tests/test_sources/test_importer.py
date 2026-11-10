@@ -6,8 +6,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.prescriptions import prescriptions_for
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.models.prescription import PrescriptionFulfillment
 from mycoach.models.user import User
 from mycoach.sources.importer import import_workouts
 from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
@@ -81,15 +83,20 @@ class TestImportWorkouts:
             assert count == 1
 
     @pytest.mark.asyncio
-    async def test_persists_prescribed_alongside_performed(self, user: User) -> None:
-        """Set import: sets carrying a prescription land on GymWorkoutDetail."""
+    async def test_prescription_lands_in_coaching_keyed_by_external_id_and_set_index(
+        self, user: User
+    ) -> None:
+        """What the plan called for is written at log time to the coaching-owned
+        fulfillment table, never onto the performed set (map #85, ticket #108)."""
         from tests.conftest import test_session
 
         workout = WorkoutImport(
             title="Push Day",
             start_time=datetime(2024, 6, 10, 9, 0),
+            external_id="uuid-rx",
             sets=[
                 WorkoutSetImport(
+                    exercise_id="barbell-bench-press",
                     exercise_title="Bench Press",
                     set_index=1,
                     weight_kg=80,
@@ -106,16 +113,86 @@ class TestImportWorkouts:
             await session.commit()
 
         async with test_session() as session:
-            details = (
-                (await session.execute(select(GymWorkoutDetail).order_by(GymWorkoutDetail.set_index)))
+            rows = (
+                (
+                    await session.execute(
+                        select(PrescriptionFulfillment).order_by(PrescriptionFulfillment.set_index)
+                    )
+                )
                 .scalars()
                 .all()
             )
-            assert details[0].prescribed_weight_kg == 82.5
-            assert details[0].prescribed_reps == 6
-            # An unprescribed set (manually logged, or no plan for the session) stays null.
-            assert details[1].prescribed_weight_kg is None
-            assert details[1].prescribed_reps is None
+            # Only the prescribed set gets a row; the unprescribed one stays absent.
+            assert [(r.activity_external_id, r.exercise_title, r.set_index) for r in rows] == [
+                ("uuid-rx", "Bench Press", 1)
+            ]
+            assert rows[0].exercise_id == "barbell-bench-press"
+            assert rows[0].prescribed_weight_kg == 82.5
+            assert rows[0].prescribed_reps == 6
+
+            # The performed set carries no prescription column at all.
+            assert not hasattr(GymWorkoutDetail, "prescribed_weight_kg")
+            assert not hasattr(GymWorkoutDetail, "prescribed_reps")
+
+    @pytest.mark.asyncio
+    async def test_set_index_restarts_per_exercise_so_fulfillments_are_keyed_by_exercise_too(
+        self, user: User
+    ) -> None:
+        """The logger numbers sets from 1 within each exercise, so (external id,
+        set_index) alone would collide across exercises of one workout."""
+        from tests.conftest import test_session
+
+        workout = WorkoutImport(
+            title="Push Day",
+            start_time=datetime(2024, 6, 10, 9, 0),
+            external_id="uuid-two-ex",
+            sets=[
+                WorkoutSetImport(
+                    exercise_title="Bench Press", set_index=1, reps=8,
+                    prescribed_weight_kg=80, prescribed_reps=8,
+                ),
+                WorkoutSetImport(
+                    exercise_title="Overhead Press", set_index=1, reps=8,
+                    prescribed_weight_kg=40, prescribed_reps=10,
+                ),
+            ],
+        )
+        async with test_session() as session:
+            await import_workouts(session, user.id, [workout], source="logger")
+            await session.commit()
+
+        async with test_session() as session:
+            found = await prescriptions_for(session, ["uuid-two-ex"])
+        assert found[("uuid-two-ex", "Bench Press", 1)].weight_kg == 80
+        assert found[("uuid-two-ex", "Overhead Press", 1)].weight_kg == 40
+
+    @pytest.mark.asyncio
+    async def test_reposting_a_workout_does_not_duplicate_fulfillments(self, user: User) -> None:
+        from tests.conftest import test_session
+
+        workout = WorkoutImport(
+            title="Push Day",
+            start_time=datetime(2024, 6, 10, 9, 0),
+            external_id="uuid-rx2",
+            sets=[
+                WorkoutSetImport(
+                    exercise_title="Bench Press",
+                    set_index=1,
+                    weight_kg=80,
+                    reps=8,
+                    prescribed_weight_kg=82.5,
+                    prescribed_reps=6,
+                )
+            ],
+        )
+        for _ in range(2):
+            async with test_session() as session:
+                await import_workouts(session, user.id, [workout], source="logger")
+                await session.commit()
+
+        async with test_session() as session:
+            rows = (await session.execute(select(PrescriptionFulfillment))).scalars().all()
+            assert len(rows) == 1
 
     @pytest.mark.asyncio
     async def test_dedup_fallback_title_start_time(self, user: User) -> None:

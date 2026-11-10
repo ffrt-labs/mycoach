@@ -9,6 +9,7 @@ from mycoach.coaching.context import (
     get_activity_with_details,
     get_similar_activities,
 )
+from mycoach.models.prescription import PrescriptionFulfillment
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
@@ -36,6 +37,7 @@ class TestGetActivityWithDetails:
                 avg_hr=130,
                 max_hr=165,
                 data_source="hevy",
+                external_id="uuid-ctx",
             )
             session.add(activity)
             await session.flush()
@@ -49,6 +51,13 @@ class TestGetActivityWithDetails:
                     weight_kg=80.0,
                     reps=8,
                     rpe=7.5,
+                )
+            )
+            session.add(
+                PrescriptionFulfillment(
+                    activity_external_id="uuid-ctx",
+                    exercise_title="Bench Press",
+                    set_index=1,
                     prescribed_weight_kg=82.5,
                     prescribed_reps=8,
                 )

@@ -17,8 +17,6 @@ class GymWorkoutDetailBase(BaseModel):
     distance_meters: float | None = None
     duration_seconds: int | None = None
     rpe: float | None = Field(default=None, ge=1, le=10)
-    prescribed_weight_kg: float | None = None
-    prescribed_reps: int | None = None
 
     @field_validator("exercise_id")
     @classmethod

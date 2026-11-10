@@ -3,11 +3,12 @@ from datetime import datetime
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import COACHING_SCHEMA, Base
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
@@ -16,6 +17,9 @@ class User(Base):
         String(20), default="intermediate"
     )  # beginner, intermediate, advanced
     goals: Mapped[str | None] = mapped_column(Text, default=None)
+    # The health side's immutable Athlete ID for this user (health.athletes.id) —
+    # stored here, never joined across the schema seam (ticket #108).
+    health_athlete_id: Mapped[int | None] = mapped_column(default=None)
 
     # Email preferences (per-type opt-in, all enabled by default)
     email_daily_briefing: Mapped[bool] = mapped_column(default=True)

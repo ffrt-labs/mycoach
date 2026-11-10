@@ -134,3 +134,25 @@ def test_intake_does_not_import_coaching() -> None:
                 modules = [a.name for a in node.names]
             assert not [m for m in modules if m.startswith("mycoach.coaching")], path
             assert not [m for m in modules if m == "mycoach.plan_linking"], path
+
+
+async def test_canonical_external_ids_stay_unique_when_two_sources_share_an_id() -> None:
+    """Coaching names an activity by its external id, so two activities never share one."""
+    from sqlalchemy import select
+
+    from mycoach.models.activity import Activity
+    from tests.conftest import test_session
+
+    async with test_session() as session:
+        for source in ("logger", "hevy"):
+            await intake_source_record(
+                session,
+                athlete_id=1,
+                source=source,
+                external_id="shared",
+                raw_payload={},
+                canonical=_canonical(data_source=source, external_id="shared"),
+            )
+        await session.commit()
+        ids = (await session.execute(select(Activity.external_id).order_by(Activity.id))).scalars()
+        assert list(ids) == ["shared", "hevy:shared"]

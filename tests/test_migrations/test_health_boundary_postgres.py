@@ -124,6 +124,7 @@ def test_the_app_flows_work_on_two_separate_logins(
         health_engine = create_async_engine(health_url)
         coaching_engine = create_async_engine(coaching_url)
         coaching_sessions = async_sessionmaker(coaching_engine, expire_on_commit=False)
+        previous = health_runtime._factory  # restored afterwards
         health_runtime.configure(async_sessionmaker(health_engine, expire_on_commit=False))
         monkeypatch.setattr("mycoach.database.async_session", coaching_sessions)
         try:
@@ -186,7 +187,7 @@ def test_the_app_flows_work_on_two_separate_logins(
             fetched = await health.get_activity(7, "uuid-2")
             assert fetched is not None and "planned_session_id" not in fetched
         finally:
-            health_runtime.configure(None)
+            health_runtime.configure(previous)
             await health_engine.dispose()
             await coaching_engine.dispose()
 

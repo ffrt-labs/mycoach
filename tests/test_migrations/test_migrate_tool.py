@@ -24,8 +24,15 @@ def test_a_fresh_sqlite_database_gets_both_histories_at_head(
     finally:
         conn.close()
     assert coaching == [("c184a1b2c3d4",)]
-    assert health == [("h184a1b2c3d4",)]
-    assert {"athletes", "prescription_fulfillments"} <= tables
+    assert health == [("h185a1b2c3d4",)]
+    assert {
+        "athletes",
+        "prescription_fulfillments",
+        "source_records",
+        "canonical_activities",
+        "canonical_activity_sources",
+        "exercises",
+    } <= tables
 
 
 def test_running_it_twice_is_a_no_op(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

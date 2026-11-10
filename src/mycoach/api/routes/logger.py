@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mycoach import health
+from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.database import get_db
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -25,9 +26,6 @@ from mycoach.schemas.logger import (
 from mycoach.schemas.routine import WorkoutRoutineRead
 
 router = APIRouter(prefix="/api/logger", tags=["logger"])
-
-# MVP: single user, id=1
-DEFAULT_USER_ID = 1
 
 
 class ExerciseListItem(BaseModel):

@@ -12,11 +12,13 @@ from typing import Any
 from sqlalchemy import select
 
 from mycoach.config import get_settings
+from mycoach.exercise_catalogue import load_exercise_catalogue
 from mycoach.health.events import CanonicalActivitySettled, HealthEvent
 from mycoach.health.runtime import health_session
 from mycoach.models.activity import Activity
 from mycoach.models.athlete import Athlete
 from mycoach.models.data_source import DataSourceConfig
+from mycoach.models.exercise import Exercise
 from mycoach.sources.base import DataSource, ImportResult
 from mycoach.sources.garmin.mappers import import_activities
 from mycoach.sources.importer import import_workouts
@@ -153,6 +155,28 @@ async def sync_garmin(
     return SyncOutcome(result, link, [*result.events, *link.events, *deadline])
 
 
+async def sync_exercise_catalogue() -> int:
+    """Mirror the pinned catalogue into ``health.exercises``; return how many rows changed.
+
+    The JSON catalogue stays the source of truth (design #109): this inserts what is missing
+    and repairs a retitled row, so ``gym_workout_details.exercise_id`` always has a row to
+    point at. Idempotent; run at app startup.
+    """
+    changed = 0
+    async with health_session() as session:
+        existing = {row.id: row for row in (await session.execute(select(Exercise))).scalars()}
+        for exercise in load_exercise_catalogue():
+            row = existing.get(exercise.id)
+            if row is None:
+                session.add(Exercise(id=exercise.id, title=exercise.name))
+                changed += 1
+            elif row.title != exercise.name:
+                row.title = exercise.name
+                changed += 1
+        await session.commit()
+    return changed
+
+
 async def issue_athlete(athlete_id: int | None = None) -> int:
     """Issue an Athlete ID (the health schema owns identity), or return the existing one.
 
@@ -236,5 +260,6 @@ __all__ = [
     "record_workouts",
     "settle_due_activities",
     "store_source_credentials",
+    "sync_exercise_catalogue",
     "sync_garmin",
 ]

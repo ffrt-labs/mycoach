@@ -18,6 +18,7 @@ from mycoach.health.commands import (
     record_workouts,
     settle_due_activities,
     store_source_credentials,
+    sync_exercise_catalogue,
     sync_garmin,
 )
 from mycoach.health.events import (
@@ -93,5 +94,6 @@ __all__ = [
     "record_workouts",
     "settle_due_activities",
     "store_source_credentials",
+    "sync_exercise_catalogue",
     "sync_garmin",
 ]

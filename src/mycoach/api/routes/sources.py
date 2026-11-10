@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.workout_log import log_workouts
 from mycoach.database import get_db
@@ -18,9 +19,6 @@ from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 logger = logging.getLogger(__name__)
-
-# MVP: single user, id=1
-DEFAULT_USER_ID = 1
 
 
 class HevyImportResponse(BaseModel):

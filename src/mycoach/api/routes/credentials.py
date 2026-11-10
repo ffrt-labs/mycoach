@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.config import get_settings
 from mycoach.crypto import encrypt_credentials
@@ -14,8 +15,6 @@ from mycoach.schemas.data_source import CredentialsInput, CredentialsStored
 
 router = APIRouter(prefix="/api/credentials", tags=["credentials"])
 logger = logging.getLogger(__name__)
-
-DEFAULT_USER_ID = 1
 
 
 def _require_encryption_key() -> str:

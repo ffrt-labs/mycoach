@@ -8,7 +8,7 @@ class Exercise(Base):
     """Health-owned exercise identity (map #85, ticket #185, design #109).
 
     A load-time mirror of the pinned catalogue (``exercise_catalogue``), which stays the
-    source of truth: ``sync_exercises`` upserts it at startup. ``gym_workout_details`` points
+    source of truth: ``health.sync_exercise_catalogue`` upserts it at startup. ``gym_workout_details`` points
     here through a nullable FK; NULL still means a custom exercise.
     """
 

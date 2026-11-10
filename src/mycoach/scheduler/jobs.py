@@ -380,7 +380,9 @@ async def _daily_briefing(today: date | None = None) -> None:
         )
         sync_errors = list(sync_result.errors or [])
     except Exception as e:  # recorded, and the briefing may still be viable
-        logger.error("Scheduler: pre-briefing Garmin sync failed — %s", e)
+        # This wraps the health seam and event dispatch too, so keep the traceback: a bug
+        # there must not read as an ordinary Garmin outage.
+        logger.exception("Scheduler: pre-briefing Garmin sync failed — %s", e)
         sync_errors = [f"Garmin sync raised: {e}"]
 
     engine = CoachingEngine()

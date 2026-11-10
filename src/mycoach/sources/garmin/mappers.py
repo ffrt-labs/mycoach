@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.sources.base import ImportResult
+from mycoach.sources.intake import intake_source_record
 
 logger = logging.getLogger(__name__)
 
@@ -323,8 +324,6 @@ def map_activity(user_id: int, raw: dict[str, Any]) -> Activity:
         fastest_split_100_seconds=_safe_float(raw.get("fastestSplit_100")),
         avg_strokes_per_length=_safe_float(raw.get("avgStrokes")),
         data_source="garmin",
-        garmin_activity_id=str(raw.get("activityId")) if raw.get("activityId") else None,
-        raw_data=json.dumps(raw, default=str),
         created_at=datetime.utcnow(),
     )
 
@@ -337,15 +336,6 @@ async def _snapshot_exists(
         DailyHealthSnapshot.user_id == user_id,
         DailyHealthSnapshot.snapshot_date == day,
         DailyHealthSnapshot.data_source == data_source,
-    )
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none() is not None
-
-
-async def _activity_exists(session: AsyncSession, garmin_activity_id: str) -> bool:
-    """Check if an activity with this Garmin ID already exists."""
-    stmt = select(Activity.id).where(
-        Activity.garmin_activity_id == garmin_activity_id,
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none() is not None
@@ -440,14 +430,21 @@ async def import_activities(
             errors.append(f"Activity missing activityId: {raw.get('activityName', 'unknown')}")
             continue
 
-        if await _activity_exists(session, str(garmin_id)):
-            result.activities_skipped += 1
-            continue
-
         try:
             activity = map_activity(user_id, raw)
-            session.add(activity)
-            result.activities_created += 1
+            intake = await intake_source_record(
+                session,
+                athlete_id=user_id,
+                source="garmin",
+                external_id=str(garmin_id),
+                # What Garmin sent, as received (JSON-safe), kept immutable.
+                raw_payload=json.loads(json.dumps(raw, default=str)),
+                canonical=activity,
+            )
+            if intake.created:
+                result.activities_created += 1
+            else:
+                result.activities_skipped += 1
         except Exception as e:
             errors.append(f"Failed to map activity {garmin_id}: {e}")
 

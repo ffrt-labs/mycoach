@@ -279,7 +279,6 @@ class TestMapActivity:
         assert activity.max_hr == 168
         assert activity.calories == 450
         assert activity.duration_minutes == 60
-        assert activity.garmin_activity_id == "12345678"
         assert activity.data_source == "garmin"
         assert activity.training_effect_aerobic == 3.2
         assert activity.end_time is not None
@@ -462,6 +461,54 @@ class TestImportActivities:
             result = await import_activities(session, user.id, [SAMPLE_ACTIVITY_RAW])
             assert result.activities_created == 0
             assert result.activities_skipped == 1
+
+    async def test_import_keeps_the_raw_payload_as_an_immutable_source_record(
+        self, setup_db  # type: ignore[no-untyped-def]
+    ) -> None:
+        from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            await import_activities(session, user.id, [SAMPLE_ACTIVITY_RAW])
+            await session.commit()
+
+            record = (await session.execute(select(SourceRecord))).scalar_one()
+            assert (record.source, record.external_id) == ("garmin", "12345678")
+            assert record.raw_payload["activityName"] == "Morning Swim"
+            activity = (await session.execute(select(Activity))).scalar_one()
+            assert activity.data_source == "garmin"
+            link = (await session.execute(select(CanonicalActivitySource))).scalar_one()
+            assert link.canonical_activity_id == activity.id
+
+    async def test_a_resync_does_not_resurrect_an_activity_linked_onto_a_gym_one(
+        self, setup_db  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Linking deletes the Garmin-only canonical activity; its source record remembers."""
+        from mycoach.sources.importer import import_workouts
+        from mycoach.sources.reconcile import link_garmin_to_gym
+        from mycoach.sources.workout_import import WorkoutImport
+        from tests.conftest import test_session
+
+        raw = {**SAMPLE_ACTIVITY_GYM}
+        async with test_session() as session:
+            user = await _create_user(session)
+            await import_activities(session, user.id, [raw])
+            start = (await session.execute(select(Activity.start_time))).scalar_one()
+            await import_workouts(
+                session,
+                user.id,
+                [WorkoutImport(title="Push", start_time=start, external_id="uuid-1")],
+                source="logger",
+            )
+            await session.commit()
+            assert (await link_garmin_to_gym(session, user.id)).linked == 1
+            await session.commit()
+
+            result = await import_activities(session, user.id, [raw])
+            await session.commit()
+            assert (result.activities_created, result.activities_skipped) == (0, 1)
+            assert len((await session.execute(select(Activity))).scalars().all()) == 1
 
     async def test_activity_missing_id(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         from tests.conftest import test_session

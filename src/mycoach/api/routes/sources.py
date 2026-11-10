@@ -9,14 +9,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.database import get_db
-from mycoach.models.activity import Activity
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.source_record import SourceRecord
 from mycoach.schemas.data_source import DataSourceStatus
 from mycoach.schemas.workout_import import WorkoutImportBatch
 from mycoach.sources.garmin.source import GarminSource
 from mycoach.sources.hevy.csv_parser import parse_hevy_csv
 from mycoach.sources.importer import import_workouts
-from mycoach.sources.merger import MergeResult
+from mycoach.sources.reconcile import link_garmin_to_gym
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 logger = logging.getLogger(__name__)
@@ -74,10 +74,8 @@ async def import_workouts_endpoint(
         session, DEFAULT_USER_ID, batch.to_dataclasses(), source=batch.source
     )
 
-    # Merging is disabled ahead of the #109 canonical-activity migration:
-    # merge_garmin_hevy's delete-and-overwrite pattern destroys provenance
-    # (see #116/#110).
-    merge_result = MergeResult()
+    # Link Garmin onto gym canonical activities (non-destructive; #185).
+    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
     await session.commit()
 
     all_errors = list(import_result.errors or [])
@@ -87,7 +85,7 @@ async def import_workouts_endpoint(
     return WorkoutImportResponse(
         activities_created=import_result.activities_created,
         activities_skipped=import_result.activities_skipped,
-        activities_merged=merge_result.merged,
+        activities_merged=merge_result.linked,
         errors=all_errors,
     )
 
@@ -111,10 +109,8 @@ async def import_hevy_csv(
     )
     import_result.errors = list(parse_result.errors) + (import_result.errors or [])
 
-    # Merging is disabled ahead of the #109 canonical-activity migration:
-    # merge_garmin_hevy's delete-and-overwrite pattern destroys provenance
-    # (see #116/#110).
-    merge_result = MergeResult()
+    # Link Garmin onto gym canonical activities (non-destructive; #185).
+    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
     await session.commit()
 
     all_errors = list(import_result.errors or [])
@@ -124,7 +120,7 @@ async def import_hevy_csv(
     return HevyImportResponse(
         activities_created=import_result.activities_created,
         activities_skipped=import_result.activities_skipped,
-        activities_merged=merge_result.merged,
+        activities_merged=merge_result.linked,
         rows_parsed=parse_result.rows_parsed,
         rows_skipped=parse_result.rows_skipped,
         errors=all_errors,
@@ -154,10 +150,8 @@ async def sync_garmin(
 
     result = await source.fetch_and_import(session, DEFAULT_USER_ID, since=since)
 
-    # Merging is disabled ahead of the #109 canonical-activity migration:
-    # merge_garmin_hevy's delete-and-overwrite pattern destroys provenance
-    # (see #116/#110).
-    merge_result = MergeResult()
+    # Link Garmin onto gym canonical activities (non-destructive; #185).
+    merge_result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
     await session.commit()
 
     all_errors = list(result.errors or [])
@@ -167,7 +161,7 @@ async def sync_garmin(
     return GarminSyncResponse(
         activities_created=result.activities_created,
         activities_skipped=result.activities_skipped,
-        activities_merged=merge_result.merged,
+        activities_merged=merge_result.linked,
         health_snapshots_created=result.health_snapshots_created,
         health_snapshots_updated=result.health_snapshots_updated,
         errors=all_errors,
@@ -178,16 +172,14 @@ async def sync_garmin(
 async def merge_activities(
     session: AsyncSession = Depends(get_db),
 ) -> MergeResponse:
-    """Manually trigger merging of Garmin + Hevy gym activities.
+    """Manually link Garmin activities onto overlapping gym canonical activities.
 
-    Disabled ahead of the #109 canonical-activity migration:
-    merge_garmin_hevy's delete-and-overwrite pattern destroys provenance
-    (see #116/#110).
+    Non-destructive (#185): both source records are kept; the Garmin-only canonical
+    activity is replaced by a link on the gym one. Re-running is a no-op.
     """
-    raise HTTPException(
-        status_code=503,
-        detail="Merging is disabled pending the canonical-activity migration (#109).",
-    )
+    result = await link_garmin_to_gym(session, DEFAULT_USER_ID)
+    await session.commit()
+    return MergeResponse(activities_merged=result.linked, errors=list(result.errors or []))
 
 
 class SourcesStatusResponse(BaseModel):
@@ -215,9 +207,9 @@ async def get_sources_status(
         )
     )
     garmin_latest_activity = await session.scalar(
-        select(func.max(Activity.created_at)).where(
-            Activity.user_id == DEFAULT_USER_ID,
-            Activity.data_source.in_(["garmin", "merged"]),
+        select(func.max(SourceRecord.received_at)).where(
+            SourceRecord.athlete_id == DEFAULT_USER_ID,
+            SourceRecord.source == "garmin",
         )
     )
     garmin_last_sync = max(
@@ -235,9 +227,9 @@ async def get_sources_status(
 
     # Hevy status: check activities from hevy
     hevy_last_import = await session.scalar(
-        select(func.max(Activity.created_at)).where(
-            Activity.user_id == DEFAULT_USER_ID,
-            Activity.data_source.in_(["hevy", "merged"]),
+        select(func.max(SourceRecord.received_at)).where(
+            SourceRecord.athlete_id == DEFAULT_USER_ID,
+            SourceRecord.source == "hevy",
         )
     )
     sources.append(

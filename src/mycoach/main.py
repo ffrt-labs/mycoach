@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -16,6 +16,7 @@ from markupsafe import Markup
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
+from mycoach import health
 from mycoach.api.error_handlers import register_error_handlers
 from mycoach.api.pages.availability import router as availability_page_router
 from mycoach.api.pages.dashboard import router as dashboard_router
@@ -41,8 +42,7 @@ from mycoach.api.routes.sources import router as sources_router
 from mycoach.api.routes.sport_profiles import router as sport_profiles_router
 from mycoach.api.routes.system import router as system_router
 from mycoach.config import announce_email_config, get_settings
-from mycoach.database import Base, engine, health_async_session
-from mycoach.exercise_catalogue import sync_exercises
+from mycoach.database import Base, engine
 from mycoach.logging_config import setup_logging
 from mycoach.observability.tracing import announce_langfuse_config, shutdown_tracer
 from mycoach.scheduler.scheduler import create_scheduler
@@ -83,9 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await conn.run_sync(Base.metadata.create_all)
 
     # Mirror the exercise catalogue into health.exercises (FK target of performed sets).
-    async with health_async_session() as session:
-        await sync_exercises(session)
-        await session.commit()
+    await health.sync_exercise_catalogue()
 
     # Start the background scheduler if not in test mode
     settings = get_settings()
@@ -144,7 +142,7 @@ def create_app() -> FastAPI:
     def _localtime(value: datetime) -> datetime:
         """Convert a naive-UTC or aware-UTC datetime to the configured local timezone."""
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+            value = value.replace(tzinfo=UTC)
         return value.astimezone(local_tz)
 
     _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")

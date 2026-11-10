@@ -15,7 +15,7 @@ tests are in the branch, and the steps below are for a human on the homelab host
 | `source_records` | One shared table, JSONB `raw_payload`, immutable. `(athlete_id, source, external_id)` unique. A trigger on Postgres rejects every `UPDATE` and `DELETE`, even from `health_role`. |
 | `canonical_activities` | The old `activities` table, renamed. `garmin_activity_id` and `raw_data` are dropped (they live in `source_records`). Carries the HR/training-effect cache. |
 | `canonical_activity_sources` | `(canonical_activity_id, source_record_id)` join: the reconciliation link. |
-| `exercises` | Load-time mirror of the pinned catalogue (`exercise_catalogue.sync_exercises`, run at app startup and seeded by the migration). `gym_workout_details.exercise_id` is a nullable FK to it. |
+| `exercises` | Load-time mirror of the pinned catalogue (`health.sync_exercise_catalogue`, run at app startup and seeded by the migration). `gym_workout_details.exercise_id` is a nullable FK to it. |
 
 `gym_workout_details.activity_id` is now column `canonical_activity_id` (performed sets attach to
 the canonical activity). The ORM keeps the attribute name `activity_id`.

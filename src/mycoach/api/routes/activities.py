@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
@@ -15,9 +16,6 @@ from mycoach.schemas.activity import ActivityRead
 from mycoach.schemas.coaching import CoachingInsightRead
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
-
-# MVP: single user, id=1
-DEFAULT_USER_ID = 1
 
 
 class PaginatedActivities(BaseModel):

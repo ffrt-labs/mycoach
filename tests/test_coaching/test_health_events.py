@@ -168,7 +168,7 @@ class TestPostWorkoutOnRevised:
         engine.generate_post_workout_analysis.assert_not_called()
 
     def test_the_relevant_fields_are_the_post_workout_prompts(self):
-        assert REVISION_FIELDS == {
+        assert {
             "avg_hr",
             "max_hr",
             "calories",
@@ -178,4 +178,4 @@ class TestPostWorkoutOnRevised:
             "recovery_time_minutes",
             "distance_meters",
             "duration_minutes",
-        }
+        } == REVISION_FIELDS

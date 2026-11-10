@@ -21,6 +21,15 @@ from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
 
+CARDIO_SPORTS = ["swimming", "running", "padel", "cardio"]
+"""The sports the cardio plan reads last week's performance for."""
+
+
+def _last_week_window(week_start: date) -> tuple[date, date]:
+    """The ``[start, end)`` bounds of the week before ``week_start``."""
+    return week_start - timedelta(days=7), week_start
+
+
 _SNAPSHOT_FIELDS = [
     "snapshot_date",
     "resting_hr",
@@ -432,7 +441,7 @@ async def get_last_week_gym_performance(
     athlete_id: int, exercise_ids: list[str], week_start: date
 ) -> list[dict[str, Any]]:
     """The previous week's performed sets for the given catalogue exercises."""
-    start, end = week_start - timedelta(days=7), week_start
+    start, end = _last_week_window(week_start)
     async with health_session() as session:
         ids = (
             (
@@ -475,7 +484,7 @@ async def get_last_week_gym_performance(
 
 async def get_last_week_all_activities(athlete_id: int, week_start: date) -> list[dict[str, Any]]:
     """Every activity of the previous week; gym ones carry ``gym_details`` (performed sets)."""
-    start, end = week_start - timedelta(days=7), week_start
+    start, end = _last_week_window(week_start)
     async with health_session() as session:
         rows = list(
             (
@@ -512,14 +521,14 @@ async def get_last_week_all_activities(athlete_id: int, week_start: date) -> lis
 async def get_last_week_cardio_performance(
     athlete_id: int, week_start: date
 ) -> list[dict[str, Any]]:
-    start, end = week_start - timedelta(days=7), week_start
+    start, end = _last_week_window(week_start)
     async with health_session() as session:
         return await _activities(
             session,
             select(Activity)
             .where(
                 Activity.user_id == athlete_id,
-                Activity.sport.in_(["swimming", "running", "padel", "cardio"]),
+                Activity.sport.in_(CARDIO_SPORTS),
                 Activity.start_time >= start,
                 Activity.start_time < end,
             )

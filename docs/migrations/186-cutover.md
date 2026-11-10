@@ -290,3 +290,42 @@ and cannot re-derive an `activity_id` whose activity is gone.
   (`health_analytics` only). `mycoach_app` is gone.
 - `athlete_id == user_id` still holds in the data for the one athlete; `users.health_athlete_id`
   is the mapping the code now uses.
+
+## 7. Review follow-ups / known limitations
+
+Fixed after code review (not repeated here): prescription rows are now re-written on a re-push
+of an already-recorded workout (`log_workouts` is retry-safe across its two commits);
+Garmin-only activities settle with reason `immediate`, not `reconciled`; the 24h deadline applies
+only to non-Garmin sources; `REVISION_FIELDS` derives from the post-workout prompt (this added
+`hr_zones`, which reconciliation can change and the prompt reads); the exercise mirror is the
+`health.sync_exercise_catalogue` command; one `DEFAULT_USER_ID` in `mycoach.api.defaults`.
+
+Known and deliberately **not** changed:
+
+- **Crash between the two commits, claim side.** Only the prescription rows self-repair on a
+  re-push. The planned-session claim runs for newly created workouts only, so a crash after the
+  health commit still loses that claim (it is reported nowhere). A nightly reconcile of
+  "workouts without a claim" is not built.
+- **Garmin-only `external_id` reuse vs #109.** A Garmin-only activity's canonical external id is
+  the Garmin id (`"g-1"`, or `garmin:<id>` on a clash), not a uuid4/derived id as #109 sketched.
+  Unique per athlete and stable, but it is a provider id leaking into coaching's keys.
+- **No dedicated HTTP intake endpoint for n8n (#106).** Intake is the Python
+  `intake_source_record` and the universal `/import/workouts`; an endpoint shaped for n8n does
+  not exist yet.
+- **The #117 audit was derived from the migrations, not the live database.** Re-run it against
+  production before cutover; the `reconciled` backfill and the per-athlete external-id
+  uniqueness assume the audit's result.
+- **`src/mycoach/tools/cleanup_activity_58.py` was deleted (see section 2, item 12).** The one-off data fix is gone; recover it from
+  history if activity 58 still needs cleaning.
+- **Dangling-key risk.** If a Garmin-only activity (external id = Garmin id) is later linked to a
+  gym activity and the Garmin canonical row is deleted, anything coaching stored against the
+  Garmin external id (insights, fulfillments) is orphaned, as there is no cross-store FK.
+- **Existing rows keep `reconciled`.** The h186 backfill labels history `reconciled`, including
+  old Garmin-only rows; only new Garmin-only activities get `immediate`.
+- **`settle_due_activities` treats a NULL `data_source` as not gym-sourced** (never settled by
+  deadline).
+
+Larger refactors left as follow-ups: TypedDicts for the health module's plain-dict returns;
+splitting `health/queries.py` (800+ lines); de-duplicating `coaching/context.py`; renaming the
+`user_id` columns on health tables to `athlete_id`; the many other per-module `USER_ID = 1`
+constants (pages, other routes, scheduler) that this pass did not fold into `api.defaults`.

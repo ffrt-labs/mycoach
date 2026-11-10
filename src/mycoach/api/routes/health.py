@@ -10,14 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.database import get_db
 from mycoach.schemas.health import DailyHealthSnapshotRead
 
 router = APIRouter(prefix="/api/health", tags=["health"])
-
-# MVP: single user, id=1
-DEFAULT_USER_ID = 1
 
 
 @router.get("/today", response_model=DailyHealthSnapshotRead)

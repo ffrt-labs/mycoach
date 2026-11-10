@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.prescriptions import prescriptions_for
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.observability.adherence import adherence_scores
@@ -179,6 +180,7 @@ async def _fulfil(
         .order_by(GymWorkoutDetail.set_index)
     )
     sets = (await session.execute(sets_stmt)).scalars().all()
+    fulfilled = await prescriptions_for(session, [activity.external_id])
     emit_after_commit(
         session,
         scores or get_score_sink(),
@@ -189,6 +191,7 @@ async def _fulfil(
             sets=sets,
             gym_slot=await _gym_slot(session, planned),
             now=clock(),
+            fulfillments={(title, idx): p for (_, title, idx), p in fulfilled.items()},
         ),
     )
 

@@ -20,6 +20,7 @@ from datetime import datetime
 from statistics import fmean
 from typing import Any
 
+from mycoach.coaching.prescriptions import Prescription
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
 from mycoach.observability.scores import Score, score_timestamp
@@ -93,13 +94,15 @@ def _mean(values: Iterable[float]) -> float | None:
 
 
 def gym_adherence(
-    details: Mapping[str, Any] | None, sets: Sequence[GymWorkoutDetail]
+    details: Mapping[str, Any] | None,
+    sets: Sequence[GymWorkoutDetail],
+    fulfillments: Mapping[tuple[str, int], Prescription] | None = None,
 ) -> dict[str, float]:
     """The gym adherence scores of ``sets`` against the plan's ``details``.
 
-    A set's own ``prescribed_weight_kg``/``prescribed_reps`` (what the logger
-    showed on that set) win over the plan's per-exercise targets. The reps
-    delta is the mean of performed minus prescribed reps, a prescribed range
+    A set's own prescription (what the logger showed on that set: the coaching
+    fulfillment under the set's ``(exercise_title, set_index)`` in ``fulfillments``)
+    wins over the plan's per-exercise targets. The reps delta is the mean of performed minus prescribed reps, a prescribed range
     counting as its midpoint (``"8-10"`` is 9). The weight delta is a
     percentage of the prescribed weight.
     """
@@ -118,13 +121,12 @@ def gym_adherence(
         p = prescriptions[s.exercise_id]
         done[s.exercise_id] = done.get(s.exercise_id, 0) + 1
 
-        target_weight = (
-            s.prescribed_weight_kg if s.prescribed_weight_kg is not None else p.weight_kg
-        )
+        own = (fulfillments or {}).get((s.exercise_title, s.set_index), Prescription(None, None))
+        target_weight = own.weight_kg if own.weight_kg is not None else p.weight_kg
         if s.weight_kg is not None and target_weight:
             weight_deltas.append((s.weight_kg - target_weight) / target_weight * 100)
 
-        target_reps = float(s.prescribed_reps) if s.prescribed_reps is not None else p.reps
+        target_reps = float(own.reps) if own.reps is not None else p.reps
         if s.reps is not None and target_reps is not None:
             reps_deltas.append(s.reps - target_reps)
 
@@ -161,6 +163,7 @@ def adherence_scores(
     sets: Sequence[GymWorkoutDetail],
     gym_slot: int | None,
     now: datetime,
+    fulfillments: Mapping[tuple[str, int], Prescription] | None = None,
 ) -> list[Score]:
     """The adherence scores of ``planned`` fulfilled by ``activity``, on the weekly-plan trace.
 
@@ -173,7 +176,7 @@ def adherence_scores(
     """
     if planned.track == Track.GYM:
         details = json.loads(planned.details) if planned.details else None
-        values = gym_adherence(details, sets)
+        values = gym_adherence(details, sets, fulfillments)
     else:
         values = cardio_adherence(
             planned_minutes=planned.duration_minutes, actual_minutes=activity.duration_minutes

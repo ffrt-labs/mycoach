@@ -79,6 +79,11 @@ services:
       # Stays SQLite until the cutover runbook sets MYCOACH_RUNTIME_DB_URL on
       # the host; a later commit then flips this default.
       MYCOACH_DB_URL: ${MYCOACH_RUNTIME_DB_URL:-sqlite+aiosqlite:////data/mycoach.db}
+      # Per-schema migration logins on Postgres (ticket #184): each Alembic history runs
+      # as its schema's owner role; the app itself runs as the DML-only login above.
+      # Empty keeps the single-URL behaviour (SQLite).
+      MYCOACH_COACHING_OWNER_DB_URL: ${MYCOACH_COACHING_OWNER_DB_URL:-}
+      MYCOACH_HEALTH_OWNER_DB_URL: ${MYCOACH_HEALTH_OWNER_DB_URL:-}
       MYCOACH_GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - app-data:/data

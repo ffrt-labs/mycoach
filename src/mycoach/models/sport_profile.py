@@ -3,14 +3,15 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import COACHING_SCHEMA, Base
 
 
 class SportProfile(Base):
     __tablename__ = "sport_profiles"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey(f"{COACHING_SCHEMA}.users.id"))
     sport: Mapped[str] = mapped_column(String(50))  # gym, swimming, padel
     skill_level: Mapped[str] = mapped_column(
         String(20), default="intermediate"

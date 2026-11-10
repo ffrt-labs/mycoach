@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from mycoach.database import Base
+from mycoach.database import SQLITE_SCHEMA_TRANSLATE_MAP, Base
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -28,7 +28,9 @@ async def _fk_enforced_session() -> AsyncGenerator[AsyncSession, None]:
     guards against (deleting a referenced row before its referencer, in the same flush,
     with no ORM ``relationship()`` to tell SQLAlchemy the dependency) only surfaces when
     something actually checks the constraint."""
-    engine = create_async_engine("sqlite+aiosqlite://")
+    engine = create_async_engine("sqlite+aiosqlite://").execution_options(
+        schema_translate_map=SQLITE_SCHEMA_TRANSLATE_MAP
+    )
 
     @event.listens_for(engine.sync_engine, "connect")
     def _enable_fk(dbapi_conn: object, _: object) -> None:

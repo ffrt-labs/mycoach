@@ -3,14 +3,20 @@ from datetime import datetime
 from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import HEALTH_SCHEMA, Base
 
 
 class Activity(Base):
     __tablename__ = "activities"
+    __table_args__ = {"schema": HEALTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # The Athlete ID (health-owned, ``health.athletes``): "health issues its own
+    # athlete_id" (ticket #108). No cross-schema FK to coaching.users. The
+    # attribute keeps its pre-seam name so the health-side queries stay put until
+    # the module boundary (#186) maps users.health_athlete_id; until then the
+    # athlete id equals the coaching user id (one-athlete deployment).
+    user_id: Mapped[int] = mapped_column("athlete_id")
     sport: Mapped[str] = mapped_column(String(50))  # gym, swimming, padel, cardio
     title: Mapped[str] = mapped_column(String(200))
     start_time: Mapped[datetime]
@@ -54,9 +60,10 @@ class Activity(Base):
 
 class GymWorkoutDetail(Base):
     __tablename__ = "gym_workout_details"
+    __table_args__ = {"schema": HEALTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    activity_id: Mapped[int] = mapped_column(ForeignKey("activities.id"))
+    activity_id: Mapped[int] = mapped_column(ForeignKey(f"{HEALTH_SCHEMA}.activities.id"))
     exercise_id: Mapped[str | None] = mapped_column(String(200), default=None, index=True)
     exercise_title: Mapped[str] = mapped_column(String(200))
     superset_id: Mapped[int | None] = mapped_column(default=None)
@@ -70,8 +77,3 @@ class GymWorkoutDetail(Base):
     distance_meters: Mapped[float | None] = mapped_column(Float, default=None)
     duration_seconds: Mapped[int | None] = mapped_column(default=None)
     rpe: Mapped[float | None] = mapped_column(Float, default=None)
-    # What the plan called for on this set, alongside what was actually done —
-    # avoids re-deriving the comparison by matching exercise_title against
-    # PlannedSession.details. Null for manually logged sets and sets with no plan.
-    prescribed_weight_kg: Mapped[float | None] = mapped_column(Float, default=None)
-    prescribed_reps: Mapped[int | None] = mapped_column(default=None)

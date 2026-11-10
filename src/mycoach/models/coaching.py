@@ -4,7 +4,7 @@ from enum import StrEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import COACHING_SCHEMA, Base
 
 
 class InsightType(StrEnum):
@@ -17,9 +17,10 @@ class InsightType(StrEnum):
 
 class CoachingInsight(Base):
     __tablename__ = "coaching_insights"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey(f"{COACHING_SCHEMA}.users.id"))
     insight_date: Mapped[date]
     insight_type: Mapped[str] = mapped_column(
         String(30)
@@ -28,17 +29,19 @@ class CoachingInsight(Base):
     # Where the prompt came from: "lf:<n>" (Langfuse version n) or
     # "bundled:v2". Older rows hold a bare template version ("v1", "v2").
     prompt_version: Mapped[str] = mapped_column(String(20), default="v1")
-    activity_id: Mapped[int | None] = mapped_column(
-        ForeignKey("activities.id"), default=None
-    )  # For post_workout type
+    # health.activities.id by value, not by FK: the seam allows no cross-schema
+    # constraint (ticket #108). Replacing it with the activity's external id is
+    # #185/#186 (plan_linking's use of the internal id as a cross-store key).
+    activity_id: Mapped[int | None] = mapped_column(default=None)  # For post_workout type
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
 class MesocycleConfig(Base):
     __tablename__ = "mesocycle_configs"
+    __table_args__ = {"schema": COACHING_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey(f"{COACHING_SCHEMA}.users.id"))
     sport: Mapped[str] = mapped_column(String(50))
     block_length_weeks: Mapped[int] = mapped_column(default=4)
     current_week: Mapped[int] = mapped_column(default=1)

@@ -8,6 +8,7 @@ from typing import Any, TypedDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
 from mycoach.coaching.prompt_builder import activity_to_dict, snapshot_to_dict
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
@@ -338,7 +339,11 @@ async def get_activity_with_details(
             .order_by(GymWorkoutDetail.set_index)
         )
         detail_result = await session.execute(detail_stmt)
+        fulfilled = await prescriptions_for(session, [activity.external_id])
         for d in detail_result.scalars().all():
+            own = fulfilled.get(
+                (activity.external_id or "", d.exercise_title, d.set_index), NO_PRESCRIPTION
+            )
             gym_details.append(
                 {
                     "exercise_id": d.exercise_id,
@@ -348,8 +353,8 @@ async def get_activity_with_details(
                     "weight_kg": d.weight_kg,
                     "reps": d.reps,
                     "rpe": d.rpe,
-                    "prescribed_weight_kg": d.prescribed_weight_kg,
-                    "prescribed_reps": d.prescribed_reps,
+                    "prescribed_weight_kg": own.weight_kg,
+                    "prescribed_reps": own.reps,
                     "distance_meters": d.distance_meters,
                     "duration_seconds": d.duration_seconds,
                     "superset_id": d.superset_id,
@@ -611,6 +616,7 @@ async def get_last_week_all_activities(
                 .order_by(GymWorkoutDetail.exercise_id, GymWorkoutDetail.set_index)
             )
             detail_result = await session.execute(detail_stmt)
+            fulfilled = await prescriptions_for(session, [a.external_id])
             d["gym_details"] = [
                 {
                     "exercise_id": det.exercise_id,
@@ -619,8 +625,12 @@ async def get_last_week_all_activities(
                     "weight_kg": det.weight_kg,
                     "reps": det.reps,
                     "rpe": det.rpe,
-                    "prescribed_weight_kg": det.prescribed_weight_kg,
-                    "prescribed_reps": det.prescribed_reps,
+                    "prescribed_weight_kg": fulfilled.get(
+                        (a.external_id or "", det.exercise_title, det.set_index), NO_PRESCRIPTION
+                    ).weight_kg,
+                    "prescribed_reps": fulfilled.get(
+                        (a.external_id or "", det.exercise_title, det.set_index), NO_PRESCRIPTION
+                    ).reps,
                 }
                 for det in detail_result.scalars().all()
             ]

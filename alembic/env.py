@@ -22,7 +22,8 @@ if config.config_file_name is not None:
 
 # Set sqlalchemy.url from application settings
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.db_url)
+# On Postgres the coaching history runs as ``coaching_owner``, never the DML-only runtime login.
+config.set_main_option("sqlalchemy.url", settings.coaching_owner_db_url or settings.db_url)
 
 # Target metadata for autogenerate support
 target_metadata = Base.metadata

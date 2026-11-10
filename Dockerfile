@@ -39,8 +39,9 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --frozen --no-install-project
 
 # 2. Copy application source, then install the project itself.
-COPY alembic.ini ./
+COPY alembic.ini alembic_health.ini ./
 COPY alembic/ ./alembic/
+COPY alembic_health/ ./alembic_health/
 COPY src/ ./src/
 RUN uv sync --no-dev --frozen
 
@@ -59,5 +60,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/system/status', timeout=4).status == 200 else 1)"
 
-# Apply migrations, then start the app.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn src.mycoach.main:app --host 0.0.0.0 --port 8000"]
+# Apply both migration histories (coaching, then health), then start the app.
+CMD ["sh", "-c", "python -m mycoach.tools.migrate && uvicorn src.mycoach.main:app --host 0.0.0.0 --port 8000"]

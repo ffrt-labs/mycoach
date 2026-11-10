@@ -2,7 +2,9 @@
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from mycoach.models.athlete import Athlete
 from mycoach.models.user import User
 from tests.conftest import test_session
 
@@ -34,6 +36,20 @@ async def test_get_profile(client: AsyncClient, user: User) -> None:
     assert data["fitness_level"] == "intermediate"
     assert data["goals"] == "Get stronger"
     assert data["id"] == 1
+
+
+async def test_create_profile_gets_a_health_athlete_id(client: AsyncClient) -> None:
+    """The health schema issues the athlete; the new user stores its id (ticket #108)."""
+    resp = await client.post(
+        "/api/profile", json={"name": "New User", "email": "new@example.com"}
+    )
+    assert resp.status_code in (200, 201)
+
+    async with test_session() as session:
+        user = (await session.execute(select(User))).scalar_one()
+        athletes = (await session.execute(select(Athlete))).scalars().all()
+    assert [a.id for a in athletes] == [user.health_athlete_id]
+    assert user.health_athlete_id is not None
 
 
 async def test_get_profile_not_found(client: AsyncClient) -> None:

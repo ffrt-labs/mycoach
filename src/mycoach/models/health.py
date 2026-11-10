@@ -1,22 +1,24 @@
 from datetime import date, datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Float, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mycoach.database import Base
+from mycoach.database import HEALTH_SCHEMA, Base
 
 
 class DailyHealthSnapshot(Base):
     __tablename__ = "daily_health_snapshots"
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "snapshot_date", "data_source",
+            "athlete_id", "snapshot_date", "data_source",
             name="uq_daily_health_snapshots_user_date_source",
         ),
+        {"schema": HEALTH_SCHEMA},
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # Athlete ID, see Activity.user_id.
+    user_id: Mapped[int] = mapped_column("athlete_id")
     snapshot_date: Mapped[date] = mapped_column()
 
     # Heart rate

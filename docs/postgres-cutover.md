@@ -44,3 +44,8 @@ writes made on Postgres since the switch are not carried back.
 Fresh Postgres databases are built from the models, not by replaying the migration history:
 migration `743e264deef9` probes `sqlite_master`/`PRAGMA` and cannot run on Postgres. Future
 migrations run on Postgres normally.
+
+Superseded in part by #184: the tables now live in the `health` and `coaching` schemas behind
+separate roles, with two Alembic histories (`docs/migrations/184-cutover.md`). A fresh Postgres is
+bootstrapped with `python -m mycoach.tools.db_bootstrap`, built with `Base.metadata.create_all`, then
+`db_bootstrap --finalize`.

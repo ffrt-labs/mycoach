@@ -77,7 +77,8 @@ class Activity(Base):
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     # Settled activity (CONTEXT.md, #112): reconciliation completed or its deadline passed.
-    # ``settlement_reason`` is "reconciled" or "deadline"; both null while unsettled.
+    # ``settlement_reason`` is "reconciled", "deadline" or
+    # "immediate" (a Garmin-only activity, settled when created); both null while unsettled.
     settled_at: Mapped[datetime | None] = mapped_column(default=None)
     settlement_reason: Mapped[str | None] = mapped_column(String(20), default=None)
 

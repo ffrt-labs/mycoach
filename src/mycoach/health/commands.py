@@ -93,6 +93,8 @@ async def settle_due_activities(
 ) -> list[HealthEvent]:
     """Settle gym-sourced activities whose deadline has passed without a Garmin match.
 
+    Only gym-sourced ones (not ``garmin``): a Garmin-only activity expects no second source (#112).
+
     The deadline is ``Settings.activity_settlement_deadline_hours`` after the activity's start
     (#112). Recorded on the row, so each activity settles exactly once.
     """
@@ -106,6 +108,7 @@ async def settle_due_activities(
                     select(Activity).where(
                         Activity.user_id == athlete_id,
                         Activity.settled_at.is_(None),
+                        Activity.data_source != "garmin",
                         Activity.start_time <= cutoff,
                     )
                 )

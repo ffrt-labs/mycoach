@@ -29,7 +29,7 @@ An immutable copy of data received from Garmin, the Logger, or an import. It is 
 _Avoid_: Canonical activity, Observed-health event
 
 **Settled activity**:
-A Canonical activity whose expected source reconciliation has completed or whose reconciliation deadline has passed. The health side publishes this state; MyCoach waits for it before producing final post-workout coaching.
+A Canonical activity whose expected source reconciliation has completed, whose reconciliation deadline has passed, or which expects no second source (a Garmin-only activity, settled on arrival). The health side publishes this state; MyCoach waits for it before producing final post-workout coaching.
 _Avoid_: Fulfilled session, completed workout
 
 **Health-data API**:

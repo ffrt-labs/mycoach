@@ -68,7 +68,7 @@ class CanonicalActivitySettled(_Event):
     activity_external_id: str
     sport: str
     settled_at: datetime
-    settlement_reason: str  # "reconciled" | "deadline"
+    settlement_reason: str  # "reconciled" | "deadline" | "immediate"
 
     @classmethod
     def build(

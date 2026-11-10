@@ -103,10 +103,10 @@ async def intake_source_record(
     if source == "garmin":
         # No second source is expected for a Garmin-only activity: settled at creation (#112).
         canonical.settled_at = now
-        canonical.settlement_reason = "reconciled"
+        canonical.settlement_reason = "immediate"
         events.append(
             CanonicalActivitySettled.build(
-                athlete_id, canonical.external_id, canonical.sport, now, "reconciled"
+                athlete_id, canonical.external_id, canonical.sport, now, "immediate"
             )
         )
     session.add_all([record, canonical])

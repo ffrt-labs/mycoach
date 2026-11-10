@@ -196,6 +196,47 @@ class TestImportWorkouts:
             assert len(rows) == 1
 
     @pytest.mark.asyncio
+    async def test_repush_repairs_fulfillments_lost_to_a_crash_after_the_health_commit(
+        self, user: User, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from mycoach.coaching import workout_log
+        from tests.conftest import test_session
+
+        workout = WorkoutImport(
+            title="Push Day",
+            start_time=datetime(2024, 6, 10, 9, 0),
+            external_id="uuid-crash",
+            sets=[
+                WorkoutSetImport(
+                    exercise_title="Bench Press", set_index=1, weight_kg=80, reps=8,
+                    prescribed_weight_kg=82.5, prescribed_reps=6,
+                )
+            ],
+        )
+        real = workout_log.record_fulfillments
+
+        async def crash(*_a: object, **_k: object) -> None:
+            raise RuntimeError("process died after health committed")
+
+        monkeypatch.setattr(workout_log, "record_fulfillments", crash)
+        async with test_session() as session:
+            with pytest.raises(RuntimeError):
+                await log_workouts(session, user.id, [workout], source="logger")
+        monkeypatch.setattr(workout_log, "record_fulfillments", real)
+
+        async with test_session() as session:
+            assert (await session.execute(select(Activity))).scalar_one().external_id
+            assert not (await session.execute(select(PrescriptionFulfillment))).scalars().all()
+
+        # the Logger re-pushes the same workout: health dedupes, coaching repairs its rows
+        for _ in range(2):
+            async with test_session() as session:
+                await log_workouts(session, user.id, [workout], source="logger")
+        async with test_session() as session:
+            rows = (await session.execute(select(PrescriptionFulfillment))).scalars().all()
+        assert [(r.activity_external_id, r.set_index) for r in rows] == [("uuid-crash", 1)]
+
+    @pytest.mark.asyncio
     async def test_dedup_fallback_title_start_time(self, user: User) -> None:
         """With no external_id, dedup falls back to (title, start_time)."""
         from tests.conftest import test_session

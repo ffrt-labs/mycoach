@@ -18,7 +18,9 @@ on:
 
 env:
   # The first full day with Langfuse tracing in production. Runs before it
-  # have no trace, so the window never reaches back past it.
+  # have no trace, so the check is told never to look before it: --days
+  # counts back from now, so a 1-day window run early on TRACING_START
+  # would otherwise reach into the untraced day before.
   TRACING_START: '2026-11-10'
   GATE_DAYS: '14'
 
@@ -48,4 +50,4 @@ jobs:
             [ "$days" -gt "$GATE_DAYS" ] && days="$GATE_DAYS"
           fi
           echo "Checking the last $days day(s)."
-          docker exec mycoach python -m mycoach.tools.trace_coverage --days "$days"
+          docker exec mycoach python -m mycoach.tools.trace_coverage --days "$days" --not-before "$TRACING_START"

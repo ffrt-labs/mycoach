@@ -5,7 +5,7 @@ The evidence for the gate that retires ``prompt_logs``. For the last N days of
 the run's seeded trace ID, looks the trace up through the Langfuse API, and
 reports each run with no trace. Run it where the app's ``.env`` is loaded:
 
-    python -m mycoach.tools.trace_coverage [--days 30]
+    python -m mycoach.tools.trace_coverage [--days 30] [--not-before YYYY-MM-DD]
 
 Exit code: 0 when every run is covered, 1 when any trace is missing or a run
 could not be matched to its artifact, 2 when Langfuse is not configured or
@@ -24,7 +24,7 @@ import json
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Literal, Protocol
 from zoneinfo import ZoneInfo
 
@@ -354,6 +354,14 @@ def main(argv: Sequence[str] | None = None, *, httpx_client: httpx.Client | None
         default=30,
         help=f"How many days of job runs to check (1-{MAX_DAYS}; default 30).",
     )
+    parser.add_argument(
+        "--not-before",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Never check runs before this UTC date, however far back --days reaches "
+        "(e.g. the day tracing started: runs before it have no trace).",
+    )
     args = parser.parse_args(argv)
     if not 1 <= args.days <= MAX_DAYS:
         parser.error(f"--days must be between 1 and {MAX_DAYS} (Langfuse keeps 90 days)")
@@ -380,6 +388,10 @@ def main(argv: Sequence[str] | None = None, *, httpx_client: httpx.Client | None
     )
     tz = ZoneInfo(settings.scheduler_timezone or settings.timezone)
     since = datetime.utcnow() - timedelta(days=args.days)
+    floor = datetime.combine(args.not_before, time.min) if args.not_before else None
+    if floor and floor > since:
+        since = floor
+        print(f"Window starts from {floor:%Y-%m-%d %H:%M}Z (--not-before).")
 
     async def run() -> CoverageReport:
         async with async_session() as session:

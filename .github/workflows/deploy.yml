@@ -36,6 +36,15 @@ jobs:
           MYCOACH_DATABASE_PASSWORD=${{ secrets.MYCOACH_DATABASE_PASSWORD }}
           MYCOACH_RUNTIME_DB_URL=${{ secrets.MYCOACH_RUNTIME_DB_URL }}
 
+          # Health/coaching seam logins (#184/#186, docs/migrations/186-cutover.md):
+          # after the cutover MYCOACH_RUNTIME_DB_URL is the coaching_runtime login,
+          # this is health_runtime, and the owner URLs run each history's
+          # migrations at startup. Each left unset falls back to
+          # MYCOACH_RUNTIME_DB_URL.
+          MYCOACH_HEALTH_RUNTIME_DB_URL=${{ secrets.MYCOACH_HEALTH_RUNTIME_DB_URL }}
+          MYCOACH_COACHING_OWNER_DB_URL=${{ secrets.MYCOACH_COACHING_OWNER_DB_URL }}
+          MYCOACH_HEALTH_OWNER_DB_URL=${{ secrets.MYCOACH_HEALTH_OWNER_DB_URL }}
+
           # This box's tailnet address (ticket #117) — a variable, not a
           # secret, same as homelab-apps' NEKO_NAT1TO1_IP: it's the address
           # every tailnet client already routes to, not something to keep

@@ -403,6 +403,16 @@ def test_health_refuses_to_run_ahead_of_coaching(
     )
 
 
+def test_coaching_refuses_to_run_before_bootstrap(
+    pg_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(Exception, match="db_bootstrap"):
+        command.upgrade(_cfg("alembic.ini", "alembic", pg_db, monkeypatch), "head")
+    # Nothing moved, and the stamp is still the pre-seam head.
+    assert _scalar(pg_db, "SELECT to_regclass('public.users') IS NOT NULL") is True
+    assert _scalar(pg_db, "SELECT version_num FROM public.alembic_version") == LEGACY_HEAD
+
+
 def test_downgrade_round_trips_on_postgres(migrated: str, monkeypatch: pytest.MonkeyPatch) -> None:
     command.downgrade(_cfg("alembic_health.ini", "alembic_health", migrated, monkeypatch), "base")
     command.downgrade(_cfg("alembic.ini", "alembic", migrated, monkeypatch), LEGACY_HEAD)

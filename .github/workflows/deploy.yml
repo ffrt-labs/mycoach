@@ -94,5 +94,23 @@ jobs:
       - name: Start services
         run: docker compose up -d --force-recreate --remove-orphans
 
+      # `up -d` returns as soon as the containers start, so a startup crash (a failed
+      # migration, a bad setting) used to deploy green and crash-loop unnoticed. Fail the
+      # deploy unless the app reaches its Dockerfile HEALTHCHECK's `healthy`. Runs before
+      # the prune, so the previous image is still there to roll back to.
+      - name: Wait for mycoach to be healthy
+        run: |
+          for _ in $(seq 1 36); do
+            state=$(docker inspect mycoach --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}')
+            case "$state" in
+              "running healthy") echo "mycoach is healthy."; exit 0 ;;
+              restarting*|exited*|dead*|"running unhealthy") break ;;
+            esac
+            sleep 5
+          done
+          echo "::error::mycoach did not become healthy (state: $state)"
+          docker logs --tail 80 mycoach
+          exit 1
+
       - name: Prune old images
         run: docker image prune -f

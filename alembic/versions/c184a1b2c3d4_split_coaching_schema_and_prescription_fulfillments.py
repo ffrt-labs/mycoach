@@ -76,11 +76,31 @@ def _is_postgres() -> bool:
     return op.get_bind().dialect.name == "postgresql"
 
 
+def _guard_bootstrapped() -> None:
+    # Without this the first ALTER fails with a bare "schema does not exist", which reads
+    # like a bug rather than a skipped cutover step (it crash-looped production once).
+    exists = (
+        op.get_bind()
+        .execute(
+            sa.text("SELECT 1 FROM pg_namespace WHERE nspname = :s"),
+            {"s": db_roles.COACHING_SCHEMA},
+        )
+        .scalar()
+    )
+    if not exists:
+        raise RuntimeError(
+            f"schema {db_roles.COACHING_SCHEMA!r} does not exist: this database has not been "
+            "through the one-time cutover. Run `python -m mycoach.tools.db_bootstrap` as the "
+            "superuser first, then migrate as the superuser (docs/migrations/184-cutover.md)."
+        )
+
+
 def upgrade() -> None:
     pg = _is_postgres()
     schema = db_roles.COACHING_SCHEMA if pg else None
 
     if pg:
+        _guard_bootstrapped()
         for table in COACHING_TABLES:
             op.execute(f"ALTER TABLE public.{table} SET SCHEMA {db_roles.COACHING_SCHEMA}")
         # The seam allows no cross-schema constraint: activity ids are held by value.

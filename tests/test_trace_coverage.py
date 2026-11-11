@@ -337,6 +337,29 @@ async def test_command_exits_non_zero_and_lists_a_missing_trace(
     assert "MISSING" in out
 
 
+async def test_command_skips_runs_before_not_before(
+    configured: None, langfuse: FakeLangfuse, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Yesterday's run predates tracing (no trace), and --days 7 would reach it.
+    await _recent_briefing()
+    today = datetime.utcnow().date().isoformat()
+
+    code = await asyncio.to_thread(
+        main, ["--days", "7", "--not-before", today], httpx_client=_client(langfuse)
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "0 runs checked" in out
+    assert f"from {today} 00:00Z" in out
+
+
+def test_command_rejects_a_malformed_not_before() -> None:
+    with pytest.raises(SystemExit) as exit_:
+        main(["--days", "7", "--not-before", "11/10/2026"])
+    assert exit_.value.code == 2
+
+
 async def test_command_exits_zero_when_every_run_is_traced(
     configured: None, langfuse: FakeLangfuse, capsys: pytest.CaptureFixture[str]
 ) -> None:

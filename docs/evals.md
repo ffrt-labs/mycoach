@@ -109,7 +109,10 @@ Langfuse project. The key lives in Langfuse, never in MyCoach.
 Langfuse sends its own requests, without the `provider: {zdr: true,
 data_collection: "deny"}` flags MyCoach adds to every call (ADR 0004). Turn
 on zero data retention and disallow training in the OpenRouter account's
-privacy settings, so UI experiments are held to the same rule.
+privacy settings, so UI experiments are held to the same rule. Choose **ZDR
+only** there: otherwise zero data retention, from the account or from
+MyCoach's `zdr: true`, still allows OpenRouter's "Safety Retention" endpoints,
+which may keep prompts for abuse monitoring.
 
 Claude Code can't be a UI connection: it is a CLI on the Pro subscription,
 not an API.

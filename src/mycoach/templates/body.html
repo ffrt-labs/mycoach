@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Body — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-20 sm:pb-6">
+    <!-- Header -->
+    <div>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Weight · waist</p>
+        <h1 class="text-2xl font-bold text-zinc-50 mt-0.5">Body</h1>
+        <p class="text-sm text-zinc-400 mt-1">Log a weigh-in or a waist check. The coach reads the trend, never a single day.</p>
+    </div>
+
+    <!-- Feedback banner -->
+    <div id="feedback" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+    <!-- Log a measurement -->
+    <div class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
+        <div class="px-4 py-4 space-y-4">
+            <h2 class="text-lg font-semibold text-zinc-50">Log a measurement</h2>
+            <form id="measurement-form" onsubmit="logMeasurement(event)" class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Date &amp; time</label>
+                    <input type="datetime-local" name="measured_at" value="{{ now_local }}" required
+                        class="w-full rounded-lg text-sm px-3 py-2">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Weight (kg)</label>
+                        <input type="number" name="weight_kg" step="0.1" min="20" max="400" inputmode="decimal"
+                            class="w-full rounded-lg text-sm px-3 py-2 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Waist (cm)</label>
+                        <input type="number" name="waist_cm" step="0.1" min="30" max="250" inputmode="decimal"
+                            class="w-full rounded-lg text-sm px-3 py-2 font-mono">
+                    </div>
+                </div>
+                <p class="text-xs text-zinc-500 leading-relaxed">{{ protocol_hint }}</p>
+                <div>
+                    <label class="block text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Note (optional)</label>
+                    <input type="text" name="note" maxlength="500" placeholder="e.g. salty dinner, travel, hard session"
+                        class="w-full rounded-lg text-sm px-3 py-2">
+                </div>
+                <button type="submit"
+                    class="w-full bg-accent hover:bg-accent-soft text-ink font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm">
+                    Save
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Height -->
+    <div class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
+        <div class="px-4 py-4 space-y-3">
+            <h2 class="text-lg font-semibold text-zinc-50">Height</h2>
+            <p class="text-sm text-zinc-400">Entered once. Waist-to-height is the risk measure (keep it under 0.50).</p>
+            <form onsubmit="saveHeight(event)" class="flex gap-3">
+                <input type="number" name="height_cm" step="0.1" min="100" max="250" inputmode="decimal" required
+                    placeholder="cm" value="{{ height_cm if height_cm is not none else '' }}"
+                    class="flex-1 rounded-lg text-sm px-3 py-2 font-mono">
+                <button type="submit"
+                    class="bg-accent hover:bg-accent-soft text-ink font-semibold py-2 px-4 rounded-lg transition-colors text-sm">
+                    Save height
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- History -->
+    <div class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
+        <div class="px-4 py-4">
+            <h2 class="text-lg font-semibold text-zinc-50 mb-3">Last 10 entries</h2>
+            {% if measurements %}
+            <ul class="divide-y divide-white/[0.06]">
+                {% for m in measurements %}
+                <li class="flex items-center justify-between py-2.5 gap-3">
+                    <div class="min-w-0">
+                        <div class="font-mono text-sm text-zinc-200">
+                            {% if m.weight_kg is not none %}{{ '%.1f' % m.weight_kg }} kg{% endif %}{% if m.weight_kg is not none and m.waist_cm is not none %} · {% endif %}{% if m.waist_cm is not none %}{{ '%.1f' % m.waist_cm }} cm{% endif %}
+                        </div>
+                        <div class="text-xs text-zinc-500 mt-0.5">{{ (m.measured_at | localtime).strftime('%-d %b %Y, %H:%M') }}{% if m.note %} · {{ m.note }}{% endif %}</div>
+                    </div>
+                    <button type="button" onclick="deleteMeasurement({{ m.id }})"
+                        class="text-zinc-500 hover:text-red-400 transition-colors p-1 shrink-0" title="Delete entry">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-zinc-500">No measurements yet. Your first weigh-in starts the trend.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function showFeedback(msg, ok) {
+    var el = document.getElementById('feedback');
+    el.textContent = msg;
+    el.className = 'rounded-lg px-4 py-3 text-sm font-medium ' +
+        (ok ? 'bg-emerald-500/[0.08] text-emerald-300 border border-emerald-500/25' : 'bg-red-500/[0.08] text-red-300 border border-red-500/25');
+    if (ok) setTimeout(function() { location.reload(); }, 1000);
+}
+
+function errorText(d) {
+    if (Array.isArray(d.detail)) {
+        return d.detail.map(function(e) { return (e.msg || '').replace(/^Value error, /, ''); }).join('; ');
+    }
+    return d.detail || 'Unknown error';
+}
+
+function send(method, url, data, okMsg, btn) {
+    if (btn) btn.disabled = true;
+    return fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: data === undefined ? undefined : JSON.stringify(data)
+    }).then(function(resp) {
+        if (resp.ok) {
+            showFeedback(okMsg, true);
+        } else {
+            return resp.json().then(function(d) { showFeedback('Error: ' + errorText(d), false); });
+        }
+    }).catch(function(err) {
+        showFeedback('Network error: ' + err.message, false);
+    }).finally(function() {
+        if (btn) btn.disabled = false;
+    });
+}
+
+function num(v) { return v === '' ? null : parseFloat(v); }
+
+function logMeasurement(e) {
+    e.preventDefault();
+    var f = e.target;
+    var data = {
+        measured_at: f.measured_at.value || null,
+        weight_kg: num(f.weight_kg.value),
+        waist_cm: num(f.waist_cm.value),
+        note: f.note.value || null
+    };
+    if (data.weight_kg === null && data.waist_cm === null) {
+        showFeedback('Enter a weight or a waist (or both).', false);
+        return;
+    }
+    send('POST', '/api/body/measurements', data, 'Saved.', f.querySelector('button[type="submit"]'));
+}
+
+function saveHeight(e) {
+    e.preventDefault();
+    var f = e.target;
+    send('PUT', '/api/body/height', { height_cm: num(f.height_cm.value) }, 'Height saved.',
+        f.querySelector('button[type="submit"]'));
+}
+
+function deleteMeasurement(id) {
+    if (!confirm('Delete this entry?')) return;
+    send('DELETE', '/api/body/measurements/' + id, undefined, 'Entry deleted.');
+}
+</script>
+{% endblock %}

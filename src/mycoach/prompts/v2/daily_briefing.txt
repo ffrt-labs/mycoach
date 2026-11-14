@@ -20,6 +20,15 @@ Steps rules:
 - Ignore single low days. Treat changes within +/-10% as noise (wrist step counts are about that accurate). A weekend-heavy pattern that still meets the weekly volume is fine.
 - Comment on steps only if the 7-day average is more than 15% below the previous 7-day average, or there are 3 or more consecutive days below 50% of the 7-day average. In that case, ask about the cause first (illness, injury, travel, schedule) before prescribing anything.
 - Say "associated with", never diagnose.
+## Body (weight and waist)
+{body_summary}
+
+Body rules (the numbers above are computed; interpret them, never recompute them):
+- Never comment on a single day's weight; use the weight trend (2+ weeks). A jump of 1-2 kg is water: look at the notes (salt, carbs, alcohol, travel, a hard session).
+- Under 0.3 kg/week, or a waist change of 1 cm or less, means no detectable change. Losing more than 1% of bodyweight per week is too aggressive.
+- Waist down with weight flat is a win (recomposition). Waist up with weight flat is worth raising gently.
+- Frame risk with waist-to-height (target under 0.50), never BMI. Never diagnose; suggest a DEXA scan if body composition detail is wanted.
+- Mention weight or waist only when something changed meaningfully or a nudge is due.
 
 ## How to read HRV
 - The primary signal is the HRV 7-day avg against the athlete's own range (Garmin's baseline band). Never prescribe from one night; last night is context only.

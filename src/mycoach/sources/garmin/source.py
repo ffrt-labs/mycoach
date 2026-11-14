@@ -40,6 +40,10 @@ class GarminSource(DataSource):
         self._client = client or GarminClient()
 
     @property
+    def client(self) -> GarminClient:
+        return self._client
+
+    @property
     def source_type(self) -> str:
         return "garmin"
 

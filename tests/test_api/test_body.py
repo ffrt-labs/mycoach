@@ -1,5 +1,7 @@
 """The Body API: log weight/waist, list, delete, height (ticket #198)."""
 
+from unittest.mock import MagicMock
+
 from httpx import AsyncClient
 
 from mycoach import health
@@ -114,3 +116,63 @@ async def test_height_must_be_plausible(client: AsyncClient) -> None:
     await _create_user()
 
     assert (await client.put("/api/body/height", json={"height_cm": 18})).status_code == 422
+
+
+# ── Garmin weight push (#199) ─────────────────────────────────────────
+
+
+async def test_a_saved_weight_is_pushed_to_garmin_after_the_save(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    await _create_user()
+    fake_garmin.get_daily_weigh_ins.return_value = {
+        "dateWeightList": [{"samplePk": 77, "weight": 82400.0, "timestampGMT": 0}]
+    }
+
+    resp = await client.post(
+        "/api/body/measurements", json={"measured_at": "2026-07-10T08:00", "weight_kg": 82.4}
+    )
+
+    assert resp.status_code == 201
+    fake_garmin.add_weigh_in_with_timestamps.assert_called_once()
+    listed = (await client.get("/api/body/measurements")).json()
+    assert listed[0]["garmin_push_status"] == "pushed"
+
+    await client.delete(f"/api/body/measurements/{listed[0]['id']}")
+    fake_garmin.delete_weigh_in.assert_called_once_with("77", "2026-07-10")
+
+
+async def test_a_garmin_outage_never_blocks_or_rolls_back_the_save(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    await _create_user()
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = ConnectionError("Garmin is down")
+
+    resp = await client.post("/api/body/measurements", json={"weight_kg": 82.4})
+
+    assert resp.status_code == 201
+    listed = (await client.get("/api/body/measurements")).json()
+    assert [(m["weight_kg"], m["garmin_push_status"]) for m in listed] == [(82.4, "failed")]
+
+
+async def test_a_garmin_login_failure_never_blocks_the_save(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    await _create_user()
+    fake_garmin.login.side_effect = RuntimeError("Garmin is down")
+
+    resp = await client.post("/api/body/measurements", json={"weight_kg": 82.4})
+
+    assert resp.status_code == 201
+    assert len((await client.get("/api/body/measurements")).json()) == 1
+
+
+async def test_a_waist_only_entry_is_not_sent_to_garmin(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    await _create_user()
+
+    await client.post("/api/body/measurements", json={"waist_cm": 91.0})
+
+    fake_garmin.add_weigh_in_with_timestamps.assert_not_called()
+    fake_garmin.login.assert_not_called()

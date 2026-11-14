@@ -5,6 +5,7 @@ as plain-data events. The call site dispatches them to coaching *after* this com
 coaching handler can never roll a health write back. Health never imports coaching.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -14,6 +15,7 @@ from sqlalchemy import select
 from mycoach.config import get_settings
 from mycoach.exercise_catalogue import load_exercise_catalogue
 from mycoach.health.events import CanonicalActivitySettled, HealthEvent
+from mycoach.health.garmin_weight import retry_garmin_weight_pushes
 from mycoach.health.runtime import health_session
 from mycoach.models.activity import Activity
 from mycoach.models.athlete import Athlete
@@ -22,9 +24,12 @@ from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.exercise import Exercise
 from mycoach.sources.base import DataSource, ImportResult
 from mycoach.sources.garmin.mappers import import_activities
+from mycoach.sources.garmin.source import GarminSource
 from mycoach.sources.importer import import_workouts
 from mycoach.sources.reconcile import LinkResult, link_garmin_to_gym
 from mycoach.sources.workout_import import WorkoutImport
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -144,15 +149,22 @@ class SyncOutcome:
 async def sync_garmin(
     athlete_id: int, source: DataSource, since: datetime | None = None
 ) -> SyncOutcome:
-    """Fetch and import Garmin data, link it onto gym activities, settle what is due.
+    """Fetch and import Garmin data, link it onto gym activities, settle what is due, and
+    retry the weight readings not yet copied to Garmin.
 
     The settlement check piggybacks on the Garmin sync, the job whose new data is what
-    reconciles an activity (no cron of its own, #112).
+    reconciles an activity (no cron of its own, #112). So does the weight-push retry
+    (#199): the sync already holds a connected client. A retry failure never fails it.
     """
     async with health_session() as session:
         result = await source.fetch_and_import(session, athlete_id, since=since)
     link = await link_garmin(athlete_id)
     deadline = await settle_due_activities(athlete_id)
+    if isinstance(source, GarminSource):
+        try:
+            await retry_garmin_weight_pushes(athlete_id, source.client)
+        except Exception:  # noqa: BLE001 - the weight copy must never cost a sync
+            logger.exception("Garmin weight-push retry failed")
     return SyncOutcome(result, link, [*result.events, *link.events, *deadline])
 
 
@@ -251,6 +263,9 @@ class BodyMeasurementRecord:
     waist_cm: float | None
     note: str | None
     source: str
+    garmin_push_status: str | None = None
+    """``pending``/``pushed``/``failed``; None for a waist-only reading (never pushed)."""
+    garmin_weigh_in_id: str | None = None
 
 
 def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
@@ -262,6 +277,8 @@ def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
         waist_cm=row.waist_cm,
         note=row.note,
         source=row.source,
+        garmin_push_status=row.garmin_push_status,
+        garmin_weigh_in_id=row.garmin_weigh_in_id,
     )
 
 
@@ -288,6 +305,9 @@ async def record_body_measurement(
             waist_cm=waist_cm,
             note=note or None,
             source=source,
+            # Only a weight goes to Garmin (#199); the push itself runs after this commit.
+            garmin_push_status="pending" if weight_kg is not None else None,
+            garmin_push_attempts=0,
         )
         session.add(row)
         await session.commit()

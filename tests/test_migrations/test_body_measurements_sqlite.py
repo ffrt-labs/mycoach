@@ -47,7 +47,8 @@ def test_upgrade_adds_the_body_measurements_table_and_height(
 ) -> None:
     db = _migrated(tmp_path, monkeypatch)
 
-    assert _columns(db, "body_measurements") == {
+    # A subset: later revisions (h199's Garmin push columns) add to the table.
+    assert _columns(db, "body_measurements") >= {
         "id",
         "athlete_id",
         "measured_at",

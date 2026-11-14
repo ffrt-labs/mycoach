@@ -36,6 +36,18 @@ def test_openrouter_models_are_configurable(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.openrouter_model_weekly == "moonshotai/kimi-k3.1-pro"
 
 
+@pytest.mark.parametrize("value", ["", "   "])
+def test_empty_openrouter_models_fall_back_to_the_defaults(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """The deploy writes both model variables even when the deploy variable is unset."""
+    monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_DAILY", value)
+    monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_WEEKLY", value)
+    settings = Settings(_env_file=None, llm_provider="openrouter", openrouter_api_key="sk-or-test")  # type: ignore[call-arg]
+    assert settings.openrouter_model_daily == "deepseek/deepseek-v4-pro"
+    assert settings.openrouter_model_weekly == "deepseek/deepseek-v4-pro"
+
+
 def test_removed_anthropic_provider_fails_listing_supported_providers() -> None:
     """A stale MYCOACH_LLM_PROVIDER=anthropic must fail at boot, not at 09:30."""
     with pytest.raises(ValueError, match=r"'anthropic'.*\['claude_code', 'openrouter'\]"):

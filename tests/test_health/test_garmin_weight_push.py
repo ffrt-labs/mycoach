@@ -109,9 +109,7 @@ async def test_a_fresh_pending_weight_is_left_to_its_own_push(fake_garmin: Magic
 
 
 async def test_a_waist_only_reading_is_never_pushed(fake_garmin: MagicMock) -> None:
-    recorded = await health.record_body_measurement(
-        ATHLETE, measured_at=MEASURED_AT, waist_cm=91.0
-    )
+    recorded = await health.record_body_measurement(ATHLETE, measured_at=MEASURED_AT, waist_cm=91.0)
 
     assert await health.push_weight_to_garmin(ATHLETE, recorded.id) is None
     later = datetime.utcnow() + timedelta(hours=1)

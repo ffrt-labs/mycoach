@@ -62,8 +62,7 @@ class GarminWeighIns:
         same_weight = [
             e
             for e in same_time or entries
-            if isinstance(e.get("weight"), int | float)
-            and abs(e["weight"] - weight_kg * 1000) < 50
+            if isinstance(e.get("weight"), int | float) and abs(e["weight"] - weight_kg * 1000) < 50
         ]
         match = same_weight or same_time
         if not match or match[-1].get("samplePk") is None:

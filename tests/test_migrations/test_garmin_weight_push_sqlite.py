@@ -61,7 +61,7 @@ def test_upgrade_adds_the_push_columns_and_queues_existing_weights(
 
     command.upgrade(cfg, H199)
 
-    assert PUSH_COLUMNS <= _columns(db, "body_measurements")
+    assert _columns(db, "body_measurements") >= PUSH_COLUMNS
     rows = _exec(
         db,
         "SELECT weight_kg, garmin_push_status, garmin_push_attempts "
@@ -81,4 +81,4 @@ def test_downgrade_removes_them(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
     assert not PUSH_COLUMNS & _columns(db, "body_measurements")
     command.upgrade(cfg, H199)
-    assert PUSH_COLUMNS <= _columns(db, "body_measurements")
+    assert _columns(db, "body_measurements") >= PUSH_COLUMNS

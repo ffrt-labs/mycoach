@@ -42,9 +42,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("garmin_weigh_in_id", sa.String(40), nullable=True))
         batch_op.add_column(sa.Column("garmin_push_error", sa.Text(), nullable=True))
         batch_op.add_column(
-            sa.Column(
-                "garmin_push_attempts", sa.Integer(), nullable=False, server_default="0"
-            )
+            sa.Column("garmin_push_attempts", sa.Integer(), nullable=False, server_default="0")
         )
 
     body = sa.table(
@@ -54,9 +52,7 @@ def upgrade() -> None:
         schema=schema,
     )
     op.execute(
-        body.update()
-        .where(body.c.weight_kg.is_not(None))
-        .values(garmin_push_status="pending")
+        body.update().where(body.c.weight_kg.is_not(None)).values(garmin_push_status="pending")
     )
 
 

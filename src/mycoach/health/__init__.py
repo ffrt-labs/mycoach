@@ -25,16 +25,16 @@ from mycoach.health.commands import (
     sync_exercise_catalogue,
     sync_garmin,
 )
-from mycoach.health.garmin_weight import (
-    delete_weight_from_garmin,
-    push_weight_to_garmin,
-    retry_garmin_weight_pushes,
-)
 from mycoach.health.events import (
     CanonicalActivityRecorded,
     CanonicalActivityRevised,
     CanonicalActivitySettled,
     HealthEvent,
+)
+from mycoach.health.garmin_weight import (
+    delete_weight_from_garmin,
+    push_weight_to_garmin,
+    retry_garmin_weight_pushes,
 )
 from mycoach.health.queries import (
     get_activities_for_week,

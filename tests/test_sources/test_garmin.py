@@ -271,6 +271,48 @@ class TestMapHealthSnapshot:
 # ── Activity Mapper Tests ────────────────────────────────────────────
 
 
+class TestMapHrvBaseline:
+    """Garmin's personal HRV baseline band (#197).
+
+    Shape per garth's HRVSummary / Garmin's hrv-service response:
+    ``hrvSummary.baseline = {lowUpper, balancedLow, balancedUpper, markerValue}``.
+    """
+
+    def test_maps_the_baseline_band(self) -> None:
+        hrv = {
+            "hrvSummary": {
+                "calendarDate": "2024-06-10",
+                "weeklyAvg": 52,
+                "lastNightAvg": 48,
+                "lastNight5MinHigh": 70,
+                "baseline": {
+                    "lowUpper": 43,
+                    "balancedLow": 47,
+                    "balancedUpper": 58,
+                    "markerValue": 0.45,
+                },
+                "status": "BALANCED",
+                "feedbackPhrase": "HRV_BALANCED_2",
+            },
+            "hrvReadings": [],
+        }
+        snapshot = map_health_snapshot(
+            user_id=1, snapshot_date=date(2024, 6, 10), stats={}, hrv=hrv
+        )
+        assert snapshot.hrv_baseline_low == 47
+        assert snapshot.hrv_baseline_high == 58
+        assert snapshot.hrv_baseline_low_upper == 43
+
+    def test_missing_baseline_leaves_the_band_empty(self) -> None:
+        for hrv in (SAMPLE_HRV, {"hrvSummary": {"weeklyAvg": 40, "baseline": None}}, None):
+            snapshot = map_health_snapshot(
+                user_id=1, snapshot_date=date(2024, 6, 10), stats={}, hrv=hrv
+            )
+            assert snapshot.hrv_baseline_low is None
+            assert snapshot.hrv_baseline_high is None
+            assert snapshot.hrv_baseline_low_upper is None
+
+
 class TestMapActivity:
     def test_swimming_activity(self) -> None:
         activity = map_activity(user_id=1, raw=SAMPLE_ACTIVITY_RAW)
@@ -402,6 +444,37 @@ class TestImportHealthSnapshot:
             rows = result.scalars().all()
             assert len(rows) == 2
             assert {row.data_source for row in rows} == {"garmin", "hevy"}
+
+    async def test_resync_fills_in_a_baseline_band_that_arrived_later(
+        self, setup_db
+    ) -> None:  # type: ignore[no-untyped-def]
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            user = await _create_user(session)
+            day = date(2024, 6, 10)
+            first = map_health_snapshot(user_id=user.id, snapshot_date=day, stats=SAMPLE_STATS)
+            await import_health_snapshot(session, first)
+            await session.commit()
+
+            with_band = {
+                "hrvSummary": {
+                    "weeklyAvg": 52,
+                    "baseline": {"lowUpper": 43, "balancedLow": 47, "balancedUpper": 58},
+                }
+            }
+            second = map_health_snapshot(
+                user_id=user.id, snapshot_date=day, stats=SAMPLE_STATS, hrv=with_band
+            )
+            await import_health_snapshot(session, second)
+            await session.commit()
+
+            row = (await session.execute(select(DailyHealthSnapshot))).scalar_one()
+            assert (row.hrv_baseline_low, row.hrv_baseline_high, row.hrv_baseline_low_upper) == (
+                47,
+                58,
+                43,
+            )
 
     async def test_updated_at_bumped_even_when_no_field_changes(
         self, setup_db

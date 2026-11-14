@@ -2,6 +2,11 @@
 
 Plain-dict return shapes, never an ORM object, never an internal row id, never
 prompt-shaped data. ``external_id`` is how an activity is named across the boundary.
+
+One narrow, explicit exception: a Body measurement (``list_body_measurements``) crosses
+with its ``id``. It is entered by the athlete, so no source issues an id for it; the health
+side issues this one, and callers use it only to name the reading back to health
+(``delete_body_measurement``), never to join or reach into health storage.
 Dates and datetimes cross as strings (``str()`` of the value), so every result survives
 serialisation: swapping this module's implementation for HTTP changes no caller.
 
@@ -858,8 +863,9 @@ async def list_body_measurements(
     """The athlete's body measurements, newest first (ticket #198).
 
     ``since`` (naive UTC, inclusive) bounds the window; ``limit=None`` returns all of it.
-    ``measured_at`` crosses as ``str()`` of the naive UTC time. ``id`` names a measurement
-    across the boundary (for delete): the health side issues it, there is no source id.
+    ``measured_at`` crosses as ``str()`` of the naive UTC time. ``id`` is the documented
+    exception to the no-row-id rule (see the module docstring): it names the reading for a
+    delete, since no source issues one.
     """
     async with health_session() as session:
         stmt = select(BodyMeasurement).where(BodyMeasurement.athlete_id == athlete_id)

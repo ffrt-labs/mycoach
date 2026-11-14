@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     timezone: str = "Europe/London"
     app_base_url: str = "http://localhost:8000"  # links back into emails (e.g. dashboard CTA)
 
+    # Coaching targets. A 7-day steps average at or above this means "maintain"
+    # (docs/research/health-metrics.md section 2, #196).
+    steps_daily_target: int = 10_000
+
     # The logger PWA's own origin once split out (e.g. https://logger.example.com).
     # Empty means it's still same-origin under /logger: no CORS is opened and
     # GET /logger keeps serving the shell directly instead of redirecting.

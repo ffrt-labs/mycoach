@@ -82,6 +82,7 @@ class TestDailyBriefingTrace:
             "health_trends",
             "recent_activities",
             "planned_workout",
+            "steps_summary",
         }
 
     async def test_forced_regeneration_gets_a_regen_trace_that_supersedes(

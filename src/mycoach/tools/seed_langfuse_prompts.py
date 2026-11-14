@@ -1,9 +1,14 @@
-"""Seed Langfuse with the bundled coaching prompts (#174).
+"""Seed Langfuse with the bundled coaching prompts (#174, #196).
 
 Creates version 1 of each ``mycoach/*`` chat prompt from ``prompts/v2``,
-labelled ``production``, converted to Langfuse's ``{{var}}`` syntax. A prompt
-that already exists, with any version or label, is skipped, so running it
-again is a no-op. Uses the LANGFUSE_* variables the app uses:
+labelled ``production``, converted to Langfuse's ``{{var}}`` syntax. For a
+prompt that already exists, the latest version (whatever its labels) is
+compared with the compiled bundled messages: when they differ, a new version
+with the bundled text is published and labelled ``production``; when they
+match, the prompt is skipped. So running it again is a no-op, and running it
+after editing ``prompts/v2`` (e.g. adding a variable) publishes that edit.
+Note that a newer version edited in the Langfuse UI is superseded by the
+bundled text. Uses the LANGFUSE_* variables the app uses:
 
     python -m mycoach.tools.seed_langfuse_prompts
 """
@@ -14,7 +19,7 @@ import sys
 from langfuse import Langfuse
 from langfuse.model import ChatMessageDict
 
-from mycoach.coaching.prompt_builder import BUNDLED_VERSION
+from mycoach.coaching.prompt_builder import BUNDLED_VERSION, Operation
 from mycoach.coaching.prompt_store import (
     LANGFUSE_PROMPT_NAMES,
     PRODUCTION_LABEL,
@@ -24,29 +29,44 @@ from mycoach.coaching.prompt_store import (
 logger = logging.getLogger(__name__)
 
 
+def _messages(operation: Operation) -> list[ChatMessageDict]:
+    return [
+        ChatMessageDict(role=m["role"], content=m["content"]) for m in langfuse_messages(operation)
+    ]
+
+
+def _latest_matches(
+    client: Langfuse, name: str, versions: list[int], wanted: list[ChatMessageDict]
+) -> bool:
+    latest = client.get_prompt(name, version=max(versions), type="chat", cache_ttl_seconds=0)
+    current = [(m.get("role"), m.get("content")) for m in latest.prompt]
+    return current == [(m["role"], m["content"]) for m in wanted]
+
+
 def seed_prompts(client: Langfuse) -> list[str]:
-    """Create each prompt that does not exist yet; returns the names created."""
-    created = []
+    """Publish each prompt that is missing or whose latest version differs
+    from the bundled text; returns the names published."""
+    published = []
     for operation, name in LANGFUSE_PROMPT_NAMES.items():
+        messages = _messages(operation)
         # The list endpoint sees every version and label; a get by label
-        # would miss a prompt with no production version and duplicate it.
-        if client.api.prompts.list(name=name).data:
-            logger.info("%s exists; skipped", name)
+        # would miss a prompt with no production version.
+        listed = client.api.prompts.list(name=name).data
+        versions = [v for meta in listed for v in meta.versions]
+        if versions and _latest_matches(client, name, versions, messages):
+            logger.info("%s unchanged; skipped", name)
             continue
         client.create_prompt(
             name=name,
             type="chat",
-            prompt=[
-                ChatMessageDict(role=m["role"], content=m["content"])
-                for m in langfuse_messages(operation)
-            ],
+            prompt=list(messages),
             labels=[PRODUCTION_LABEL],
             config={"source": f"bundled:{BUNDLED_VERSION}"},
             commit_message=f"Seeded from prompts/{BUNDLED_VERSION}",
         )
-        logger.info("%s created", name)
-        created.append(name)
-    return created
+        logger.info("%s %s", name, "updated" if versions else "created")
+        published.append(name)
+    return published
 
 
 def main() -> int:
@@ -65,8 +85,8 @@ def main() -> int:
         base_url=settings.langfuse_base_url,
         tracing_enabled=False,
     )
-    created = seed_prompts(client)
-    logger.info("Created %d prompt(s)", len(created))
+    published = seed_prompts(client)
+    logger.info("Published %d prompt(s)", len(published))
     return 0
 
 

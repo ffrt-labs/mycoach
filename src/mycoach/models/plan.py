@@ -62,3 +62,7 @@ class PlannedSession(Base):
     # The fulfilling canonical activity's immutable external id, by value: the seam allows
     # no cross-schema key and health's internal row id never crosses it (tickets #108, #186).
     activity_external_id: Mapped[str | None] = mapped_column(String(100), default=None)
+    # Why the LLM produced no plan for this session, when it is a placeholder standing in
+    # for a failed generation. Null for a generated session. Prompts read it to leave the
+    # placeholder's failure text out of the plan they describe (ticket #187).
+    generation_error: Mapped[str | None] = mapped_column(Text, default=None)

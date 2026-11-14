@@ -13,6 +13,7 @@ from mycoach.schemas.coaching import (
 from mycoach.schemas.data_source import DataSourceConfigCreate
 from mycoach.schemas.health import DailyHealthSnapshotCreate
 from mycoach.schemas.plan import PlannedSessionCreate, WeeklyPlanCreate
+from mycoach.schemas.routine import RoutineExerciseBase, RoutineExerciseRead
 from mycoach.schemas.sport_profile import SportProfileCreate, SportProfileUpdate
 from mycoach.schemas.system import StatusResponse
 from mycoach.schemas.user import UserCreate, UserRead, UserUpdate
@@ -241,6 +242,23 @@ class TestPlanSchemas:
     def test_invalid_mesocycle_phase(self) -> None:
         with pytest.raises(ValidationError):
             WeeklyPlanCreate(week_start=date(2025, 1, 6), mesocycle_phase="invalid")
+
+
+class TestRoutineSchemas:
+    def test_ten_sets_is_accepted(self) -> None:
+        ex = RoutineExerciseBase(exercise_name="Deadlift", sets=10, rep_range="5")
+        assert ex.sets == 10
+
+    @pytest.mark.parametrize("sets", [11, 32, 36])
+    def test_more_than_ten_sets_is_rejected(self, sets: int) -> None:
+        """36 or 32 sets is a typo, not a prescription (#187)."""
+        with pytest.raises(ValidationError):
+            RoutineExerciseBase(exercise_name="Deadlift", sets=sets, rep_range="5")
+
+    def test_a_stored_routine_over_the_bound_still_reads(self) -> None:
+        """Rows saved before the bound must keep loading, so they can be corrected."""
+        ex = RoutineExerciseRead(id=1, exercise_name="Deadlift", sets=36, rep_range="5")
+        assert ex.sets == 36
 
 
 class TestCoachingSchemas:

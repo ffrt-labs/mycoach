@@ -809,6 +809,7 @@ class CoachingEngine:
                         details=json.dumps({"exercises": exercises_detail}),
                         notes="LLM adjustment failed — using base routine.",
                         track=Track.GYM,
+                        generation_error=gym.error or "gym adjustment failed",
                     )
                     session.add(planned)
 
@@ -890,6 +891,7 @@ class CoachingEngine:
                                 duration_minutes=None,
                                 notes="LLM did not generate a session for this slot.",
                                 track=Track.CARDIO,
+                                generation_error=f"cardio plan had no {sport} session",
                             )
                         session.add(planned)
                 else:
@@ -904,6 +906,7 @@ class CoachingEngine:
                             duration_minutes=None,
                             notes="LLM plan generation failed — please reschedule.",
                             track=Track.CARDIO,
+                            generation_error=cardio.error or "cardio plan generation failed",
                         )
                         session.add(planned)
 

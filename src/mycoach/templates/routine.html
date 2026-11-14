@@ -72,7 +72,7 @@
                             {% if ex.superset_group is not none %}{{ ['A','B','C','D'][ex.superset_group % 4] }}{% else %}S{% endif %}
                         </button>
                         <input type="text" class="ex-name flex-1 rounded-lg text-sm px-2 py-1.5" value="{{ ex.exercise_name }}" list="routine-exercises" placeholder="Exercise name">
-                        <input type="number" class="ex-sets w-16 rounded-lg text-sm px-2 py-1.5" value="{{ ex.sets }}" placeholder="Sets" min="1">
+                        <input type="number" class="ex-sets w-16 rounded-lg text-sm px-2 py-1.5" value="{{ ex.sets }}" placeholder="Sets" min="1" max="10">
                         <input type="text" class="ex-reps w-20 rounded-lg text-sm px-2 py-1.5" value="{{ ex.rep_range }}" placeholder="Reps">
                         <button type="button" class="remove-exercise text-red-400/70 hover:text-red-300 text-xs">&#10005;</button>
                     </div>
@@ -121,7 +121,7 @@
         div.innerHTML =
             '<button type="button" class="superset-toggle flex-shrink-0 w-6 h-6 rounded text-xs font-bold flex items-center justify-center border ' + btnClass + '" title="Toggle superset">' + btnLabel + '</button>' +
             '<input type="text" class="ex-name flex-1 rounded-lg text-sm px-2 py-1.5" value="' + (name||'') + '" list="routine-exercises" placeholder="Exercise name">' +
-            '<input type="number" class="ex-sets w-16 rounded-lg text-sm px-2 py-1.5" value="' + (sets||3) + '" placeholder="Sets" min="1">' +
+            '<input type="number" class="ex-sets w-16 rounded-lg text-sm px-2 py-1.5" value="' + (sets||3) + '" placeholder="Sets" min="1" max="10">' +
             '<input type="text" class="ex-reps w-20 rounded-lg text-sm px-2 py-1.5" value="' + (reps||'8-10') + '" placeholder="Reps">' +
             '<button type="button" class="remove-exercise text-red-400/70 hover:text-red-300 text-xs">&#10005;</button>';
         return div;
@@ -283,6 +283,10 @@
         });
 
         if (days.length === 0) { alert('Add at least one day with exercises'); return; }
+        var tooManySets = days.some(function(d) {
+            return d.exercises.some(function(ex) { return ex.sets > 10; });
+        });
+        if (tooManySets) { alert('Sets must be between 1 and 10'); return; }
 
         var payload = { name: routineName, days: days };
         var resultDiv = document.getElementById('save-result');

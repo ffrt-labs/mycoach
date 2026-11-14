@@ -448,6 +448,7 @@ async def get_today_planned_sessions(
             "details": s.details,
             "track": s.track,
             "notes": s.notes,
+            "generation_error": s.generation_error,
         }
         for s in session_result.scalars().all()
     ]

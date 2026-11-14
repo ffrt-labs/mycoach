@@ -426,6 +426,37 @@ class TestGenerateWeeklyPlan:
             log = log_result.scalar_one()
             assert log.success is False
 
+    async def test_failed_cardio_generation_persists_its_error(self) -> None:
+        """The reason a cardio plan failed is kept on the placeholder, not just logged."""
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            mock_llm = _mock_llm_client(cardio_content='{"sessions": []}')
+            engine = CoachingEngine(llm_client=mock_llm)
+
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            result = await session.execute(
+                select(PlannedSession).where(PlannedSession.plan_id == plan.id)
+            )
+            sessions = list(result.scalars().all())
+            assert len(sessions) == 2
+            for s in sessions:
+                assert s.generation_error is not None
+                assert "sessions" in s.generation_error
+
+    async def test_generated_cardio_sessions_carry_no_error(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            engine = CoachingEngine(llm_client=_mock_llm_client())
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            result = await session.execute(
+                select(PlannedSession).where(PlannedSession.plan_id == plan.id)
+            )
+            assert all(s.generation_error is None for s in result.scalars().all())
+
     async def test_gym_session_details_stored_as_json(self) -> None:
         async with test_session() as session:
             user_id, week_start = await _setup_with_routine(session)

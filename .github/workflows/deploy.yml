@@ -64,11 +64,11 @@ jobs:
           MYCOACH_HEVY_EMAIL=${{ secrets.MYCOACH_HEVY_EMAIL }}
           MYCOACH_HEVY_PASSWORD=${{ secrets.MYCOACH_HEVY_PASSWORD }}
 
-          # The coaching provider. The app defaults to openrouter, so production
-          # must keep this variable set explicitly: claude_code until the #183
-          # evals gate passes, then openrouter. It falls back to claude_code here
-          # so an unset variable never switches providers (or fails boot on a
-          # missing OpenRouter key).
+          # The coaching provider. The app defaults to openrouter; production is
+          # pinned through this deploy variable instead (see the #183 cutover).
+          # It falls back to claude_code here so an unset variable never
+          # switches providers (or fails boot on a missing OpenRouter key).
+          # Empty model variables fall back to the app's default models.
           MYCOACH_LLM_PROVIDER=${{ vars.MYCOACH_LLM_PROVIDER || 'claude_code' }}
 
           # openrouter provider (#183, ADR 0004): prepaid credits, auto top-up off.

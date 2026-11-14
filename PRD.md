@@ -4,7 +4,7 @@
 
 **Problem:** Personal trainers are expensive and not always available. Generic fitness apps lack deep personalization. Users who train across multiple sports (gym, swimming, padel) have no single system that understands all their training holistically, adapts to their biometric data (sleep, HRV, stress, recovery), and provides progressive programming.
 
-**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with a configurable LLM provider (currently Claude through the Claude Code CLI, billed to a Claude Pro subscription; the Anthropic API also supported), and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
+**Solution:** MyCoach is an AI-powered personal fitness coaching app that fetches data from multiple sources (Garmin watch for health/biometrics, Hevy CSV exports for detailed gym workouts), analyzes it with a configurable LLM provider (OpenRouter's pay-as-you-go API by default, against prepaid credits; the Claude Code CLI on a Claude Pro subscription selectable by hand), and delivers personalized weekly workout plans, daily coaching feedback, post-workout analysis, and sleep recommendations.
 
 **Target user (MVP):** Single technically-proficient user training gym + swimming + padel, wearing a Garmin watch 24/7, logging gym workouts in Hevy (free tier).
 
@@ -118,7 +118,7 @@ Codebase audit confirmed the MVP backend is **built and functional**, not stubs:
 | Database | SQLite (MVP) → PostgreSQL (future), via SQLAlchemy 2.0 + Alembic |
 | Garmin | `garminconnect` + `garth` |
 | Hevy | API sync (web API) + CSV import fallback |
-| LLM | Provider-configurable (`MYCOACH_LLM_PROVIDER`) — `claude_code` (in use) or `anthropic` |
+| LLM | Provider-configurable (`MYCOACH_LLM_PROVIDER`) — `openrouter` (default) or `claude_code` |
 | Scheduler | APScheduler |
 | Frontend | Jinja2 + HTMX + Tailwind CSS |
 | Email | Resend API or SMTP |
@@ -181,13 +181,13 @@ mycoach/
 ## 5. LLM Integration Strategy
 
 - **Prompt architecture:** System prompt (coaching persona) + context assembly (data from DB) + structured output (JSON with Pydantic validation)
-- **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **`claude_code` is the provider currently in use**: it runs the Claude Code CLI headless (`claude -p`), authenticated with a Claude Pro subscription token, so coaching adds no per-token cost (`sonnet` alias for both tiers by default). **The Anthropic API (`anthropic`) remains supported** as an alternative (`claude-sonnet-4-5` daily, `claude-opus-4-6` weekly). Gemini was removed after its prepaid credits ran out (issue #164). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
-- **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. Both providers expose the split (Claude Sonnet → Opus); `claude_code` defaults both tiers to Sonnet until Opus availability on Pro is confirmed.
+- **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **`openrouter` is the default** (issue #183, ADR 0004): OpenRouter's OpenAI-compatible API, pay-as-you-go against prepaid credits with auto top-up off, with zero data retention and no training demanded on every request (`deepseek/deepseek-v4-pro` for both tiers by default). **`claude_code` stays selectable by hand**: it runs the Claude Code CLI headless (`claude -p`), authenticated with a Claude Pro subscription token, so coaching adds no per-token cost (`sonnet` alias for both tiers by default). Production picks its provider through the `MYCOACH_LLM_PROVIDER` deploy variable. The Anthropic API provider was removed in #183, and Gemini after its prepaid credits ran out (issue #164). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
+- **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. Both providers expose the split (`MYCOACH_OPENROUTER_MODEL_DAILY`/`_WEEKLY`, `MYCOACH_CLAUDE_CODE_MODEL_DAILY`/`_WEEKLY`); both currently default the two tiers to the same model.
 - **Token budget management:** Raw Garmin data summarized into compact representations before prompting. Rolling context windows (7 days for plans, 3 days for dailies)
 - **Prompt versioning:** Templates in `prompts/v1/`, `v2/`, etc. PromptLog tracks which version produced each output.
 - **Response validation:** JSON parsed → Pydantic validated → retry once on failure → fallback to text
 
-**Estimated monthly cost:** Provider-dependent for a single user. The ~$20-30/month ceiling (`MYCOACH_CLAUDE_MONTHLY_COST_CEILING`) reflects the Anthropic API configuration; with `claude_code` (the provider currently in use) the marginal cost is zero, within the Pro subscription's usage limits. `PromptLog.estimated_cost_usd` records what each prompt would have cost on the API.
+**Estimated monthly cost:** Provider-dependent for a single user. With `openrouter`, spend is capped by the prepaid credits (empty credits fail the run with `LLMQuotaExceeded`), and `PromptLog.estimated_cost_usd` records OpenRouter's own charge for each call. With `claude_code` the marginal cost is zero, within the Pro subscription's usage limits.
 
 ---
 

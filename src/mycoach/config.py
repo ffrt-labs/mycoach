@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROMPT_CACHE_TTL = 300
+DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-pro"
 
 
 class Settings(BaseSettings):
@@ -66,8 +67,8 @@ class Settings(BaseSettings):
     # cardio-plan uses the weekly tier, so the daily model also writes the gym
     # adjustment and the weekly recap. Model slugs are OpenRouter's.
     openrouter_api_key: str = ""
-    openrouter_model_daily: str = "deepseek/deepseek-v4-pro"
-    openrouter_model_weekly: str = "deepseek/deepseek-v4-pro"
+    openrouter_model_daily: str = DEFAULT_OPENROUTER_MODEL
+    openrouter_model_weekly: str = DEFAULT_OPENROUTER_MODEL
 
     # Claude Code CLI, billed against a Claude Pro subscription. The token is
     # the long-lived one from `claude setup-token`, under the CLI's own variable
@@ -148,6 +149,15 @@ class Settings(BaseSettings):
             return DEFAULT_PROMPT_CACHE_TTL
         return value
 
+    @field_validator("openrouter_model_daily", "openrouter_model_weekly", mode="before")
+    @classmethod
+    def _empty_openrouter_model_is_default(cls, value: object) -> object:
+        # The deploy writes both model variables even when the GitHub variable
+        # is unset, so an empty value must mean the default model.
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_OPENROUTER_MODEL
+        return value
+
     @model_validator(mode="after")
     def _default_scheduler_timezone(self) -> "Settings":
         if not self.scheduler_timezone:
@@ -204,8 +214,7 @@ def announce_email_config(settings: Settings) -> None:
     """
     if not settings.email_enabled:
         logger.warning(
-            "EMAIL IS DISABLED (MYCOACH_EMAIL_ENABLED is false) — "
-            "no coaching emails will be sent."
+            "EMAIL IS DISABLED (MYCOACH_EMAIL_ENABLED is false) — no coaching emails will be sent."
         )
 
 

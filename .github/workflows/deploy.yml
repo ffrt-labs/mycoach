@@ -63,11 +63,17 @@ jobs:
           MYCOACH_HEVY_EMAIL=${{ secrets.MYCOACH_HEVY_EMAIL }}
           MYCOACH_HEVY_PASSWORD=${{ secrets.MYCOACH_HEVY_PASSWORD }}
 
-          MYCOACH_LLM_PROVIDER=${{ vars.MYCOACH_LLM_PROVIDER }}
-          MYCOACH_CLAUDE_API_KEY=${{ secrets.MYCOACH_CLAUDE_API_KEY }}
-          MYCOACH_CLAUDE_MODEL_DAILY=${{ vars.MYCOACH_CLAUDE_MODEL_DAILY }}
-          MYCOACH_CLAUDE_MODEL_WEEKLY=${{ vars.MYCOACH_CLAUDE_MODEL_WEEKLY }}
-          MYCOACH_CLAUDE_MONTHLY_COST_CEILING=${{ vars.MYCOACH_CLAUDE_MONTHLY_COST_CEILING }}
+          # The coaching provider. The app defaults to openrouter, so production
+          # must keep this variable set explicitly: claude_code until the #183
+          # evals gate passes, then openrouter. It falls back to claude_code here
+          # so an unset variable never switches providers (or fails boot on a
+          # missing OpenRouter key).
+          MYCOACH_LLM_PROVIDER=${{ vars.MYCOACH_LLM_PROVIDER || 'claude_code' }}
+
+          # openrouter provider (#183, ADR 0004): prepaid credits, auto top-up off.
+          MYCOACH_OPENROUTER_API_KEY=${{ secrets.MYCOACH_OPENROUTER_API_KEY }}
+          MYCOACH_OPENROUTER_MODEL_DAILY=${{ vars.MYCOACH_OPENROUTER_MODEL_DAILY }}
+          MYCOACH_OPENROUTER_MODEL_WEEKLY=${{ vars.MYCOACH_OPENROUTER_MODEL_WEEKLY }}
 
           # claude_code provider (issue #164): the Claude Pro subscription token
           # from `claude setup-token`, under the CLI's own (unprefixed) name.

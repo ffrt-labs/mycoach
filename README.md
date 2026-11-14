@@ -23,7 +23,7 @@ Built for a single technically-proficient user training across multiple sports (
 | Database | SQLite (async via aiosqlite) + SQLAlchemy 2.0 + Alembic |
 | Garmin Integration | `garminconnect` + `garth` |
 | Gym Data | Hevy CSV import |
-| LLM | Anthropic Claude API (Sonnet for daily tasks, Opus for weekly plans) |
+| LLM | OpenRouter pay-as-you-go API via the `openai` SDK, zero retention and no training on every request ([ADR 0004](docs/adr/0004-coaching-provider-must-not-train-on-health-context.md)); Claude Code CLI selectable by hand |
 | Frontend | Jinja2 + HTMX + Tailwind CSS |
 | Testing | pytest + pytest-asyncio + httpx |
 | Quality | ruff (lint + format), mypy |
@@ -66,7 +66,7 @@ alembic/              # Database migrations
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
 - A Garmin Connect account (for biometric data)
-- An Anthropic API key (for AI coaching)
+- An OpenRouter API key with prepaid credits (for AI coaching)
 
 ### Installation
 
@@ -255,10 +255,10 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 | `MYCOACH_DB_URL` | Database connection string |
 | `MYCOACH_GARMIN_EMAIL` | Garmin Connect email |
 | `MYCOACH_GARMIN_PASSWORD` | Garmin Connect password |
-| `MYCOACH_CLAUDE_API_KEY` | Anthropic API key |
-| `MYCOACH_CLAUDE_MODEL_DAILY` | Model for daily coaching (default: Sonnet) |
-| `MYCOACH_CLAUDE_MODEL_WEEKLY` | Model for weekly plans (default: Opus) |
-| `MYCOACH_CLAUDE_MONTHLY_COST_CEILING` | Monthly API spend limit (default: $30) |
+| `MYCOACH_LLM_PROVIDER` | `openrouter` (default) or `claude_code` |
+| `MYCOACH_OPENROUTER_API_KEY` | OpenRouter API key; boot fails without it when the provider is `openrouter`. Spend is capped by the prepaid credits (keep auto top-up off) |
+| `MYCOACH_OPENROUTER_MODEL_DAILY` | OpenRouter model for every operation except `cardio-plan` |
+| `MYCOACH_OPENROUTER_MODEL_WEEKLY` | OpenRouter model for `cardio-plan` |
 | `MYCOACH_EMAIL_ENABLED` | Enable email delivery |
 | `LANGFUSE_BASE_URL` | Langfuse server, e.g. `http://langfuse-web:3000` over the `langfuse-ingest` network (a deploy *variable*, not a secret) |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Keys of the `mycoach` Langfuse project. Tracing is on only when all three Langfuse variables are set; the boot log says which |

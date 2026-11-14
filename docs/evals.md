@@ -38,8 +38,8 @@ operation from the name. The prompts are `daily-briefing`, `gym-adjustment`,
 ### Golden datasets stay small
 
 Keep a golden dataset at or under about 30 items. A UI experiment runs every
-item of the dataset and has no cap, and each item spends the free provider's
-daily quota, which daily coaching needs too. The harness refuses to run more
+item of the dataset and has no cap, and each item spends OpenRouter credits,
+which daily coaching needs too. The harness refuses to run more
 than 30 items at a time (`LIMIT_CAP` in `src/mycoach/evals/cli.py`). Archive
 items you no longer want rather than letting a dataset grow; archived items
 are skipped.
@@ -60,9 +60,11 @@ docker compose exec mycoach python -m mycoach.evals run \
 It needs the app's settings: the three `LANGFUSE_*` variables and the LLM
 provider's settings. **It refuses to run when `MYCOACH_LLM_PROVIDER` is
 `claude_code`**, so an experiment can never use up the Claude Pro window that
-daily coaching relies on. Run it with the free provider configured instead.
-**It also refuses a provider billed per call (`anthropic`) unless you pass
-`--allow-paid`**, so an experiment never spends money by accident.
+daily coaching relies on. Override the provider for that one command instead
+(`docker compose exec -e MYCOACH_LLM_PROVIDER=openrouter mycoach python -m
+mycoach.evals run --allow-paid ...`). **It refuses any provider whose billing is
+`paid` (`openrouter`) unless you pass `--allow-paid`**, so an experiment never
+spends money by accident.
 `--allow-paid` never lifts the `claude_code` refusal.
 
 For each item it compiles the labelled prompt with the item's variables, using
@@ -95,15 +97,19 @@ Langfuse project. The key lives in Langfuse, never in MyCoach.
 
 1. In Langfuse, open the `mycoach` project, then **Settings → LLM
    Connections → Add LLM connection**.
-2. Provider (adapter): **OpenAI**. Every free provider MyCoach considers
-   (#165) has an OpenAI-compatible endpoint.
-3. API key: the free provider's key.
-4. Turn on a custom base URL and enter the provider's OpenAI-compatible
-   endpoint, e.g. for Workers AI
-   `https://api.cloudflare.com/client/v4/accounts/<account id>/ai/v1`.
-5. Custom models: add the model ID MyCoach's free provider uses, so it can be
-   picked in the playground and in experiments.
+2. Provider (adapter): **OpenAI**. OpenRouter's API is OpenAI-compatible.
+3. API key: an OpenRouter API key.
+4. Turn on a custom base URL and enter OpenRouter's endpoint,
+   `https://openrouter.ai/api/v1`.
+5. Custom models: add the OpenRouter model slugs MyCoach uses
+   (`MYCOACH_OPENROUTER_MODEL_DAILY` / `_WEEKLY`), so they can be picked in the
+   playground and in experiments.
 6. Save, then try the connection once in the playground with a short prompt.
+
+Langfuse sends its own requests, without the `provider: {zdr: true,
+data_collection: "deny"}` flags MyCoach adds to every call (ADR 0004). Turn
+on zero data retention and disallow training in the OpenRouter account's
+privacy settings, so UI experiments are held to the same rule.
 
 Claude Code can't be a UI connection: it is a CLI on the Pro subscription,
 not an API.

@@ -8,8 +8,11 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 from mycoach import health
 from mycoach.sources.garmin.client import GarminClient
+from mycoach.sources.garmin.source import GarminSource
 
 ATHLETE = 1
 # 10 July 2026, 07:00 UTC = 08:00 in Europe/London (BST).
@@ -179,3 +182,35 @@ async def test_a_garmin_outage_on_delete_does_not_raise(fake_garmin: MagicMock) 
     fake_garmin.delete_weigh_in.side_effect = ConnectionError("Garmin is down")
 
     assert await health.delete_weight_from_garmin(deleted) is False
+
+
+async def test_the_garmin_sync_retries_unpushed_weights(fake_garmin: MagicMock) -> None:
+    # The 06:00 sync and every briefing poll both run health.sync_garmin.
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = ConnectionError("Garmin is down")
+    await health.push_weight_to_garmin(ATHLETE, recorded.id)
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = None
+    _garmin_has(fake_garmin, 9005, 82.4)
+    source = GarminSource()
+    assert await source.authenticate()
+
+    await health.sync_garmin(ATHLETE, source, since=datetime.utcnow())
+
+    assert await _status() == "pushed"
+
+
+async def test_a_weight_retry_crash_never_fails_the_sync(
+    fake_garmin: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def boom(*_: object, **__: object) -> int:
+        raise RuntimeError("database hiccup")
+
+    monkeypatch.setattr("mycoach.health.commands.retry_garmin_weight_pushes", boom)
+    source = GarminSource()
+    assert await source.authenticate()
+
+    outcome = await health.sync_garmin(ATHLETE, source, since=datetime.utcnow())
+
+    assert outcome is not None

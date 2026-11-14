@@ -251,6 +251,9 @@ class BodyMeasurementRecord:
     waist_cm: float | None
     note: str | None
     source: str
+    garmin_push_status: str | None = None
+    """``pending``/``pushed``/``failed``; None for a waist-only reading (never pushed)."""
+    garmin_weigh_in_id: str | None = None
 
 
 def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
@@ -262,6 +265,8 @@ def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
         waist_cm=row.waist_cm,
         note=row.note,
         source=row.source,
+        garmin_push_status=row.garmin_push_status,
+        garmin_weigh_in_id=row.garmin_weigh_in_id,
     )
 
 
@@ -288,6 +293,9 @@ async def record_body_measurement(
             waist_cm=waist_cm,
             note=note or None,
             source=source,
+            # Only a weight goes to Garmin (#199); the push itself runs after this commit.
+            garmin_push_status="pending" if weight_kg is not None else None,
+            garmin_push_attempts=0,
         )
         session.add(row)
         await session.commit()

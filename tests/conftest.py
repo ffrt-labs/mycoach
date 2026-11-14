@@ -2,6 +2,7 @@ import logging
 import tempfile
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -111,3 +112,28 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+class _NoRealGarmin:
+    """Stands in for ``garminconnect.Garmin``: no test may reach Garmin Connect (#199)."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("Tests never talk to real Garmin; use the fake_garmin fixture")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_garmin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("mycoach.sources.garmin.client.Garmin", _NoRealGarmin)
+
+
+@pytest.fixture
+def fake_garmin(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """A mocked Garmin Connect account (the ``garminconnect.Garmin`` instance), with
+    credentials configured. Adding a weigh-in answers 204 (None), like the real API."""
+    api = MagicMock(name="Garmin")
+    api.add_weigh_in_with_timestamps.return_value = None
+    api.get_daily_weigh_ins.return_value = {"dateWeightList": []}
+    monkeypatch.setattr("mycoach.sources.garmin.client.Garmin", MagicMock(return_value=api))
+    monkeypatch.setenv("MYCOACH_GARMIN_EMAIL", "athlete@example.com")
+    monkeypatch.setenv("MYCOACH_GARMIN_PASSWORD", "secret")
+    return api

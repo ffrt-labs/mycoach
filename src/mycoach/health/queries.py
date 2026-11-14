@@ -196,6 +196,30 @@ async def get_health_trends(
         return [_snapshot(s) for s in rows]
 
 
+async def get_daily_steps(athlete_id: int, until: date, days: int = 14) -> list[dict[str, Any]]:
+    """Steps for each of the ``days`` days ending on ``until`` (inclusive), oldest first.
+
+    Every day is present: ``{"date": "YYYY-MM-DD", "steps": int | None}``, ``None``
+    when nothing recorded a count. A day with several sources takes the highest count.
+    """
+    since = until - timedelta(days=days - 1)
+    async with health_session() as session:
+        rows = await session.execute(
+            select(DailyHealthSnapshot.snapshot_date, func.max(DailyHealthSnapshot.steps))
+            .where(
+                DailyHealthSnapshot.user_id == athlete_id,
+                DailyHealthSnapshot.snapshot_date >= since,
+                DailyHealthSnapshot.snapshot_date <= until,
+            )
+            .group_by(DailyHealthSnapshot.snapshot_date)
+        )
+        by_day: dict[date, int | None] = {day: steps for day, steps in rows.all()}
+    return [
+        {"date": str(day), "steps": by_day.get(day)}
+        for day in (since + timedelta(days=i) for i in range(days))
+    ]
+
+
 async def get_health_trends_averaged(
     athlete_id: int, days: int = 7, today: date | None = None
 ) -> dict[str, Any]:

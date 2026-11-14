@@ -6,9 +6,12 @@ from datetime import date
 from enum import StrEnum
 from importlib import resources
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
+
+if TYPE_CHECKING:
+    from mycoach.coaching.steps import StepsSummary
 
 _PROMPT_DIR: Path | None = None
 
@@ -312,6 +315,35 @@ def _format_routine_summary(routine: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+_NO_STEPS = "No step data for the last 7 days."
+
+
+def _format_steps(steps: "StepsSummary | None") -> str:
+    """The steps numbers the email shows, for the coach to interpret (#196)."""
+    if steps is None or not steps.has_data:
+        return _NO_STEPS
+
+    def count(n: int | None) -> str:
+        return "no data" if n is None else f"{n:,}"
+
+    lines = [
+        f"Daily target: {steps.target:,} steps",
+        f"Yesterday: {count(steps.yesterday)}" + (" steps" if steps.yesterday is not None else ""),
+        f"7-day avg: {count(steps.avg_7d)}/day ({steps.days_at_goal}/7 days at or above target)",
+        "Previous 7-day avg: "
+        + ("no data" if steps.prev_avg_7d is None else f"{steps.prev_avg_7d:,}/day"),
+    ]
+    if steps.change is not None and steps.prev_avg_7d:
+        pct = steps.change * 100 / steps.prev_avg_7d
+        noise = ", within +/-10%: noise" if steps.trend == "neutral" else ""
+        lines.append(f"Change: {steps.change:+,}/day ({pct:+.1f}%{noise})")
+    lines.append(
+        "Daily counts, oldest first: "
+        + "; ".join(f"{d.weekday} {count(d.steps)}" for d in steps.days)
+    )
+    return "\n".join(lines)
+
+
 def _format_body(body: BodySummary | None) -> str:
     """The body summary for the prompt (#198): code's numbers, with what each one rests on."""
     if body is None or body.empty:
@@ -359,6 +391,7 @@ def daily_briefing_variables(
     health_trends: list[dict[str, Any]],
     recent_activities: list[dict[str, Any]],
     planned_workout: str | list[dict[str, Any]] | None = None,
+    steps: "StepsSummary | None" = None,
     body: BodySummary | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a daily briefing LLM call."""
@@ -371,6 +404,7 @@ def daily_briefing_variables(
         "health_trends": _format_health_trends(health_trends),
         "recent_activities": _format_activities(recent_activities),
         "planned_workout": formatted_workout,
+        "steps_summary": _format_steps(steps),
         "body_summary": _format_body(body),
     }
 

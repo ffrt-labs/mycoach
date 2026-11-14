@@ -17,6 +17,7 @@ import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -273,10 +274,12 @@ def send_daily_briefing(
     content: dict,  # type: ignore[type-arg]
     settings: Settings | None = None,
     *,
+    steps: StepsSummary | None = None,
     body: BodySummary | None = None,
 ) -> bool:
     """Send the daily coaching briefing email.
 
+    ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
     ``body`` is the code-rendered Body block (#198); None leaves it out.
     """
     if settings is None:
@@ -288,6 +291,7 @@ def send_daily_briefing(
         "daily_briefing.html",
         {
             "briefing": briefing,
+            "steps": steps,
             "dashboard_url": _dashboard_url(settings),
             "body": _body_view(body, settings),
         },
@@ -357,13 +361,15 @@ def send_briefing_unavailable(
     last_upload: datetime | None = None,
     device_name: str | None = None,
     settings: Settings | None = None,
+    steps: StepsSummary | None = None,
     *,
     body: BodySummary | None = None,
 ) -> bool:
     """Tell the user why there is no briefing this morning.
 
-    ``body`` is the same code-rendered Body block the briefing carries, so the athlete's
-    numbers still arrive when the LLM cannot (#191).
+    ``steps`` is the same code-rendered steps strip the briefing carries, so the
+    numbers from the DB still reach the reader when the LLM could not run (#196).
+    ``body`` is the Body block (#198), carried for the same reason.
 
     The wording turns entirely on ``is_broken``, because the two causes need
     opposite things from the reader. Absent data is theirs to fix — the watch
@@ -431,6 +437,7 @@ def send_briefing_unavailable(
                 _format_last_upload(last_upload, settings) if last_upload else None
             ),
             "device_name": device_name,
+            "steps": steps,
             "dashboard_url": _dashboard_url(settings),
             "body": _body_view(body, settings),
         },

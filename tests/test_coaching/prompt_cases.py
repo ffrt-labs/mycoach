@@ -6,11 +6,12 @@ builders produced for these inputs, so the compile step can be checked
 byte-for-byte against them.
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from mycoach.coaching.body import summarize_body
+from mycoach.coaching.steps import summarize_steps
 
 _HEALTH_TODAY: dict[str, Any] = {
     "resting_hr": 55,
@@ -42,6 +43,17 @@ _RECENT_ACTIVITIES: list[dict[str, Any]] = [
         "training_effect_aerobic": 3.2,
     },
 ]
+# 14 days of steps ending yesterday (2024-06-09), one day missing.
+_STEPS = summarize_steps(
+    [
+        {"date": str(date(2024, 5, 27) + timedelta(days=i)), "steps": steps}
+        for i, steps in enumerate(
+            [10200, 9800, 11000, 10400, 9900, 12000, 10100]
+            + [9000, 12000, None, 8000, 11000, 4000, 12431]
+        )
+    ],
+    target=10000,
+)
 _SPORT_PROFILES: list[dict[str, Any]] = [
     {
         "sport": "running",
@@ -110,6 +122,7 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             "planned_workout": [
                 {"sport": "gym", "title": "Pull Day", "duration_minutes": 60},
             ],
+            "steps": _STEPS,
             "body": _BODY,
         },
     ),

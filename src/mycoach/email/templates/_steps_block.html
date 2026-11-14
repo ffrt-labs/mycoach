@@ -1,0 +1,42 @@
+{#- Steps: a 7-day strip ending yesterday, rendered from the DB, never by the LLM (#196).
+    Bars are table cells (Gmail strips SVG); BAR_PX is a full bar, i.e. the daily target. -#}
+{%- set BAR_PX = 56 -%}
+{%- if steps and steps.has_data %}
+<!-- Steps -->
+<tr>
+  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
+    <div class="sec" style="margin-bottom:8px;">Steps</div>
+    <div class="p">Yesterday: {% if steps.yesterday is not none %}<span class="strong">{{ "{:,}".format(steps.yesterday) }}</span> steps{% else %}no data{% endif %}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
+      <tr>
+        {%- for d in steps.days %}
+        {%- set h = (d.fill_pct * BAR_PX / 100)|round|int %}
+        <td class="st-col{% if d.is_yesterday %} st-yesterday{% endif %}" align="center" valign="bottom" width="14%" style="padding:0 3px;">
+          <div class="st-tick" style="height:16px;">{% if d.at_goal %}✓{% else %}&nbsp;{% endif %}</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {%- if h < BAR_PX %}
+            <tr><td class="st-track" height="{{ BAR_PX - h }}" style="height:{{ BAR_PX - h }}px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            {%- endif %}
+            {%- if h > 0 %}
+            <tr><td class="st-bar{% if d.is_yesterday %} st-bar-y{% endif %}" height="{{ h }}" style="height:{{ h }}px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            {%- endif %}
+          </table>
+          <div class="st-day{% if d.is_yesterday %} st-day-y{% endif %}" style="margin-top:6px;">{{ d.weekday }}</div>
+        </td>
+        {%- endfor %}
+      </tr>
+    </table>
+    <div style="margin-top:14px;line-height:2;">
+      {%- if steps.avg_7d is not none %}
+      <span class="badge b-zinc st-chip">7-day avg {{ "{:,}".format(steps.avg_7d) }}/day</span>
+      {%- endif %}
+      {%- if steps.trend %}
+      {%- set chip = {"up": "b-emerald", "down": "b-amber", "neutral": "b-sky"}[steps.trend] %}
+      {%- set arrow = "↑" if steps.change > 0 else ("↓" if steps.change < 0 else "=") %}
+      <span class="badge {{ chip }} st-chip">{{ arrow }} {{ "{:,}".format(steps.change|abs) }}/day vs previous 7 days</span>
+      {%- endif %}
+      <span class="badge b-zinc st-chip">{{ steps.days_at_goal }}/7 days at goal</span>
+    </div>
+  </td>
+</tr>
+{%- endif %}

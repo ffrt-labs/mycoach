@@ -32,6 +32,7 @@ from mycoach.coaching.health_events import (
     post_workout_on_revised,
     post_workout_on_settled,
 )
+from mycoach.coaching.steps import StepsSummary, load_steps_summary
 from mycoach.config import get_settings
 from mycoach.database import async_session
 from mycoach.email.sender import (
@@ -403,8 +404,11 @@ async def _daily_briefing(today: date | None = None) -> None:
 
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
+            steps = await _steps_strip(today)
             body = await _body_block()
-            _deliver(partial(send_daily_briefing, content, body=body), "daily briefing")
+            _deliver(
+                partial(send_daily_briefing, content, steps=steps, body=body), "daily briefing"
+            )
 
 
 async def _body_block() -> BodySummary | None:
@@ -417,6 +421,22 @@ async def _body_block() -> BodySummary | None:
             return await get_body_summary(session, USER_ID)
     except Exception:
         logger.exception("Scheduler: body summary for the email failed")
+        return None
+
+
+async def _steps_strip(today: date) -> StepsSummary | None:
+    """The code-rendered steps strip for ``today``'s emails, or None if it can't be read.
+
+    Best-effort: the strip decorates the email, so failing to read it must not
+    stop the email (#196).
+    """
+    try:
+        async with async_session() as session:
+            return await load_steps_summary(
+                session, USER_ID, today, target=get_settings().steps_daily_target
+            )
+    except Exception:
+        logger.exception("Scheduler: could not read steps for the briefing email")
         return None
 
 
@@ -453,6 +473,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
         )
 
     upload = None if window.is_broken else await _last_device_upload()
+    steps = await _steps_strip(window.day)
 
     _deliver(
         partial(
@@ -466,6 +487,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
             detail=window.last_detail,
             last_upload=upload.uploaded_at if upload else None,
             device_name=upload.device_name if upload else None,
+            steps=steps,
             body=await _body_block(),
         ),
         "briefing unavailable",

@@ -82,6 +82,7 @@ class TestDailyBriefingTrace:
             "health_trends",
             "recent_activities",
             "planned_workout",
+            "steps_summary",
             "body_summary",
         }
 

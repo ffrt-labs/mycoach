@@ -255,6 +255,15 @@ def _format_planned_sessions(sessions: list[dict[str, Any]]) -> str:
         return "No planned workout for today."
     lines = []
     for s in sessions:
+        # A session standing in for a failed generation carries failure text in its title
+        # and notes; the model would coach around that text as if it were the plan (#187).
+        failed = s.get("generation_error") is not None
+        if failed and not s.get("details"):
+            track_tag = f" [{s['track']} track]" if s.get("track") else ""
+            lines.append(
+                f"- {s.get('sport', '?')}{track_tag}: No plan available for this session."
+            )
+            continue
         parts = [f"- {s.get('title', 'Untitled')} [{s.get('sport', '?')}]"]
         dur = s.get("duration_minutes")
         if dur:
@@ -265,7 +274,7 @@ def _format_planned_sessions(sessions: list[dict[str, Any]]) -> str:
         lines.append(" ".join(parts))
         if s.get("details"):
             lines.append(f"  Details: {s['details']}")
-        if s.get("notes"):
+        if s.get("notes") and not failed:
             lines.append(f"  Notes: {s['notes']}")
     return "\n".join(lines)
 

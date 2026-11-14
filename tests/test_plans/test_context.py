@@ -11,6 +11,7 @@ from mycoach.coaching.context import (
     get_sport_profiles,
     get_today_planned_sessions,
 )
+from mycoach.coaching.prompt_builder import daily_briefing_variables
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -267,6 +268,46 @@ class TestGetTodayPlannedSessions:
             assert len(result) == 1
             assert result[0]["title"] == "Easy Run"
             assert result[0]["sport"] == "running"
+
+    async def test_failed_placeholder_reaches_the_briefing_without_its_failure_text(
+        self,
+    ) -> None:
+        async with test_session() as session:
+            user = User(email="t@t.com", name="T", fitness_level="beginner")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            plan = WeeklyPlan(user_id=user.id, week_start=date(2024, 6, 10), prompt_version="v2")
+            session.add(plan)
+            await session.flush()
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,
+                    sport="swimming",
+                    title="Swimming Session (plan generation failed)",
+                    notes="LLM plan generation failed — please reschedule.",
+                    track="cardio",
+                    generation_error="Validation error",
+                )
+            )
+            session.add(
+                WeeklyAvailability(
+                    user_id=user.id, week_start=date(2024, 6, 10), day_of_week=2, sport="swimming"
+                )
+            )
+            await session.commit()
+
+            sessions = await get_today_planned_sessions(session, user.id, date(2024, 6, 12))
+            planned_workout = daily_briefing_variables(
+                health_today={},
+                health_trends=[],
+                recent_activities=[],
+                planned_workout=sessions,
+            )["planned_workout"]
+            assert "failed" not in planned_workout.lower()
+            assert "No plan available for this session." in planned_workout
 
     async def test_empty_when_no_plan(self) -> None:
         async with test_session() as session:

@@ -15,6 +15,7 @@ from mycoach.coaching.prompt_builder import (
     _format_training_status,
     build_daily_briefing_prompt,
     build_post_workout_prompt,
+    daily_briefing_variables,
     get_system_prompt,
 )
 
@@ -281,6 +282,73 @@ class TestBuildDailyBriefingPrompt:
             version="v2",
         )
         assert "Sport Profiles" not in prompt
+
+
+class TestBriefingPlannedWorkout:
+    """A placeholder for a failed plan generation is not plan content (#187)."""
+
+    def _planned_workout(self, sessions: list[dict]) -> str:
+        return daily_briefing_variables(
+            health_today={},
+            health_trends=[],
+            recent_activities=[],
+            planned_workout=sessions,
+        )["planned_workout"]
+
+    def test_failed_cardio_placeholder_is_not_described_as_a_plan(self) -> None:
+        text = self._planned_workout(
+            [
+                {
+                    "title": "Swimming Session (plan generation failed)",
+                    "sport": "swimming",
+                    "duration_minutes": None,
+                    "details": None,
+                    "track": "cardio",
+                    "notes": "LLM plan generation failed — please reschedule.",
+                    "generation_error": "Validation error: sessions too short",
+                }
+            ]
+        )
+        assert "plan generation failed" not in text.lower()
+        assert "reschedule" not in text
+        assert "Validation error" not in text
+        assert "swimming" in text
+        assert "No plan available for this session." in text
+
+    def test_routine_fallback_keeps_its_exercises_but_not_the_failure_note(self) -> None:
+        text = self._planned_workout(
+            [
+                {
+                    "title": "Push Day",
+                    "sport": "gym",
+                    "duration_minutes": None,
+                    "details": '{"exercises": [{"name": "Bench Press", "sets": 4}]}',
+                    "track": "gym",
+                    "notes": "LLM adjustment failed — using base routine.",
+                    "generation_error": "API timeout",
+                }
+            ]
+        )
+        assert "Bench Press" in text
+        assert "failed" not in text.lower()
+        assert "API timeout" not in text
+
+    def test_generated_session_notes_are_kept(self) -> None:
+        text = self._planned_workout(
+            [
+                {
+                    "title": "Easy Run",
+                    "sport": "running",
+                    "duration_minutes": 40,
+                    "details": None,
+                    "track": "cardio",
+                    "notes": "Keep HR under 140.",
+                    "generation_error": None,
+                }
+            ]
+        )
+        assert "- Easy Run [running] (40 min) [cardio track]" in text
+        assert "Notes: Keep HR under 140." in text
 
 
 class TestFormatTrainingStatus:

@@ -271,5 +271,5 @@ def test_the_migrate_tool_rekeys_a_legacy_database_in_one_run(
 
     assert _scalar(pg_db, "SELECT activity_external_id FROM coaching.planned_sessions") == "uuid-1"
     assert _scalar(pg_db, "SELECT activity_external_id FROM coaching.coaching_insights") == "uuid-1"
-    assert _scalar(pg_db, "SELECT version_num FROM public.alembic_version") == "c186a1b2c3d4"
+    assert _scalar(pg_db, "SELECT version_num FROM public.alembic_version") == "c187a1b2c3d4"
     assert _scalar(pg_db, "SELECT version_num FROM health.alembic_version") == "h186a1b2c3d4"

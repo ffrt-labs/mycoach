@@ -8,7 +8,8 @@ from mycoach.exercise_catalogue import is_known_exercise_id
 class RoutineExerciseBase(BaseModel):
     exercise_id: str | None = Field(default=None, max_length=200)
     exercise_name: str = Field(max_length=200)
-    sets: int = Field(gt=0)
+    # More than ten working sets of one exercise is a typo, not a prescription (#187).
+    sets: int = Field(gt=0, le=10)
     rep_range: str = Field(max_length=20)  # e.g. "8-10"
     order_index: int = Field(ge=0, default=0)
     notes: str | None = None
@@ -36,6 +37,8 @@ class WorkoutRoutineCreate(BaseModel):
 
 class RoutineExerciseRead(RoutineExerciseBase):
     id: int
+    # Unbounded on read: rows saved before the bound must still load so they can be fixed.
+    sets: int
 
     model_config = {"from_attributes": True}
 

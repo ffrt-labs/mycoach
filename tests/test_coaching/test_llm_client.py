@@ -1,256 +1,55 @@
-"""Tests for LLM client — abstract interface, factory, and Anthropic provider.
+"""Tests for the LLM client interface and the provider factory.
 
-The Claude Code provider has its own module: test_claude_code_provider.py.
+Each provider has its own module: test_openrouter_provider.py and
+test_claude_code_provider.py.
 """
-
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
-from mycoach.coaching.providers.anthropic import AnthropicClient, _estimate_cost
+from mycoach.coaching.llm_client import LLMClient, get_llm_client
 from mycoach.coaching.providers.claude_code import ClaudeCodeClient
+from mycoach.coaching.providers.openrouter import OpenRouterClient
 
 
-class TestEstimateCost:
-    def test_known_sonnet_model(self) -> None:
-        cost = _estimate_cost("claude-sonnet-4-5-20250929", input_tokens=1000, output_tokens=500)
-        # input: 1000 * 3.0 / 1M = 0.003, output: 500 * 15.0 / 1M = 0.0075
-        assert cost == pytest.approx(0.0105)
-
-    def test_known_opus_model(self) -> None:
-        cost = _estimate_cost("claude-opus-4-6", input_tokens=1000, output_tokens=500)
-        # input: 1000 * 15.0 / 1M = 0.015, output: 500 * 75.0 / 1M = 0.0375
-        assert cost == pytest.approx(0.0525)
-
-    def test_unknown_model_uses_opus_pricing(self) -> None:
-        """Unknown models default to Opus-level pricing (most expensive)."""
-        cost = _estimate_cost("claude-unknown-model", input_tokens=1000, output_tokens=500)
-        expected = _estimate_cost("claude-opus-4-6", input_tokens=1000, output_tokens=500)
-        assert cost == expected
-
-    def test_zero_tokens(self) -> None:
-        cost = _estimate_cost("claude-sonnet-4-5-20250929", input_tokens=0, output_tokens=0)
-        assert cost == 0.0
-
-
-class TestAnthropicClient:
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_call_returns_llm_response(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        # Mock the API response
-        mock_text_block = MagicMock()
-        mock_text_block.type = "text"
-        mock_text_block.text = "Hello from Claude"
-
-        mock_response = MagicMock()
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 50
-        mock_response.content = [mock_text_block]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
-
-        client = AnthropicClient()
-        result = client.call(system="You are a coach.", user_message="Hello")
-
-        assert isinstance(result, LLMResponse)
-        assert result.content == "Hello from Claude"
-        assert result.model == "claude-sonnet-4-5-20250929"
-        assert result.input_tokens == 100
-        assert result.output_tokens == 50
-        assert result.latency_ms >= 0
-        assert result.estimated_cost_usd > 0
-        # A paid API: money is what it spends ($3/M input + $15/M output).
-        assert result.billing == "paid"
-        assert result.quota_usage == {"unit": "usd", "amount": pytest.approx(0.00105)}
-
-        mock_client.messages.create.assert_called_once_with(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=4096,
-            system="You are a coach.",
-            messages=[{"role": "user", "content": "Hello"}],
-        )
-
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_call_with_explicit_model(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        mock_text_block = MagicMock()
-        mock_text_block.type = "text"
-        mock_text_block.text = "Response"
-
-        mock_response = MagicMock()
-        mock_response.usage.input_tokens = 200
-        mock_response.usage.output_tokens = 100
-        mock_response.content = [mock_text_block]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
-
-        client = AnthropicClient()
-        result = client.call(
-            system="System", user_message="Msg", model="claude-opus-4-6", max_tokens=8192
-        )
-
-        assert result.model == "claude-opus-4-6"
-        mock_client.messages.create.assert_called_once_with(
-            model="claude-opus-4-6",
-            max_tokens=8192,
-            system="System",
-            messages=[{"role": "user", "content": "Msg"}],
-        )
-
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_call_concatenates_multiple_text_blocks(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        block1 = MagicMock()
-        block1.type = "text"
-        block1.text = "Part 1. "
-        block2 = MagicMock()
-        block2.type = "text"
-        block2.text = "Part 2."
-
-        mock_response = MagicMock()
-        mock_response.usage.input_tokens = 50
-        mock_response.usage.output_tokens = 30
-        mock_response.content = [block1, block2]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
-
-        client = AnthropicClient()
-        result = client.call(system="Sys", user_message="Msg")
-        assert result.content == "Part 1. Part 2."
-
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_call_skips_non_text_blocks(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        text_block = MagicMock()
-        text_block.type = "text"
-        text_block.text = "Only text"
-        tool_block = MagicMock()
-        tool_block.type = "tool_use"
-
-        mock_response = MagicMock()
-        mock_response.usage.input_tokens = 50
-        mock_response.usage.output_tokens = 30
-        mock_response.content = [tool_block, text_block]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
-
-        client = AnthropicClient()
-        result = client.call(system="Sys", user_message="Msg")
-        assert result.content == "Only text"
-
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_daily_and_weekly_model_properties(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        client = AnthropicClient()
-        assert client.daily_model == "claude-sonnet-4-5-20250929"
-        assert client.weekly_model == "claude-opus-4-6"
-
-    @patch("mycoach.coaching.providers.anthropic.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_init_with_explicit_api_key(
-        self, mock_anthropic_cls: MagicMock, mock_settings: MagicMock
-    ) -> None:
-        settings = MagicMock()
-        settings.claude_api_key = "default-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
-        AnthropicClient(api_key="custom-key")
-        mock_anthropic_cls.assert_called_once_with(api_key="custom-key")
+@pytest.fixture(autouse=True)
+def _provider_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYCOACH_OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-test")
 
 
 class TestGetLLMClient:
-    @patch("mycoach.config.get_settings")
-    @patch("mycoach.coaching.providers.anthropic.anthropic.Anthropic")
-    def test_factory_returns_anthropic_by_default(
-        self,
-        mock_anthropic_cls: MagicMock,
-        mock_settings: MagicMock,
+    def test_factory_returns_openrouter_when_no_provider_is_set(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        settings = MagicMock()
-        settings.llm_provider = "anthropic"
-        settings.claude_api_key = "test-key"
-        settings.claude_model_daily = "claude-sonnet-4-5-20250929"
-        settings.claude_model_weekly = "claude-opus-4-6"
-        mock_settings.return_value = settings
-
+        monkeypatch.delenv("MYCOACH_LLM_PROVIDER", raising=False)
         client = get_llm_client()
-        assert isinstance(client, AnthropicClient)
+        assert isinstance(client, OpenRouterClient)
+        assert client.provider_name == "openrouter"
+        assert client.billing == "paid"
 
-    @patch("mycoach.coaching.providers.claude_code.get_settings")
-    @patch("mycoach.config.get_settings")
-    def test_factory_returns_claude_code_client(
-        self, mock_settings: MagicMock, mock_provider_settings: MagicMock
+    def test_factory_returns_openrouter_when_selected(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        settings = MagicMock()
-        settings.llm_provider = "claude_code"
-        settings.claude_code_oauth_token = "sk-ant-oat01-test"
-        settings.claude_code_model_daily = "sonnet"
-        settings.claude_code_model_weekly = "sonnet"
-        mock_settings.return_value = settings
-        mock_provider_settings.return_value = settings
+        monkeypatch.setenv("MYCOACH_LLM_PROVIDER", "openrouter")
+        monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_DAILY", "deepseek/deepseek-v4-pro")
+        monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_WEEKLY", "moonshotai/kimi-k3.1-pro")
+        client = get_llm_client()
+        assert isinstance(client, OpenRouterClient)
+        assert client.daily_model == "deepseek/deepseek-v4-pro"
+        assert client.weekly_model == "moonshotai/kimi-k3.1-pro"
 
+    def test_factory_returns_claude_code_client(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MYCOACH_LLM_PROVIDER", "claude_code")
         client = get_llm_client()
         assert isinstance(client, ClaudeCodeClient)
         assert client.daily_model == "sonnet"
 
-    @patch("mycoach.config.get_settings")
-    def test_factory_raises_for_unknown_provider(self, mock_settings: MagicMock) -> None:
-        settings = MagicMock()
-        settings.llm_provider = "openai"
-        mock_settings.return_value = settings
-
-        with pytest.raises(ValueError, match="Unknown LLM provider"):
+    def test_factory_rejects_the_removed_anthropic_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Settings refuse it at boot, naming the providers that do exist."""
+        monkeypatch.setenv("MYCOACH_LLM_PROVIDER", "anthropic")
+        with pytest.raises(ValueError, match=r"'anthropic'.*claude_code.*openrouter"):
             get_llm_client()
 
     def test_llm_client_is_abstract(self) -> None:

@@ -42,7 +42,7 @@ def _mock_llm_client(content: str = VALID_LLM_RESPONSE) -> MagicMock:
         latency_ms=1200,
         estimated_cost_usd=0.0045,
     )
-    client.provider_name = "anthropic"
+    client.provider_name = "openrouter"
     client.daily_model = "claude-sonnet-4-5-20250929"
     client.weekly_model = "claude-opus-4-6"
     return client
@@ -330,6 +330,31 @@ class TestGenerateDailyBriefing:
             log = (await session.execute(select(PromptLog))).scalar_one()
             assert log.success is True
             assert log.input_tokens == 550
+
+    async def test_openrouter_truncation_retries_with_doubled_answer_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``finish_reason: length`` from OpenRouter triggers the same retry, and
+        each attempt keeps its reasoning headroom on top of the answer budget."""
+        from tests.test_coaching.test_openrouter_provider import FakeOpenRouter, client_for, ok
+
+        monkeypatch.setenv("MYCOACH_OPENROUTER_API_KEY", "sk-or-test")
+        fake = FakeOpenRouter(
+            ok(content='{"sleep_assessment": "Good sl', finish_reason="length"),
+            ok(content=VALID_LLM_RESPONSE),
+        )
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+
+            engine = CoachingEngine(llm_client=client_for(fake))
+            insight = await engine.generate_daily_briefing(session, user_id, today)
+
+            assert "go_hard" in insight.content
+            assert [body["max_tokens"] for body in fake.bodies] == [4096 * 2, 8192 * 2]
+            retry_message = fake.bodies[1]["messages"][1]["content"]
+            assert "Your previous response had this error:" in retry_message
 
     async def test_retry_that_also_fails_raises_and_logs_one_failure(self) -> None:
         async with test_session() as session:

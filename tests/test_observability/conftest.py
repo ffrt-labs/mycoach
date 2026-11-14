@@ -18,8 +18,8 @@ from mycoach.observability.tracing import LangfuseTracer, Tracer, build_tracer
 
 def langfuse_settings() -> Settings:
     return Settings(
-        llm_provider="anthropic",
-        claude_api_key="test",
+        llm_provider="openrouter",
+        openrouter_api_key="test",
         env="test",
         langfuse_base_url="http://langfuse.invalid",
         langfuse_public_key="pk-lf-test",

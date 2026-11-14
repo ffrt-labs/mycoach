@@ -239,17 +239,24 @@ def response_fields(response: LLMResponse) -> dict[str, Any]:
     unchanged.
     """
     cost = response.estimated_cost_usd if response.billing == "paid" else 0
+    usage: dict[str, int] = {"input": response.input_tokens, "output": response.output_tokens}
+    if response.reasoning_tokens:
+        # Its own key, so Langfuse's total counts thinking and answer once each.
+        usage["reasoning"] = response.reasoning_tokens
+    metadata: dict[str, Any] = {
+        "stop_reason": response.stop_reason,
+        "latency_ms": response.latency_ms,
+        "billing": response.billing,
+        "quota_usage": response.quota_usage,
+    }
+    if response.serving_host is not None:
+        metadata["serving_host"] = response.serving_host
     return {
         "model": response.model,
         "output": response.content,
-        "usage_details": {"input": response.input_tokens, "output": response.output_tokens},
+        "usage_details": usage,
         "cost_details": {"total": cost},
-        "metadata": {
-            "stop_reason": response.stop_reason,
-            "latency_ms": response.latency_ms,
-            "billing": response.billing,
-            "quota_usage": response.quota_usage,
-        },
+        "metadata": metadata,
     }
 
 

@@ -27,9 +27,12 @@ from mycoach.models.user import User
 from mycoach.observability.trace_ids import post_workout_seed, trace_id
 from mycoach.observability.tracing import set_tracer
 from tests.conftest import test_session as new_session
-from tests.test_coaching.test_engine import _add_recovery_snapshot
+from tests.test_coaching.test_engine import VALID_LLM_RESPONSE, _add_recovery_snapshot
 from tests.test_coaching.test_engine import _create_user as _create_briefing_user
 from tests.test_coaching.test_engine import _mock_llm_client as _briefing_llm
+from tests.test_coaching.test_openrouter_provider import FakeOpenRouter
+from tests.test_coaching.test_openrouter_provider import client_for as openrouter_client
+from tests.test_coaching.test_openrouter_provider import ok as openrouter_ok
 from tests.test_observability.conftest import (
     Captured,
     attr,
@@ -72,7 +75,7 @@ class TestDailyBriefingTrace:
             "output": 200,
         }
         assert json_attr(gen, "langfuse.observation.metadata.attempt") == 1
-        assert json_attr(gen, "langfuse.observation.metadata.provider") == "anthropic"
+        assert json_attr(gen, "langfuse.observation.metadata.provider") == "openrouter"
         assert json_attr(gen, "langfuse.observation.metadata.latency_ms") == 1200
         assert "langfuse.observation.level" not in (gen.attributes or {})
         # Input is the prompt's variable map, not the compiled prompt.
@@ -373,6 +376,50 @@ class TestBillingAndQuota:
 
         assert json_attr(gen, "langfuse.observation.cost_details") == {"total": 0.0105}
         assert json_attr(gen, "langfuse.observation.metadata.billing") == "paid"
+
+
+class TestOpenRouterGeneration:
+    """A briefing through the real OpenRouter client, OpenRouter faked over HTTP."""
+
+    @pytest.fixture(autouse=True)
+    def _openrouter_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MYCOACH_OPENROUTER_API_KEY", "sk-or-test")
+        monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_DAILY", "deepseek/deepseek-v4-pro")
+
+    async def test_records_provider_host_model_tokens_with_reasoning_and_usd_cost(
+        self, captured: Captured
+    ) -> None:
+        fake = FakeOpenRouter(
+            openrouter_ok(
+                content=VALID_LLM_RESPONSE,
+                prompt_tokens=1200,
+                completion_tokens=900,
+                reasoning_tokens=600,
+                cost=0.00321,
+                provider="Fireworks",
+            )
+        )
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            await _add_recovery_snapshot(session, user_id, MONDAY)
+            engine = CoachingEngine(llm_client=openrouter_client(fake), tracer=captured.tracer)
+            await engine.generate_daily_briefing(session, user_id, MONDAY)
+
+        [gen] = captured.generations()
+        assert json_attr(gen, "langfuse.observation.metadata.provider") == "openrouter"
+        assert json_attr(gen, "langfuse.observation.metadata.serving_host") == "Fireworks"
+        assert attr(gen, "langfuse.observation.model.name") == "deepseek/deepseek-v4-pro"
+        assert json_attr(gen, "langfuse.observation.usage_details") == {
+            "input": 1200,
+            "output": 300,
+            "reasoning": 600,
+        }
+        assert json_attr(gen, "langfuse.observation.metadata.billing") == "paid"
+        assert json_attr(gen, "langfuse.observation.cost_details") == {"total": 0.00321}
+        assert json_attr(gen, "langfuse.observation.metadata.quota_usage") == {
+            "unit": "usd",
+            "amount": 0.00321,
+        }
 
 
 class _FailingExporter(SpanExporter):

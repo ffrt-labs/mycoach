@@ -14,6 +14,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from functools import partial
+from typing import Any
 
 from sqlalchemy import select
 
@@ -401,7 +402,23 @@ async def _daily_briefing(today: date | None = None) -> None:
 
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
-            _deliver(partial(send_daily_briefing, content), "daily briefing")
+            hrv = await _health_for_email(today)
+            _deliver(partial(send_daily_briefing, content, hrv=hrv), "daily briefing")
+
+
+async def _health_for_email(day: date) -> dict[str, Any]:
+    """The day's health snapshot for the emails' code-rendered lines (#197), or {}.
+
+    Best-effort: those lines decorate an email that must go out regardless, so a
+    failed read is logged and leaves them out rather than failing the run.
+    """
+    try:
+        async with async_session() as session:
+            athlete_id = await athlete_id_for(session, USER_ID)
+        return await health.get_today_health(athlete_id, day)
+    except Exception:
+        logger.exception("Scheduler: could not read %s's health for the email", day)
+        return {}
 
 
 def _with_sync_detail(reason: str, sync_errors: list[str]) -> str:
@@ -450,6 +467,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
             detail=window.last_detail,
             last_upload=upload.uploaded_at if upload else None,
             device_name=upload.device_name if upload else None,
+            hrv=await _health_for_email(window.day),
         ),
         "briefing unavailable",
     )

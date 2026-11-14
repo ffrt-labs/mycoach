@@ -1071,6 +1071,49 @@ class TestBriefingAlert:
         lookup.assert_not_awaited()
         assert sent.call_args.kwargs["is_broken"] is True
 
+    async def test_the_email_health_read_returns_the_days_snapshot(self) -> None:
+        from mycoach.models.health import DailyHealthSnapshot
+        from mycoach.scheduler.jobs import USER_ID, _health_for_email
+        from tests.conftest import test_session
+
+        async with test_session() as session:
+            session.add(
+                DailyHealthSnapshot(
+                    user_id=USER_ID,
+                    snapshot_date=date(2026, 8, 25),
+                    hrv_7day_avg=52.0,
+                    hrv_baseline_low=47.0,
+                    hrv_baseline_high=58.0,
+                )
+            )
+            await session.commit()
+
+        with patch("mycoach.scheduler.jobs.async_session", test_session):
+            got = await _health_for_email(date(2026, 8, 25))
+
+        assert (got["hrv_7day_avg"], got["hrv_baseline_low"], got["hrv_baseline_high"]) == (
+            52.0,
+            47.0,
+            58.0,
+        )
+
+    async def test_carries_todays_health_so_the_hrv_line_still_arrives(self) -> None:
+        """The LLM failing must not keep the DB numbers from the athlete (#197)."""
+        sent = MagicMock(return_value=True)
+        today_health = {"hrv_7day_avg": 52.0}
+        lookup = AsyncMock(return_value=today_health)
+
+        with (
+            patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+            patch("mycoach.scheduler.jobs._last_device_upload", AsyncMock(return_value=None)),
+            patch("mycoach.scheduler.jobs._health_for_email", lookup),
+            patch("mycoach.scheduler.jobs.send_briefing_unavailable", sent),
+        ):
+            await _briefing_alert(self._window(is_broken=True))
+
+        lookup.assert_awaited_once_with(date(2026, 8, 25))
+        assert sent.call_args.kwargs["hrv"] == today_health
+
     async def test_still_alerts_when_garmin_will_not_say_when_it_last_synced(self) -> None:
         """Losing the decoration must not lose the alert."""
         sent = MagicMock(return_value=True)

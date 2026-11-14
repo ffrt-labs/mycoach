@@ -4,13 +4,13 @@ from datetime import date
 
 from mycoach import health
 from mycoach.models.health import DailyHealthSnapshot
-from tests.conftest import test_session
+from tests.conftest import test_session as db_session
 
 ATHLETE = 1
 
 
 async def _seed(*rows: tuple[date, int | None, str]) -> None:
-    async with test_session() as session:
+    async with db_session() as session:
         for day, steps, source in rows:
             session.add(
                 DailyHealthSnapshot(
@@ -60,7 +60,7 @@ async def test_a_day_with_several_sources_takes_the_highest_count() -> None:
 
 
 async def test_other_athletes_steps_are_not_read() -> None:
-    async with test_session() as session:
+    async with db_session() as session:
         session.add(DailyHealthSnapshot(user_id=2, snapshot_date=date(2026, 11, 13), steps=5))
         await session.commit()
 

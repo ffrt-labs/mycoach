@@ -1071,6 +1071,21 @@ class TestBriefingAlert:
         lookup.assert_not_awaited()
         assert sent.call_args.kwargs["is_broken"] is True
 
+    async def test_carries_the_body_block_so_db_numbers_still_arrive(self) -> None:
+        """The LLM failing must not cost the athlete their code-rendered numbers (#191)."""
+        sent = MagicMock(return_value=True)
+        body = MagicMock(name="body summary")
+
+        with (
+            patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+            patch("mycoach.scheduler.jobs._last_device_upload", AsyncMock(return_value=None)),
+            patch("mycoach.scheduler.jobs.get_body_summary", AsyncMock(return_value=body)),
+            patch("mycoach.scheduler.jobs.send_briefing_unavailable", sent),
+        ):
+            await _briefing_alert(self._window())
+
+        assert sent.call_args.kwargs["body"] is body
+
     async def test_still_alerts_when_garmin_will_not_say_when_it_last_synced(self) -> None:
         """Losing the decoration must not lose the alert."""
         sent = MagicMock(return_value=True)

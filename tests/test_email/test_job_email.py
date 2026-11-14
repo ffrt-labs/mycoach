@@ -87,3 +87,50 @@ async def test_weekly_recap_sends_email(
     ):
         await _weekly_recap()
         mock_send.assert_called_once()
+
+
+async def test_daily_briefing_email_carries_the_body_block(
+    mock_session: AsyncMock, mock_insight: MagicMock
+) -> None:
+    mock_engine = MagicMock()
+    mock_engine.generate_daily_briefing = AsyncMock(return_value=mock_insight)
+    body = MagicMock(name="body summary")
+
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(empty_health_days=[])),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.get_body_summary", AsyncMock(return_value=body)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _daily_briefing()
+
+    assert mock_send.call_args.kwargs["body"] is body
+
+
+async def test_a_body_lookup_failure_does_not_cost_the_briefing_email(
+    mock_session: AsyncMock, mock_insight: MagicMock
+) -> None:
+    mock_engine = MagicMock()
+    mock_engine.generate_daily_briefing = AsyncMock(return_value=mock_insight)
+
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(empty_health_days=[])),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch(
+            "mycoach.scheduler.jobs.get_body_summary", AsyncMock(side_effect=RuntimeError("db"))
+        ),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _daily_briefing()
+
+    assert mock_send.call_args.kwargs["body"] is None

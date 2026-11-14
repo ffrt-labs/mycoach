@@ -2,15 +2,18 @@
 
 import logging
 from collections import Counter
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypedDict
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
+from mycoach.coaching.body import BodySummary, summarize_body
 from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
+from mycoach.config import get_settings
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import MesocycleConfig
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -558,6 +561,27 @@ async def get_health_trends_averaged(
     """Get a 7-day averaged health summary instead of individual daily snapshots."""
     return await health.get_health_trends_averaged(
         await athlete_id_for(session, user_id), days, today
+    )
+
+
+BODY_HISTORY_DAYS = 120
+"""How far back the body summary reads: past the 28-day rate and 6-week waist windows, with
+room for the EMA to settle (a 90-day-old reading keeps ~0.01% of its weight)."""
+
+
+async def get_body_summary(
+    session: AsyncSession, user_id: int, now: datetime | None = None
+) -> BodySummary:
+    """The athlete's weight and waist summary as of ``now`` (aware; default now), #198."""
+    athlete_id = await athlete_id_for(session, user_id)
+    now = now or datetime.now(UTC)
+    since = (now - timedelta(days=BODY_HISTORY_DAYS)).astimezone(UTC).replace(tzinfo=None)
+    measurements = await health.list_body_measurements(athlete_id, since=since, limit=None)
+    return summarize_body(
+        measurements,
+        height_cm=await health.get_athlete_height(athlete_id),
+        now=now,
+        tz=ZoneInfo(get_settings().timezone),
     )
 
 

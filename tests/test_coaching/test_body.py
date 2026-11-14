@@ -224,3 +224,26 @@ def test_notes_from_the_last_fortnight_ride_along_newest_first() -> None:
                         _m(20, weight=80.0, note="old")])  # fmt: skip
 
     assert summary.recent_notes == [("Fri 13 Nov", "salty ramen"), ("Mon 9 Nov", "travel")]
+
+
+# ── From the health module ──────────────────────────────────────────
+
+
+async def test_the_summary_reads_the_athletes_measurements_and_height() -> None:
+    from mycoach import health
+    from mycoach.coaching.context import get_body_summary
+    from tests.conftest import test_session
+
+    await health.record_body_measurement(1, measured_at=datetime(2026, 11, 12, 7, 0),
+                                         weight_kg=82.4, waist_cm=90.0)  # fmt: skip
+    await health.record_body_measurement(1, measured_at=datetime(2026, 5, 1, 7, 0),
+                                         weight_kg=99.0)  # fmt: skip
+    await health.set_athlete_height(1, 180.0)
+
+    async with test_session() as session:
+        summary = await get_body_summary(session, 1, now=NOW)
+
+    assert summary.weight is not None
+    assert summary.weight.latest_kg == 82.4
+    assert summary.waist is not None
+    assert summary.waist.ratio == pytest.approx(0.5)

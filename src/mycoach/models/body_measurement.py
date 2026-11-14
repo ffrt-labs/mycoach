@@ -9,8 +9,9 @@ from mycoach.database import HEALTH_SCHEMA, Base
 class BodyMeasurement(Base):
     """A weight and/or waist reading the athlete entered (ticket #198).
 
-    MyCoach owns body data: the Body page is the only input, so a wearable change never
-    loses it (docs/research/health-metrics.md §4). Garmin gets a one-way copy of the
+    A Body measurement is an Observed health fact entered manually: the Body page is the
+    only input and the health side is its source of truth, so a wearable change never
+    loses it (docs/research/health-metrics.md §4). Garmin is a downstream copy of the
     weight (#199); its weigh-ins are never imported back. ``measured_at`` is UTC.
     """
 

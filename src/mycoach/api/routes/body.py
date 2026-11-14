@@ -1,7 +1,8 @@
 """Body API: weight and waist readings and the athlete's height (ticket #198).
 
-MyCoach owns body data. Writes go through health commands, reads through health queries
-(the boundary of #186): this module never touches the health schema.
+Body measurements are Observed health facts entered manually; the health side is their
+source of truth. Writes go through health commands, reads through health queries (the
+boundary of #186): this module never touches the health schema.
 """
 
 from dataclasses import asdict

@@ -1,7 +1,8 @@
 """The outbound half of the Garmin adapter: copy a weight to Garmin Connect (ticket #199).
 
-MyCoach owns body data; Garmin gets a one-way copy so its own features (and the watch's
-calorie maths) see the weight. Nothing here is ever imported back: the only read is the
+The health side is the source of truth for Body measurements (entered manually); Garmin
+is a downstream, one-way copy, so its own features (and the watch's calorie maths) see
+the weight. Nothing here is ever imported back: the only read is the
 day's weigh-in list, to learn the id of the weigh-in we just created.
 
 Blocking, like the rest of ``GarminClient``; callers run it in a thread.

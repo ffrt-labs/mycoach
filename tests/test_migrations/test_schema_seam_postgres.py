@@ -141,6 +141,7 @@ def _legacy_layout(conn_sync: Any) -> None:
         )
     )
     conn_sync.execute(text("DROP TABLE public.athletes"))
+    conn_sync.execute(text("DROP TABLE public.body_measurements"))  # #198
     conn_sync.execute(text("DROP TABLE public.prescription_fulfillments"))
     conn_sync.execute(text("ALTER TABLE public.users DROP COLUMN health_athlete_id"))
     conn_sync.execute(
@@ -239,6 +240,7 @@ COACHING_TABLES = {
 HEALTH_TABLES = {
     "athletes", "canonical_activities", "gym_workout_details", "daily_health_snapshots",
     "data_source_configs", "source_records", "canonical_activity_sources", "exercises",
+    "body_measurements",
 }  # fmt: skip
 
 
@@ -267,7 +269,7 @@ def test_tables_land_in_their_schemas_owned_by_their_owner(migrated: str) -> Non
 
 def test_two_histories_each_have_their_own_version_table(migrated: str) -> None:
     assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c187a1b2c3d4"
-    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h186a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h198a1b2c3d4"
 
 
 def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> None:

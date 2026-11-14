@@ -414,7 +414,9 @@ class TestGenerateDailyBriefing:
             insight = await engine.generate_daily_briefing(session, user_id, today)
 
             assert "go_hard" in insight.content
-            assert [body["max_tokens"] for body in fake.bodies] == [4096 * 2, 8192 * 2]
+            # 4096 of answer + 8192 to think, then 8192 of answer + 8192 to think:
+            # the retry's answer budget doubles, its headroom never shrinks.
+            assert [body["max_tokens"] for body in fake.bodies] == [12288, 16384]
             retry_message = fake.bodies[1]["messages"][1]["content"]
             assert "Your previous response had this error:" in retry_message
 

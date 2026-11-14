@@ -136,15 +136,17 @@ class TestRequest:
         assert fake.requests[0].headers["authorization"] == "Bearer sk-or-test"
 
     def test_max_tokens_adds_reasoning_headroom_to_the_answer_budget(self) -> None:
-        """Medium effort lets reasoning take half of ``max_tokens``, so the
-        caller's answer budget is sent doubled: 4096 of answer, 4096 to think."""
-        fake = FakeOpenRouter(ok(), ok())
+        """Reasoning counts toward ``max_tokens`` and not every model caps it
+        at a share of the limit, so on top of the caller's answer budget it gets
+        at least 8192 tokens, or as much as the answer when that is larger."""
+        fake = FakeOpenRouter(ok(), ok(), ok())
         client = client_for(fake)
 
+        client.call(system="S", user_message="U", max_tokens=1024)
         client.call(system="S", user_message="U", max_tokens=4096)
-        client.call(system="S", user_message="U", max_tokens=8192)
+        client.call(system="S", user_message="U", max_tokens=16384)
 
-        assert [b["max_tokens"] for b in fake.bodies] == [8192, 16384]
+        assert [b["max_tokens"] for b in fake.bodies] == [9216, 12288, 32768]
 
 
 class TestResponse:

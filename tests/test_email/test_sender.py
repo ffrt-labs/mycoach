@@ -623,3 +623,61 @@ def test_briefing_alert_works_without_an_upload_time(mock_send: MagicMock) -> No
     html = mock_send.call_args[0][2]
     assert "Last upload" not in html
     assert "Bluetooth" in html
+
+
+# --- HRV line (#197): rendered by code from the DB, never by the LLM ---
+
+_HRV_WITH_BAND = {
+    "hrv_status": 48.0,
+    "hrv_7day_avg": 52.0,
+    "hrv_status_text": "BALANCED",
+    "hrv_baseline_low": 47.0,
+    "hrv_baseline_high": 58.0,
+    "hrv_baseline_low_upper": 43.0,
+}
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_daily_briefing_shows_the_hrv_7_day_avg_against_the_band(mock_send: MagicMock) -> None:
+    send_daily_briefing(
+        {"readiness_verdict": "moderate"}, settings=_make_settings(), hrv=_HRV_WITH_BAND
+    )
+    html = mock_send.call_args[0][2]
+    assert "HRV 52 ms 7-day avg · your range 47–58 · Balanced · last night 48 ms" in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_daily_briefing_says_building_baseline_before_garmin_has_a_band(
+    mock_send: MagicMock,
+) -> None:
+    send_daily_briefing(
+        {"readiness_verdict": "moderate"},
+        settings=_make_settings(),
+        hrv={"hrv_status": 48.0, "hrv_7day_avg": 52.0},
+    )
+    html = mock_send.call_args[0][2]
+    assert "HRV 52 ms 7-day avg · Building baseline · last night 48 ms" in html
+    assert "your range" not in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_daily_briefing_has_no_hrv_line_without_hrv_data(mock_send: MagicMock) -> None:
+    send_daily_briefing({"readiness_verdict": "moderate"}, settings=_make_settings(), hrv={})
+    html = mock_send.call_args[0][2]
+    assert "7-day avg" not in html
+    assert "Building baseline" not in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_no_briefing_email_still_shows_the_hrv_line(mock_send: MagicMock) -> None:
+    """The LLM failed, but the numbers come from the DB, so they still reach the athlete."""
+    send_briefing_unavailable(
+        day="Tuesday, August 25",
+        failures=2,
+        is_broken=True,
+        can_still_retry=False,
+        settings=_make_settings(),
+        hrv=_HRV_WITH_BAND,
+    )
+    html = mock_send.call_args[0][2]
+    assert "HRV 52 ms 7-day avg · your range 47–58 · Balanced · last night 48 ms" in html

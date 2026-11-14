@@ -46,11 +46,16 @@ SEEDED: list[tuple[str, str | None, tuple[float | None, float | None, float | No
     # The mapper also accepts an unwrapped summary.
     (
         "2024-06-11",
-        json.dumps({"hrv": {"weeklyAvg": 50, "baseline": {"lowUpper": 40, "balancedLow": 45, "balancedUpper": 60}}}),
+        json.dumps({"hrv": {"weeklyAvg": 50, "baseline": {
+            "lowUpper": 40, "balancedLow": 45, "balancedUpper": 60}}}),
         (45.0, 60.0, 40.0),
     ),
     # Still building a baseline: Garmin sends null.
-    ("2024-06-12", json.dumps({"hrv": {"hrvSummary": {"weeklyAvg": 50, "baseline": None}}}), (None, None, None)),
+    (
+        "2024-06-12",
+        json.dumps({"hrv": {"hrvSummary": {"weeklyAvg": 50, "baseline": None}}}),
+        (None, None, None),
+    ),
     ("2024-06-13", json.dumps({"hrv": None}), (None, None, None)),
     ("2024-06-14", "not json", (None, None, None)),
     ("2024-06-15", None, (None, None, None)),

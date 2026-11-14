@@ -50,7 +50,11 @@ class FakeLangfuseAPI:
         return item_id
 
     def add(
-        self, name: str, messages: list[dict[str, str]], labels: list[str] | None = None
+        self,
+        name: str,
+        messages: list[dict[str, str]],
+        labels: list[str] | None = None,
+        config: dict[str, Any] | None = None,
     ) -> int:
         """Store a new chat version; returns its number. A label moves to it."""
         labels = ["production"] if labels is None else labels
@@ -64,7 +68,7 @@ class FakeLangfuseAPI:
                 "version": version,
                 "type": "chat",
                 "prompt": [{"type": "chatmessage", **m} for m in messages],
-                "config": {},
+                "config": config or {},
                 "labels": labels,
                 "tags": [],
             }
@@ -86,7 +90,9 @@ class FakeLangfuseAPI:
             return self._list(request.url.params.get("name", ""))
         if raw_path == _PREFIX and request.method == "POST":
             body = json.loads(request.content)
-            version = self.add(body["name"], body["prompt"], body.get("labels", []))
+            version = self.add(
+                body["name"], body["prompt"], body.get("labels", []), body.get("config")
+            )
             return httpx.Response(200, json=self.versions[body["name"]][version - 1])
         if raw_path.startswith(_PREFIX + "/") and request.method == "GET":
             name = unquote(raw_path[len(_PREFIX) + 1 :])

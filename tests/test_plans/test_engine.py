@@ -207,7 +207,7 @@ class TestGenerateWeeklyPlan:
 
             assert plan.status == "active"
             assert plan.week_start == week_start
-            assert plan.prompt_version == "v2"
+            assert plan.prompt_version == "v3"
 
             result = await session.execute(
                 select(PlannedSession)

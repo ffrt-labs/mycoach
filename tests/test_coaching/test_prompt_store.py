@@ -153,7 +153,7 @@ class TestBundledFallback:
         assert (served.system, served.user) == bundled()
         assert served.source == "bundled"
         assert served.version is None
-        assert served.artifact_version == "bundled:v2"
+        assert served.artifact_version == "bundled:v3"
         assert served.link is None
 
     def test_cold_failure_is_not_retried_on_every_call(
@@ -255,4 +255,4 @@ def test_bundled_store_serves_the_bundled_files() -> None:
     assert (served.system, served.user) == bundled()
     assert served.source == "bundled"
     assert served.name == NAME
-    assert served.artifact_version == "bundled:v2"
+    assert served.artifact_version == "bundled:v3"

@@ -49,8 +49,8 @@ class Operation(StrEnum):
     WEEKLY_RECAP = "weekly_recap"
 
 
-BUNDLED_VERSION = "v2"
-"""The bundled template set (``prompts/v2``): the default compile, the
+BUNDLED_VERSION = "v3"
+"""The bundled template set (``prompts/v3``): the default compile, the
 fallback the prompt store serves, and the seed of each Langfuse prompt."""
 
 PromptVariables = dict[str, str]

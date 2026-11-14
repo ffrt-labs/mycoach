@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime, timedelta
 
+from mycoach.coaching.prompt_builder import daily_briefing_variables
 from mycoach.coaching.steps import local_today, summarize_steps
 
 YESTERDAY = date(2026, 11, 13)  # a Friday
@@ -88,3 +89,44 @@ def test_local_today_is_the_date_in_the_given_timezone() -> None:
     assert local_today("Europe/London", now=late_evening) == date(2026, 7, 2)
     assert local_today("UTC", now=late_evening) == date(2026, 7, 1)
     assert local_today("America/New_York", now=late_evening) == date(2026, 7, 1)
+
+
+def _briefing_variables(steps: object) -> dict[str, str]:
+    return daily_briefing_variables(
+        health_today={}, health_trends=[], recent_activities=[], steps=steps
+    )
+
+
+def test_steps_summary_prompt_variable() -> None:
+    summary = summarize_steps(
+        _daily(PREVIOUS + [9000, 12000, None, 8000, 11000, 4000, 12431]), target=10000
+    )
+
+    assert _briefing_variables(summary)["steps_summary"] == (
+        "Daily target: 10,000 steps\n"
+        "Yesterday: 12,431 steps\n"
+        "7-day avg: 9,405/day (3/7 days at or above target)\n"
+        "Previous 7-day avg: 10,000/day\n"
+        "Change: -595/day (-6.0%, within +/-10%: noise)\n"
+        "Daily counts, oldest first: Sat 9,000; Sun 12,000; Mon no data; Tue 8,000; "
+        "Wed 11,000; Thu 4,000; Fri 12,431"
+    )
+
+
+def test_steps_summary_flags_a_change_beyond_ten_percent_and_missing_comparison() -> None:
+    down = summarize_steps(_daily(PREVIOUS + [8000] * 7), target=10000)
+    fresh = summarize_steps(_daily([None] * 13 + [6000]), target=10000)
+
+    assert "Change: -2,000/day (-20.0%)\n" in _briefing_variables(down)["steps_summary"]
+    assert _briefing_variables(fresh)["steps_summary"].splitlines()[3:5] == [
+        "Previous 7-day avg: no data",
+        "Daily counts, oldest first: Sat no data; Sun no data; Mon no data; Tue no data; "
+        "Wed no data; Thu no data; Fri 6,000",
+    ]
+
+
+def test_steps_summary_without_any_step_data() -> None:
+    no_data = summarize_steps(_daily([None] * 14), target=10000)
+
+    assert _briefing_variables(no_data)["steps_summary"] == "No step data for the last 7 days."
+    assert _briefing_variables(None)["steps_summary"] == "No step data for the last 7 days."

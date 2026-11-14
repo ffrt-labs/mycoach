@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
@@ -39,16 +39,25 @@ def _to_utc(measured_at: datetime | None) -> datetime:
 
 @router.post("/measurements", response_model=BodyMeasurementRead, status_code=201)
 async def create_measurement(
-    body: BodyMeasurementCreate, session: AsyncSession = Depends(get_db)
+    body: BodyMeasurementCreate,
+    background: BackgroundTasks,
+    session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Log a weight and/or waist reading."""
+    """Log a weight and/or waist reading.
+
+    The reading is committed before anything talks to Garmin: the one-way weight push
+    (#199) runs after the response, and a Garmin outage only leaves it for the sync's retry.
+    """
+    athlete_id = await athlete_id_for(session, DEFAULT_USER_ID)
     recorded = await health.record_body_measurement(
-        await athlete_id_for(session, DEFAULT_USER_ID),
+        athlete_id,
         measured_at=_to_utc(body.measured_at),
         weight_kg=body.weight_kg,
         waist_cm=body.waist_cm,
         note=body.note.strip() if body.note else None,
     )
+    if recorded.garmin_push_status == "pending":
+        background.add_task(health.push_weight_to_garmin, athlete_id, recorded.id)
     return asdict(recorded)
 
 
@@ -62,14 +71,17 @@ async def list_measurements(session: AsyncSession = Depends(get_db)) -> list[dic
 
 @router.delete("/measurements/{measurement_id}", status_code=204)
 async def delete_measurement(
-    measurement_id: int, session: AsyncSession = Depends(get_db)
+    measurement_id: int, background: BackgroundTasks, session: AsyncSession = Depends(get_db)
 ) -> Response:
+    """Delete a reading here, then its Garmin copy (in the background) when one is known."""
     deleted = await health.delete_body_measurement(
         await athlete_id_for(session, DEFAULT_USER_ID), measurement_id
     )
     if deleted is None:
         raise HTTPException(status_code=404, detail="Measurement not found")
-    return Response(status_code=204)
+    if deleted.garmin_weigh_in_id is not None:
+        background.add_task(health.delete_weight_from_garmin, deleted)
+    return Response(status_code=204, background=background)
 
 
 @router.get("/height", response_model=HeightRead)

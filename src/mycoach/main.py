@@ -19,6 +19,7 @@ import mycoach.models  # noqa: F401 — register all models with Base.metadata
 from mycoach import health
 from mycoach.api.error_handlers import register_error_handlers
 from mycoach.api.pages.availability import router as availability_page_router
+from mycoach.api.pages.body import router as body_page_router
 from mycoach.api.pages.dashboard import router as dashboard_router
 from mycoach.api.pages.history import router as history_router
 from mycoach.api.pages.logger import router as logger_page_router
@@ -29,6 +30,7 @@ from mycoach.api.pages.routine import router as routine_page_router
 from mycoach.api.pages.sport_profiles import router as sport_profiles_page_router
 from mycoach.api.routes.activities import router as activities_router
 from mycoach.api.routes.availability import router as availability_router
+from mycoach.api.routes.body import router as body_router
 from mycoach.api.routes.coaching import router as coaching_router
 from mycoach.api.routes.credentials import router as credentials_router
 from mycoach.api.routes.email_preferences import router as email_prefs_router
@@ -170,6 +172,7 @@ def create_app() -> FastAPI:
     # API routes (JSON)
     app.include_router(activities_router)
     app.include_router(availability_router)
+    app.include_router(body_router)
     app.include_router(coaching_router)
     app.include_router(credentials_router)
     app.include_router(email_prefs_router)
@@ -185,6 +188,7 @@ def create_app() -> FastAPI:
 
     # Page routes (HTML)
     app.include_router(availability_page_router)
+    app.include_router(body_page_router)
     app.include_router(dashboard_router)
     app.include_router(history_router)
     app.include_router(logger_page_router)

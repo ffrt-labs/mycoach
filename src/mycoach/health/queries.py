@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach.exercise_catalogue import load_exercise_catalogue
 from mycoach.health.runtime import health_session
 from mycoach.models.activity import Activity, GymWorkoutDetail
+from mycoach.models.athlete import Athlete
+from mycoach.models.body_measurement import BodyMeasurement
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
 
@@ -821,3 +823,42 @@ async def get_last_performed(athlete_id: int) -> list[dict[str, Any]]:
     ]
     rows.sort(key=lambda row: row["title"])
     return rows
+
+
+async def list_body_measurements(
+    athlete_id: int, *, since: datetime | None = None, limit: int | None = 10
+) -> list[dict[str, Any]]:
+    """The athlete's body measurements, newest first (ticket #198).
+
+    ``since`` (naive UTC, inclusive) bounds the window; ``limit=None`` returns all of it.
+    ``measured_at`` crosses as ``str()`` of the naive UTC time. ``id`` names a measurement
+    across the boundary (for delete): the health side issues it, there is no source id.
+    """
+    async with health_session() as session:
+        stmt = select(BodyMeasurement).where(BodyMeasurement.athlete_id == athlete_id)
+        if since is not None:
+            stmt = stmt.where(BodyMeasurement.measured_at >= since)
+        stmt = stmt.order_by(BodyMeasurement.measured_at.desc(), BodyMeasurement.id.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = (await session.execute(stmt)).scalars().all()
+    return [
+        {
+            "id": m.id,
+            "measured_at": str(m.measured_at),
+            "weight_kg": m.weight_kg,
+            "waist_cm": m.waist_cm,
+            "note": m.note,
+            "source": m.source,
+        }
+        for m in rows
+    ]
+
+
+async def get_athlete_height(athlete_id: int) -> float | None:
+    """The athlete's height in cm, or None if never entered."""
+    async with health_session() as session:
+        height: float | None = await session.scalar(
+            select(Athlete.height_cm).where(Athlete.id == athlete_id)
+        )
+    return height

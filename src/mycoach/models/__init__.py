@@ -1,6 +1,7 @@
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.athlete import Athlete
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
+from mycoach.models.body_measurement import BodyMeasurement
 from mycoach.models.coaching import CoachingInsight, MesocycleConfig
 from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.exercise import Exercise
@@ -17,6 +18,7 @@ from mycoach.models.user import User
 __all__ = [
     "Activity",
     "Athlete",
+    "BodyMeasurement",
     "CanonicalActivitySource",
     "CoachingInsight",
     "DailyHealthSnapshot",

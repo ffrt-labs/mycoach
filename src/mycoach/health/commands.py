@@ -17,6 +17,7 @@ from mycoach.health.events import CanonicalActivitySettled, HealthEvent
 from mycoach.health.runtime import health_session
 from mycoach.models.activity import Activity
 from mycoach.models.athlete import Athlete
+from mycoach.models.body_measurement import BodyMeasurement
 from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.exercise import Exercise
 from mycoach.sources.base import DataSource, ImportResult
@@ -233,6 +234,91 @@ async def delete_source_credentials(athlete_id: int, source_type: str) -> bool:
         return True
 
 
+@dataclass(frozen=True)
+class BodyMeasurementRecord:
+    """A body measurement as plain data: what was recorded, or what a delete removed.
+
+    ``id`` is the measurement's own name across the boundary (the health side issues it;
+    a body reading has no source id). The Garmin weight push (#199) works from this
+    record after the command has committed, so a failed push never loses a reading.
+    """
+
+    id: int
+    athlete_id: int
+    measured_at: datetime
+    """UTC, naive."""
+    weight_kg: float | None
+    waist_cm: float | None
+    note: str | None
+    source: str
+
+
+def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
+    return BodyMeasurementRecord(
+        id=row.id,
+        athlete_id=row.athlete_id,
+        measured_at=row.measured_at,
+        weight_kg=row.weight_kg,
+        waist_cm=row.waist_cm,
+        note=row.note,
+        source=row.source,
+    )
+
+
+async def record_body_measurement(
+    athlete_id: int,
+    *,
+    measured_at: datetime,
+    weight_kg: float | None = None,
+    waist_cm: float | None = None,
+    note: str | None = None,
+    source: str = "manual",
+) -> BodyMeasurementRecord:
+    """Record a weight and/or waist reading (ticket #198). ``measured_at`` is naive UTC.
+
+    Raises ``ValueError`` when neither weight nor waist is given (the table refuses it too).
+    """
+    if weight_kg is None and waist_cm is None:
+        raise ValueError("A body measurement needs a weight or a waist")
+    async with health_session() as session:
+        row = BodyMeasurement(
+            athlete_id=athlete_id,
+            measured_at=measured_at,
+            weight_kg=weight_kg,
+            waist_cm=waist_cm,
+            note=note or None,
+            source=source,
+        )
+        session.add(row)
+        await session.commit()
+        return _body_record(row)
+
+
+async def delete_body_measurement(
+    athlete_id: int, measurement_id: int
+) -> BodyMeasurementRecord | None:
+    """Delete one of the athlete's measurements; return what was removed, or None."""
+    async with health_session() as session:
+        row = await session.get(BodyMeasurement, measurement_id)
+        if row is None or row.athlete_id != athlete_id:
+            return None
+        record = _body_record(row)
+        await session.delete(row)
+        await session.commit()
+    return record
+
+
+async def set_athlete_height(athlete_id: int, height_cm: float | None) -> None:
+    """Store the athlete's height (entered once, used for waist-to-height)."""
+    async with health_session() as session:
+        athlete = await session.get(Athlete, athlete_id)
+        if athlete is None:
+            athlete = Athlete(id=athlete_id)
+            session.add(athlete)
+        athlete.height_cm = height_cm
+        await session.commit()
+
+
 async def has_source_credentials(athlete_id: int, source_type: str) -> bool:
     async with health_session() as session:
         config = (
@@ -247,17 +333,21 @@ async def has_source_credentials(athlete_id: int, source_type: str) -> bool:
 
 
 __all__ = [
+    "BodyMeasurementRecord",
     "LinkOutcome",
     "RecordedWorkout",
     "RecordedWorkouts",
     "SyncOutcome",
+    "delete_body_measurement",
     "delete_source_credentials",
     "has_source_credentials",
     "issue_athlete",
     "link_garmin",
+    "record_body_measurement",
     "record_garmin_activities",
     "record_workout",
     "record_workouts",
+    "set_athlete_height",
     "settle_due_activities",
     "store_source_credentials",
     "sync_exercise_catalogue",

@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy import Float
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import HEALTH_SCHEMA, Base
@@ -18,3 +19,5 @@ class Athlete(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    # Entered once on the Body page; the waist-to-height ratio divides by it (#198).
+    height_cm: Mapped[float | None] = mapped_column(Float, default=None)

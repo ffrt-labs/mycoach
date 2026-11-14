@@ -21,12 +21,12 @@ if TYPE_CHECKING:
 
 LIMIT_CAP = 30
 """The most items one run may take: a golden dataset's size (about 30 items).
-Each item costs one or two LLM calls from the provider's free daily quota."""
+Each item costs one or two LLM calls, paid from the provider's credits."""
 
 REFUSED_PROVIDERS = frozenset({"claude_code"})
 """Providers an experiment may never use: ``claude_code`` spends the Claude
 Pro window the daily coaching runs depend on. A provider whose ``billing`` is
-``paid`` (``anthropic``) is refused too unless ``--allow-paid`` is passed."""
+``paid`` (``openrouter``) is refused too unless ``--allow-paid`` is passed."""
 
 
 def _limit(value: str) -> int:
@@ -73,7 +73,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     run.add_argument(
         "--allow-paid",
         action="store_true",
-        help="allow a provider billed per call (e.g. anthropic); claude_code is always refused",
+        help="allow a provider billed per call (e.g. openrouter); claude_code is always refused",
     )
     return parser.parse_args(argv)
 
@@ -95,7 +95,7 @@ def main(
     if provider in REFUSED_PROVIDERS:
         print(
             f"MYCOACH_LLM_PROVIDER={provider} is refused: experiments would use up the "
-            "Claude Pro window daily coaching relies on. Configure a free-tier provider.",
+            "Claude Pro window daily coaching relies on. Override MYCOACH_LLM_PROVIDER=openrouter.",
             file=sys.stderr,
         )
         return 2
@@ -105,7 +105,7 @@ def main(
     if llm.billing == "paid" and not args.allow_paid:
         print(
             f"MYCOACH_LLM_PROVIDER={provider} bills per call: pass --allow-paid to spend "
-            "money on this experiment, or configure a free-tier provider.",
+            "money on this experiment.",
             file=sys.stderr,
         )
         return 2
@@ -187,7 +187,7 @@ def _run(
         data=items,
         task=make_task(engine, spec, prompt),
         evaluators=[code_check_evaluator],
-        max_concurrency=1,  # free tiers: no bursts
+        max_concurrency=1,  # one call at a time: no bursts against rate limits
         metadata={
             "prompt_label": args.label,
             "prompt_version": str(prompt.version),

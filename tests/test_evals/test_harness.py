@@ -61,7 +61,7 @@ class FakeLLM(LLMClient):
 
 
 class PaidLLM(FakeLLM):
-    """A fake provider that bills per call, as ``anthropic`` does."""
+    """A fake provider that bills per call, as ``openrouter`` does."""
 
     billing: ClassVar[Billing] = "paid"
 
@@ -79,10 +79,10 @@ def reply(content: str, stop_reason: str | None = None) -> LLMResponse:
     )
 
 
-def settings(provider: str = "anthropic") -> Settings:
+def settings(provider: str = "openrouter") -> Settings:
     return Settings(
         llm_provider=provider,
-        claude_api_key="test",
+        openrouter_api_key="test",
         claude_code_oauth_token="test",
         env="test",
     )
@@ -123,7 +123,7 @@ def langfuse(fake: FakeLangfuseAPI) -> Generator[Any, None, None]:
     LangfuseResourceManager.reset()
 
 
-def run(*argv: str, langfuse: Any, llm: LLMClient, provider: str = "anthropic") -> int:
+def run(*argv: str, langfuse: Any, llm: LLMClient, provider: str = "openrouter") -> int:
     return main(["run", *argv], settings=settings(provider), langfuse=langfuse, llm_client=llm)
 
 
@@ -296,6 +296,24 @@ class TestProviderRefusal:
         assert llm.calls == []
         assert langfuse.score_calls == []
         assert "--allow-paid" in capsys.readouterr().err
+
+    def test_openrouter_is_refused_without_allow_paid_before_any_request(
+        self, langfuse: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard keys on ``billing``, so the real OpenRouter client is caught."""
+        from tests.test_coaching.test_openrouter_provider import FakeOpenRouter, client_for
+
+        monkeypatch.setenv("MYCOACH_OPENROUTER_API_KEY", "sk-or-test")
+        fake = FakeOpenRouter()
+
+        code = run(
+            *("--dataset", DATASET, "--label", "candidate", "--limit", "1"),
+            langfuse=langfuse,
+            llm=client_for(fake),
+        )
+
+        assert code != 0
+        assert fake.requests == []
 
     def test_a_paid_provider_runs_with_allow_paid(self, langfuse: Any) -> None:
         llm = PaidLLM(reply(VALID_LLM_RESPONSE))

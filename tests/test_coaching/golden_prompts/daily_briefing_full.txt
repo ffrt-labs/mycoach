@@ -24,6 +24,21 @@ Generate a daily coaching briefing based on the following data.
 ## Today's Planned Workout
 - Pull Day [gym] (60 min)
 
+## Body (weight and waist)
+Latest weight: 81.6 kg, measured yesterday.
+Weight trend (time-aware EMA): 81.3 kg; kg/week over 28 days: -0.19.
+Latest waist: 90.0 cm, measured yesterday.
+Waist-to-height: 0.50 (target < 0.50).
+4-week waist change: -2.5 cm.
+Recent notes: Sun 9 Jun: pizza and beer
+
+Body rules (the numbers above are computed; interpret them, never recompute them):
+- Never comment on a single day's weight; use the weight trend (2+ weeks). A jump of 1-2 kg is water: look at the notes (salt, carbs, alcohol, travel, a hard session).
+- Under 0.3 kg/week, or a waist change of 1 cm or less, means no detectable change. Losing more than 1% of bodyweight per week is too aggressive.
+- Waist down with weight flat is a win (recomposition). Waist up with weight flat is worth raising gently.
+- Frame risk with waist-to-height (target under 0.50), never BMI. Never diagnose; suggest a DEXA scan if body composition detail is wanted.
+- Mention weight or waist only when something changed meaningfully or a nudge is due.
+
 Respond with a JSON object matching this exact schema:
 {
   "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",

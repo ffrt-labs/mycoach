@@ -8,6 +8,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from mycoach.coaching.body import BodySummary
+
 _PROMPT_DIR: Path | None = None
 
 
@@ -310,12 +312,54 @@ def _format_routine_summary(routine: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _format_body(body: BodySummary | None) -> str:
+    """The body summary for the prompt (#198): code's numbers, with what each one rests on."""
+    if body is None or body.empty:
+        return "No body measurements logged."
+    lines: list[str] = []
+    if body.weight is not None:
+        w = body.weight
+        lines.append(f"Latest weight: {w.latest_kg:.1f} kg, {w.when}.")
+        if w.trend_kg is not None and w.rate_kg_per_week is not None:
+            stale = f" STALE: last weigh-in {w.days_ago} days ago." if w.stale else ""
+            lines.append(
+                f"Weight trend (time-aware EMA): {w.trend_kg:.1f} kg; "
+                f"kg/week over 28 days: {w.rate_kg_per_week:+.2f}.{stale}"
+            )
+        else:
+            lines.append("Weight trend: not enough weigh-ins (needs 4+ days in 14).")
+    if body.waist is not None:
+        c = body.waist
+        lines.append(f"Latest waist: {c.latest_cm:.1f} cm, {c.when}.")
+        if c.ratio is not None:
+            lines.append(f"Waist-to-height: {c.ratio:.2f} (target < 0.50).")
+        if c.change_cm is None:
+            lines.append("4-week waist change: no reading about 4 weeks earlier.")
+        elif c.change_meaningful:
+            lines.append(f"4-week waist change: {c.change_cm:+.1f} cm.")
+        else:
+            lines.append(
+                f"4-week waist change: none ({c.change_cm:+.1f} cm is within measurement noise)."
+            )
+    if body.weigh_in_due:
+        since = f"none for {body.weight.days_ago} days" if body.weight else "none logged"
+        lines.append(f"Nudge due: weigh-in ({since}).")
+    if body.waist_check_due:
+        since = f"none for {body.waist.days_ago} days" if body.waist else "none logged"
+        lines.append(f"Nudge due: waist check ({since}).")
+    if body.recent_notes:
+        notes = "; ".join(f"{day}: {note}" for day, note in body.recent_notes)
+        lines.append(f"Recent notes: {notes}")
+    return "\n".join(lines)
+
+
 def daily_briefing_variables(
     *,
     health_today: dict[str, Any],
     health_trends: list[dict[str, Any]],
     recent_activities: list[dict[str, Any]],
     planned_workout: str | list[dict[str, Any]] | None = None,
+    body: BodySummary | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a daily briefing LLM call."""
     if isinstance(planned_workout, list):
@@ -327,6 +371,7 @@ def daily_briefing_variables(
         "health_trends": _format_health_trends(health_trends),
         "recent_activities": _format_activities(recent_activities),
         "planned_workout": formatted_workout,
+        "body_summary": _format_body(body),
     }
 
 
@@ -336,6 +381,7 @@ def build_daily_briefing_prompt(
     health_trends: list[dict[str, Any]],
     recent_activities: list[dict[str, Any]],
     planned_workout: str | list[dict[str, Any]] | None = None,
+    body: BodySummary | None = None,
     version: str = "v1",
 ) -> str:
     """Build the user message for a daily briefing LLM call."""
@@ -344,6 +390,7 @@ def build_daily_briefing_prompt(
         health_trends=health_trends,
         recent_activities=recent_activities,
         planned_workout=planned_workout,
+        body=body,
     )
     return compile_prompt(Operation.DAILY_BRIEFING, variables, version=version).user
 

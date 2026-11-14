@@ -19,6 +19,7 @@ from mycoach.coaching.context import (
     get_activities_for_week,
     get_activity_with_details,
     get_availability_for_week,
+    get_body_summary,
     get_default_availability,
     get_gym_details_for_week,
     get_gym_performance_history,
@@ -247,6 +248,7 @@ class CoachingEngine:
         health_trends = await get_health_trends(session, user_id, days=3, today=today)
         recent_activities = await get_recent_activities(session, user_id, days=3, today=today)
         planned_sessions = await get_today_planned_sessions(session, user_id, today)
+        body = await get_body_summary(session, user_id, now=self._clock())
 
         # Build prompts
         variables = daily_briefing_variables(
@@ -254,6 +256,7 @@ class CoachingEngine:
             health_trends=health_trends,
             recent_activities=recent_activities,
             planned_workout=planned_sessions if planned_sessions else None,
+            body=body,
         )
         prompt = await self._serve(Operation.DAILY_BRIEFING, variables)
 

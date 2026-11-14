@@ -210,3 +210,38 @@ class TestSettlement:
         from mycoach.config import get_settings
 
         assert get_settings().activity_settlement_deadline_hours == 24
+
+
+class TestHealthReads:
+    async def test_the_daily_snapshot_carries_the_hrv_baseline_band(self):
+        from mycoach.models.health import DailyHealthSnapshot
+        from tests.conftest import test_session
+
+        day = date(2026, 11, 2)
+        async with test_session() as session:
+            session.add(
+                DailyHealthSnapshot(
+                    user_id=ATHLETE,
+                    snapshot_date=day,
+                    hrv_status=48.0,
+                    hrv_7day_avg=52.0,
+                    hrv_baseline_low=47.0,
+                    hrv_baseline_high=58.0,
+                    hrv_baseline_low_upper=43.0,
+                )
+            )
+            session.add(
+                DailyHealthSnapshot(
+                    user_id=ATHLETE, snapshot_date=day - timedelta(days=1), hrv_baseline_low=46.0
+                )
+            )
+            await session.commit()
+
+        today = await health.get_today_health(ATHLETE, today=day)
+        assert (
+            today["hrv_baseline_low"],
+            today["hrv_baseline_high"],
+            today["hrv_baseline_low_upper"],
+        ) == (47.0, 58.0, 43.0)
+        trends = await health.get_health_trends(ATHLETE, days=3, today=day)
+        assert trends[0]["hrv_baseline_low"] == 46.0

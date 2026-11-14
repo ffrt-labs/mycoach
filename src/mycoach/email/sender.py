@@ -221,15 +221,49 @@ def send_email(to: str, subject: str, html: str, settings: Settings | None = Non
     return True
 
 
+def _ms(value: float) -> str:
+    """A millisecond value without a spurious ``.0`` (52.0 -> "52")."""
+    return f"{float(value):g}"
+
+
+def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-arg]
+    """Today's HRV line, rendered from the DB snapshot (#197), or None without HRV data.
+
+    Leads with the 7-day avg against Garmin's baseline band, last night as context:
+    ``HRV 52 ms 7-day avg · your range 47–58 · Balanced · last night 48 ms``. Before
+    Garmin has a band the range and status give way to "Building baseline".
+    """
+    if not snapshot:
+        return None
+    weekly = snapshot.get("hrv_7day_avg")
+    last_night = snapshot.get("hrv_status")  # last night's ms (rename is #205)
+    if weekly is None and last_night is None:
+        return None
+    low, high = snapshot.get("hrv_baseline_low"), snapshot.get("hrv_baseline_high")
+    parts = [f"HRV {_ms(weekly)} ms 7-day avg" if weekly is not None else "HRV"]
+    if low is not None and high is not None:
+        parts.append(f"your range {_ms(low)}–{_ms(high)}")
+        status = snapshot.get("hrv_status_text")
+        if status:
+            parts.append(str(status).replace("_", " ").capitalize())
+    else:
+        parts.append("Building baseline")
+    if last_night is not None:
+        parts.append(f"last night {_ms(last_night)} ms")
+    return " · ".join(parts)
+
+
 def send_daily_briefing(
     content: dict,  # type: ignore[type-arg]
     settings: Settings | None = None,
     *,
     steps: StepsSummary | None = None,
+    hrv: dict | None = None,  # type: ignore[type-arg]
 ) -> bool:
     """Send the daily coaching briefing email.
 
     ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
+    ``hrv`` is today's health snapshot; its HRV line is rendered by code, not the LLM.
     """
     if settings is None:
         settings = get_settings()
@@ -238,7 +272,12 @@ def send_daily_briefing(
         briefing["key_metrics"] = _format_key_metrics(briefing["key_metrics"])
     html = _render_template(
         "daily_briefing.html",
-        {"briefing": briefing, "steps": steps, "dashboard_url": _dashboard_url(settings)},
+        {
+            "briefing": briefing,
+            "steps": steps,
+            "dashboard_url": _dashboard_url(settings),
+            "hrv_line": _format_hrv_line(hrv),
+        },
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
 
@@ -306,11 +345,14 @@ def send_briefing_unavailable(
     device_name: str | None = None,
     settings: Settings | None = None,
     steps: StepsSummary | None = None,
+    hrv: dict | None = None,  # type: ignore[type-arg]
 ) -> bool:
     """Tell the user why there is no briefing this morning.
 
     ``steps`` is the same code-rendered steps strip the briefing carries, so the
     numbers from the DB still reach the reader when the LLM could not run (#196).
+    ``hrv`` is today's health snapshot, if any: its code-rendered HRV line still
+    reaches the athlete when the LLM could not write a briefing (#197).
 
     The wording turns entirely on ``is_broken``, because the two causes need
     opposite things from the reader. Absent data is theirs to fix — the watch
@@ -380,6 +422,7 @@ def send_briefing_unavailable(
             "device_name": device_name,
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),
+            "hrv_line": _format_hrv_line(hrv),
         },
     )
     return send_email(settings.email_to, "MyCoach — No Briefing Today", html, settings)

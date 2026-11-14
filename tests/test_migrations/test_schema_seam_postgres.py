@@ -107,6 +107,8 @@ def _legacy_layout(conn_sync: Any) -> None:
         "ALTER TABLE public.activities ALTER COLUMN external_id DROP NOT NULL",
         "ALTER TABLE public.planned_sessions DROP COLUMN activity_external_id, "
         "ADD COLUMN activity_id INTEGER",
+        # ... and before c187 (generation_error is that revision's to add).
+        "ALTER TABLE public.planned_sessions DROP COLUMN generation_error",
         "ALTER TABLE public.coaching_insights DROP COLUMN activity_external_id, "
         "DROP COLUMN revision, DROP COLUMN source_event_id, ADD COLUMN activity_id INTEGER",
     ):

@@ -32,6 +32,10 @@ PROVIDER_PREFERENCES: dict[str, Any] = {"zdr": True, "data_collection": "deny"}
 # The model thinks, but only the answer comes back.
 REASONING: dict[str, Any] = {"effort": "medium", "exclude": True}
 
+# Opts in to ``openrouter_metadata`` on the response, which is where OpenRouter
+# documents the endpoint that served the call.
+METADATA_HEADERS = {"X-OpenRouter-Metadata": "enabled"}
+
 # A briefing takes well under a minute; anything near this is a hung request.
 CALL_TIMEOUT_SECONDS = 300
 
@@ -67,11 +71,27 @@ def _status_error(e: openai.APIStatusError) -> LLMProviderError:
     return LLMProviderError(f"OpenRouter: HTTP {status}: {e.message}")
 
 
-def _extra(model: Any, field: str) -> Any:
+def _extra(obj: Any, field: str) -> Any:
     """A field OpenRouter adds to the OpenAI schema (the SDK keeps extras)."""
-    if model is None:
+    if obj is None:
         return None
-    return (getattr(model, "model_extra", None) or {}).get(field)
+    return (getattr(obj, "model_extra", None) or {}).get(field)
+
+
+def _serving_host(response: Any) -> str | None:
+    """The provider that served the call.
+
+    Read from the endpoint ``openrouter_metadata`` marks ``selected``; the
+    undocumented top-level ``provider`` field is the fallback.
+    """
+    metadata = _extra(response, "openrouter_metadata")
+    if isinstance(metadata, dict):
+        endpoints = (metadata.get("endpoints") or {}).get("available") or []
+        for endpoint in endpoints:
+            if isinstance(endpoint, dict) and endpoint.get("selected"):
+                return endpoint.get("provider")
+    host = _extra(response, "provider")
+    return host if isinstance(host, str) else None
 
 
 class OpenRouterClient(LLMClient):
@@ -119,6 +139,7 @@ class OpenRouterClient(LLMClient):
                     {"role": "user", "content": user_message},
                 ],
                 extra_body={"provider": PROVIDER_PREFERENCES, "reasoning": REASONING},
+                extra_headers=METADATA_HEADERS,
             )
         except openai.APIStatusError as e:
             raise _status_error(e) from e
@@ -142,7 +163,7 @@ class OpenRouterClient(LLMClient):
         reasoning_tokens = (details.reasoning_tokens or 0) if details else 0
         # OpenRouter's own charge for the call, not a price table.
         cost = float(_extra(usage, "cost") or 0.0)
-        serving_host = _extra(response, "provider")
+        serving_host = _serving_host(response)
 
         logger.info(
             "LLM call: model=%s host=%s input=%d output=%d reasoning=%d cost=$%.4f latency=%dms",

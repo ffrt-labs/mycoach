@@ -130,6 +130,8 @@ class TestRequest:
             {"role": "user", "content": "Hello"},
         ]
         assert "response_format" not in body
+        # Opts in to openrouter_metadata, where the serving host is reported.
+        assert fake.requests[0].headers["x-openrouter-metadata"] == "enabled"
         assert fake.requests[0].url == "https://openrouter.ai/api/v1/chat/completions"
         assert fake.requests[0].headers["authorization"] == "Bearer sk-or-test"
 
@@ -165,12 +167,48 @@ class TestResponse:
         assert result.output_tokens == 300
         assert result.reasoning_tokens == 600
 
-    def test_records_the_serving_host_and_the_model_that_ran(self) -> None:
-        fake = FakeOpenRouter(ok(provider="Fireworks", model="deepseek/deepseek-v4-pro-0601"))
+    def test_records_the_serving_host_from_router_metadata(self) -> None:
+        """The documented place: the endpoint ``openrouter_metadata`` marks selected."""
+        body = completion(model="deepseek/deepseek-v4-pro-0601")
+        del body["provider"]
+        body["openrouter_metadata"] = {
+            "requested": "deepseek/deepseek-v4-pro",
+            "endpoints": {
+                "total": 2,
+                "available": [
+                    {
+                        "provider": "DeepInfra",
+                        "model": "deepseek/deepseek-v4-pro",
+                        "selected": False,
+                    },
+                    {
+                        "provider": "Fireworks",
+                        "model": "deepseek/deepseek-v4-pro",
+                        "selected": True,
+                    },
+                ],
+            },
+        }
+        fake = FakeOpenRouter(httpx.Response(200, json=body))
         result = client_for(fake).call(system="S", user_message="U")
 
         assert result.serving_host == "Fireworks"
         assert result.model == "deepseek/deepseek-v4-pro-0601"
+
+    def test_falls_back_to_the_top_level_provider_without_router_metadata(self) -> None:
+        fake = FakeOpenRouter(ok(provider="Fireworks"))
+        result = client_for(fake).call(system="S", user_message="U")
+
+        assert result.serving_host == "Fireworks"
+
+    def test_no_serving_host_when_the_response_names_none(self) -> None:
+        body = completion()
+        del body["provider"]
+        body["openrouter_metadata"] = {"endpoints": {"total": 0, "available": []}}
+        fake = FakeOpenRouter(httpx.Response(200, json=body))
+        result = client_for(fake).call(system="S", user_message="U")
+
+        assert result.serving_host is None
 
     def test_a_complete_answer_keeps_its_finish_reason(self) -> None:
         fake = FakeOpenRouter(ok(finish_reason="stop"))

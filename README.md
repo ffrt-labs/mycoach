@@ -256,7 +256,7 @@ All configuration is via environment variables (or a `.env` file). See `.env.exa
 | `MYCOACH_GARMIN_EMAIL` | Garmin Connect email |
 | `MYCOACH_GARMIN_PASSWORD` | Garmin Connect password |
 | `MYCOACH_LLM_PROVIDER` | `openrouter` (default) or `claude_code` |
-| `MYCOACH_OPENROUTER_API_KEY` | OpenRouter API key; boot fails without it when the provider is `openrouter`. Spend is capped by the prepaid credits (keep auto top-up off) |
+| `MYCOACH_OPENROUTER_API_KEY` | OpenRouter API key; boot fails without it when the provider is `openrouter`. Spend is capped by the prepaid credits (keep auto top-up off). Requests demand zero data retention, but OpenRouter still routes to "Safety Retention" endpoints unless the account's privacy setting is **ZDR only**, so set it |
 | `MYCOACH_OPENROUTER_MODEL_DAILY` | OpenRouter model for every operation except `cardio-plan` |
 | `MYCOACH_OPENROUTER_MODEL_WEEKLY` | OpenRouter model for `cardio-plan` |
 | `MYCOACH_EMAIL_ENABLED` | Enable email delivery |

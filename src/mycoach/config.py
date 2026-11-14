@@ -62,14 +62,16 @@ class Settings(BaseSettings):
     # Gym workouts arrive via Hevy CSV import or the offline companion logger
     # (POST /api/sources/import/workouts).
 
-    # LLM Provider (anthropic, claude_code)
-    llm_provider: str = "anthropic"
+    # LLM Provider (openrouter, claude_code)
+    llm_provider: str = "openrouter"
 
-    # Anthropic Claude API
-    claude_api_key: str = ""
-    claude_model_daily: str = "claude-sonnet-4-5-20250929"
-    claude_model_weekly: str = "claude-opus-4-6"
-    claude_monthly_cost_ceiling: float = 30.0
+    # OpenRouter pay-as-you-go API (ADR 0004): prepaid credits that stop at
+    # zero, zero retention and no training enforced on every request. Only
+    # cardio-plan uses the weekly tier, so the daily model also writes the gym
+    # adjustment and the weekly recap. Model slugs are OpenRouter's.
+    openrouter_api_key: str = ""
+    openrouter_model_daily: str = "deepseek/deepseek-v4-pro"
+    openrouter_model_weekly: str = "deepseek/deepseek-v4-pro"
 
     # Claude Code CLI, billed against a Claude Pro subscription. The token is
     # the long-lived one from `claude setup-token`, under the CLI's own variable
@@ -160,8 +162,8 @@ class Settings(BaseSettings):
     def _require_llm_provider_key(self) -> "Settings":
         provider = self.llm_provider.lower()
         required_keys = {
-            "anthropic": ("MYCOACH_CLAUDE_API_KEY", self.claude_api_key),
             "claude_code": ("CLAUDE_CODE_OAUTH_TOKEN", self.claude_code_oauth_token),
+            "openrouter": ("MYCOACH_OPENROUTER_API_KEY", self.openrouter_api_key),
         }
         if provider not in required_keys:
             raise ValueError(

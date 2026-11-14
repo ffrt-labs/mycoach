@@ -20,8 +20,8 @@ dependencies = [
     "python-multipart>=0.0.18",
     # Phase 1: Data Sources
     "garminconnect>=0.3.2",
-    # Phase 2: Coaching
-    "anthropic>=0.40.0",
+    # Phase 2: Coaching (OpenRouter through its OpenAI-compatible API)
+    "openai>=3.51.0",
     # Phase 5: Automation
     "apscheduler>=3.10.0",
     # Phase 7: Email

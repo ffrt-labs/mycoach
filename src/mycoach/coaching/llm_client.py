@@ -1,6 +1,6 @@
 """Abstract LLM client interface and shared types.
 
-All provider implementations (Anthropic, Claude Code, etc.) must subclass LLMClient
+All provider implementations (OpenRouter, Claude Code) must subclass LLMClient
 and implement the `call` method. The rest of the coaching engine depends only
 on this interface, making providers swappable via configuration.
 """
@@ -35,6 +35,10 @@ class LLMResponse:
 
     ``estimated_cost_usd`` is money spent only when ``billing`` is ``paid``;
     otherwise it is informational and ``quota_usage`` is what the call used up.
+
+    ``output_tokens`` is the answer alone; a reasoning model's thinking is
+    ``reasoning_tokens``. ``serving_host`` is the upstream that ran the call,
+    for a provider that routes among several.
     """
 
     content: str
@@ -46,6 +50,8 @@ class LLMResponse:
     stop_reason: str | None = None
     billing: Billing = "subscription"
     quota_usage: QuotaUsage | None = None
+    reasoning_tokens: int = 0
+    serving_host: str | None = None
 
 
 class LLMClient(ABC):
@@ -99,22 +105,22 @@ def get_llm_client() -> LLMClient:
     """Factory — returns the LLM client for the configured provider.
 
     Reads ``MYCOACH_LLM_PROVIDER`` from settings and instantiates the
-    matching provider. Defaults to ``"anthropic"`` for backward compatibility.
+    matching provider. Defaults to ``"openrouter"`` (ADR 0004).
     """
     from mycoach.config import get_settings
 
     settings = get_settings()
     provider = settings.llm_provider.lower()
 
-    if provider == "anthropic":
-        from mycoach.coaching.providers.anthropic import AnthropicClient
+    if provider == "openrouter":
+        from mycoach.coaching.providers.openrouter import OpenRouterClient
 
-        return AnthropicClient()
+        return OpenRouterClient()
     elif provider == "claude_code":
         from mycoach.coaching.providers.claude_code import ClaudeCodeClient
 
         return ClaudeCodeClient()
     else:
         raise ValueError(
-            f"Unknown LLM provider: '{provider}'. Supported providers: anthropic, claude_code"
+            f"Unknown LLM provider: '{provider}'. Supported providers: claude_code, openrouter"
         )

@@ -10,27 +10,41 @@ def _settings(**overrides: object) -> Settings:
     the provider-key validator (or pick up values from a local .env file)."""
     defaults: dict[str, object] = {
         "llm_provider": "claude_code",
-        "claude_api_key": "",
         "claude_code_oauth_token": "sk-ant-oat01-test",
     }
     defaults.update(overrides)
     return Settings(**defaults)  # type: ignore[arg-type]
 
 
-def test_anthropic_provider_requires_claude_key() -> None:
-    with pytest.raises(ValueError, match="MYCOACH_CLAUDE_API_KEY"):
-        Settings(llm_provider="anthropic", claude_api_key="")
+def test_openrouter_is_the_default_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MYCOACH_LLM_PROVIDER", raising=False)
+    settings = Settings(_env_file=None, openrouter_api_key="sk-or-test")  # type: ignore[call-arg]
+    assert settings.llm_provider == "openrouter"
 
 
-def test_anthropic_provider_with_key_is_valid() -> None:
-    settings = Settings(llm_provider="anthropic", claude_api_key="sk-test")
-    assert settings.llm_provider == "anthropic"
+def test_openrouter_provider_requires_its_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MYCOACH_OPENROUTER_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="MYCOACH_OPENROUTER_API_KEY"):
+        Settings(_env_file=None, llm_provider="openrouter")  # type: ignore[call-arg]
+
+
+def test_openrouter_models_are_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_DAILY", "deepseek/deepseek-v4-pro")
+    monkeypatch.setenv("MYCOACH_OPENROUTER_MODEL_WEEKLY", "moonshotai/kimi-k3.1-pro")
+    settings = Settings(llm_provider="openrouter", openrouter_api_key="sk-or-test")
+    assert settings.openrouter_model_daily == "deepseek/deepseek-v4-pro"
+    assert settings.openrouter_model_weekly == "moonshotai/kimi-k3.1-pro"
+
+
+def test_removed_anthropic_provider_fails_listing_supported_providers() -> None:
+    """A stale MYCOACH_LLM_PROVIDER=anthropic must fail at boot, not at 09:30."""
+    with pytest.raises(ValueError, match=r"'anthropic'.*\['claude_code', 'openrouter'\]"):
+        Settings(llm_provider="anthropic", openrouter_api_key="sk-or-test")
 
 
 def test_removed_gemini_provider_fails_listing_supported_providers() -> None:
-    """A stale MYCOACH_LLM_PROVIDER=gemini must fail at boot, not at 09:30."""
-    with pytest.raises(ValueError, match=r"'gemini'.*\['anthropic', 'claude_code'\]"):
-        Settings(llm_provider="gemini", claude_api_key="sk-test")
+    with pytest.raises(ValueError, match=r"'gemini'.*\['claude_code', 'openrouter'\]"):
+        Settings(llm_provider="gemini", openrouter_api_key="sk-or-test")
 
 
 def test_claude_code_provider_requires_oauth_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -63,7 +77,7 @@ def test_claude_code_models_are_configurable(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_unknown_provider_fails() -> None:
     with pytest.raises(ValueError, match="MYCOACH_LLM_PROVIDER"):
-        Settings(llm_provider="openai", claude_api_key="sk-test")
+        Settings(llm_provider="openai", openrouter_api_key="sk-or-test")
 
 
 # --- Email startup validation ---------------------------------------------

@@ -20,7 +20,7 @@ def _reset_langfuse() -> Generator[None, None, None]:
 
 
 def _settings(**langfuse: Any) -> Settings:
-    return Settings(llm_provider="anthropic", claude_api_key="test", env="test", **langfuse)
+    return Settings(llm_provider="openrouter", openrouter_api_key="test", env="test", **langfuse)
 
 
 @pytest.mark.parametrize(

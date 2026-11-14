@@ -32,6 +32,9 @@ PROVIDER_PREFERENCES: dict[str, Any] = {"zdr": True, "data_collection": "deny"}
 # The model thinks, but only the answer comes back.
 REASONING: dict[str, Any] = {"effort": "medium", "exclude": True}
 
+# The least room left for reasoning on top of the answer budget.
+REASONING_BUDGET_TOKENS = 8192
+
 # Opts in to ``openrouter_metadata`` on the response, which is where OpenRouter
 # documents the endpoint that served the call.
 METADATA_HEADERS = {"X-OpenRouter-Metadata": "enabled"}
@@ -43,11 +46,12 @@ CALL_TIMEOUT_SECONDS = 300
 def _upstream_max_tokens(answer_tokens: int) -> int:
     """The caller's ``max_tokens`` is the answer budget; reasoning gets its own.
 
-    OpenRouter turns ``effort: medium`` into a reasoning budget of half the
-    request's ``max_tokens``, and reasoning tokens count toward it. Sending
-    twice the answer budget leaves the whole answer budget for the answer.
+    Reasoning tokens count toward the request's ``max_tokens``. OpenRouter only
+    documents ``effort: medium`` as capping reasoning at half the limit for
+    OpenAI and Grok models, not for the DeepSeek, Kimi or GLM models MyCoach
+    uses, so reasoning gets a fixed floor rather than a share of the limit.
     """
-    return answer_tokens * 2
+    return answer_tokens + max(answer_tokens, REASONING_BUDGET_TOKENS)
 
 
 def _status_error(e: openai.APIStatusError) -> LLMProviderError:
@@ -161,6 +165,7 @@ class OpenRouterClient(LLMClient):
         completion_tokens = usage.completion_tokens if usage else 0
         details = usage.completion_tokens_details if usage else None
         reasoning_tokens = (details.reasoning_tokens or 0) if details else 0
+        answer_tokens = completion_tokens - reasoning_tokens
         # OpenRouter's own charge for the call, not a price table.
         cost = float(_extra(usage, "cost") or 0.0)
         serving_host = _serving_host(response)
@@ -170,7 +175,7 @@ class OpenRouterClient(LLMClient):
             response.model,
             serving_host,
             input_tokens,
-            completion_tokens - reasoning_tokens,
+            answer_tokens,
             reasoning_tokens,
             cost,
             latency_ms,
@@ -180,7 +185,7 @@ class OpenRouterClient(LLMClient):
             content=choice.message.content or "",
             model=response.model,
             input_tokens=input_tokens,
-            output_tokens=completion_tokens - reasoning_tokens,
+            output_tokens=answer_tokens,
             latency_ms=latency_ms,
             estimated_cost_usd=cost,
             # A truncated answer comes back as a response, so the engine's

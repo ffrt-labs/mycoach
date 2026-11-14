@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -220,8 +221,16 @@ def send_email(to: str, subject: str, html: str, settings: Settings | None = Non
     return True
 
 
-def send_daily_briefing(content: dict, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]
-    """Send the daily coaching briefing email."""
+def send_daily_briefing(
+    content: dict,  # type: ignore[type-arg]
+    settings: Settings | None = None,
+    *,
+    steps: StepsSummary | None = None,
+) -> bool:
+    """Send the daily coaching briefing email.
+
+    ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
+    """
     if settings is None:
         settings = get_settings()
     briefing = dict(content)
@@ -229,7 +238,7 @@ def send_daily_briefing(content: dict, settings: Settings | None = None) -> bool
         briefing["key_metrics"] = _format_key_metrics(briefing["key_metrics"])
     html = _render_template(
         "daily_briefing.html",
-        {"briefing": briefing, "dashboard_url": _dashboard_url(settings)},
+        {"briefing": briefing, "steps": steps, "dashboard_url": _dashboard_url(settings)},
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
 
@@ -296,8 +305,12 @@ def send_briefing_unavailable(
     last_upload: datetime | None = None,
     device_name: str | None = None,
     settings: Settings | None = None,
+    steps: StepsSummary | None = None,
 ) -> bool:
     """Tell the user why there is no briefing this morning.
+
+    ``steps`` is the same code-rendered steps strip the briefing carries, so the
+    numbers from the DB still reach the reader when the LLM could not run (#196).
 
     The wording turns entirely on ``is_broken``, because the two causes need
     opposite things from the reader. Absent data is theirs to fix — the watch
@@ -365,6 +378,7 @@ def send_briefing_unavailable(
                 _format_last_upload(last_upload, settings) if last_upload else None
             ),
             "device_name": device_name,
+            "steps": steps,
             "dashboard_url": _dashboard_url(settings),
         },
     )

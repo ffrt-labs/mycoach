@@ -37,14 +37,13 @@ def _configured() -> bool:
     return bool(settings.garmin_email and settings.garmin_password)
 
 
-def weigh_ins_for(client: GarminClient) -> GarminWeighIns:
-    """The weigh-in adapter over an already connected client (the sync's own)."""
+def _weigh_ins_for(client: GarminClient) -> GarminWeighIns:
     return GarminWeighIns(client, get_settings().timezone)
 
 
 def _connect() -> GarminWeighIns | None:
     client = GarminClient()
-    return weigh_ins_for(client) if client.connect() else None
+    return _weigh_ins_for(client) if client.connect() else None
 
 
 async def _record_attempt(
@@ -68,14 +67,15 @@ async def _record_attempt(
 
 
 async def push_weight_to_garmin(
-    athlete_id: int, measurement_id: int, weigh_ins: GarminWeighIns | None = None
+    athlete_id: int, measurement_id: int, client: GarminClient | None = None
 ) -> str | None:
     """Push one weight reading to Garmin; return its push status afterwards.
 
     A no-op for a waist-only, already pushed, given-up or missing row. Without
-    ``weigh_ins`` it connects its own client (the save flow); with no Garmin credentials
-    configured it does nothing and the row stays ``pending``.
+    ``client`` (a connected one, the sync's) it connects its own (the save flow); with no
+    Garmin credentials configured it does nothing and the row stays ``pending``.
     """
+    weigh_ins = _weigh_ins_for(client) if client is not None else None
     async with health_session() as session:
         row = await session.get(BodyMeasurement, measurement_id)
         if (
@@ -113,11 +113,12 @@ async def push_weight_to_garmin(
 
 
 async def retry_garmin_weight_pushes(
-    athlete_id: int, weigh_ins: GarminWeighIns, now: datetime | None = None
+    athlete_id: int, client: GarminClient, now: datetime | None = None
 ) -> int:
     """Retry every unpushed weight reading under the attempt cap; return how many pushed.
 
-    Called by the Garmin sync (the 06:00 job and every briefing poll) with its client.
+    Called by the Garmin sync (the 06:00 job and every briefing poll) with its connected
+    client. A ``pending`` row younger than ``PENDING_GRACE`` is skipped.
     """
     now = now or datetime.utcnow()
     async with health_session() as session:
@@ -139,7 +140,7 @@ async def retry_garmin_weight_pushes(
         ).all()
     pushed = 0
     for measurement_id in ids:
-        if await push_weight_to_garmin(athlete_id, measurement_id, weigh_ins) == "pushed":
+        if await push_weight_to_garmin(athlete_id, measurement_id, client) == "pushed":
             pushed += 1
     return pushed
 
@@ -153,23 +154,20 @@ async def _delete(weigh_ins: GarminWeighIns, weigh_in_id: str, measured_at: date
         return False
 
 
-async def delete_weight_from_garmin(
-    deleted: "BodyMeasurementRecord", weigh_ins: GarminWeighIns | None = None
-) -> bool:
+async def delete_weight_from_garmin(deleted: "BodyMeasurementRecord") -> bool:
     """Delete the Garmin copy of a reading ``delete_body_measurement`` removed, when its
     Garmin id is known. Never raises: the local delete has already happened."""
     weigh_in_id = deleted.garmin_weigh_in_id
     if weigh_in_id is None:
         return False
+    if not _configured():
+        return False
+    try:
+        weigh_ins = await asyncio.to_thread(_connect)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Garmin connect for a weigh-in delete failed: %s", e)
+        return False
     if weigh_ins is None:
-        if not _configured():
-            return False
-        try:
-            weigh_ins = await asyncio.to_thread(_connect)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Garmin connect for a weigh-in delete failed: %s", e)
-            return False
-        if weigh_ins is None:
-            logger.warning("Garmin weigh-in %s not deleted: authentication failed", weigh_in_id)
-            return False
+        logger.warning("Garmin weigh-in %s not deleted: authentication failed", weigh_in_id)
+        return False
     return await _delete(weigh_ins, weigh_in_id, deleted.measured_at)

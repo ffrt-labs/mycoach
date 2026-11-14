@@ -4,10 +4,12 @@ MyCoach owns the weight: a reading is saved locally first, then copied to Garmin
 weigh-ins are never read back as data, only to learn the id of the one we created.
 """
 
-from datetime import UTC, datetime
+import asyncio
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 from mycoach import health
+from mycoach.sources.garmin.client import GarminClient
 
 ATHLETE = 1
 # 10 July 2026, 07:00 UTC = 08:00 in Europe/London (BST).
@@ -50,3 +52,130 @@ async def test_a_weight_is_pushed_with_local_and_utc_timestamps(fake_garmin: Mag
     assert deleted is not None
     await health.delete_weight_from_garmin(deleted)
     fake_garmin.delete_weigh_in.assert_called_once_with("9001", "2026-07-10")
+
+
+def _sync_client() -> GarminClient:
+    """The sync's own client, already connected."""
+    client = GarminClient()
+    assert client.connect()
+    return client
+
+
+async def test_a_failed_push_is_recorded_and_the_sync_retries_it(
+    fake_garmin: MagicMock,
+) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = ConnectionError("Garmin is down")
+
+    status = await health.push_weight_to_garmin(ATHLETE, recorded.id)
+
+    assert status == "failed"
+    assert await _status() == "failed"
+
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = None
+    _garmin_has(fake_garmin, 9002, 82.4)
+    assert await health.retry_garmin_weight_pushes(ATHLETE, _sync_client()) == 1
+    assert await _status() == "pushed"
+    assert fake_garmin.add_weigh_in_with_timestamps.call_count == 2
+
+
+async def test_retries_stop_after_five_attempts(fake_garmin: MagicMock) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = ConnectionError("Garmin is down")
+    await health.push_weight_to_garmin(ATHLETE, recorded.id)
+
+    for _ in range(6):
+        await health.retry_garmin_weight_pushes(ATHLETE, _sync_client())
+
+    assert fake_garmin.add_weigh_in_with_timestamps.call_count == 5
+    assert await _status() == "failed"
+
+
+async def test_a_fresh_pending_weight_is_left_to_its_own_push(fake_garmin: MagicMock) -> None:
+    await health.record_body_measurement(ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4)
+
+    assert await health.retry_garmin_weight_pushes(ATHLETE, _sync_client()) == 0
+    fake_garmin.add_weigh_in_with_timestamps.assert_not_called()
+
+    later = datetime.utcnow() + timedelta(minutes=11)
+    assert await health.retry_garmin_weight_pushes(ATHLETE, _sync_client(), now=later) == 1
+
+
+async def test_a_waist_only_reading_is_never_pushed(fake_garmin: MagicMock) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, waist_cm=91.0
+    )
+
+    assert await health.push_weight_to_garmin(ATHLETE, recorded.id) is None
+    later = datetime.utcnow() + timedelta(hours=1)
+    await health.retry_garmin_weight_pushes(ATHLETE, _sync_client(), now=later)
+
+    fake_garmin.add_weigh_in_with_timestamps.assert_not_called()
+    assert await _status() is None
+
+
+async def test_a_failed_login_counts_as_a_failed_attempt(fake_garmin: MagicMock) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    fake_garmin.login.side_effect = RuntimeError("401")
+
+    assert await health.push_weight_to_garmin(ATHLETE, recorded.id) == "failed"
+
+
+async def test_without_garmin_credentials_nothing_is_attempted() -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+
+    assert await health.push_weight_to_garmin(ATHLETE, recorded.id) == "pending"
+
+
+async def test_a_reading_deleted_mid_push_takes_its_garmin_copy_with_it(
+    fake_garmin: MagicMock,
+) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    _garmin_has(fake_garmin, 9003, 82.4)
+
+    def delete_locally_meanwhile(**_: object) -> None:
+        asyncio.run_coroutine_threadsafe(
+            health.delete_body_measurement(ATHLETE, recorded.id), loop
+        ).result()
+
+    loop = asyncio.get_running_loop()
+    fake_garmin.add_weigh_in_with_timestamps.side_effect = delete_locally_meanwhile
+
+    assert await health.push_weight_to_garmin(ATHLETE, recorded.id) is None
+    fake_garmin.delete_weigh_in.assert_called_once_with("9003", "2026-07-10")
+
+
+async def test_deleting_a_never_pushed_reading_leaves_garmin_alone(
+    fake_garmin: MagicMock,
+) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    deleted = await health.delete_body_measurement(ATHLETE, recorded.id)
+    assert deleted is not None
+
+    assert await health.delete_weight_from_garmin(deleted) is False
+    fake_garmin.delete_weigh_in.assert_not_called()
+
+
+async def test_a_garmin_outage_on_delete_does_not_raise(fake_garmin: MagicMock) -> None:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    _garmin_has(fake_garmin, 9004, 82.4)
+    await health.push_weight_to_garmin(ATHLETE, recorded.id)
+    deleted = await health.delete_body_measurement(ATHLETE, recorded.id)
+    assert deleted is not None
+    fake_garmin.delete_weigh_in.side_effect = ConnectionError("Garmin is down")
+
+    assert await health.delete_weight_from_garmin(deleted) is False

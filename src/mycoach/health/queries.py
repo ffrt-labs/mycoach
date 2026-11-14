@@ -56,6 +56,9 @@ _SNAPSHOT_FIELDS = [
     "load_focus",
     "body_battery_morning",
     "hrv_status_text",
+    "hrv_baseline_low",
+    "hrv_baseline_high",
+    "hrv_baseline_low_upper",
 ]
 _SNAPSHOT_EXTRA_FIELDS = ["body_battery_high", "body_battery_low"]
 

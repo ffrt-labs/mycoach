@@ -98,12 +98,20 @@ def map_health_snapshot(
     hrv_status_val = None
     hrv_7day_avg_val = None
     hrv_status_text_val = None
+    hrv_baseline_low_val = None
+    hrv_baseline_high_val = None
+    hrv_baseline_low_upper_val = None
     if isinstance(hrv, dict):
         hrv_summary = hrv.get("hrvSummary") or hrv
         if isinstance(hrv_summary, dict):
             hrv_status_val = _safe_float(hrv_summary.get("lastNightAvg"))
             hrv_7day_avg_val = _safe_float(hrv_summary.get("weeklyAvg"))
             hrv_status_text_val = hrv_summary.get("status")
+            baseline = hrv_summary.get("baseline")
+            if isinstance(baseline, dict):
+                hrv_baseline_low_val = _safe_float(baseline.get("balancedLow"))
+                hrv_baseline_high_val = _safe_float(baseline.get("balancedUpper"))
+                hrv_baseline_low_upper_val = _safe_float(baseline.get("lowUpper"))
 
     # Sleep
     sleep_duration = None
@@ -238,6 +246,9 @@ def map_health_snapshot(
         avg_hr=avg_hr,
         hrv_status=hrv_status_val,
         hrv_7day_avg=hrv_7day_avg_val,
+        hrv_baseline_low=hrv_baseline_low_val,
+        hrv_baseline_high=hrv_baseline_high_val,
+        hrv_baseline_low_upper=hrv_baseline_low_upper_val,
         hrv_status_text=hrv_status_text_val,
         sleep_duration_minutes=sleep_duration,
         sleep_score=sleep_score,
@@ -343,7 +354,8 @@ async def _snapshot_exists(
 
 _UPDATABLE_FIELDS = [
     "resting_hr", "max_hr", "avg_hr", "hrv_status", "hrv_7day_avg",
-    "hrv_status_text",
+    "hrv_status_text", "hrv_baseline_low", "hrv_baseline_high",
+    "hrv_baseline_low_upper",
     "sleep_duration_minutes", "sleep_score", "sleep_deep_minutes",
     "sleep_light_minutes", "sleep_rem_minutes", "sleep_awake_minutes",
     "body_battery_high", "body_battery_low", "body_battery_morning",

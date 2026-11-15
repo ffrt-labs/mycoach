@@ -68,6 +68,36 @@ class TestFormatHealth:
         result2 = _format_health(data2)
         assert "Training status: Productive" in result2
 
+    def test_hrv_leads_with_the_7_day_avg_against_the_baseline_band(self) -> None:
+        data = {
+            "resting_hr": 55,
+            "hrv_status": 48.0,
+            "hrv_7day_avg": 52.0,
+            "hrv_status_text": "BALANCED",
+            "hrv_baseline_low": 47.0,
+            "hrv_baseline_high": 58.0,
+            "hrv_baseline_low_upper": 43.0,
+        }
+        assert _format_health(data) == (
+            "- Resting Heart Rate: 55\n"
+            "- HRV: 7d avg 52 ms (range 47–58, Balanced), last night 48 ms; Low below 43 ms"
+        )
+
+    def test_hrv_band_tolerates_missing_parts(self) -> None:
+        data = {
+            "hrv_7day_avg": 61.5,
+            "hrv_status_text": "UNBALANCED",
+            "hrv_baseline_low": 47.0,
+            "hrv_baseline_high": 58.0,
+        }
+        assert _format_health(data) == "- HRV: 7d avg 61.5 ms (range 47–58, Unbalanced)"
+
+    def test_hrv_without_a_band_keeps_the_old_wording(self) -> None:
+        data = {"hrv_status": 48.0, "hrv_7day_avg": 52.0, "hrv_status_text": "BALANCED"}
+        assert _format_health(data) == (
+            "- HRV last night avg (ms): 48.0\n- HRV 7-day avg: 52.0\n- HRV Status: BALANCED"
+        )
+
     def test_ignores_none_values(self) -> None:
         data = {"resting_hr": 55, "avg_hr": None}
         result = _format_health(data)

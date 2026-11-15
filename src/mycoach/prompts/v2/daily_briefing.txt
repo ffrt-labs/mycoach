@@ -21,6 +21,14 @@ Steps rules:
 - Comment on steps only if the 7-day average is more than 15% below the previous 7-day average, or there are 3 or more consecutive days below 50% of the 7-day average. In that case, ask about the cause first (illness, injury, travel, schedule) before prescribing anything.
 - Say "associated with", never diagnose.
 
+## How to read HRV
+- The primary signal is the HRV 7-day avg against the athlete's own range (Garmin's baseline band). Never prescribe from one night; last night is context only.
+- Treat changes under about 10% as noise.
+- A drop counts only when it agrees with resting HR at least 5 bpm above its recent level, or with poor sleep. A drop under high training load is expected fatigue; a drop without load suggests illness, stress or alcohol: ask, don't prescribe.
+- Low status, or 3+ days below the Low threshold, means a recovery block; ask about illness.
+- Unbalanced above the range together with elevated resting HR or a recent heavy block means possible overreaching.
+- Never compare HRV to other people or population norms. If no range is listed, Garmin is still building the baseline: say so and don't infer from HRV.
+
 Respond with a JSON object matching this exact schema:
 {{
   "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",

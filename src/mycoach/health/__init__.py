@@ -31,6 +31,11 @@ from mycoach.health.events import (
     CanonicalActivitySettled,
     HealthEvent,
 )
+from mycoach.health.garmin_weight import (
+    delete_weight_from_garmin,
+    push_weight_to_garmin,
+    retry_garmin_weight_pushes,
+)
 from mycoach.health.queries import (
     get_activities_for_week,
     get_activity,
@@ -71,6 +76,7 @@ __all__ = [
     "RecordedWorkouts",
     "SyncOutcome",
     "delete_body_measurement",
+    "delete_weight_from_garmin",
     "delete_source_credentials",
     "get_activities_for_week",
     "get_activity",
@@ -101,7 +107,9 @@ __all__ = [
     "list_settled_activities_since",
     "list_snapshots",
     "list_sports",
+    "push_weight_to_garmin",
     "record_body_measurement",
+    "retry_garmin_weight_pushes",
     "record_garmin_activities",
     "record_workout",
     "record_workouts",

@@ -40,5 +40,6 @@ async def body_page(request: Request, session: AsyncSession = Depends(get_db)) -
             "height_cm": await health.get_athlete_height(athlete_id),
             "now_local": now_local.strftime("%Y-%m-%dT%H:%M"),
             "protocol_hint": PROTOCOL_HINT,
+            "unpushed": health.UNPUSHED,
         },
     )

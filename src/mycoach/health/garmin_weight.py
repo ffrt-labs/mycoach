@@ -15,7 +15,7 @@ from sqlalchemy import or_, select
 
 from mycoach.config import get_settings
 from mycoach.health.runtime import health_session
-from mycoach.models.body_measurement import BodyMeasurement
+from mycoach.models.body_measurement import BodyMeasurement, GarminPushStatus
 from mycoach.sources.garmin.client import GarminClient
 from mycoach.sources.garmin.weigh_ins import GarminWeighIns
 
@@ -29,7 +29,12 @@ PENDING_GRACE = timedelta(minutes=10)
 """A ``pending`` row this young is left to the save flow's own push, so the sync doesn't
 push it a second time while that push is still in flight."""
 
-UNPUSHED = ("pending", "failed")
+UNPUSHED = (GarminPushStatus.PENDING, GarminPushStatus.FAILED)
+
+
+def _status(row: BodyMeasurement) -> GarminPushStatus | None:
+    status = row.garmin_push_status
+    return None if status is None else GarminPushStatus(status)
 
 
 def _configured() -> bool:
@@ -48,7 +53,7 @@ def _connect() -> GarminWeighIns | None:
 
 async def _record_attempt(
     measurement_id: int, weigh_in_id: str | None, error: str | None
-) -> str | None:
+) -> GarminPushStatus | None:
     """Store how an attempt went; return the row's new status (None if it is gone)."""
     async with health_session() as session:
         row = await session.get(BodyMeasurement, measurement_id)
@@ -56,19 +61,19 @@ async def _record_attempt(
             return None
         row.garmin_push_attempts = (row.garmin_push_attempts or 0) + 1
         if error is None:
-            row.garmin_push_status = "pushed"
+            row.garmin_push_status = GarminPushStatus.PUSHED
             row.garmin_weigh_in_id = weigh_in_id
             row.garmin_push_error = None
         else:
-            row.garmin_push_status = "failed"
+            row.garmin_push_status = GarminPushStatus.FAILED
             row.garmin_push_error = error[:500]
         await session.commit()
-        return row.garmin_push_status
+        return _status(row)
 
 
 async def push_weight_to_garmin(
     athlete_id: int, measurement_id: int, client: GarminClient | None = None
-) -> str | None:
+) -> GarminPushStatus | None:
     """Push one weight reading to Garmin; return its push status afterwards.
 
     A no-op for a waist-only, already pushed, given-up or missing row. Without
@@ -85,12 +90,12 @@ async def push_weight_to_garmin(
             or row.garmin_push_status not in UNPUSHED
             or (row.garmin_push_attempts or 0) >= MAX_PUSH_ATTEMPTS
         ):
-            return row.garmin_push_status if row is not None else None
+            return _status(row) if row is not None else None
         weight_kg, measured_at = row.weight_kg, row.measured_at
 
     if weigh_ins is None:
         if not _configured():
-            return "pending"
+            return GarminPushStatus.PENDING
         try:
             weigh_ins = await asyncio.to_thread(_connect)
         except Exception as e:  # noqa: BLE001 - a Garmin outage must not escape
@@ -130,8 +135,8 @@ async def retry_garmin_weight_pushes(
                     BodyMeasurement.weight_kg.is_not(None),
                     BodyMeasurement.garmin_push_attempts < MAX_PUSH_ATTEMPTS,
                     or_(
-                        BodyMeasurement.garmin_push_status == "failed",
-                        (BodyMeasurement.garmin_push_status == "pending")
+                        BodyMeasurement.garmin_push_status == GarminPushStatus.FAILED,
+                        (BodyMeasurement.garmin_push_status == GarminPushStatus.PENDING)
                         & (BodyMeasurement.created_at <= now - PENDING_GRACE),
                     ),
                 )
@@ -140,7 +145,10 @@ async def retry_garmin_weight_pushes(
         ).all()
     pushed = 0
     for measurement_id in ids:
-        if await push_weight_to_garmin(athlete_id, measurement_id, client) == "pushed":
+        if (
+            await push_weight_to_garmin(athlete_id, measurement_id, client)
+            == GarminPushStatus.PUSHED
+        ):
             pushed += 1
     return pushed
 

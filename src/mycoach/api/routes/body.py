@@ -46,7 +46,7 @@ async def create_measurement(
         waist_cm=body.waist_cm,
         note=body.note.strip() if body.note else None,
     )
-    if recorded.garmin_push_status == "pending":
+    if recorded.garmin_push_status == health.GarminPushStatus.PENDING:
         background.add_task(health.push_weight_to_garmin, athlete_id, recorded.id)
     return asdict(recorded)
 

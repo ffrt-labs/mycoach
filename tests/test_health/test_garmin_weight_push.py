@@ -212,3 +212,61 @@ async def test_a_weight_retry_crash_never_fails_the_sync(
     outcome = await health.sync_garmin(ATHLETE, source, since=datetime.utcnow())
 
     assert outcome is not None
+
+
+# --- A push whose Garmin id was not found (the POST answers 204, the day list lags) ---
+
+
+async def _pushed_without_an_id(fake_garmin: MagicMock) -> int:
+    recorded = await health.record_body_measurement(
+        ATHLETE, measured_at=MEASURED_AT, weight_kg=82.4
+    )
+    # The fixture's day list is empty: Garmin took the weigh-in, its id can't be found yet.
+    assert await health.push_weight_to_garmin(ATHLETE, recorded.id) == "pushed"
+    return recorded.id
+
+
+async def test_a_push_whose_id_is_not_found_says_so_on_the_row(fake_garmin: MagicMock) -> None:
+    await _pushed_without_an_id(fake_garmin)
+
+    [row] = await health.list_body_measurements(ATHLETE)
+    assert row["garmin_push_status"] == "pushed"
+    assert "id was not found" in row["garmin_push_error"]
+
+
+async def test_the_sync_looks_a_missing_id_up_again_without_pushing_twice(
+    fake_garmin: MagicMock,
+) -> None:
+    measurement_id = await _pushed_without_an_id(fake_garmin)
+    _garmin_has(fake_garmin, 9006, 82.4)
+
+    await health.retry_garmin_weight_pushes(ATHLETE, _sync_client())
+
+    fake_garmin.add_weigh_in_with_timestamps.assert_called_once()
+    [row] = await health.list_body_measurements(ATHLETE)
+    assert row["garmin_push_error"] is None
+    deleted = await health.delete_body_measurement(ATHLETE, measurement_id)
+    assert deleted is not None
+    assert deleted.garmin_weigh_in_id == "9006"
+
+
+async def test_a_delete_looks_a_missing_id_up_again(fake_garmin: MagicMock) -> None:
+    measurement_id = await _pushed_without_an_id(fake_garmin)
+    deleted = await health.delete_body_measurement(ATHLETE, measurement_id)
+    assert deleted is not None
+    _garmin_has(fake_garmin, 9007, 82.4)
+
+    assert await health.delete_weight_from_garmin(deleted) is True
+    fake_garmin.delete_weigh_in.assert_called_once_with("9007", "2026-07-10")
+
+
+async def test_a_delete_whose_id_is_still_not_found_is_logged(
+    fake_garmin: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    measurement_id = await _pushed_without_an_id(fake_garmin)
+    deleted = await health.delete_body_measurement(ATHLETE, measurement_id)
+    assert deleted is not None
+
+    assert await health.delete_weight_from_garmin(deleted) is False
+    fake_garmin.delete_weigh_in.assert_not_called()
+    assert any("delete it there by hand" in r.getMessage() for r in caplog.records)

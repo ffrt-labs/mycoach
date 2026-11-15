@@ -888,6 +888,7 @@ async def list_body_measurements(
             "note": m.note,
             "source": m.source,
             "garmin_push_status": m.garmin_push_status,
+            "garmin_push_error": m.garmin_push_error,
         }
         for m in rows
     ]

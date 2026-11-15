@@ -63,13 +63,13 @@ async def list_measurements(session: AsyncSession = Depends(get_db)) -> list[dic
 async def delete_measurement(
     measurement_id: int, background: BackgroundTasks, session: AsyncSession = Depends(get_db)
 ) -> Response:
-    """Delete a reading here, then its Garmin copy (in the background) when one is known."""
+    """Delete a reading here, then its Garmin copy (in the background) if it was pushed."""
     deleted = await health.delete_body_measurement(
         await athlete_id_for(session, DEFAULT_USER_ID), measurement_id
     )
     if deleted is None:
         raise HTTPException(status_code=404, detail="Measurement not found")
-    if deleted.garmin_weigh_in_id is not None:
+    if deleted.garmin_push_status == health.GarminPushStatus.PUSHED:
         background.add_task(health.delete_weight_from_garmin, deleted)
     return Response(status_code=204, background=background)
 

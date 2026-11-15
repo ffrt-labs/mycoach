@@ -60,6 +60,8 @@ from mycoach.coaching.response_parser import (
     WeeklyRecapResponse,
     parse_response,
 )
+from mycoach.coaching.steps import load_steps_summary, local_today
+from mycoach.config import get_settings
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, InsightType
 from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
@@ -206,9 +208,10 @@ class CoachingEngine:
         Gathers context from DB, calls the LLM, validates the response,
         stores the result as a CoachingInsight, and logs the prompt.
 
-        Returns the saved CoachingInsight.
+        Returns the saved CoachingInsight. ``today`` defaults to the local day in
+        ``settings.timezone`` (the container runs on UTC).
         """
-        today = today or date.today()
+        today = today or local_today(get_settings().timezone, now=self._clock())
 
         # Check for existing briefing today
         existing = await session.execute(
@@ -247,6 +250,9 @@ class CoachingEngine:
         health_trends = await get_health_trends(session, user_id, days=3, today=today)
         recent_activities = await get_recent_activities(session, user_id, days=3, today=today)
         planned_sessions = await get_today_planned_sessions(session, user_id, today)
+        steps = await load_steps_summary(
+            session, user_id, today, target=get_settings().steps_daily_target
+        )
 
         # Build prompts
         variables = daily_briefing_variables(
@@ -254,6 +260,7 @@ class CoachingEngine:
             health_trends=health_trends,
             recent_activities=recent_activities,
             planned_workout=planned_sessions if planned_sessions else None,
+            steps=steps,
         )
         prompt = await self._serve(Operation.DAILY_BRIEFING, variables)
 

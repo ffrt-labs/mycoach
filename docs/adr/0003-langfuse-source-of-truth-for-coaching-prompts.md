@@ -2,7 +2,7 @@
 
 The five coaching prompts (`mycoach/daily-briefing`, `mycoach/gym-adjustment`, `mycoach/cardio-plan`, `mycoach/post-workout`, `mycoach/weekly-recap`) live in Langfuse as self-contained chat prompts: a system and a user message, with the shared system prompt copied into each one rather than referenced, so one prompt version fully determines what the model saw. MyCoach serves the `production` label. `staging` holds candidates, and promotion or rollback is a manual label move in the Langfuse UI, with no deploy and no gate. Langfuse is also where coaching traces and Langfuse scores go (#172, #175).
 
-Langfuse stays optional. Without the three `LANGFUSE_*` variables, or with Langfuse down and nothing cached, MyCoach serves the bundled `prompts/v2` files through the same compile step as before (`compile_prompt`), so behaviour is unchanged. The bundled files are the fallback and the seed (`python -m mycoach.tools.seed_langfuse_prompts` creates version 1 of each prompt from them and skips any prompt that already exists). They are not an error path: a coaching run always gets a prompt.
+Langfuse stays optional. Without the three `LANGFUSE_*` variables, or with Langfuse down and nothing cached, MyCoach serves the bundled `prompts/v2` files through the same compile step as before (`compile_prompt`), so behaviour is unchanged. The bundled files are the fallback and the seed (`python -m mycoach.tools.seed_langfuse_prompts` creates version 1 of each prompt from them; for a prompt that exists it publishes a new `production` version when the latest version differs from the compiled bundled text, and skips it otherwise (#196)). They are not an error path: a coaching run always gets a prompt.
 
 ## Serving rules
 

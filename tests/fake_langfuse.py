@@ -1,7 +1,7 @@
 """An in-memory Langfuse prompts and datasets API, served to a real client over httpx.
 
-Implements the endpoints MyCoach uses: prompts (list by name, get by label,
-create) and datasets (get by name, list its items). ``down = True`` makes
+Implements the endpoints MyCoach uses: prompts (list by name, get by label
+or version, create) and datasets (get by name, list its items). ``down = True`` makes
 every request fail as a connection error.
 """
 
@@ -90,6 +90,8 @@ class FakeLangfuseAPI:
             return httpx.Response(200, json=self.versions[body["name"]][version - 1])
         if raw_path.startswith(_PREFIX + "/") and request.method == "GET":
             name = unquote(raw_path[len(_PREFIX) + 1 :])
+            if version := request.url.params.get("version"):
+                return self._get_version(name, int(version))
             return self._get(name, request.url.params.get("label", "production"))
         if raw_path.startswith(_DATASETS) and request.method == "GET":
             return self._dataset(unquote(raw_path[len(_DATASETS) :]))
@@ -134,6 +136,12 @@ class FakeLangfuseAPI:
             )
         meta = {"page": 1, "limit": 50, "totalItems": len(data), "totalPages": 1}
         return httpx.Response(200, json={"data": data, "meta": meta})
+
+    def _get_version(self, name: str, number: int) -> httpx.Response:
+        for version in self.versions.get(name, []):
+            if version["version"] == number:
+                return httpx.Response(200, json=version)
+        return httpx.Response(404, json={"message": "Prompt not found"})
 
     def _get(self, name: str, label: str) -> httpx.Response:
         for version in self.versions.get(name, []):

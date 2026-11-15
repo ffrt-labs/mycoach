@@ -53,9 +53,9 @@ async def create_measurement(
 
 @router.get("/measurements", response_model=list[BodyMeasurementRead])
 async def list_measurements(session: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
-    """The last 10 readings, newest first."""
+    """The last ``BODY_HISTORY_LIMIT`` readings, newest first."""
     return await health.list_body_measurements(
-        await athlete_id_for(session, DEFAULT_USER_ID), limit=10
+        await athlete_id_for(session, DEFAULT_USER_ID), limit=health.BODY_HISTORY_LIMIT
     )
 
 

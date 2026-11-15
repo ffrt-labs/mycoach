@@ -69,7 +69,7 @@
     <!-- History -->
     <div class="rounded-xl border border-white/[0.07] bg-surface overflow-hidden">
         <div class="px-4 py-4">
-            <h2 class="text-lg font-semibold text-zinc-50 mb-3">Last 10 entries</h2>
+            <h2 class="text-lg font-semibold text-zinc-50 mb-3">Last {{ history_limit }} entries</h2>
             {% if measurements %}
             <ul class="divide-y divide-white/[0.06]">
                 {% for m in measurements %}

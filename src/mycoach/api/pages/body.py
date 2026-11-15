@@ -1,4 +1,4 @@
-"""Body page: log weight and waist, enter height, see the last 10 readings (ticket #198)."""
+"""Body page: log weight and waist, enter height, see the latest readings (ticket #198)."""
 
 from datetime import datetime
 
@@ -27,7 +27,7 @@ async def body_page(request: Request, session: AsyncSession = Depends(get_db)) -
     athlete_id = await athlete_id_for(session, DEFAULT_USER_ID)
     measurements = [
         {**m, "measured_at": datetime.fromisoformat(m["measured_at"])}
-        for m in await health.list_body_measurements(athlete_id, limit=10)
+        for m in await health.list_body_measurements(athlete_id, limit=health.BODY_HISTORY_LIMIT)
     ]
     now_local = local_now(get_settings().timezone)
     templates: Jinja2Templates = request.app.state.templates
@@ -41,5 +41,6 @@ async def body_page(request: Request, session: AsyncSession = Depends(get_db)) -
             "now_local": now_local.strftime("%Y-%m-%dT%H:%M"),
             "protocol_hint": PROTOCOL_HINT,
             "unpushed": health.UNPUSHED,
+            "history_limit": health.BODY_HISTORY_LIMIT,
         },
     )

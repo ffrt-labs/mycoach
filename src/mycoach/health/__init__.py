@@ -38,6 +38,7 @@ from mycoach.health.garmin_weight import (
     retry_garmin_weight_pushes,
 )
 from mycoach.health.queries import (
+    BODY_HISTORY_LIMIT,
     get_activities_for_week,
     get_activity,
     get_activity_facts,
@@ -68,6 +69,7 @@ from mycoach.health.queries import (
 from mycoach.models.body_measurement import GarminPushStatus
 
 __all__ = [
+    "BODY_HISTORY_LIMIT",
     "UNPUSHED",
     "BodyMeasurementRecord",
     "CanonicalActivityRecorded",

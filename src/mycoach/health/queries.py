@@ -857,8 +857,12 @@ async def get_last_performed(athlete_id: int) -> list[dict[str, Any]]:
     return rows
 
 
+BODY_HISTORY_LIMIT = 10
+"""How many recent body measurements the Body page and API list."""
+
+
 async def list_body_measurements(
-    athlete_id: int, *, since: datetime | None = None, limit: int | None = 10
+    athlete_id: int, *, since: datetime | None = None, limit: int | None = BODY_HISTORY_LIMIT
 ) -> list[dict[str, Any]]:
     """The athlete's body measurements, newest first (ticket #198).
 

@@ -387,17 +387,18 @@ def _format_body(body: BodySummary | None) -> str:
         else:
             lines.append("Weight trend: not enough weigh-ins (needs 4+ days in 14).")
     if body.waist is not None:
-        c = body.waist
-        lines.append(f"Latest waist: {c.latest_cm:.1f} cm, {c.when}.")
-        if c.ratio is not None:
-            lines.append(f"Waist-to-height: {c.ratio:.2f} (target < 0.50).")
-        if c.change_cm is None:
+        waist = body.waist
+        lines.append(f"Latest waist: {waist.latest_cm:.1f} cm, {waist.when}.")
+        if waist.ratio is not None:
+            lines.append(f"Waist-to-height: {waist.ratio:.2f} (target < 0.50).")
+        if waist.change_cm is None:
             lines.append("4-week waist change: no reading about 4 weeks earlier.")
-        elif c.change_meaningful:
-            lines.append(f"4-week waist change: {c.change_cm:+.1f} cm.")
+        elif waist.change_meaningful:
+            lines.append(f"4-week waist change: {waist.change_cm:+.1f} cm.")
         else:
             lines.append(
-                f"4-week waist change: none ({c.change_cm:+.1f} cm is within measurement noise)."
+                f"4-week waist change: none ({waist.change_cm:+.1f} cm "
+                "is within measurement noise)."
             )
     if body.weigh_in_due:
         since = f"none for {body.weight.days_ago} days" if body.weight else "none logged"

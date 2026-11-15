@@ -274,15 +274,17 @@ def _body_view(body: BodySummary | None, settings: Settings) -> dict[str, Any] |
                 }
             )
     if body.waist is not None:
-        c = body.waist
-        rows.append({"label": "Waist", "sub": c.when, "value": f"{c.latest_cm:.1f} cm"})
-        if c.ratio is not None:
+        waist = body.waist
+        rows.append({"label": "Waist", "sub": waist.when, "value": f"{waist.latest_cm:.1f} cm"})
+        if waist.ratio is not None:
             rows.append(
-                {"label": "Waist/height", "sub": "target < 0.50", "value": f"{c.ratio:.2f}"}
+                {"label": "Waist/height", "sub": "target < 0.50", "value": f"{waist.ratio:.2f}"}
             )
-        if c.change_cm is not None:
+        if waist.change_cm is not None:
             change = (
-                f"{_signed(c.change_cm, 1)} cm in 4 weeks" if c.change_meaningful else "no change"
+                f"{_signed(waist.change_cm, 1)} cm in 4 weeks"
+                if waist.change_meaningful
+                else "no change"
             )
             rows.append({"label": "4-week change", "value": change})
     nudges = []

@@ -101,6 +101,33 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             "steps": _STEPS,
         },
     ),
+    "daily_briefing_hrv_band": (
+        "daily_briefing",
+        {
+            "health_today": {
+                "resting_hr": 61,
+                "sleep_score": 64,
+                "hrv_status": 41.0,
+                "hrv_7day_avg": 44.0,
+                "hrv_status_text": "UNBALANCED",
+                "hrv_baseline_low": 47.0,
+                "hrv_baseline_high": 58.0,
+                "hrv_baseline_low_upper": 43.0,
+            },
+            "health_trends": [
+                {
+                    "snapshot_date": "2024-06-09",
+                    "hrv_status": 42.0,
+                    "hrv_7day_avg": 46.0,
+                    "hrv_status_text": "UNBALANCED",
+                    "hrv_baseline_low": 47.0,
+                    "hrv_baseline_high": 58.0,
+                    "hrv_baseline_low_upper": 43.0,
+                },
+            ],
+            "recent_activities": [],
+        },
+    ),
     "daily_briefing_empty": (
         "daily_briefing",
         {"health_today": {}, "health_trends": [], "recent_activities": []},

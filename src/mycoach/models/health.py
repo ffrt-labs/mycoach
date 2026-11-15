@@ -32,6 +32,11 @@ class DailyHealthSnapshot(Base):
     hrv_status_text: Mapped[str | None] = mapped_column(
         String(50), default=None
     )  # BALANCED, UNBALANCED, LOW
+    # Garmin's personal baseline band for the 7-day avg (hrvSummary.baseline):
+    # balancedLow..balancedUpper is "Balanced"; below lowUpper is "Low" (#197).
+    hrv_baseline_low: Mapped[float | None] = mapped_column(Float, default=None)
+    hrv_baseline_high: Mapped[float | None] = mapped_column(Float, default=None)
+    hrv_baseline_low_upper: Mapped[float | None] = mapped_column(Float, default=None)
 
     # Sleep
     sleep_duration_minutes: Mapped[int | None] = mapped_column(default=None)

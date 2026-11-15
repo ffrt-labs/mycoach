@@ -15,6 +15,9 @@ class DailyHealthSnapshotBase(BaseModel):
     hrv_status: float | None = None
     hrv_7day_avg: float | None = None
     hrv_status_text: str | None = None
+    hrv_baseline_low: float | None = None
+    hrv_baseline_high: float | None = None
+    hrv_baseline_low_upper: float | None = None
 
     # Sleep
     sleep_duration_minutes: int | None = None

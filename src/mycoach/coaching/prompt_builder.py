@@ -139,10 +139,48 @@ def _format_load_focus(val: Any) -> str:
     return result
 
 
+_HRV_KEYS = {"hrv_status", "hrv_7day_avg", "hrv_status_text"}
+
+
+def _ms(value: Any) -> str:
+    """A millisecond value without a spurious ``.0`` (52.0 -> "52", 61.5 -> "61.5")."""
+    return f"{float(value):g}"
+
+
+def _hrv_status_word(status: Any) -> str:
+    """Garmin's status code as a word: BALANCED -> Balanced."""
+    return str(status).replace("_", " ").capitalize()
+
+
+def _has_hrv_band(snapshot: dict[str, Any]) -> bool:
+    """Whether Garmin has a personal baseline band for this day yet."""
+    return (
+        snapshot.get("hrv_baseline_low") is not None
+        and snapshot.get("hrv_baseline_high") is not None
+    )
+
+
+def _format_hrv_band(snapshot: dict[str, Any]) -> str:
+    """One HRV line led by the 7-day avg against the band (#197), last night as context."""
+    band = f"range {_ms(snapshot['hrv_baseline_low'])}–{_ms(snapshot['hrv_baseline_high'])}"
+    status = snapshot.get("hrv_status_text")
+    if status:
+        band += f", {_hrv_status_word(status)}"
+    weekly = snapshot.get("hrv_7day_avg")
+    line = f"7d avg {_ms(weekly)} ms ({band})" if weekly is not None else f"7d avg n/a ({band})"
+    if snapshot.get("hrv_status") is not None:
+        line += f", last night {_ms(snapshot['hrv_status'])} ms"
+    if snapshot.get("hrv_baseline_low_upper") is not None:
+        line += f"; Low below {_ms(snapshot['hrv_baseline_low_upper'])} ms"
+    return f"- HRV: {line}"
+
+
 def _format_health(snapshot: dict[str, Any]) -> str:
     if not snapshot:
         return "No health data available for today."
     lines = []
+    band = _has_hrv_band(snapshot)
+    band_written = False
     field_labels = {
         "resting_hr": "Resting Heart Rate",
         "avg_hr": "Avg HR",
@@ -167,6 +205,11 @@ def _format_health(snapshot: dict[str, Any]) -> str:
     }
     for key, label in field_labels.items():
         val = snapshot.get(key)
+        if band and key in _HRV_KEYS:
+            if val is not None and not band_written:
+                lines.append(_format_hrv_band(snapshot))
+                band_written = True
+            continue
         if val is not None:
             if key == "training_status":
                 val = _format_training_status(val)

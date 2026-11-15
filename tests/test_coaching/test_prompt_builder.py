@@ -279,7 +279,7 @@ class TestBuildDailyBriefingPrompt:
         assert "Push Day" in prompt
         assert "readiness_verdict" in prompt
 
-    @pytest.mark.parametrize("version", ["v1", "v2"])
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3"])
     def test_hrv_output_fields_are_unambiguous(self, version: str) -> None:
         """The response schema must not ask for a number in a field named `hrv_status`,
         which is what makes the model answer 'BALANCED' and lose the briefing."""

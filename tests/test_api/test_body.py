@@ -176,3 +176,25 @@ async def test_a_waist_only_entry_is_not_sent_to_garmin(
 
     fake_garmin.add_weigh_in_with_timestamps.assert_not_called()
     fake_garmin.login.assert_not_called()
+
+
+async def test_deleting_a_weight_pushed_without_a_known_id_still_deletes_it_in_garmin(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    """Garmin took the weigh-in but its id wasn't found at push time: look it up now."""
+    await _create_user()
+    await client.post(
+        "/api/body/measurements",
+        json={"measured_at": "2026-07-10T08:00:00", "weight_kg": 82.4},
+    )
+    [listed] = (await client.get("/api/body/measurements")).json()
+    assert listed["garmin_push_status"] == "pushed"
+    fake_garmin.get_daily_weigh_ins.return_value = {
+        "dateWeightList": [
+            {"samplePk": 78, "weight": 82400.0, "timestampGMT": 1783666800000},
+        ]
+    }
+
+    await client.delete(f"/api/body/measurements/{listed['id']}")
+
+    fake_garmin.delete_weigh_in.assert_called_once_with("78", "2026-07-10")

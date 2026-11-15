@@ -19,7 +19,7 @@ from mycoach.health.garmin_weight import retry_garmin_weight_pushes
 from mycoach.health.runtime import health_session
 from mycoach.models.activity import Activity
 from mycoach.models.athlete import Athlete
-from mycoach.models.body_measurement import BodyMeasurement
+from mycoach.models.body_measurement import BodyMeasurement, GarminPushStatus
 from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.exercise import Exercise
 from mycoach.sources.base import DataSource, ImportResult
@@ -263,8 +263,8 @@ class BodyMeasurementRecord:
     waist_cm: float | None
     note: str | None
     source: str
-    garmin_push_status: str | None = None
-    """``pending``/``pushed``/``failed``; None for a waist-only reading (never pushed)."""
+    garmin_push_status: GarminPushStatus | None = None
+    """None for a waist-only reading (never pushed)."""
     garmin_weigh_in_id: str | None = None
 
 
@@ -277,7 +277,9 @@ def _body_record(row: BodyMeasurement) -> BodyMeasurementRecord:
         waist_cm=row.waist_cm,
         note=row.note,
         source=row.source,
-        garmin_push_status=row.garmin_push_status,
+        garmin_push_status=(
+            GarminPushStatus(row.garmin_push_status) if row.garmin_push_status else None
+        ),
         garmin_weigh_in_id=row.garmin_weigh_in_id,
     )
 
@@ -289,7 +291,6 @@ async def record_body_measurement(
     weight_kg: float | None = None,
     waist_cm: float | None = None,
     note: str | None = None,
-    source: str = "manual",
 ) -> BodyMeasurementRecord:
     """Record a weight and/or waist reading (ticket #198). ``measured_at`` is naive UTC.
 
@@ -304,9 +305,9 @@ async def record_body_measurement(
             weight_kg=weight_kg,
             waist_cm=waist_cm,
             note=note or None,
-            source=source,
+            source="manual",  # the Body page is the only input (#198)
             # Only a weight goes to Garmin (#199); the push itself runs after this commit.
-            garmin_push_status="pending" if weight_kg is not None else None,
+            garmin_push_status=GarminPushStatus.PENDING if weight_kg is not None else None,
             garmin_push_attempts=0,
         )
         session.add(row)

@@ -6,9 +6,11 @@ docs/research/health-metrics.md §4.
 """
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
+
+from mycoach.localtime import local_day, local_today
 
 EMA_ALPHA = 0.1
 """Per day (Hacker's Diet). A gap of ``n`` days weighs the new reading ``1 - 0.9**n``."""
@@ -98,16 +100,12 @@ class _Reading:
     value: float
 
 
-def _local_day(measured_at: str, tz: ZoneInfo) -> date:
-    return datetime.fromisoformat(measured_at).replace(tzinfo=UTC).astimezone(tz).date()
-
-
 def _daily(measurements: list[dict[str, Any]], field: str, tz: ZoneInfo) -> list[_Reading]:
     """One reading per local day (the mean of that day's), oldest first."""
     by_day: dict[date, list[float]] = {}
     for m in measurements:
         if m.get(field) is not None:
-            by_day.setdefault(_local_day(m["measured_at"], tz), []).append(float(m[field]))
+            by_day.setdefault(local_day(m["measured_at"], tz), []).append(float(m[field]))
     return [_Reading(day, sum(v) / len(v)) for day, v in sorted(by_day.items())]
 
 
@@ -181,7 +179,7 @@ def _recent_notes(
     measurements: list[dict[str, Any]], today: date, tz: ZoneInfo
 ) -> list[tuple[str, str]]:
     dated = [
-        (m["measured_at"], _local_day(m["measured_at"], tz), m["note"])
+        (m["measured_at"], local_day(m["measured_at"], tz), m["note"])
         for m in measurements
         if m.get("note")
     ]
@@ -202,7 +200,7 @@ def summarize_body(
     ``measurements`` should reach back past the 28-day rate window; older readings only
     seed the EMA.
     """
-    today = now.astimezone(tz).date()
+    today = local_today(tz, now)
     weight = _weight(_daily(measurements, "weight_kg", tz), today)
     waist = _waist(_daily(measurements, "waist_cm", tz), height_cm, today)
     return BodySummary(

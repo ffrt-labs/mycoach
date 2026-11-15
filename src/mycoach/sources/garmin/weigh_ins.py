@@ -13,14 +13,10 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from mycoach.localtime import local_day
 from mycoach.sources.garmin.client import GarminClient
 
 logger = logging.getLogger(__name__)
-
-
-def local_date(measured_at: datetime, timezone: str) -> str:
-    """The athlete's calendar date of a naive-UTC time (Garmin files weigh-ins by it)."""
-    return measured_at.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone)).date().isoformat()
 
 
 class GarminWeighIns:
@@ -29,7 +25,6 @@ class GarminWeighIns:
     def __init__(self, client: GarminClient, timezone: str) -> None:
         self._client = client
         self._tz = ZoneInfo(timezone)
-        self._timezone = timezone
 
     def add(self, weight_kg: float, measured_at: datetime) -> str | None:
         """Add a manual weigh-in at ``measured_at`` (naive UTC); return Garmin's id for it.
@@ -53,7 +48,7 @@ class GarminWeighIns:
 
     def delete(self, weigh_in_id: str, measured_at: datetime) -> None:
         """Delete the weigh-in Garmin knows as ``weigh_in_id`` (taken at ``measured_at``)."""
-        self._client.api.delete_weigh_in(weigh_in_id, local_date(measured_at, self._timezone))
+        self._client.api.delete_weigh_in(weigh_in_id, local_day(measured_at, self._tz).isoformat())
 
     def _find(self, weight_kg: float, utc: datetime, cdate: str) -> str | None:
         day = self._client.api.get_daily_weigh_ins(cdate)

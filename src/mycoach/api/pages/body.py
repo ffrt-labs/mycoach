@@ -1,7 +1,6 @@
 """Body page: log weight and waist, enter height, see the last 10 readings (ticket #198)."""
 
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -13,6 +12,7 @@ from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import local_now
 
 router = APIRouter(tags=["pages"])
 
@@ -29,7 +29,7 @@ async def body_page(request: Request, session: AsyncSession = Depends(get_db)) -
         {**m, "measured_at": datetime.fromisoformat(m["measured_at"])}
         for m in await health.list_body_measurements(athlete_id, limit=10)
     ]
-    now_local = datetime.now(UTC).astimezone(ZoneInfo(get_settings().timezone))
+    now_local = local_now(get_settings().timezone)
     templates: Jinja2Templates = request.app.state.templates
     return templates.TemplateResponse(
         request,

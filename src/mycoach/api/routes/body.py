@@ -6,9 +6,7 @@ boundary of #186): this module never touches the health schema.
 """
 
 from dataclasses import asdict
-from datetime import UTC, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +16,7 @@ from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import to_naive_utc
 from mycoach.schemas.body import (
     BodyMeasurementCreate,
     BodyMeasurementRead,
@@ -26,16 +25,6 @@ from mycoach.schemas.body import (
 )
 
 router = APIRouter(prefix="/api/body", tags=["body"])
-
-
-def _to_utc(measured_at: datetime | None) -> datetime:
-    """Naive UTC for the health side. A naive input is local wall time in the configured
-    timezone (what a datetime-local input sends)."""
-    if measured_at is None:
-        return datetime.now(UTC).replace(tzinfo=None)
-    if measured_at.tzinfo is None:
-        measured_at = measured_at.replace(tzinfo=ZoneInfo(get_settings().timezone))
-    return measured_at.astimezone(UTC).replace(tzinfo=None)
 
 
 @router.post("/measurements", response_model=BodyMeasurementRead, status_code=201)
@@ -52,7 +41,7 @@ async def create_measurement(
     athlete_id = await athlete_id_for(session, DEFAULT_USER_ID)
     recorded = await health.record_body_measurement(
         athlete_id,
-        measured_at=_to_utc(body.measured_at),
+        measured_at=to_naive_utc(body.measured_at, get_settings().timezone),
         weight_kg=body.weight_kg,
         waist_cm=body.waist_cm,
         note=body.note.strip() if body.note else None,

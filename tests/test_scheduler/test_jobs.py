@@ -1096,7 +1096,7 @@ class TestBriefingAlert:
 
     async def test_the_email_health_read_returns_the_days_snapshot(self) -> None:
         from mycoach.models.health import DailyHealthSnapshot
-        from mycoach.scheduler.jobs import USER_ID, _health_for_email
+        from mycoach.scheduler.jobs import USER_ID, _code_rendered_numbers
         from tests.conftest import test_session
 
         async with test_session() as session:
@@ -1112,7 +1112,7 @@ class TestBriefingAlert:
             await session.commit()
 
         with patch("mycoach.scheduler.jobs.async_session", test_session):
-            got = await _health_for_email(date(2026, 8, 25))
+            got = (await _code_rendered_numbers(date(2026, 8, 25)))["hrv"]
 
         assert (got["hrv_7day_avg"], got["hrv_baseline_low"], got["hrv_baseline_high"]) == (
             52.0,
@@ -1129,7 +1129,7 @@ class TestBriefingAlert:
         with (
             patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
             patch("mycoach.scheduler.jobs._last_device_upload", AsyncMock(return_value=None)),
-            patch("mycoach.scheduler.jobs._health_for_email", lookup),
+            patch("mycoach.scheduler.jobs._todays_health", lookup),
             patch("mycoach.scheduler.jobs.send_briefing_unavailable", sent),
         ):
             await _briefing_alert(self._window(is_broken=True))

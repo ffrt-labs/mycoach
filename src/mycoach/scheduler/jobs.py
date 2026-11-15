@@ -9,12 +9,12 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from functools import partial
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 
@@ -63,6 +63,8 @@ from mycoach.sources.base import ImportResult
 from mycoach.sources.garmin.source import DeviceUpload, GarminSource
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 USER_ID = SCHEDULER_USER_ID
 
@@ -407,57 +409,49 @@ async def _daily_briefing(today: date | None = None) -> None:
 
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
-            steps = await _steps_strip(today)
-            hrv = await _health_for_email(today)
-            body = await _body_block()
-            _deliver(
-                partial(send_daily_briefing, content, steps=steps, hrv=hrv, body=body),
-                "daily briefing",
-            )
+            numbers = await _code_rendered_numbers(today)
+            _deliver(partial(send_daily_briefing, content, **numbers), "daily briefing")
 
 
-async def _body_block() -> BodySummary | None:
-    """The code-rendered Body block (#198), or None if it cannot be read.
+async def _todays_health(day: date) -> dict[str, Any]:
+    """The day's health snapshot: the HRV line is rendered from it (#197)."""
+    async with async_session() as session:
+        athlete_id = await athlete_id_for(session, USER_ID)
+    return await health.get_today_health(athlete_id, day)
 
-    Best-effort: a failing lookup costs the email its Body block, never the email.
-    """
+
+async def _steps_summary(day: date) -> StepsSummary:
+    async with async_session() as session:
+        return await load_steps_summary(
+            session, USER_ID, day, target=get_settings().steps_daily_target
+        )
+
+
+async def _body_summary() -> BodySummary:
+    async with async_session() as session:
+        return await get_body_summary(session, USER_ID)
+
+
+async def _or_none(what: str, read: Awaitable[T]) -> T | None:
+    """``read``'s result, or None (logged) if it raises."""
     try:
-        async with async_session() as session:
-            return await get_body_summary(session, USER_ID)
+        return await read
     except Exception:
-        logger.exception("Scheduler: body summary for the email failed")
+        logger.exception("Scheduler: could not read %s for the email", what)
         return None
 
 
-async def _steps_strip(today: date) -> StepsSummary | None:
-    """The code-rendered steps strip for ``today``'s emails, or None if it can't be read.
+async def _code_rendered_numbers(day: date) -> dict[str, Any]:
+    """The ``steps``/``hrv``/``body`` keywords of both briefing emails, read from the DB.
 
-    Best-effort: the strip decorates the email, so failing to read it must not
-    stop the email (#196).
+    Each read is best-effort: those numbers decorate an email that must go out
+    regardless, so a failed read is logged and leaves its block out (#196-#198).
     """
-    try:
-        async with async_session() as session:
-            return await load_steps_summary(
-                session, USER_ID, today, target=get_settings().steps_daily_target
-            )
-    except Exception:
-        logger.exception("Scheduler: could not read steps for the briefing email")
-        return None
-
-
-async def _health_for_email(day: date) -> dict[str, Any]:
-    """The day's health snapshot for the emails' code-rendered lines (#197), or {}.
-
-    Best-effort: those lines decorate an email that must go out regardless, so a
-    failed read is logged and leaves them out rather than failing the run.
-    """
-    try:
-        async with async_session() as session:
-            athlete_id = await athlete_id_for(session, USER_ID)
-        return await health.get_today_health(athlete_id, day)
-    except Exception:
-        logger.exception("Scheduler: could not read %s's health for the email", day)
-        return {}
+    return {
+        "steps": await _or_none("steps", _steps_summary(day)),
+        "hrv": await _or_none(f"{day}'s health", _todays_health(day)),
+        "body": await _or_none("the body summary", _body_summary()),
+    }
 
 
 def _with_sync_detail(reason: str, sync_errors: list[str]) -> str:
@@ -493,7 +487,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
         )
 
     upload = None if window.is_broken else await _last_device_upload()
-    steps = await _steps_strip(window.day)
+    numbers = await _code_rendered_numbers(window.day)
 
     _deliver(
         partial(
@@ -507,9 +501,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
             detail=window.last_detail,
             last_upload=upload.uploaded_at if upload else None,
             device_name=upload.device_name if upload else None,
-            steps=steps,
-            hrv=await _health_for_email(window.day),
-            body=await _body_block(),
+            **numbers,
         ),
         "briefing unavailable",
     )

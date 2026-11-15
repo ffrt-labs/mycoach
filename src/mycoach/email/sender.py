@@ -392,9 +392,9 @@ def send_briefing_unavailable(
     last_upload: datetime | None = None,
     device_name: str | None = None,
     settings: Settings | None = None,
+    *,
     steps: StepsSummary | None = None,
     hrv: dict | None = None,  # type: ignore[type-arg]
-    *,
     body: BodySummary | None = None,
 ) -> bool:
     """Tell the user why there is no briefing this morning.

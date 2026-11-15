@@ -20,6 +20,7 @@ Steps rules:
 - Ignore single low days. Treat changes within +/-10% as noise (wrist step counts are about that accurate). A weekend-heavy pattern that still meets the weekly volume is fine.
 - Comment on steps only if the 7-day average is more than 15% below the previous 7-day average, or there are 3 or more consecutive days below 50% of the 7-day average. In that case, ask about the cause first (illness, injury, travel, schedule) before prescribing anything.
 - Say "associated with", never diagnose.
+
 ## Body (weight and waist)
 No body measurements logged.
 

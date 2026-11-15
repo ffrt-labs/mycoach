@@ -69,7 +69,7 @@ async def test_daily_briefing_email_gets_todays_health_for_the_hrv_line(
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
-        patch("mycoach.scheduler.jobs._health_for_email", lookup),
+        patch("mycoach.scheduler.jobs._todays_health", lookup),
         patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
     ):
         await _daily_briefing(date(2026, 11, 14))

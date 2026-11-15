@@ -129,14 +129,27 @@ def test_the_rate_is_kg_per_week_over_the_last_28_days() -> None:
     assert summary.weight.rate_kg_per_week == pytest.approx(-0.7)
 
 
-def test_a_trend_from_a_stale_fortnight_is_kept_but_marked_stale() -> None:
+def test_a_stale_fortnight_gives_no_trend_and_marks_the_weight_stale() -> None:
+    """The guard counts the 14 days ending today: old readings describe the past."""
     old = [_m(d, weight=80.0) for d in (15, 16, 17, 18)]
 
     summary = _summary(old)
 
     assert summary.weight is not None
-    assert summary.weight.trend_kg == pytest.approx(80.0)
+    assert summary.weight.latest_kg == 80.0
+    assert summary.weight.trend_kg is None
+    assert summary.weight.rate_kg_per_week is None
     assert summary.weight.stale
+
+
+def test_the_trend_window_ends_today_not_at_the_latest_reading() -> None:
+    # Four weigh-ins in the fortnight ending at the latest one, but only three of them in
+    # the fortnight ending today (day 14 is the fifteenth day back).
+    summary = _summary([_m(d, weight=80.0) for d in (11, 12, 13, 14)])
+
+    assert summary.weight is not None
+    assert summary.weight.trend_kg is None
+    assert not summary.weight.stale
 
 
 def test_a_recent_trend_is_not_stale() -> None:

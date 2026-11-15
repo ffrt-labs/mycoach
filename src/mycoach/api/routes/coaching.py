@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import InsufficientHealthData, PipelineSkip
+from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.schemas.coaching import CoachingInsightRead
 
@@ -25,7 +27,7 @@ async def get_today_briefing(
 
     Returns the existing briefing if already generated today.
     """
-    today = date.today()
+    today = local_today(get_settings().timezone)
     stmt = select(CoachingInsight).where(
         CoachingInsight.user_id == USER_ID,
         CoachingInsight.insight_date == today,

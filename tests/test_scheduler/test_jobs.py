@@ -12,6 +12,7 @@ from mycoach.coaching.exceptions import (
     PipelineSkip,
 )
 from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.scheduler.jobs import (
     _briefing_alert,
     _daily_briefing,
@@ -25,7 +26,6 @@ from mycoach.scheduler.jobs import (
     job_weekly_plan,
     job_weekly_recap,
 )
-
 
 _SETTLED = "mycoach.scheduler.jobs.health.list_settled_activities_since"
 
@@ -187,6 +187,29 @@ async def test_daily_briefing_success(mock_session: AsyncMock, mock_engine: Magi
         await _daily_briefing()
 
     mock_engine.generate_daily_briefing.assert_awaited_once()
+
+
+async def test_daily_briefing_defaults_to_the_local_day_not_the_servers(
+    mock_session: AsyncMock, mock_engine: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a ``today`` the job briefs on the scheduler's local day, as the poll does."""
+    # UTC+14 and UTC-12 are 26 hours apart: one of them is always on another date
+    # than the server's clock.
+    tz = next(
+        z for z in ("Pacific/Kiritimati", "Etc/GMT+12") if local_today(z) != date.today()
+    )
+    monkeypatch.setattr(get_settings(), "scheduler_timezone", tz)
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(empty_health_days=[], errors=None)),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+    ):
+        await _daily_briefing()
+
+    assert mock_engine.generate_daily_briefing.await_args.kwargs["today"] == local_today(tz)
 
 
 async def test_daily_briefing_syncs_before_generating(
@@ -1073,7 +1096,7 @@ class TestBriefingAlert:
 
     async def test_the_email_health_read_returns_the_days_snapshot(self) -> None:
         from mycoach.models.health import DailyHealthSnapshot
-        from mycoach.scheduler.jobs import USER_ID, _health_for_email
+        from mycoach.scheduler.jobs import USER_ID, _code_rendered_numbers
         from tests.conftest import test_session
 
         async with test_session() as session:
@@ -1089,7 +1112,7 @@ class TestBriefingAlert:
             await session.commit()
 
         with patch("mycoach.scheduler.jobs.async_session", test_session):
-            got = await _health_for_email(date(2026, 8, 25))
+            got = (await _code_rendered_numbers(date(2026, 8, 25)))["hrv"]
 
         assert (got["hrv_7day_avg"], got["hrv_baseline_low"], got["hrv_baseline_high"]) == (
             52.0,
@@ -1106,7 +1129,7 @@ class TestBriefingAlert:
         with (
             patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
             patch("mycoach.scheduler.jobs._last_device_upload", AsyncMock(return_value=None)),
-            patch("mycoach.scheduler.jobs._health_for_email", lookup),
+            patch("mycoach.scheduler.jobs._todays_health", lookup),
             patch("mycoach.scheduler.jobs.send_briefing_unavailable", sent),
         ):
             await _briefing_alert(self._window(is_broken=True))

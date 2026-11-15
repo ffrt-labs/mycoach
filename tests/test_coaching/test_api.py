@@ -5,10 +5,18 @@ from datetime import date, timedelta
 
 from httpx import AsyncClient
 
+from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.user import User
 from tests.conftest import test_session
+
+
+def _today() -> date:
+    """The day the API and the engine mean by today: local, not the server's."""
+    return local_today(get_settings().timezone)
+
 
 VALID_BRIEFING_CONTENT = json.dumps(
     {
@@ -60,14 +68,13 @@ async def _seed_user_and_briefing() -> None:
 
         insight = CoachingInsight(
             user_id=user.id,
-            insight_date=date.today(),
+            insight_date=_today(),
             insight_type="daily_briefing",
             content=VALID_BRIEFING_CONTENT,
             prompt_version="v1",
         )
         session.add(insight)
         await session.commit()
-
 
 
 async def _seed_user_and_weekly_recap(week_start: date) -> None:
@@ -122,11 +129,7 @@ class TestGenerateBriefing:
         """The dashboard shows this text verbatim, so it has to be a sentence."""
         user_id = await _seed_user()
         async with test_session() as session:
-            session.add(
-                DailyHealthSnapshot(
-                    user_id=user_id, snapshot_date=date.today(), resting_hr=58
-                )
-            )
+            session.add(DailyHealthSnapshot(user_id=user_id, snapshot_date=_today(), resting_hr=58))
             await session.commit()
 
         resp = await client.post("/api/coaching/today/generate")
@@ -140,7 +143,6 @@ class TestGenerateBriefing:
         await _seed_user_and_briefing()
         resp = await client.post("/api/coaching/today/generate")
         assert resp.status_code == 409
-
 
 
 class TestGetWeeklyRecap:

@@ -8,9 +8,8 @@ Evidence and rules: docs/research/health-metrics.md section 2.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,11 +98,6 @@ def summarize_steps(daily: list[dict[str, Any]], target: int) -> StepsSummary:
         change=change,
         trend=trend,
     )
-
-
-def local_today(timezone: str, now: datetime | None = None) -> date:
-    """Today's date in ``timezone`` (the container itself runs on UTC)."""
-    return (now or datetime.now(UTC)).astimezone(ZoneInfo(timezone)).date()
 
 
 async def load_steps_summary(

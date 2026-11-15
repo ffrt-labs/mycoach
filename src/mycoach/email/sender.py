@@ -17,6 +17,7 @@ import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
@@ -223,11 +224,6 @@ def send_email(to: str, subject: str, html: str, settings: Settings | None = Non
     return True
 
 
-def _ms(value: float) -> str:
-    """A millisecond value without a spurious ``.0`` (52.0 -> "52")."""
-    return f"{float(value):g}"
-
-
 def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-arg]
     """Today's HRV line, rendered from the DB snapshot (#197), or None without HRV data.
 
@@ -241,17 +237,17 @@ def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-
     last_night = snapshot.get("hrv_status")  # last night's ms (rename is #205)
     if weekly is None and last_night is None:
         return None
-    low, high = snapshot.get("hrv_baseline_low"), snapshot.get("hrv_baseline_high")
-    parts = [f"HRV {_ms(weekly)} ms 7-day avg" if weekly is not None else "HRV"]
-    if low is not None and high is not None:
-        parts.append(f"your range {_ms(low)}–{_ms(high)}")
+    parts = [f"HRV {format_ms(weekly)} ms 7-day avg" if weekly is not None else "HRV"]
+    band = hrv_band_text(snapshot)
+    if band is not None:
+        parts.append(f"your range {band}")
         status = snapshot.get("hrv_status_text")
         if status:
-            parts.append(str(status).replace("_", " ").capitalize())
+            parts.append(hrv_status_word(status))
     else:
         parts.append("Building baseline")
     if last_night is not None:
-        parts.append(f"last night {_ms(last_night)} ms")
+        parts.append(f"last night {format_ms(last_night)} ms")
     return " · ".join(parts)
 
 
@@ -267,26 +263,34 @@ def _body_view(body: BodySummary | None, settings: Settings) -> dict[str, Any] |
     rows: list[dict[str, str | None]] = []
     if body.weight is not None:
         w = body.weight
-        rows.append({"label": "Weight", "sub": w.when, "value": f"{w.latest_kg:.1f} kg"})
+        rows.append(
+            {
+                "label": "Weight",
+                "badge": "stale" if w.stale else None,
+                "sub": w.when,
+                "value": f"{w.latest_kg:.1f} kg",
+            }
+        )
         if w.trend_kg is not None and w.rate_kg_per_week is not None:
             rows.append(
                 {
                     "label": "Trend",
-                    "badge": "stale" if w.stale else None,
                     "sub": "28-day rate",
                     "value": f"{w.trend_kg:.1f} kg · {_signed(w.rate_kg_per_week, 2)} kg/wk",
                 }
             )
     if body.waist is not None:
-        c = body.waist
-        rows.append({"label": "Waist", "sub": c.when, "value": f"{c.latest_cm:.1f} cm"})
-        if c.ratio is not None:
+        waist = body.waist
+        rows.append({"label": "Waist", "sub": waist.when, "value": f"{waist.latest_cm:.1f} cm"})
+        if waist.ratio is not None:
             rows.append(
-                {"label": "Waist/height", "sub": "target < 0.50", "value": f"{c.ratio:.2f}"}
+                {"label": "Waist/height", "sub": "target < 0.50", "value": f"{waist.ratio:.2f}"}
             )
-        if c.change_cm is not None:
+        if waist.change_cm is not None:
             change = (
-                f"{_signed(c.change_cm, 1)} cm in 4 weeks" if c.change_meaningful else "no change"
+                f"{_signed(waist.change_cm, 1)} cm in 4 weeks"
+                if waist.change_meaningful
+                else "no change"
             )
             rows.append({"label": "4-week change", "value": change})
     nudges = []
@@ -396,9 +400,9 @@ def send_briefing_unavailable(
     last_upload: datetime | None = None,
     device_name: str | None = None,
     settings: Settings | None = None,
+    *,
     steps: StepsSummary | None = None,
     hrv: dict | None = None,  # type: ignore[type-arg]
-    *,
     body: BodySummary | None = None,
 ) -> bool:
     """Tell the user why there is no briefing this morning.
@@ -471,9 +475,7 @@ def send_briefing_unavailable(
             "headline": headline,
             "next_step": next_step,
             "detail": detail,
-            "last_upload": (
-                _format_last_upload(last_upload, settings) if last_upload else None
-            ),
+            "last_upload": (_format_last_upload(last_upload, settings) if last_upload else None),
             "device_name": device_name,
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),

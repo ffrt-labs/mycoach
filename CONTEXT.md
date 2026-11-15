@@ -16,6 +16,10 @@ _Avoid_: Coaching data, health metric for an activity or performed set
 The complete collection of Observed health facts. One boundary owns this record today, with daily health and activities as parts of the same domain; a separate health-data application is the eventual owner.
 _Avoid_: MyCoach database, source-specific store
 
+**Body measurement**:
+A weight and/or waist reading the athlete enters by hand on the Body page: an Observed health fact with no source record behind it. The health side is its source of truth and issues its ID, the one internal ID the Health-data API returns, used only to name the reading back for a delete. Garmin Connect receives a one-way, downstream copy of the weight; Garmin weigh-ins are never imported back.
+_Avoid_: Body data owned by MyCoach, Garmin weigh-in, weight metric
+
 **Canonical activity**:
 The single observed activity that represents a session after reconciling source records from Garmin, the logger, or an import. The health side owns ingestion, deduplication, and reconciliation.
 _Avoid_: Garmin activity, logger activity, merged workout

@@ -16,8 +16,8 @@ EMA_ALPHA = 0.1
 """Per day (Hacker's Diet). A gap of ``n`` days weighs the new reading ``1 - 0.9**n``."""
 TREND_MIN_READINGS = 4
 TREND_WINDOW_DAYS = 14
-"""A trend needs ``TREND_MIN_READINGS`` days with a weigh-in in the 14 days ending at the
-latest one; otherwise one noisy day would read as a trend."""
+"""A trend needs ``TREND_MIN_READINGS`` days with a weigh-in in the 14 days ending today;
+otherwise one noisy day, or a fortnight long past, would read as the current trend."""
 RATE_WINDOW_DAYS = 28
 WEIGHT_STALE_DAYS = 14
 WEIGH_IN_DUE_DAYS = 7
@@ -36,7 +36,7 @@ class WeightSummary:
     """Least-squares slope of the daily weigh-ins over the last 28 days (a slope of the
     readings, not of the EMA, which lags by design); None whenever ``trend_kg`` is."""
     stale: bool = False
-    """The latest weigh-in is 14+ days old: the trend describes the past."""
+    """The latest weigh-in is 14+ days old: it describes the past (and there is no trend)."""
 
 
 WAIST_CHANGE_DAYS = 28
@@ -138,9 +138,9 @@ def _weight(readings: list[_Reading], today: date) -> WeightSummary | None:
     latest = readings[-1]
     days_ago = (today - latest.day).days
     trend = rate = None
-    if len(_since(readings, latest.day, TREND_WINDOW_DAYS)) >= TREND_MIN_READINGS:
+    if len(_since(readings, today, TREND_WINDOW_DAYS)) >= TREND_MIN_READINGS:
         trend = _ema(readings)
-        rate = _slope_per_day(_since(readings, latest.day, RATE_WINDOW_DAYS)) * 7
+        rate = _slope_per_day(_since(readings, today, RATE_WINDOW_DAYS)) * 7
     return WeightSummary(
         latest_kg=latest.value,
         measured_on=latest.day,

@@ -377,15 +377,15 @@ def _format_body(body: BodySummary | None) -> str:
     lines: list[str] = []
     if body.weight is not None:
         w = body.weight
-        lines.append(f"Latest weight: {w.latest_kg:.1f} kg, {w.when}.")
+        stale = f" STALE: last weigh-in {w.days_ago} days ago." if w.stale else ""
+        lines.append(f"Latest weight: {w.latest_kg:.1f} kg, {w.when}.{stale}")
         if w.trend_kg is not None and w.rate_kg_per_week is not None:
-            stale = f" STALE: last weigh-in {w.days_ago} days ago." if w.stale else ""
             lines.append(
                 f"Weight trend (time-aware EMA): {w.trend_kg:.1f} kg; "
-                f"kg/week over 28 days: {w.rate_kg_per_week:+.2f}.{stale}"
+                f"kg/week over 28 days: {w.rate_kg_per_week:+.2f}."
             )
         else:
-            lines.append("Weight trend: not enough weigh-ins (needs 4+ days in 14).")
+            lines.append("Weight trend: not enough weigh-ins (needs 4+ days in the last 14).")
     if body.waist is not None:
         waist = body.waist
         lines.append(f"Latest waist: {waist.latest_cm:.1f} cm, {waist.when}.")

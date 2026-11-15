@@ -263,12 +263,18 @@ def _body_view(body: BodySummary | None, settings: Settings) -> dict[str, Any] |
     rows: list[dict[str, str | None]] = []
     if body.weight is not None:
         w = body.weight
-        rows.append({"label": "Weight", "sub": w.when, "value": f"{w.latest_kg:.1f} kg"})
+        rows.append(
+            {
+                "label": "Weight",
+                "badge": "stale" if w.stale else None,
+                "sub": w.when,
+                "value": f"{w.latest_kg:.1f} kg",
+            }
+        )
         if w.trend_kg is not None and w.rate_kg_per_week is not None:
             rows.append(
                 {
                     "label": "Trend",
-                    "badge": "stale" if w.stale else None,
                     "sub": "28-day rate",
                     "value": f"{w.trend_kg:.1f} kg · {_signed(w.rate_kg_per_week, 2)} kg/wk",
                 }

@@ -43,10 +43,20 @@ def test_a_trend_with_its_rate() -> None:
     assert "kg/week over 28 days: -0.70" in text
 
 
+def test_a_stale_latest_weight_is_marked() -> None:
+    text = _text(_body([_m(d, weight=80.0) for d in (15, 16, 17, 18)]))
+
+    assert (
+        "Latest weight: 80.0 kg, measured 30 Oct (15 days ago). "
+        "STALE: last weigh-in 15 days ago."
+    ) in text
+    assert "Weight trend: not enough weigh-ins (needs 4+ days in the last 14)." in text
+
+
 def test_no_trend_says_why() -> None:
     text = _text(_body([_m(2, weight=82.4)]))
 
-    assert "Weight trend: not enough weigh-ins (needs 4+ days in 14)." in text
+    assert "Weight trend: not enough weigh-ins (needs 4+ days in the last 14)." in text
 
 
 def test_waist_ratio_change_nudges_and_notes() -> None:

@@ -83,11 +83,19 @@ def test_weight_trend_and_rate_once_there_are_enough_readings() -> None:
     assert "stale" not in text
 
 
-def test_a_stale_trend_is_marked_and_a_weigh_in_nudged() -> None:
+def test_a_stale_weight_is_marked_and_a_weigh_in_nudged() -> None:
     text = _text(_briefing_html(_body([_m(d, weight=80.0) for d in (15, 16, 17, 18)])))
 
-    assert "stale" in text
+    assert "Weight stale" in text
+    assert "kg/wk" not in text
     assert "⏰ Time to weigh in" in text
+
+
+def test_a_two_week_old_weigh_in_alone_is_marked_stale() -> None:
+    text = _text(_briefing_html(_body([_m(14, weight=80.0)])))
+
+    assert "Weight stale" in text
+    assert "80.0 kg" in text
 
 
 def test_waist_with_ratio_and_a_meaningful_change() -> None:

@@ -61,8 +61,9 @@ from mycoach.coaching.response_parser import (
     WeeklyRecapResponse,
     parse_response,
 )
-from mycoach.coaching.steps import load_steps_summary, local_today
+from mycoach.coaching.steps import load_steps_summary
 from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, InsightType
 from mycoach.models.plan import PlannedSession, Track, WeeklyPlan

@@ -1,0 +1,21 @@
+Analyze the following completed workout and provide a post-workout coaching analysis.
+
+## Glossary
+- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.
+- EPOC: excess post-exercise oxygen consumption. Indicates training load and recovery need.
+- Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.
+- Training Status: {training_status_label}
+
+## Completed Activity
+{activity_data}{gym_details_section}{planned_session_section}
+
+## Recent Similar Activities (last 5 of same sport)
+{similar_activities}
+
+## Today's Health Context
+{health_context}
+
+Provide a detailed post-workout analysis.{planned_comparison} Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
+
+Respond with a JSON object matching this exact schema:
+{output_schema}

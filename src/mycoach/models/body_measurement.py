@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import CheckConstraint, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -6,11 +7,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 from mycoach.database import HEALTH_SCHEMA, Base
 
 
+class GarminPushStatus(StrEnum):
+    """Where a weight reading's one-way copy to Garmin Connect stands (#199).
+
+    A waist-only reading has no status (NULL): it is never pushed.
+    """
+
+    PENDING = "pending"
+    """Not tried yet (the save flow's push runs after the commit)."""
+    PUSHED = "pushed"
+    FAILED = "failed"
+    """Tried and failed; the Garmin sync retries it up to the attempt cap."""
+
+
 class BodyMeasurement(Base):
     """A weight and/or waist reading the athlete entered (ticket #198).
 
-    MyCoach owns body data: the Body page is the only input, so a wearable change never
-    loses it (docs/research/health-metrics.md §4). Garmin gets a one-way copy of the
+    A Body measurement is an Observed health fact entered manually: the Body page is the
+    only input and the health side is its source of truth, so a wearable change never
+    loses it (docs/research/health-metrics.md §4). Garmin is a downstream copy of the
     weight (#199); its weigh-ins are never imported back. ``measured_at`` is UTC.
     """
 
@@ -33,8 +48,8 @@ class BodyMeasurement(Base):
     source: Mapped[str] = mapped_column(String(20), default="manual")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
-    # The one-way copy to Garmin Connect (#199). ``garmin_push_status`` is ``pending``,
-    # ``pushed`` or ``failed`` for a weight reading and NULL for a waist-only one (never
+    # The one-way copy to Garmin Connect (#199). ``garmin_push_status`` holds a
+    # ``GarminPushStatus`` for a weight reading and NULL for a waist-only one (never
     # pushed). ``garmin_weigh_in_id`` is Garmin's ``samplePk``, kept so a delete here
     # deletes there; ``garmin_push_attempts`` caps the retries.
     garmin_push_status: Mapped[str | None] = mapped_column(String(10), default=None)

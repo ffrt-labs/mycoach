@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
+from mycoach.health import GarminPushStatus
+
 
 class BodyMeasurementCreate(BaseModel):
     """One Body page entry. ``measured_at`` is local wall time (the form's datetime-local),
@@ -27,8 +29,8 @@ class BodyMeasurementRead(BaseModel):
     waist_cm: float | None
     note: str | None
     source: str
-    garmin_push_status: str | None = None
-    """``pending``/``pushed``/``failed``; None for a waist-only reading (never pushed)."""
+    garmin_push_status: GarminPushStatus | None = None
+    """None for a waist-only reading (never pushed)."""
 
 
 class HeightUpdate(BaseModel):

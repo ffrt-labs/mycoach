@@ -3,7 +3,7 @@
 ``PromptStore.serve(operation, variables)`` returns the compiled system and
 user messages plus where they came from. With Langfuse configured the
 ``production`` version of the operation's chat prompt is served; the bundled
-``prompts/v2`` files, compiled by ``compile_prompt``, are the fallback. The
+``prompts/v3`` files, compiled by ``compile_prompt``, are the fallback. The
 fallback is never an error path: a coaching run always gets a prompt.
 
 See docs/adr/0003-langfuse-source-of-truth-for-coaching-prompts.md.
@@ -70,7 +70,7 @@ class ServedPrompt:
 
     @property
     def artifact_version(self) -> str:
-        """What an artifact records: ``lf:<n>`` or ``bundled:v2``."""
+        """What an artifact records: ``lf:<n>`` or ``bundled:v3``."""
         if self.version is None:
             return f"bundled:{BUNDLED_VERSION}"
         return f"lf:{self.version}"

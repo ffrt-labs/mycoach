@@ -1,5 +1,6 @@
 """Seeding Langfuse with the bundled prompts, and the seeded prompts' parity."""
 
+import logging
 from collections.abc import Generator
 
 import pytest
@@ -53,13 +54,17 @@ def test_seeding_twice_is_a_no_op(fake: FakeLangfuseAPI, client: Langfuse) -> No
     assert sum(1 for r in fake.requests if r.method == "POST") == posts
 
 
-def test_seed_publishes_a_new_production_version_when_the_bundled_text_changed(
+SEEDED_V2 = {"source": "bundled:v2"}
+
+
+def test_seed_publishes_a_new_production_version_over_an_older_seeded_one(
     fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     seed_prompts(client)
     fake.add(
         "mycoach/daily-briefing",
         [{"role": "system", "content": "old"}, {"role": "user", "content": "old {{health_data}}"}],
+        config=SEEDED_V2,
     )
 
     published = seed_prompts(client)
@@ -69,18 +74,35 @@ def test_seed_publishes_a_new_production_version_when_the_bundled_text_changed(
     assert [v["version"] for v in history] == [1, 2, 3]
     assert history[-1]["labels"] == ["production"]
     assert history[-1]["prompt"] == history[0]["prompt"]
+    assert history[-1]["config"] == {"source": "bundled:v3"}
 
 
-def test_seed_publishes_over_a_newer_version_without_the_production_label(
+def test_seed_never_publishes_over_a_version_edited_in_the_langfuse_ui(
+    fake: FakeLangfuseAPI, client: Langfuse, caplog: pytest.LogCaptureFixture
+) -> None:
+    seed_prompts(client)
+    fake.add(
+        "mycoach/daily-briefing",
+        [{"role": "system", "content": "tuned"}, {"role": "user", "content": "{{health_data}}"}],
+    )
+
+    with caplog.at_level(logging.WARNING):
+        published = seed_prompts(client)
+
+    assert published == []
+    assert len(fake.versions["mycoach/daily-briefing"]) == 2
+    assert "mycoach/daily-briefing" in caplog.text
+
+
+def test_seed_leaves_a_staging_draft_from_the_ui_alone(
     fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     fake.add("mycoach/weekly-recap", [{"role": "user", "content": "draft"}], labels=["staging"])
 
     published = seed_prompts(client)
 
-    assert "mycoach/weekly-recap" in published
-    history = fake.versions["mycoach/weekly-recap"]
-    assert [v["labels"] for v in history] == [["staging"], ["production"]]
+    assert "mycoach/weekly-recap" not in published
+    assert [v["labels"] for v in fake.versions["mycoach/weekly-recap"]] == [["staging"]]
 
 
 def test_seed_leaves_a_prompt_alone_when_its_latest_version_matches_the_bundled_text(

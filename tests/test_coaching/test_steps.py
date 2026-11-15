@@ -1,9 +1,9 @@
 """The steps summary behind the briefing's 7-day strip and ``steps_summary`` (#196)."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 from mycoach.coaching.prompt_builder import daily_briefing_variables
-from mycoach.coaching.steps import local_today, summarize_steps
+from mycoach.coaching.steps import summarize_steps
 
 YESTERDAY = date(2026, 11, 13)  # a Friday
 
@@ -80,15 +80,6 @@ def test_no_steps_at_all() -> None:
     assert summary.avg_7d is None
     assert summary.days_at_goal == 0
     assert len(summary.days) == 7
-
-
-def test_local_today_is_the_date_in_the_given_timezone() -> None:
-    # 23:30 UTC on 1 July is already 2 July in London (BST) but still 1 July in UTC.
-    late_evening = datetime(2026, 7, 1, 23, 30, tzinfo=UTC)
-
-    assert local_today("Europe/London", now=late_evening) == date(2026, 7, 2)
-    assert local_today("UTC", now=late_evening) == date(2026, 7, 1)
-    assert local_today("America/New_York", now=late_evening) == date(2026, 7, 1)
 
 
 def _briefing_variables(steps: object) -> dict[str, str]:

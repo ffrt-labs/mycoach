@@ -53,15 +53,46 @@ def test_seeding_twice_is_a_no_op(fake: FakeLangfuseAPI, client: Langfuse) -> No
     assert sum(1 for r in fake.requests if r.method == "POST") == posts
 
 
-def test_seed_skips_a_prompt_that_exists_without_the_production_label(
+def test_seed_publishes_a_new_production_version_when_the_bundled_text_changed(
+    fake: FakeLangfuseAPI, client: Langfuse
+) -> None:
+    seed_prompts(client)
+    fake.add(
+        "mycoach/daily-briefing",
+        [{"role": "system", "content": "old"}, {"role": "user", "content": "old {{health_data}}"}],
+    )
+
+    published = seed_prompts(client)
+
+    assert published == ["mycoach/daily-briefing"]
+    history = fake.versions["mycoach/daily-briefing"]
+    assert [v["version"] for v in history] == [1, 2, 3]
+    assert history[-1]["labels"] == ["production"]
+    assert history[-1]["prompt"] == history[0]["prompt"]
+
+
+def test_seed_publishes_over_a_newer_version_without_the_production_label(
     fake: FakeLangfuseAPI, client: Langfuse
 ) -> None:
     fake.add("mycoach/weekly-recap", [{"role": "user", "content": "draft"}], labels=["staging"])
 
-    created = seed_prompts(client)
+    published = seed_prompts(client)
 
-    assert "mycoach/weekly-recap" not in created
-    assert len(fake.versions["mycoach/weekly-recap"]) == 1
+    assert "mycoach/weekly-recap" in published
+    history = fake.versions["mycoach/weekly-recap"]
+    assert [v["labels"] for v in history] == [["staging"], ["production"]]
+
+
+def test_seed_leaves_a_prompt_alone_when_its_latest_version_matches_the_bundled_text(
+    fake: FakeLangfuseAPI, client: Langfuse
+) -> None:
+    seed_prompts(client)
+    # An operator moved production back to an older version; the latest
+    # version still matches the bundled text, so nothing is published.
+    fake.versions["mycoach/cardio-plan"][0]["labels"] = []
+
+    assert seed_prompts(client) == []
+    assert len(fake.versions["mycoach/cardio-plan"]) == 1
 
 
 @pytest.mark.parametrize("case", sorted(CASES))

@@ -1,7 +1,7 @@
 """Tests for coaching engine with mocked LLM client."""
 
 import threading
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -101,6 +101,44 @@ class TestGenerateDailyBriefing:
             assert insight.user_id == user_id
             assert "go_hard" in insight.content
             mock_llm.call.assert_called_once()
+
+    async def test_prompt_carries_the_steps_up_to_yesterday(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+            for day, steps in [(date(2024, 6, 9), 12431), (date(2024, 6, 3), 6000)]:
+                session.add(DailyHealthSnapshot(user_id=user_id, snapshot_date=day, steps=steps))
+            await session.commit()
+
+            mock_llm = _mock_llm_client()
+            await CoachingEngine(llm_client=mock_llm).generate_daily_briefing(
+                session, user_id, today
+            )
+
+            user_message = mock_llm.call.call_args.kwargs["user_message"]
+            assert "Daily target: 10,000 steps\nYesterday: 12,431 steps\n" in user_message
+            assert "7-day avg: 9,216/day (1/7 days at or above target)" in user_message
+
+    async def test_without_a_date_today_is_the_local_day_in_the_settings_timezone(
+        self,
+    ) -> None:
+        # 23:30 UTC on 1 July is 00:30 on 2 July in London (the default timezone).
+        clock = lambda: datetime(2026, 7, 1, 23, 30, tzinfo=UTC)  # noqa: E731
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            await _add_recovery_snapshot(session, user_id, date(2026, 7, 2))
+            for day, steps in [(date(2026, 7, 1), 7777), (date(2026, 6, 30), 5555)]:
+                session.add(DailyHealthSnapshot(user_id=user_id, snapshot_date=day, steps=steps))
+            await session.commit()
+
+            mock_llm = _mock_llm_client()
+            insight = await CoachingEngine(
+                llm_client=mock_llm, clock=clock
+            ).generate_daily_briefing(session, user_id)
+
+            assert insight.insight_date == date(2026, 7, 2)
+            assert "Yesterday: 7,777 steps" in mock_llm.call.call_args.kwargs["user_message"]
 
     async def test_llm_call_runs_off_the_event_loop_thread(self) -> None:
         """A slow provider (the Claude Code CLI takes 30-90 s) must not freeze the

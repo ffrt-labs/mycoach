@@ -79,6 +79,10 @@
                             {% if m.weight_kg is not none %}{{ '%.1f' % m.weight_kg }} kg{% endif %}{% if m.weight_kg is not none and m.waist_cm is not none %} · {% endif %}{% if m.waist_cm is not none %}{{ '%.1f' % m.waist_cm }} cm{% endif %}
                         </div>
                         <div class="text-xs text-zinc-500 mt-0.5">{{ (m.measured_at | localtime).strftime('%-d %b %Y, %H:%M') }}{% if m.note %} · {{ m.note }}{% endif %}</div>
+                        {% if m.garmin_push_status in ('pending', 'failed') %}
+                        <span class="inline-block mt-1 rounded-full border border-amber-500/25 bg-amber-500/[0.08] px-2 py-0.5 text-[11px] font-medium text-amber-300"
+                            title="MyCoach keeps this reading; the Garmin sync retries the copy">↻ not yet in Garmin</span>
+                        {% endif %}
                     </div>
                     <button type="button" onclick="deleteMeasurement({{ m.id }})"
                         class="text-zinc-500 hover:text-red-400 transition-colors p-1 shrink-0" title="Delete entry">

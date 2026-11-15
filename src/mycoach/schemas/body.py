@@ -27,6 +27,8 @@ class BodyMeasurementRead(BaseModel):
     waist_cm: float | None
     note: str | None
     source: str
+    garmin_push_status: str | None = None
+    """``pending``/``pushed``/``failed``; None for a waist-only reading (never pushed)."""
 
 
 class HeightUpdate(BaseModel):

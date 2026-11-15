@@ -1,6 +1,7 @@
 """The Body page and its dashboard shortcut (ticket #198)."""
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import AsyncClient
@@ -40,6 +41,21 @@ async def test_the_page_lists_entries_in_local_time_with_delete(client: AsyncCli
     assert "10 Jul 2026, 08:00" in resp.text
     assert f"deleteMeasurement({recorded.id})" in resp.text
     assert 'value="181.5"' in resp.text
+
+
+async def test_only_unpushed_weights_carry_the_not_yet_in_garmin_badge(
+    client: AsyncClient, fake_garmin: MagicMock
+) -> None:
+    pushed = await health.record_body_measurement(
+        1, measured_at=datetime(2026, 7, 8, 7, 0), weight_kg=82.9
+    )
+    await health.push_weight_to_garmin(1, pushed.id)
+    await health.record_body_measurement(1, measured_at=datetime(2026, 7, 9, 7, 0), waist_cm=91.0)
+    await health.record_body_measurement(1, measured_at=datetime(2026, 7, 10, 7, 0), weight_kg=82.4)
+
+    resp = await client.get("/body")
+
+    assert resp.text.count("not yet in Garmin") == 1
 
 
 async def test_body_is_in_the_nav(client: AsyncClient) -> None:

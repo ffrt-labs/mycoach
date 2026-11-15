@@ -877,6 +877,7 @@ async def list_body_measurements(
             "waist_cm": m.waist_cm,
             "note": m.note,
             "source": m.source,
+            "garmin_push_status": m.garmin_push_status,
         }
         for m in rows
     ]

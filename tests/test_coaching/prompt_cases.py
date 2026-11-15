@@ -6,9 +6,11 @@ builders produced for these inputs, so the compile step can be checked
 byte-for-byte against them.
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from mycoach.coaching.body import summarize_body
 from mycoach.coaching.steps import summarize_steps
 
 _HEALTH_TODAY: dict[str, Any] = {
@@ -88,6 +90,28 @@ _GYM_DETAILS: list[dict[str, Any]] = [
     }
 ]
 
+def _body_reading(day: int, weight: float | None, waist: float | None = None,
+                  note: str | None = None, month: int = 6) -> dict[str, Any]:  # fmt: skip
+    return {"id": day, "measured_at": f"2024-{month:02d}-{day:02d} 06:30:00", "weight_kg": weight,
+            "waist_cm": waist, "note": note, "source": "manual"}  # fmt: skip
+
+
+# Weigh-ins most mornings of the fortnight before 2024-06-10, a waist check a month apart.
+_BODY = summarize_body(
+    [
+        _body_reading(9, 81.6, 90.0, note="pizza and beer"),
+        _body_reading(8, 80.9),
+        _body_reading(6, 81.0),
+        _body_reading(5, 81.2),
+        _body_reading(3, 81.4),
+        _body_reading(1, 81.5),
+        _body_reading(12, 82.0, 92.5, month=5),
+    ],
+    height_cm=180.0,
+    now=datetime(2024, 6, 10, 9, 30, tzinfo=UTC),
+    tz=ZoneInfo("Europe/London"),
+)
+
 CASES: dict[str, tuple[str, dict[str, Any]]] = {
     "daily_briefing_full": (
         "daily_briefing",
@@ -99,6 +123,7 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 {"sport": "gym", "title": "Pull Day", "duration_minutes": 60},
             ],
             "steps": _STEPS,
+            "body": _BODY,
         },
     ),
     "daily_briefing_hrv_band": (

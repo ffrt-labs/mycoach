@@ -149,6 +149,15 @@
     </div>
     {% endif %}
 
+    <!-- ===== Body shortcut (#198) ===== -->
+    <a href="/body" class="mb-10 flex items-center justify-between rounded-xl border border-white/[0.07] bg-surface px-4 py-3 hover:border-accent/40 transition-colors">
+        <span>
+            <span class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Body</span>
+            <span class="block text-sm font-semibold text-zinc-100 mt-0.5">Log weight/waist</span>
+        </span>
+        <span class="text-accent-soft text-sm">&rarr;</span>
+    </a>
+
     <!-- ===== The read / Today ===== -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
         {% if briefing %}

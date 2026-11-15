@@ -107,10 +107,11 @@ def _legacy_layout(conn_sync: Any) -> None:
         "ALTER TABLE public.activities ALTER COLUMN external_id DROP NOT NULL",
         "ALTER TABLE public.planned_sessions DROP COLUMN activity_external_id, "
         "ADD COLUMN activity_id INTEGER",
+        # ... and before c187 (generation_error is that revision's to add).
+        "ALTER TABLE public.planned_sessions DROP COLUMN generation_error",
         "ALTER TABLE public.coaching_insights DROP COLUMN activity_external_id, "
         "DROP COLUMN revision, DROP COLUMN source_event_id, ADD COLUMN activity_id INTEGER",
-        # ... and before c187 / h197.
-        "ALTER TABLE public.planned_sessions DROP COLUMN generation_error",
+        # ... and before h197 (the HRV baseline band is that revision's to add).
         "ALTER TABLE public.daily_health_snapshots DROP COLUMN hrv_baseline_low, "
         "DROP COLUMN hrv_baseline_high, DROP COLUMN hrv_baseline_low_upper",
     ):
@@ -143,6 +144,7 @@ def _legacy_layout(conn_sync: Any) -> None:
         )
     )
     conn_sync.execute(text("DROP TABLE public.athletes"))
+    conn_sync.execute(text("DROP TABLE public.body_measurements"))  # #198
     conn_sync.execute(text("DROP TABLE public.prescription_fulfillments"))
     conn_sync.execute(text("ALTER TABLE public.users DROP COLUMN health_athlete_id"))
     conn_sync.execute(
@@ -241,6 +243,7 @@ COACHING_TABLES = {
 HEALTH_TABLES = {
     "athletes", "canonical_activities", "gym_workout_details", "daily_health_snapshots",
     "data_source_configs", "source_records", "canonical_activity_sources", "exercises",
+    "body_measurements",
 }  # fmt: skip
 
 
@@ -269,7 +272,7 @@ def test_tables_land_in_their_schemas_owned_by_their_owner(migrated: str) -> Non
 
 def test_two_histories_each_have_their_own_version_table(migrated: str) -> None:
     assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c187a1b2c3d4"
-    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h197a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h198a1b2c3d4"
 
 
 def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> None:

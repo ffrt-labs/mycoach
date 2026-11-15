@@ -10,11 +10,13 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from mycoach.coaching.body import BodySummary
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
@@ -253,17 +255,66 @@ def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-
     return " · ".join(parts)
 
 
+def _signed(value: float, places: int) -> str:
+    """``+0.20`` / ``−0.70`` with a real minus sign."""
+    return f"{value:+.{places}f}".replace("-", "−")
+
+
+def _body_view(body: BodySummary | None, settings: Settings) -> dict[str, Any] | None:
+    """Display strings for the Body block (_body_block.html); None renders no block."""
+    if body is None:
+        return None
+    rows: list[dict[str, str | None]] = []
+    if body.weight is not None:
+        w = body.weight
+        rows.append({"label": "Weight", "sub": w.when, "value": f"{w.latest_kg:.1f} kg"})
+        if w.trend_kg is not None and w.rate_kg_per_week is not None:
+            rows.append(
+                {
+                    "label": "Trend",
+                    "badge": "stale" if w.stale else None,
+                    "sub": "28-day rate",
+                    "value": f"{w.trend_kg:.1f} kg · {_signed(w.rate_kg_per_week, 2)} kg/wk",
+                }
+            )
+    if body.waist is not None:
+        c = body.waist
+        rows.append({"label": "Waist", "sub": c.when, "value": f"{c.latest_cm:.1f} cm"})
+        if c.ratio is not None:
+            rows.append(
+                {"label": "Waist/height", "sub": "target < 0.50", "value": f"{c.ratio:.2f}"}
+            )
+        if c.change_cm is not None:
+            change = (
+                f"{_signed(c.change_cm, 1)} cm in 4 weeks" if c.change_meaningful else "no change"
+            )
+            rows.append({"label": "4-week change", "value": change})
+    nudges = []
+    if body.weigh_in_due:
+        nudges.append("⏰ Time to weigh in")
+    if body.waist_check_due:
+        nudges.append("📏 Waist check due")
+    return {
+        "empty": body.empty,
+        "rows": rows,
+        "nudges": nudges,
+        "url": f"{settings.app_base_url}/body",
+    }
+
+
 def send_daily_briefing(
     content: dict,  # type: ignore[type-arg]
     settings: Settings | None = None,
     *,
     steps: StepsSummary | None = None,
     hrv: dict | None = None,  # type: ignore[type-arg]
+    body: BodySummary | None = None,
 ) -> bool:
     """Send the daily coaching briefing email.
 
     ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
     ``hrv`` is today's health snapshot; its HRV line is rendered by code, not the LLM.
+    ``body`` is the code-rendered Body block (#198); None leaves it out.
     """
     if settings is None:
         settings = get_settings()
@@ -277,6 +328,7 @@ def send_daily_briefing(
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
+            "body": _body_view(body, settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
@@ -346,6 +398,8 @@ def send_briefing_unavailable(
     settings: Settings | None = None,
     steps: StepsSummary | None = None,
     hrv: dict | None = None,  # type: ignore[type-arg]
+    *,
+    body: BodySummary | None = None,
 ) -> bool:
     """Tell the user why there is no briefing this morning.
 
@@ -353,6 +407,7 @@ def send_briefing_unavailable(
     numbers from the DB still reach the reader when the LLM could not run (#196).
     ``hrv`` is today's health snapshot, if any: its code-rendered HRV line still
     reaches the athlete when the LLM could not write a briefing (#197).
+    ``body`` is the Body block (#198), carried for the same reason.
 
     The wording turns entirely on ``is_broken``, because the two causes need
     opposite things from the reader. Absent data is theirs to fix — the watch
@@ -423,6 +478,7 @@ def send_briefing_unavailable(
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
+            "body": _body_view(body, settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — No Briefing Today", html, settings)

@@ -46,6 +46,7 @@ from mycoach.email.sender import (
     send_weekly_recap,
 )
 from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
+from mycoach.localtime import local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession
@@ -366,7 +367,8 @@ async def _daily_briefing(today: date | None = None) -> None:
     the dashboard button all get the same answer; this body only decorates the
     resulting skip with what the sync saw.
     """
-    today = today or date.today()
+    settings = get_settings()
+    today = today or local_today(settings.scheduler_timezone or settings.timezone)
 
     # A sync failure is not a reason to withhold a briefing — yesterday's data
     # may well be enough, and the failure is recorded either way. Only the

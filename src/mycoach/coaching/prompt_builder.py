@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 
 if TYPE_CHECKING:
     from mycoach.coaching.steps import StepsSummary
@@ -144,36 +145,20 @@ def _format_load_focus(val: Any) -> str:
 _HRV_KEYS = {"hrv_status", "hrv_7day_avg", "hrv_status_text"}
 
 
-def _ms(value: Any) -> str:
-    """A millisecond value without a spurious ``.0`` (52.0 -> "52", 61.5 -> "61.5")."""
-    return f"{float(value):g}"
-
-
-def _hrv_status_word(status: Any) -> str:
-    """Garmin's status code as a word: BALANCED -> Balanced."""
-    return str(status).replace("_", " ").capitalize()
-
-
-def _has_hrv_band(snapshot: dict[str, Any]) -> bool:
-    """Whether Garmin has a personal baseline band for this day yet."""
-    return (
-        snapshot.get("hrv_baseline_low") is not None
-        and snapshot.get("hrv_baseline_high") is not None
-    )
-
-
 def _format_hrv_band(snapshot: dict[str, Any]) -> str:
     """One HRV line led by the 7-day avg against the band (#197), last night as context."""
-    band = f"range {_ms(snapshot['hrv_baseline_low'])}–{_ms(snapshot['hrv_baseline_high'])}"
+    band = f"range {hrv_band_text(snapshot)}"
     status = snapshot.get("hrv_status_text")
     if status:
-        band += f", {_hrv_status_word(status)}"
+        band += f", {hrv_status_word(status)}"
     weekly = snapshot.get("hrv_7day_avg")
-    line = f"7d avg {_ms(weekly)} ms ({band})" if weekly is not None else f"7d avg n/a ({band})"
+    line = (
+        f"7d avg {format_ms(weekly)} ms ({band})" if weekly is not None else f"7d avg n/a ({band})"
+    )
     if snapshot.get("hrv_status") is not None:
-        line += f", last night {_ms(snapshot['hrv_status'])} ms"
+        line += f", last night {format_ms(snapshot['hrv_status'])} ms"
     if snapshot.get("hrv_baseline_low_upper") is not None:
-        line += f"; Low below {_ms(snapshot['hrv_baseline_low_upper'])} ms"
+        line += f"; Low below {format_ms(snapshot['hrv_baseline_low_upper'])} ms"
     return f"- HRV: {line}"
 
 
@@ -181,7 +166,7 @@ def _format_health(snapshot: dict[str, Any]) -> str:
     if not snapshot:
         return "No health data available for today."
     lines = []
-    band = _has_hrv_band(snapshot)
+    band = hrv_band(snapshot) is not None
     band_written = False
     field_labels = {
         "resting_hr": "Resting Heart Rate",
@@ -308,9 +293,7 @@ def _format_planned_sessions(sessions: list[dict[str, Any]]) -> str:
         failed = s.get("generation_error") is not None
         if failed and not s.get("details"):
             track_tag = f" [{s['track']} track]" if s.get("track") else ""
-            lines.append(
-                f"- {s.get('sport', '?')}{track_tag}: No plan available for this session."
-            )
+            lines.append(f"- {s.get('sport', '?')}{track_tag}: No plan available for this session.")
             continue
         parts = [f"- {s.get('title', 'Untitled')} [{s.get('sport', '?')}]"]
         dur = s.get("duration_minutes")

@@ -17,6 +17,7 @@ import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
@@ -223,11 +224,6 @@ def send_email(to: str, subject: str, html: str, settings: Settings | None = Non
     return True
 
 
-def _ms(value: float) -> str:
-    """A millisecond value without a spurious ``.0`` (52.0 -> "52")."""
-    return f"{float(value):g}"
-
-
 def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-arg]
     """Today's HRV line, rendered from the DB snapshot (#197), or None without HRV data.
 
@@ -241,17 +237,17 @@ def _format_hrv_line(snapshot: dict | None) -> str | None:  # type: ignore[type-
     last_night = snapshot.get("hrv_status")  # last night's ms (rename is #205)
     if weekly is None and last_night is None:
         return None
-    low, high = snapshot.get("hrv_baseline_low"), snapshot.get("hrv_baseline_high")
-    parts = [f"HRV {_ms(weekly)} ms 7-day avg" if weekly is not None else "HRV"]
-    if low is not None and high is not None:
-        parts.append(f"your range {_ms(low)}–{_ms(high)}")
+    parts = [f"HRV {format_ms(weekly)} ms 7-day avg" if weekly is not None else "HRV"]
+    band = hrv_band_text(snapshot)
+    if band is not None:
+        parts.append(f"your range {band}")
         status = snapshot.get("hrv_status_text")
         if status:
-            parts.append(str(status).replace("_", " ").capitalize())
+            parts.append(hrv_status_word(status))
     else:
         parts.append("Building baseline")
     if last_night is not None:
-        parts.append(f"last night {_ms(last_night)} ms")
+        parts.append(f"last night {format_ms(last_night)} ms")
     return " · ".join(parts)
 
 
@@ -471,9 +467,7 @@ def send_briefing_unavailable(
             "headline": headline,
             "next_step": next_step,
             "detail": detail,
-            "last_upload": (
-                _format_last_upload(last_upload, settings) if last_upload else None
-            ),
+            "last_upload": (_format_last_upload(last_upload, settings) if last_upload else None),
             "device_name": device_name,
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),

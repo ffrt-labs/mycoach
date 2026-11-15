@@ -24,7 +24,7 @@ def test_a_fresh_sqlite_database_gets_both_histories_at_head(
     finally:
         conn.close()
     assert coaching == [("c187a1b2c3d4",)]
-    assert health == [("h197a1b2c3d4",)]
+    assert health == [("h198a1b2c3d4",)]
     assert {
         "athletes",
         "prescription_fulfillments",

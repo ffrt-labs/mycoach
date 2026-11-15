@@ -75,6 +75,30 @@ async def _create_user(session: object) -> int:
 
 
 class TestGenerateDailyBriefing:
+    async def test_the_body_summary_reaches_the_prompt(self) -> None:
+        from datetime import UTC, datetime
+
+        from mycoach import health
+
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+        await health.record_body_measurement(
+            user_id, measured_at=datetime(2024, 6, 8, 6, 30), weight_kg=82.4
+        )
+        mock_llm = _mock_llm_client()
+        engine = CoachingEngine(
+            llm_client=mock_llm, clock=lambda: datetime(2024, 6, 10, 9, 30, tzinfo=UTC)
+        )
+
+        async with test_session() as session:
+            await engine.generate_daily_briefing(session, user_id, today)
+
+        sent = " ".join(str(a) for a in [*mock_llm.call.call_args.args,
+                                          *mock_llm.call.call_args.kwargs.values()])  # fmt: skip
+        assert "Latest weight: 82.4 kg, measured Sat (2 days ago)." in sent
+
     async def test_success(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)

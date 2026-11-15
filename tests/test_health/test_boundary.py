@@ -18,6 +18,7 @@ HEALTH_MODEL_MODULES = {
     "mycoach.models.health",
     "mycoach.models.source_record",
     "mycoach.models.athlete",
+    "mycoach.models.body_measurement",
     "mycoach.models.data_source",
     "mycoach.models.exercise",
 }
@@ -28,6 +29,7 @@ HEALTH_MODEL_NAMES = {
     "SourceRecord",
     "CanonicalActivitySource",
     "Athlete",
+    "BodyMeasurement",
     "DataSourceConfig",
     "Exercise",
 }
@@ -38,6 +40,7 @@ HEALTH_TABLES = {
     "source_records",
     "canonical_activity_sources",
     "athletes",
+    "body_measurements",
     "data_source_configs",
     "exercises",
     "health_analytics",
@@ -137,6 +140,7 @@ def test_health_models_name_the_health_schema():
     from mycoach.models import (
         Activity,
         Athlete,
+        BodyMeasurement,
         CanonicalActivitySource,
         DailyHealthSnapshot,
         DataSourceConfig,
@@ -148,6 +152,7 @@ def test_health_models_name_the_health_schema():
     for model in (
         Activity,
         Athlete,
+        BodyMeasurement,
         CanonicalActivitySource,
         DailyHealthSnapshot,
         DataSourceConfig,

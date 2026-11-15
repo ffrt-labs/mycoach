@@ -20,6 +20,8 @@ from sqlalchemy import select
 
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
+from mycoach.coaching.body import BodySummary
+from mycoach.coaching.context import get_body_summary
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
@@ -405,10 +407,24 @@ async def _daily_briefing(today: date | None = None) -> None:
             content = json.loads(insight.content)
             steps = await _steps_strip(today)
             hrv = await _health_for_email(today)
+            body = await _body_block()
             _deliver(
-                partial(send_daily_briefing, content, steps=steps, hrv=hrv),
+                partial(send_daily_briefing, content, steps=steps, hrv=hrv, body=body),
                 "daily briefing",
             )
+
+
+async def _body_block() -> BodySummary | None:
+    """The code-rendered Body block (#198), or None if it cannot be read.
+
+    Best-effort: a failing lookup costs the email its Body block, never the email.
+    """
+    try:
+        async with async_session() as session:
+            return await get_body_summary(session, USER_ID)
+    except Exception:
+        logger.exception("Scheduler: body summary for the email failed")
+        return None
 
 
 async def _steps_strip(today: date) -> StepsSummary | None:
@@ -491,6 +507,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
             device_name=upload.device_name if upload else None,
             steps=steps,
             hrv=await _health_for_email(window.day),
+            body=await _body_block(),
         ),
         "briefing unavailable",
     )

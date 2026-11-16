@@ -385,6 +385,17 @@ def send_no_availability(week_start: str, settings: Settings | None = None) -> b
     return send_email(settings.email_to, "MyCoach — No Plan Generated", html, settings)
 
 
+def send_garmin_auth_failed(reason: str, settings: Settings | None = None) -> bool:
+    """Send the "MyCoach can't log in to Garmin" alert, with the client's reason."""
+    if settings is None:
+        settings = get_settings()
+    html = _render_template(
+        "garmin_auth_failed.html",
+        {"reason": reason, "dashboard_url": _dashboard_url(settings)},
+    )
+    return send_email(settings.email_to, "MyCoach — Garmin login failed", html, settings)
+
+
 def _format_last_upload(uploaded_at: datetime, settings: Settings) -> str:
     """Render a last-upload timestamp in the user's timezone, e.g. "Aug 19 at 05:20"."""
     local = uploaded_at.astimezone(ZoneInfo(settings.timezone))

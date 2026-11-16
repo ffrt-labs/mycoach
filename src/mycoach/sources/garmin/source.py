@@ -1,5 +1,6 @@
 """Garmin DataSource implementation — orchestrates auth, fetch, and import."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -48,7 +49,14 @@ class GarminSource(DataSource):
         return "garmin"
 
     async def authenticate(self) -> bool:
-        return self._client.connect()
+        # In a thread: a login is blocking network I/O and may wait on another login's
+        # token lock, and this is awaited from the web server's event loop.
+        return await asyncio.to_thread(self._client.connect)
+
+    @property
+    def auth_error(self) -> str:
+        """Why the last ``authenticate`` failed, worded for a person."""
+        return self._client.last_error or "unknown reason (see the mycoach logs)"
 
     async def fetch_and_import(
         self, session: AsyncSession, user_id: int, since: datetime | None = None

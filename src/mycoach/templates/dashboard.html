@@ -223,8 +223,13 @@
             status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">' + msg + '</div>';
             setTimeout(function() { location.reload(); }, 2000);
         } else {
-            var detail = evt.detail.xhr.status === 503 ? 'Garmin authentication failed.' : 'Sync failed.';
-            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">' + detail + '</div>';
+            var detail = 'Sync failed.';
+            if (evt.detail.xhr.status === 503) {
+                detail = 'Garmin authentication failed.';
+                try { detail = JSON.parse(evt.detail.xhr.responseText).detail || detail; } catch (e) {}
+            }
+            status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm"></div>';
+            status.firstChild.textContent = detail;
             setTimeout(function() { status.innerHTML = ''; }, 5000);
         }
     });

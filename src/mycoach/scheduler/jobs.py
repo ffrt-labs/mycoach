@@ -40,6 +40,7 @@ from mycoach.email.sender import (
     EmailSendError,
     send_briefing_unavailable,
     send_daily_briefing,
+    send_garmin_auth_failed,
     send_no_availability,
     send_post_workout,
     send_weekly_plan,
@@ -78,6 +79,21 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
         return loop.run_until_complete(coro)
     finally:
         loop.close()
+
+
+GARMIN_AUTH_ALERT_JOB = "garmin_auth_alert"
+
+
+class GarminAuthError(RuntimeError):
+    """MyCoach could not log in to Garmin Connect, after its own recovery attempt.
+
+    The message carries the client's reason, since ``JobRun.error``, the briefing skip
+    reason and the alert email are where a reader will look for it.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"Garmin authentication failed: {reason}")
+        self.reason = reason
 
 
 class EmailDeliveryError(RuntimeError):
@@ -227,7 +243,30 @@ async def _get_user_email_pref(pref_field: str) -> bool:
 def job_garmin_sync() -> None:
     """Sync health and activity data from Garmin Connect."""
     logger.info("Scheduler: starting Garmin sync")
-    _run_recorded_job("garmin_sync", _garmin_sync())
+    _run_recorded_job("garmin_sync", _scheduled_garmin_sync())
+
+
+async def _scheduled_garmin_sync() -> None:
+    """The daily sync, emailing the user when Garmin won't let MyCoach in.
+
+    A login failure that the client could not recover from needs a person (a changed
+    password, MFA, a rate limit that won't clear), and nothing else would say so: the
+    briefing carries on from older data. The alert hangs off this once-a-day job rather
+    than the 15-minute briefing poll, so it is sent at most once a day without any state
+    of its own. It is recorded as its own run, so a failed send cannot hide the sync's
+    own failure.
+    """
+    try:
+        await _garmin_sync()
+    except GarminAuthError as e:
+        await _record_run(GARMIN_AUTH_ALERT_JOB, _garmin_auth_alert(e.reason))
+        raise
+
+
+async def _garmin_auth_alert(reason: str) -> None:
+    if not get_settings().email_enabled:
+        raise PipelineSkip("email is switched off — no Garmin login alert to send")
+    _deliver(partial(send_garmin_auth_failed, reason=reason), "Garmin login alert")
 
 
 async def _garmin_sync(days: int | None = None) -> ImportResult:
@@ -242,7 +281,7 @@ async def _garmin_sync(days: int | None = None) -> ImportResult:
 
     source = GarminSource()
     if not await source.authenticate():
-        raise RuntimeError("Garmin authentication failed")
+        raise GarminAuthError(source.auth_error)
 
     async with async_session() as session:
         athlete_id = await athlete_id_for(session, USER_ID)
@@ -511,7 +550,7 @@ async def _last_device_upload() -> DeviceUpload | None:
     """Ask Garmin when the watch last uploaded, or None if it won't say."""
     source = GarminSource()
     if not await source.authenticate():
-        logger.warning("Scheduler: Garmin auth failed during briefing alert")
+        logger.warning("Scheduler: Garmin auth failed during briefing alert: %s", source.auth_error)
         return None
     return source.get_last_device_upload()
 

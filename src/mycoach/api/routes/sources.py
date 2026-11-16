@@ -136,7 +136,7 @@ async def sync_garmin(
     if not await source.authenticate():
         raise HTTPException(
             status_code=503,
-            detail="Failed to authenticate with Garmin Connect. Check credentials.",
+            detail=f"Garmin authentication failed: {source.auth_error}",
         )
 
     since = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)

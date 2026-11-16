@@ -122,8 +122,10 @@ class _NoRealGarmin:
 
 
 @pytest.fixture(autouse=True)
-def _no_real_garmin(monkeypatch: pytest.MonkeyPatch) -> None:
+def _no_real_garmin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr("mycoach.sources.garmin.client.Garmin", _NoRealGarmin)
+    # Connecting takes a lock in the token directory, and a test must not touch the real one.
+    monkeypatch.setenv("MYCOACH_GARMIN_TOKEN_DIR", str(tmp_path / "garmin_tokens"))
 
 
 @pytest.fixture

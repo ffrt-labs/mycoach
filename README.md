@@ -281,22 +281,25 @@ Garmin API / Hevy CSV → Mappers → DB Models → Context Queries → Serializ
 
 ### Data Sources
 
-**Garmin Connect** (daily sync via `garminconnect` + `garth`):
+**Garmin Connect** (daily sync via `garminconnect`):
 
-Two libraries work together: `garth` handles OAuth2 authentication and token persistence (`sources/garmin/auth.py`), while `garminconnect` uses those tokens to make raw REST API calls to Garmin Connect (`sources/garmin/client.py`). Note that `garth` also offers typed data classes (e.g., `garth.DailyBodyBatteryStress.get()`) that parse raw responses into Python objects with convenience properties — but we don't use those; we use `garminconnect`'s methods which return raw JSON dicts, giving us full access to all API fields including ones garth's typed classes don't surface (e.g., activity-linked Body Battery events, coaching feedback).
+`garminconnect` logs in, keeps the session in `garmin_tokens.json` under `MYCOACH_GARMIN_TOKEN_DIR` (default `.garmin_tokens/`), and returns raw JSON dicts, which give us every API field (e.g. activity-linked Body Battery events, coaching feedback). `sources/garmin/client.py` wraps it.
 
-- Docs (garth): https://garth.readthedocs.io/en/latest/api/data/
 - Docs (garminconnect): https://github.com/cyberjunky/python-garminconnect
 
 ```
-garth.login() / garth.resume() → saves OAuth tokens to .garmin_tokens/
+GarminClient.connect()  (holds .login.lock in the token dir, so logins never overlap)
     ↓
-garminconnect.Garmin().login(tokenstore=".garmin_tokens/") → loads tokens
+Garmin().login(tokenstore=token_dir) → resumes the saved session, refreshing it near expiry
+    ↓  Garmin refused the session (401, or the refresh token rejected)?
+    ↓  → move it to garmin_tokens.json.rejected, log in once with email + password
     ↓
 Garmin.get_body_battery(), get_stats(), etc. → raw JSON dicts
     ↓
 mappers.py → extracts fields into DailyHealthSnapshot ORM model
 ```
+
+When a login still fails, the reason (wrong password, rate limited, Garmin unreachable) is shown by the dashboard's sync button, recorded on the `garmin_sync` job run, and emailed once by the daily scheduled sync (`garmin_auth_alert` run).
 
 | API Call | Metrics Collected |
 |----------|-------------------|

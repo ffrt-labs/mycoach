@@ -21,6 +21,7 @@ from mycoach.scheduler.jobs import (
     _garmin_sync,
     _post_workout_analysis,
     _record_run,
+    _scheduled_garmin_sync,
     _weekly_plan,
     _weekly_recap,
 )
@@ -219,6 +220,7 @@ async def test_garmin_auth_failure_records_failed_run() -> None:
     """
     source = _mock_garmin_source()
     source.authenticate = AsyncMock(return_value=False)
+    source.auth_error = "Garmin rejected the email or password"
 
     with (
         patch("mycoach.scheduler.jobs.GarminSource", return_value=source),
@@ -229,8 +231,96 @@ async def test_garmin_auth_failure_records_failed_run() -> None:
     runs = await _job_runs()
     assert len(runs) == 1
     assert runs[0].status == "failed"
-    assert runs[0].error == "Garmin authentication failed"
+    assert runs[0].error == (
+        "Garmin authentication failed: Garmin rejected the email or password"
+    )
     source.fetch_and_import.assert_not_awaited()
+
+
+def _switch_email_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYCOACH_EMAIL_ENABLED", "true")
+    monkeypatch.setenv("MYCOACH_EMAIL_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("MYCOACH_EMAIL_TO", "athlete@example.com")
+
+
+def _failing_garmin_source(reason: str) -> MagicMock:
+    source = _mock_garmin_source()
+    source.authenticate = AsyncMock(return_value=False)
+    source.auth_error = reason
+    return source
+
+
+async def test_scheduled_sync_emails_the_reason_when_garmin_login_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing else says Garmin is locked out: the briefing carries on from older data."""
+    _switch_email_on(monkeypatch)
+    source = _failing_garmin_source("Garmin is rate limiting logins from this server")
+
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=source),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs.send_garmin_auth_failed", return_value=True) as send,
+    ):
+        await _record_run("garmin_sync", _scheduled_garmin_sync())
+
+    send.assert_called_once_with(reason="Garmin is rate limiting logins from this server")
+    runs = {run.job_name: run for run in await _job_runs()}
+    assert runs["garmin_auth_alert"].status == "success"
+    assert runs["garmin_auth_alert"].email_delivered is True
+    assert runs["garmin_sync"].status == "failed"
+    assert runs["garmin_sync"].email_delivered is False
+
+
+async def test_a_failed_login_alert_does_not_hide_the_sync_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _switch_email_on(monkeypatch)
+    source = _failing_garmin_source("Garmin rejected the email or password")
+
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=source),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch(
+            "mycoach.scheduler.jobs.send_garmin_auth_failed",
+            side_effect=EmailSendError("Resend rejected the message"),
+        ),
+    ):
+        await _record_run("garmin_sync", _scheduled_garmin_sync())
+
+    runs = {run.job_name: run for run in await _job_runs()}
+    assert runs["garmin_auth_alert"].status == "failed"
+    assert "Resend rejected the message" in (runs["garmin_auth_alert"].error or "")
+    assert runs["garmin_sync"].status == "failed"
+    assert "Garmin rejected the email or password" in (runs["garmin_sync"].error or "")
+
+
+async def test_no_login_alert_when_email_is_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYCOACH_EMAIL_ENABLED", "false")
+    source = _failing_garmin_source("Garmin rejected the email or password")
+
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=source),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs.send_garmin_auth_failed") as send,
+    ):
+        await _record_run("garmin_sync", _scheduled_garmin_sync())
+
+    send.assert_not_called()
+    runs = {run.job_name: run for run in await _job_runs()}
+    assert runs["garmin_auth_alert"].status == "skipped"
+
+
+async def test_a_successful_scheduled_sync_sends_no_login_alert() -> None:
+    with (
+        patch("mycoach.scheduler.jobs.GarminSource", return_value=_mock_garmin_source()),
+        patch("mycoach.scheduler.jobs.async_session", test_session),
+        patch("mycoach.scheduler.jobs.send_garmin_auth_failed") as send,
+    ):
+        await _record_run("garmin_sync", _scheduled_garmin_sync())
+
+    send.assert_not_called()
+    assert [run.job_name for run in await _job_runs()] == ["garmin_sync"]
 
 
 async def test_weekly_plan_body_records_run() -> None:

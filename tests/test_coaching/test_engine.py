@@ -11,6 +11,7 @@ from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import InsufficientHealthData, PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -125,6 +126,33 @@ class TestGenerateDailyBriefing:
             assert insight.user_id == user_id
             assert "go_hard" in insight.content
             mock_llm.call.assert_called_once()
+
+    async def test_prompt_lists_the_sessions_still_open_this_week(self) -> None:
+        """#218: on Wednesday the coach knows Monday's squat is still open."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            wednesday = date(2024, 6, 12)
+            await _add_recovery_snapshot(session, user_id, wednesday)
+            plan = WeeklyPlan(user_id=user_id, week_start=date(2024, 6, 10), status="active")
+            session.add(plan)
+            await session.flush()
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id, day_of_week=0, sport="gym", title="Squat Day", track="gym"
+                )
+            )
+            await session.commit()
+
+            mock_llm = _mock_llm_client()
+            await CoachingEngine(llm_client=mock_llm).generate_daily_briefing(
+                session, user_id, wednesday
+            )
+
+            user_message = mock_llm.call.call_args.kwargs["user_message"]
+            assert (
+                "## Open This Week\n1 session open, 5 days left including today:\n"
+                "- Monday: Squat Day [gym], planned day passed\n"
+            ) in user_message
 
     async def test_prompt_carries_the_steps_up_to_yesterday(self) -> None:
         async with test_session() as session:

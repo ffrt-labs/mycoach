@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
-from mycoach.coaching.context import get_today_health
+from mycoach.coaching.context import get_open_this_week, get_today_health
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.database import get_db
 from mycoach.models.coaching import CoachingInsight
@@ -115,6 +115,9 @@ async def dashboard(
             except (json.JSONDecodeError, TypeError):
                 today_session_details = None
 
+    # The week's work still owed (#218), not just today's slot.
+    open_this_week = await get_open_this_week(session, USER_ID, today)
+
     # Last Garmin sync time. updated_at is bumped on every successful sync touch
     # (even ones that change nothing), so it's a truer "last synced" stamp than
     # created_at, which is only ever set once per row.
@@ -154,6 +157,7 @@ async def dashboard(
             "plan": plan,
             "today_session": today_session,
             "today_session_details": today_session_details,
+            "open_this_week": open_this_week,
             "garmin_last_sync": garmin_last_sync,
         },
     )

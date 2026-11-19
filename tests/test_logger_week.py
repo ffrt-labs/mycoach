@@ -6,10 +6,11 @@ weights filled; no plan → same shape from the routine, weights null.
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
+from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 
@@ -169,6 +170,42 @@ class TestTrainingWeekFromPlan:
 
         resp = await client.get("/api/logger/week")
         assert resp.json()["sessions"][0]["done"] is True
+
+    @pytest.mark.asyncio
+    async def test_done_is_the_week_scoped_completion(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
+        """#218: a gym session lifted on another day this week is done, so the
+        Logger doesn't offer it again; one nobody lifted stays open."""
+        from tests.conftest import test_session
+
+        await _add_plan(
+            _monday(),
+            [
+                _gym_session(day_of_week=6, title="Squat Day"),
+                _gym_session(day_of_week=6, title="Pull Day"),
+            ],
+        )
+        async with test_session() as session:
+            monday = _monday()
+            activity = Activity(
+                user_id=1,
+                title="Gym",
+                sport="gym",
+                start_time=datetime(monday.year, monday.month, monday.day, 9, 0),
+                data_source="hevy",
+            )
+            session.add(activity)
+            await session.flush()
+            session.add(
+                GymWorkoutDetail(activity_id=activity.id, exercise_title="Squat", set_index=1)
+            )
+            await session.commit()
+
+        resp = await client.get("/api/logger/week")
+
+        assert [(s["title"], s["done"]) for s in resp.json()["sessions"]] == [
+            ("Squat Day", True),
+            ("Pull Day", False),
+        ]
 
     @pytest.mark.asyncio
     async def test_cardio_session_is_display_only_with_passthrough_details(  # type: ignore[no-untyped-def]

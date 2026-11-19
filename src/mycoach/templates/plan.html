@@ -66,6 +66,8 @@
     </div>
     {% else %}
 
+    {% include "_open_this_week.html" %}
+
     {% if plan.summary %}
     <div class="bg-accent/[0.06] rounded-xl border border-accent/20 p-4">
         <p class="text-sm text-accent-soft leading-relaxed">{{ plan.summary }}</p>

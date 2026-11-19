@@ -2,7 +2,7 @@
 
 import logging
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -107,6 +107,7 @@ class SessionAdherence(TypedDict):
     ticked by hand). On planned day is informational, never a penalty.
     """
 
+    id: int
     day: str
     sport: str
     title: str
@@ -243,6 +244,7 @@ async def get_plan_adherence_for_week(
         actual = done_on.get(s.id)
         session_list.append(
             {
+                "id": s.id,
                 "day": day_names[s.day_of_week],
                 "sport": s.sport,
                 "title": s.title,
@@ -266,6 +268,89 @@ async def get_plan_adherence_for_week(
         "sessions": session_list,
     }
 
+
+
+class OpenSession(TypedDict):
+    """A planned session of the week not yet completed (``get_open_this_week``).
+
+    ``status`` places its planned day against today: ``overdue`` (planned day
+    passed), ``today`` or ``upcoming``. The planned day is a default, not a
+    constraint (ADR 0005), so an overdue session is still on offer.
+    """
+
+    id: int
+    day: str
+    day_of_week: int
+    status: Literal["overdue", "today", "upcoming"]
+    sport: str
+    track: str | None
+    title: str
+    duration_minutes: int | None
+    details: str | None
+    notes: str | None
+
+
+class OpenThisWeek(TypedDict):
+    """The week's work still owed, and the days left to do it in (today included)."""
+
+    sessions: list[OpenSession]
+    days_remaining: int
+
+
+async def get_open_this_week(
+    session: AsyncSession, user_id: int, today: date
+) -> OpenThisWeek | None:
+    """The planned sessions of ``today``'s week not yet completed, in planned-day order.
+
+    Completion is the week-scoped one from ``get_plan_adherence_for_week``, so a
+    session done on another day is not open and one whose day passed undone is.
+    None when the week has no plan.
+    """
+    week_start = today - timedelta(days=today.weekday())
+    adherence = await get_plan_adherence_for_week(session, user_id, week_start)
+    if adherence is None:
+        return None
+
+    open_ids = [s["id"] for s in adherence["sessions"] if not s["completed"]]
+    rows = (
+        (
+            await session.execute(
+                select(PlannedSession)
+                .where(PlannedSession.id.in_(open_ids))
+                .order_by(PlannedSession.day_of_week, PlannedSession.id)
+            )
+        )
+        .scalars()
+        .all()
+        if open_ids
+        else []
+    )
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    weekday = today.weekday()
+    return {
+        "sessions": [
+            {
+                "id": ps.id,
+                "day": day_names[ps.day_of_week],
+                "day_of_week": ps.day_of_week,
+                "status": (
+                    "overdue"
+                    if ps.day_of_week < weekday
+                    else "today"
+                    if ps.day_of_week == weekday
+                    else "upcoming"
+                ),
+                "sport": ps.sport,
+                "track": ps.track,
+                "title": ps.title,
+                "duration_minutes": ps.duration_minutes,
+                "details": ps.details,
+                "notes": ps.notes,
+            }
+            for ps in rows
+        ],
+        "days_remaining": 7 - weekday,
+    }
 
 
 async def _planned_session_linked_to(

@@ -28,6 +28,7 @@ from mycoach.coaching.context import (
     get_last_week_all_activities,
     get_last_week_cardio_performance,
     get_mesocycle_context,
+    get_open_this_week,
     get_plan_adherence_for_week,
     get_recent_activities,
     get_similar_activities,
@@ -252,6 +253,7 @@ class CoachingEngine:
         health_trends = await get_health_trends(session, user_id, days=3, today=today)
         recent_activities = await get_recent_activities(session, user_id, days=3, today=today)
         planned_sessions = await get_today_planned_sessions(session, user_id, today)
+        open_this_week = await get_open_this_week(session, user_id, today)
         steps = await load_steps_summary(
             session, user_id, today, target=get_settings().steps_daily_target
         )
@@ -265,6 +267,7 @@ class CoachingEngine:
             planned_workout=planned_sessions if planned_sessions else None,
             steps=steps,
             body=body,
+            open_this_week=open_this_week,
         )
         prompt = await self._serve(Operation.DAILY_BRIEFING, variables)
 

@@ -325,6 +325,20 @@
         });
     }
 
+    /* The prescription the home screen pre-selects (#218): the earliest open
+       gym session of the week, by planned day. A past day's session still
+       owed comes first — the planned day is a default, not a deadline — and
+       starting it links the logged session to it, so linking is the default
+       path. Null when nothing is owed, or the week was rebuilt from the
+       routine (no id: nothing to link to). */
+    function nextOpenSession(week, localSessions) {
+        var owed = outstandingSessions(loggableSessions(week), localSessions);
+        for (var i = 0; i < owed.length; i++) {
+            if (owed[i].id != null) return owed[i];
+        }
+        return null;
+    }
+
     /* Flatten a stored session to the canonical WorkoutImport payload. */
     function toPayload(s) {
         var sets = [];
@@ -495,9 +509,12 @@
         view.appendChild(el("h1", { class: "screen-title", text: "Train" }));
         view.appendChild(el("p", { class: "sub", text: "Log your session. It saves offline and syncs when you're home." }));
 
-        view.appendChild(
-            el("button", { class: "btn btn--primary btn--block", style: "margin-top:22px", onclick: startSession }, ["＋ Start session"])
-        );
+        /* The primary button starts the pre-selected prescription (#218), so
+           the linked session is the one-tap path and an ad-hoc one the
+           deliberate choice. It needs the stored sessions to know what is
+           still owed, so it fills from the same read as the lists below. */
+        var startBox = el("div", {});
+        view.appendChild(startBox);
         if (routineDays(state.routine).length) {
             view.appendChild(
                 el("button", { class: "btn btn--ghost btn--block", style: "margin-top:10px", onclick: openRoutinePicker }, ["Start from routine"])
@@ -516,10 +533,23 @@
         view.appendChild(historyBox);
 
         getAllSessions().then(function (all) {
-            renderWeek(weekBox, all);
+            var next = nextOpenSession(state.week, all);
+            renderStart(startBox, next);
+            renderWeek(weekBox, all, next);
             renderHistory(historyBox, all);
         });
         refreshChip();
+    }
+
+    function renderStart(box, next) {
+        if (next) {
+            box.appendChild(
+                el("button", { class: "btn btn--primary btn--block", style: "margin-top:22px", onclick: function () { startFromPrescribed(next); } }, ["Start " + next.title])
+            );
+        }
+        box.appendChild(
+            el("button", { class: "btn " + (next ? "btn--ghost" : "btn--primary") + " btn--block", style: next ? "margin-top:10px" : "margin-top:22px", onclick: startSession }, [next ? "＋ Start empty session" : "＋ Start session"])
+        );
     }
 
     /* This week's gym sessions, in place of the old routine picker (#71).
@@ -530,8 +560,9 @@
        the week fill up is half the point — and "answered" is the server's
        stale `done` flag unioned with the local record (outstandingSessions),
        so a session lifted in a basement leaves the list immediately and a
-       cancelled one comes back. */
-    function renderWeek(box, localSessions) {
+       cancelled one comes back. The pre-selected one (`next`, #218) is
+       tagged so the primary button above reads as one of these rows. */
+    function renderWeek(box, localSessions, next) {
         var gym = loggableSessions(state.week);
         if (!gym.length) return;
         var owed = outstandingSessions(gym, localSessions);
@@ -550,7 +581,8 @@
                 return;
             }
             box.appendChild(
-                el("button", { class: "session-row", onclick: function () { startFromPrescribed(ps); } }, [label])
+                el("button", { class: "session-row", onclick: function () { startFromPrescribed(ps); } },
+                    ps === next ? [label, el("span", { class: "tag tag--pending", text: "Next" })] : [label])
             );
         });
     }
@@ -1433,6 +1465,6 @@
     /* Dev-only: exposes pure functions to node:test. `module` is undefined in
        the browser, so this branch never runs there. */
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, hasPerformedSets: hasPerformedSets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, sessionExerciseFromRoutine: sessionExerciseFromRoutine, routineDays: routineDays, sessionFromRoutineDay: sessionFromRoutineDay, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
+        module.exports = { toPayload: toPayload, repRangeLowerBound: repRangeLowerBound, numOrNull: numOrNull, pruneEmptySets: pruneEmptySets, hasPerformedSets: hasPerformedSets, topSetForExercise: topSetForExercise, resolveExerciseChoice: resolveExerciseChoice, sessionExerciseFromPrescribed: sessionExerciseFromPrescribed, sessionExerciseFromRoutine: sessionExerciseFromRoutine, routineDays: routineDays, sessionFromRoutineDay: sessionFromRoutineDay, loggableSessions: loggableSessions, prescribedMeta: prescribedMeta, outstandingSessions: outstandingSessions, nextOpenSession: nextOpenSession, defaultSetValues: defaultSetValues, prescribedForSet: prescribedForSet, lastPerformedFor: lastPerformedFor };
     }
 })();

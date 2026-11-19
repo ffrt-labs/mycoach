@@ -157,7 +157,7 @@ class SessionAdherence(TypedDict):
     of the week's denominator. "not_done_travelling" is not done, planned on a
     travel day, and still in the denominator. ``actual_day`` names the day of the activity that
     completed it and ``on_planned_day`` says whether that was the planned day;
-    both are ``None`` when no activity completed it (missed, or ticked by hand).
+    both are ``None`` when no activity completed it (not done, or ticked by hand).
     On planned day is informational, never a penalty. ``substitute`` is set
     only when ``status`` is "substituted" or "adapted_travel".
     """

@@ -17,12 +17,12 @@ Extras (unplanned, not counted):
 - Walk [walking] on Saturday: 45 min, recovery
 Plan summary: Base block week 3: two lifts, a swim, intervals and a long run.
 
-## Adherence Rules
-- Headline adherence is the Completion line: planned sessions done anywhere in the week, substitutions included. Quote no other adherence figure, and never contrast it with a stricter count.
+## Completion Rules
+- The headline is the Completion line: planned sessions done anywhere in the week, substitutions included. Quote no other completion figure, and never contrast it with a stricter count.
 - A session done on another day than planned is done. Do not call it moved, shifted or missed, and do not advise fewer or firmer slots, fixed days or any other schedule rigidity. On planned day is informational only.
 - Mention timing only when it caused a real problem: back-to-back heavy sessions, a hard session after poor sleep, or the week's work crammed into the weekend.
-- Judge a substitution on the stimulus it delivered (intent, duration, heart rate, training effect), not on the swap itself.
-- A partial session (e.g. 1325 m swum of a planned 1.7 km) counts as done; the shortfall is a volume note, not an adherence one.
+- Judge a substitution on the stimulus it delivered (intent, duration, heart rate, training effect), not on whether the substitution matched the planned sport.
+- A partial session (e.g. 1325 m swum of a planned 1.7 km) counts as done; the shortfall is a volume note, not a completion one.
 - Extras are not counted toward completion; comment on them only as training load.
 - Sessions excused (ill) are out of the count: the athlete owed nothing on a sick day. Do not list them as work to make up.
 - Adapted (travel) sessions are done: judge them on the stimulus the trip allowed. Not done (travelling) sessions stay in the count: say the trip caused them, without blame, and comment on what was done. Sessions excused (no training while travelling) are out of the count.
@@ -73,7 +73,7 @@ No availability slots set.
 As their personal trainer, analyze the week and provide:
 1. STRENGTH ANALYSIS: For each exercise, assess progress vs last weeks. Flag failed reps, regression, or plateau (same weight/RPE for 3+ weeks). For stagnant exercises, propose a concrete alternative or technique change.
 2. CARDIO ANALYSIS: Assess pace/HR trends vs goals. If not progressing, suggest specific drill sessions (e.g., fartlek, tempo run, drill sets for swimming).
-3. PLAN ADJUSTMENTS: Recommend any changes to volume, intensity, or structure based on recovery data and on the sessions not done, following the Adherence Rules.
+3. PLAN ADJUSTMENTS: Recommend any changes to volume, intensity, or structure based on recovery data and on the sessions not done, following the Completion Rules.
 4. PRIORITY ACTION: Identify the single most important thing to fix or focus on next week.
 
 Respond with a JSON object matching this exact schema:

@@ -40,7 +40,7 @@ Nothing to report: no illness, travel or ramp-back.
 Life-context rules:
 - While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or skip. Recommend no open session at intensity, and do not ask for sessions to be made up later.
 - During a ramp-back, keep today's session at or under the load given, and name the ramp-back day. Extend the ramp-back only when the section says recovery has not come back; never shorten it.
-- While travelling, adapt the open sessions to the trip's equipment: swap exercises for what is there (bodyweight with none; dumbbells, machines or a treadmill in a hotel gym) and keep each session's intent. On a day with no training possible, recommend rest and ask for nothing to be made up. Ill on a trip: the illness rule wins; mild means one light, short session the trip allows.
+- While travelling, adapt the open sessions to the trip's equipment: substitute exercises that are there (bodyweight with none; dumbbells, machines or a treadmill in a hotel gym) and keep each session's intent. On a day with no training possible, recommend rest and ask for nothing to be made up. Ill on a trip: the illness rule wins; mild means one light, short session the trip allows.
 - When the trip is 3 h or more off the home clock, add jet-lag advice from the principles for today.
 
 ## Steps (7 days ending yesterday)

@@ -1134,11 +1134,11 @@ def _session_status(s: Mapping[str, Any]) -> str:
 
 
 def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
-    """The weekly recap's adherence block (#217): completion first, planned day last.
+    """The weekly recap's completion block (#217): completion first, planned day last.
 
     Completion is week-scoped (ADR 0005): a session done on another day, or
     filled by a substitution, is done. On planned day is informational only,
-    so nothing here reads as a session missed or moved.
+    so nothing here reads as a session not done when it was done on another day.
     """
     if not adherence:
         return "No training plan was active this week."

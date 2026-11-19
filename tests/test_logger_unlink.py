@@ -9,7 +9,7 @@ from datetime import date, datetime
 
 import pytest
 
-from mycoach.models.activity import Activity
+from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -74,6 +74,21 @@ class TestUnlinkSession:
 
             activity = await session.get(Activity, activity_id)
             assert activity is not None  # untouched, not deleted
+
+    async def test_done_matches_the_week_view(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
+        """``done`` is the week-scoped completion (#218), as GET /api/logger/week
+        reports it: a lift with sets this week still fills the released session."""
+        session_id, activity_id = await _claimed_session(date(2024, 6, 10))
+        async with test_session() as session:
+            session.add(
+                GymWorkoutDetail(activity_id=activity_id, exercise_title="Bench", set_index=1)
+            )
+            await session.commit()
+
+        resp = await client.post(f"/api/logger/sessions/{session_id}/unlink")
+
+        assert resp.status_code == 200
+        assert resp.json()["done"] is True
 
     async def test_unknown_session_is_404(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         resp = await client.post("/api/logger/sessions/999999/unlink")

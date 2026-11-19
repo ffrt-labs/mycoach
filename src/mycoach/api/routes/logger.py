@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from mycoach import health
 from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
-from mycoach.coaching.context import get_plan_adherence_for_week
+from mycoach.coaching.context import done_session_ids, week_completion_of
 from mycoach.config import get_settings
 from mycoach.database import get_db
 from mycoach.localtime import local_today
@@ -220,13 +220,8 @@ async def get_training_week(
         planned = (await session.execute(ps_stmt)).scalars().all()
         # ``done`` is the week-scoped completion (#218, ADR 0005): a session
         # lifted on another day, linked or not, isn't offered again.
-        adherence = await get_plan_adherence_for_week(
-            session, DEFAULT_USER_ID, monday, today=today
-        )
-        if adherence is not None and adherence["plan_id"] == plan.id:
-            done_ids = {s["id"] for s in adherence["sessions"] if s["completed"]}
-        else:
-            done_ids = {ps.id for ps in planned if ps.completed}
+        completion = await week_completion_of(session, DEFAULT_USER_ID, plan, today)
+        done_ids = done_session_ids(completion, planned)
         return TrainingWeek(
             week_start=monday,
             sessions=[_prescribed_from_planned(ps, done=ps.id in done_ids) for ps in planned],
@@ -262,4 +257,11 @@ async def unlink_session(
     if planned is None:
         raise HTTPException(status_code=404, detail="Planned session not found.")
     await session.commit()
-    return _prescribed_from_planned(planned, done=planned.completed)
+    # ``done`` as GET /week reports it: the released activity returns to the
+    # week's pool and may still complete this session (ADR 0005).
+    plan = await session.get(WeeklyPlan, planned.plan_id)
+    assert plan is not None  # a planned session always has its plan
+    today = local_today(get_settings().timezone)
+    completion = await week_completion_of(session, DEFAULT_USER_ID, plan, today)
+    done = planned.id in done_session_ids(completion, [planned])
+    return _prescribed_from_planned(planned, done=done)

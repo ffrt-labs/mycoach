@@ -1,6 +1,7 @@
 """Database queries that gather context data for prompt building."""
 
 import logging
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal, TypedDict
 from zoneinfo import ZoneInfo
@@ -28,12 +29,6 @@ from mycoach.models.routine import RoutineDay, WorkoutRoutine
 from mycoach.models.sport_profile import SportProfile
 
 logger = logging.getLogger(__name__)
-
-
-
-
-
-
 
 
 async def get_availability_for_week(
@@ -487,6 +482,23 @@ async def get_plan_adherence_for_week(
     }
 
 
+async def week_completion_of(
+    session: AsyncSession, user_id: int, plan: WeeklyPlan, today: date
+) -> PlanAdherence | None:
+    """``plan``'s week completion, or None when its week measures another plan
+    (a newer one for the same week): then only the plan's own ticks are known."""
+    adherence = await get_plan_adherence_for_week(session, user_id, plan.week_start, today=today)
+    return adherence if adherence is not None and adherence["plan_id"] == plan.id else None
+
+
+def done_session_ids(
+    adherence: PlanAdherence | None, planned: Sequence[PlannedSession]
+) -> set[int]:
+    """The planned sessions counted done: by week completion when measured, else ticked."""
+    if adherence is not None:
+        return {s["id"] for s in adherence["sessions"] if s["completed"]}
+    return {ps.id for ps in planned if ps.completed}
+
 
 class OpenSession(TypedDict):
     """A planned session of the week not yet completed (``get_open_this_week``).
@@ -683,8 +695,6 @@ async def find_matching_planned_session(
     return _planned_session_to_dict(planned)
 
 
-
-
 async def get_active_routine(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
     """Get the active workout routine as a nested dict, or None if no active routine."""
     from sqlalchemy.orm import selectinload
@@ -723,14 +733,6 @@ async def get_active_routine(session: AsyncSession, user_id: int) -> dict[str, A
             for day in routine.days
         ],
     }
-
-
-
-
-
-
-
-
 
 
 async def get_sport_profiles(session: AsyncSession, user_id: int) -> list[dict[str, Any]]:
@@ -816,10 +818,6 @@ async def get_today_planned_sessions(
             dropped,
         )
     return filtered
-
-
-
-
 
 
 async def get_recent_plan_summaries(

@@ -290,6 +290,7 @@ class TestPlanCompletionScore:
             "completed_sessions": 1,
             "planned_sessions": 3,
             "substituted_sessions": 0,
+            "adapted_sessions": 0,
         }
         assert [s.id for s in sink.scores if s.trace_id != RECAP] == [RATIO]
 
@@ -322,6 +323,7 @@ class TestPlanCompletionScore:
             "completed_sessions": 1,
             "planned_sessions": 2,
             "substituted_sessions": 0,
+            "adapted_sessions": 0,
             "excused_sessions": 1,
         }
 
@@ -412,6 +414,59 @@ class TestPlanCompletionScore:
             "completed_sessions": 1,
             "planned_sessions": 2,
             "substituted_sessions": 1,
+            "adapted_sessions": 0,
+        }
+
+
+    async def test_an_adapted_session_is_in_the_metadata(self) -> None:
+        """#221: a hotel circuit on a trip fills a strength slot as Adapted (travel)."""
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            plan = WeeklyPlan(user_id=user_id, week_start=MONDAY, status="active", summary="P")
+            session.add(plan)
+            await session.flush()
+            session.add_all(
+                [
+                    PlannedSession(
+                        plan_id=plan.id,
+                        day_of_week=1,
+                        sport="gym",
+                        title="Lower A",
+                        track="gym",
+                        intent="strength",
+                        duration_minutes=60,
+                    ),
+                    LifeContextEpisode(
+                        user_id=user_id,
+                        kind="travel",
+                        started_on=MONDAY + timedelta(days=1),
+                        ended_on=MONDAY + timedelta(days=2),
+                        equipment="none",
+                    ),
+                    Activity(
+                        user_id=user_id,
+                        title="Hotel leg circuit",
+                        sport="gym",
+                        start_time=datetime(2024, 6, 11, 7, 0),
+                        duration_minutes=25,
+                        data_source="logger",
+                    ),
+                ]
+            )
+            await session.commit()
+            await CoachingEngine(
+                llm_client=_recap_llm(), scores=sink, clock=lambda: _at(2024, 6, 17, 6, 0)
+            ).generate_weekly_recap(session, user_id, MONDAY)
+
+        ratio = sink.by_id()[RATIO]
+        assert ratio.value == pytest.approx(1.0)
+        assert ratio.metadata == {
+            "operation": "weekly_recap",
+            "completed_sessions": 1,
+            "planned_sessions": 1,
+            "substituted_sessions": 0,
+            "adapted_sessions": 1,
         }
 
 

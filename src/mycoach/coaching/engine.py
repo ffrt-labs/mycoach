@@ -395,6 +395,8 @@ class CoachingEngine:
             "planned_sessions": planned,
             # Already in completed_sessions: the ratio is completion (#217).
             "substituted_sessions": plan_adherence["substituted_sessions"],
+            # Also in completed_sessions: substitutions on a trip (#221).
+            "adapted_sessions": plan_adherence["adapted_sessions"],
         }
         if plan_adherence.get("excused_sessions"):
             metadata["excused_sessions"] = plan_adherence["excused_sessions"]

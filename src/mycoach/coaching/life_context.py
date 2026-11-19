@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,12 +60,12 @@ class Episode:
     """
 
     id: int
-    kind: str
+    kind: EpisodeKind
     started_on: date
     ended_on: date | None
     note: str | None = None
-    severity: str | None = None
-    equipment: str | None = None
+    severity: IllnessSeverity | None = None
+    equipment: Equipment | None = None
     tz_shift_hours: float | None = None
     no_training: bool | None = None
 
@@ -73,12 +73,12 @@ class Episode:
     def from_row(cls, row: LifeContextEpisode) -> "Episode":
         return cls(
             id=row.id,
-            kind=row.kind,
+            kind=EpisodeKind(row.kind),
             started_on=row.started_on,
             ended_on=row.ended_on,
             note=row.note,
-            severity=row.severity,
-            equipment=row.equipment,
+            severity=None if row.severity is None else IllnessSeverity(row.severity),
+            equipment=None if row.equipment is None else Equipment(row.equipment),
             tz_shift_hours=row.tz_shift_hours,
             no_training=row.no_training,
         )
@@ -178,7 +178,10 @@ Whether a day is a travel day at all, for relaxed substitution and "Not done
 (travelling)", is ``travel_on``: that holds under any illness too.
 """
 
-EXCUSED_STATUS: dict[DayEffect, str] = {
+ExcusedStatus = Literal["excused_ill", "excused_travel"]
+"""The ``SessionAdherence.status`` of a session an episode excused."""
+
+EXCUSED_STATUS: dict[DayEffect, ExcusedStatus] = {
     DayEffect.SICK: "excused_ill",
     DayEffect.TRAVEL_NO_TRAINING: "excused_travel",
 }
@@ -200,7 +203,7 @@ STATUS_LABEL: dict[str, str] = {
 """How the recap and the email name a session status in a count: "1 adapted (travel)"."""
 
 
-def excused_summary(excused_sessions: int, excused_days: dict[str, int]) -> str | None:
+def excused_summary(excused_sessions: int, excused_days: Mapping[str, int]) -> str | None:
     """ "3 excused (ill 3 days)", or None when nothing was excused."""
     if not excused_sessions:
         return None
@@ -239,14 +242,16 @@ def travel_on(episodes: Iterable[Episode], day: date, *, today: date) -> Episode
     return max(trips, key=lambda e: (e.started_on, e.id), default=None)
 
 
-def excusing_days(episodes: Iterable[Episode], week_start: date, *, today: date) -> dict[date, str]:
+def excusing_days(
+    episodes: Iterable[Episode], week_start: date, *, today: date
+) -> dict[date, ExcusedStatus]:
     """The week's days that excuse a session, in day order, each with the status it gives.
 
     A day counts once however many episodes cover it, so a session is never
     excused twice for the same day.
     """
     episodes = list(episodes)
-    days: dict[date, str] = {}
+    days: dict[date, ExcusedStatus] = {}
     for offset in range(7):
         day = week_start + timedelta(days=offset)
         effect = effect_on(episodes, day, today=today)

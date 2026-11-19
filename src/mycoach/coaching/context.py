@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary, summarize_body
-from mycoach.coaching.life_context import episodes_between, excusing_days, travel_on
+from mycoach.coaching.life_context import (
+    ExcusedStatus,
+    episodes_between,
+    excusing_days,
+    travel_on,
+)
 from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
 from mycoach.coaching.substitution import (
     DEFAULT_RULES,
@@ -101,15 +106,10 @@ async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | No
     return "Current mesocycle status:\n" + "\n".join(parts)
 
 
-SessionStatus = Literal[
-    "done",
-    "substituted",
-    "adapted_travel",
-    "not_done",
-    "not_done_travelling",
-    "excused_ill",
-    "excused_travel",
-]
+SessionStatus = (
+    Literal["done", "substituted", "adapted_travel", "not_done", "not_done_travelling"]
+    | ExcusedStatus
+)
 
 OWED_STATUSES: frozenset[str] = frozenset({"not_done", "not_done_travelling"})
 """Statuses of a session still owed this week (open in the briefing and the Logger)."""
@@ -367,8 +367,8 @@ async def get_plan_adherence_for_week(
     # Excusal (#220): after every way of being done, so a session done while ill
     # is done, never excused. A day excuses once however many episodes cover it.
     excusing = excusing_days(episodes, week_start, today=today)
-    excused: dict[int, str] = {}
-    leftover_days: list[tuple[date, str]] = []
+    excused: dict[int, ExcusedStatus] = {}
+    leftover_days: list[tuple[date, ExcusedStatus]] = []
     for day, excused_status in excusing.items():
         own = next(
             (
@@ -414,8 +414,12 @@ async def get_plan_adherence_for_week(
             status = "adapted_travel" if travelling(sub["start_date"]) else "substituted"
         elif is_done:
             status = "done"
+        elif s.id in excused:
+            status = excused[s.id]
+        elif on_trip:
+            status = "not_done_travelling"
         else:
-            status = excused.get(s.id, "not_done_travelling" if on_trip else "not_done")  # type: ignore[assignment]
+            status = "not_done"
         statuses.append(status)
         session_list.append(
             {

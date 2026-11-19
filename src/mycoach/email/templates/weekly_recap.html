@@ -1,123 +1,83 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}Weekly Recap{% endblock %}
 {% block subtitle %}Weekly recap{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 
-<!-- Hero -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:18px;">
-    <div class="eyebrow">Week of {{ week_start }}</div>
-    <div class="verdict" style="font-size:38px;margin-top:10px;">Weekly Recap</div>
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+{% macro bullets(items, marker) -%}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for item in items %}
+      <tr>
+        <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ marker }}</td>
+        <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+{%- endmacro %}
+
+{% call ui.hero("Week of " ~ week_start) %}
+    <div class="verdict">Weekly Recap</div>
     {% if recap.week_summary %}
-    <div class="lead" style="margin-top:14px;">{{ recap.week_summary }}</div>
+    <div class="lead" style="margin-top:12px;">{{ recap.week_summary }}</div>
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 
 {% if completion or recap.adherence_analysis %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Adherence</div>
+{% call ui.section(layout, "Adherence") %}
     {% if completion %}
-    <div class="mval" style="text-align:left;margin-bottom:6px;">{{ completion }}</div>
+    <div class="mval" style="text-align:left;margin-bottom:12px;">{{ completion }}</div>
     {% endif %}
     {% if recap.adherence_analysis %}
     <div class="p">{{ recap.adherence_analysis }}</div>
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if recap.training_load_analysis %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Training load</div>
+{% call ui.section(layout, "Training load") %}
     <div class="p">{{ recap.training_load_analysis }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if recap.recovery_assessment %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Recovery</div>
+{% call ui.section(layout, "Recovery") %}
     <div class="p">{{ recap.recovery_assessment }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if recap.performance_highlights %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
-    <div class="sec" style="margin-bottom:10px;">Highlights</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for item in recap.performance_highlights %}
-      <tr>
-        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
-        <td class="li" style="padding:5px 0;">{{ item }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </td>
-</tr>
+{% call ui.section(layout, "Highlights") %}
+    {{ bullets(recap.performance_highlights, '<span class="mk-plus">+</span>'|safe) }}
+{% endcall %}
 {% endif %}
 
 {% if recap.areas_of_concern %}
-<tr>
-  <td class="px" style="padding-top:16px;padding-bottom:6px;">
-    <div class="sec" style="margin-bottom:10px;">Watch</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for item in recap.areas_of_concern %}
-      <tr>
-        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-arrow">&rarr;</span></td>
-        <td class="li" style="padding:5px 0;">{{ item }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </td>
-</tr>
+{% call ui.section(layout, "Watch") %}
+    {{ bullets(recap.areas_of_concern, '<span class="mk-arrow">&rarr;</span>'|safe) }}
+{% endcall %}
 {% endif %}
 
 {% if recap.next_week_recommendations %}
-<tr>
-  <td class="px" style="padding-top:16px;padding-bottom:2px;">
-    <div class="coach" style="padding:14px 16px;">
+{% call ui.section(layout) %}
+    <div class="coach" style="padding:24px;">
       <div class="coach-k">Next week</div>
-      <div class="coach-t" style="margin-top:5px;">{{ recap.next_week_recommendations }}</div>
+      <div class="coach-t" style="margin-top:12px;">{{ recap.next_week_recommendations }}</div>
     </div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if recap.mesocycle_progress %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Mesocycle</div>
+{% call ui.section(layout, "Mesocycle") %}
     <div class="p">{{ recap.mesocycle_progress }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if recap.coach_recommendations %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
-    <div class="sec" style="margin-bottom:10px;">Coach recommendations</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for item in recap.coach_recommendations %}
-      <tr>
-        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
-        <td class="li" style="padding:5px 0;">{{ item }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </td>
-</tr>
+{% call ui.section(layout, "Coach recommendations") %}
+    {{ bullets(recap.coach_recommendations, '<span class="mk-plus">+</span>'|safe) }}
+{% endcall %}
 {% endif %}
 
-<tr>
-  <td class="px" style="padding-top:24px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">See full recap &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "See full recap →") }}
 {% endblock %}

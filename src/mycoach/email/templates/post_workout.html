@@ -1,102 +1,75 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}Post-Workout Analysis{% endblock %}
 {% block subtitle %}Post-workout{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 
-<!-- Activity title + performance summary -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:18px;">
-    <div class="eyebrow">Session analysis</div>
-    <div class="verdict" style="font-size:30px;line-height:1.15;margin-top:10px;">{{ activity_title }}</div>
+{% call ui.hero("Session analysis") %}
+    <div class="verdict">{{ activity_title }}</div>
     {% if analysis.performance_summary %}
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
-    <div class="lead" style="margin-top:14px;">{{ analysis.performance_summary }}</div>
+    <div class="lead" style="margin-top:12px;">{{ analysis.performance_summary }}</div>
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 
 {% if analysis.planned_vs_actual %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Planned vs actual</div>
+{% call ui.section(layout, "Planned vs actual") %}
     <div class="p">{{ analysis.planned_vs_actual }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.hr_analysis %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Heart rate</div>
+{% call ui.section(layout, "Heart rate") %}
     <div class="p">{{ analysis.hr_analysis }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.performance_trends %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Trends</div>
+{% call ui.section(layout, "Trends") %}
     <div class="p">{{ analysis.performance_trends }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.key_highlights %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:6px;">
-    <div class="sec" style="margin-bottom:10px;">Highlights</div>
+{% call ui.section(layout, "Highlights") %}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for item in analysis.key_highlights %}
       <tr>
-        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-plus">+</span></td>
-        <td class="li" style="padding:5px 0;">{{ item }}</td>
+        <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;"><span class="mk-plus">+</span></td>
+        <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
       </tr>
       {% endfor %}
     </table>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.areas_for_improvement %}
-<tr>
-  <td class="px" style="padding-top:16px;padding-bottom:6px;">
-    <div class="sec" style="margin-bottom:10px;">Work on</div>
+{% call ui.section(layout, "Work on") %}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for item in analysis.areas_for_improvement %}
       <tr>
-        <td style="width:22px;vertical-align:top;padding:5px 0;"><span class="mk-arrow">&rarr;</span></td>
-        <td class="li" style="padding:5px 0;">{{ item }}</td>
+        <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;"><span class="mk-arrow">&rarr;</span></td>
+        <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
       </tr>
       {% endfor %}
     </table>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.next_session_recommendations %}
-<tr>
-  <td class="px" style="padding-top:16px;padding-bottom:2px;">
-    <div class="coach" style="padding:14px 16px;">
+{% call ui.section(layout) %}
+    <div class="coach" style="padding:24px;">
       <div class="coach-k">Next session</div>
-      <div class="coach-t" style="margin-top:5px;">{{ analysis.next_session_recommendations }}</div>
+      <div class="coach-t" style="margin-top:12px;">{{ analysis.next_session_recommendations }}</div>
     </div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if analysis.recovery_notes %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Recovery</div>
+{% call ui.section(layout, "Recovery") %}
     <div class="p">{{ analysis.recovery_notes }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
-<tr>
-  <td class="px" style="padding-top:24px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">View full report &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "View full report →") }}
 {% endblock %}

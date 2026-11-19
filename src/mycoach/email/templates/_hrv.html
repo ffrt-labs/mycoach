@@ -1,9 +1,7 @@
 {# HRV line (#197): numbers rendered by code from the DB snapshot, never by the LLM. #}
+{% import "components/_layout.html" as ui %}
 {% if hrv_line %}
-<tr>
-  <td class="px" style="padding-top:14px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:6px;">HRV</div>
+{% call ui.section(layout|default(none), "HRV") %}
     <div class="p">{{ hrv_line }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}

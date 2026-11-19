@@ -1,33 +1,26 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}Garmin Login Failed{% endblock %}
 {% block subtitle %}Garmin login failed{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 
-<!-- Hero -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:18px;">
-    <div class="eyebrow">Garmin Connect</div>
-    <div class="verdict" style="font-size:32px;margin-top:10px;">MyCoach can't log in to Garmin</div>
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
-    <div class="lead" style="margin-top:14px;">
+{% call ui.hero("Garmin Connect") %}
+    <div class="verdict">MyCoach can't log in to Garmin</div>
+    <div class="lead" style="margin-top:12px;">
       This morning's sync couldn't log in to Garmin Connect, even after starting a fresh session
       with your email and password. Until it can, MyCoach isn't getting new sleep, HRV or activity
       data, and your briefings are working from older days.
     </div>
-    <div class="lead" style="margin-top:14px;">
+    <div class="lead" style="margin-top:12px;">
       <strong>Reason:</strong> {{ reason }}
     </div>
-    <div class="lead" style="margin-top:14px;">
+    <div class="lead" style="margin-top:12px;">
       If Garmin is rate limiting, this usually clears by itself within a few hours. If it says the
       email or password was rejected, update the Garmin credentials MyCoach uses. MyCoach will try
       again on the next sync either way.
     </div>
-  </td>
-</tr>
+{% endcall %}
 
-<tr>
-  <td class="px" style="padding-top:22px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">Open MyCoach &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "Open MyCoach →") }}
 {% endblock %}

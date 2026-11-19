@@ -1,35 +1,33 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}Weekly Plan{% endblock %}
 {% block subtitle %}Weekly plan{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 {% set _sportbadge = {'gym': 'b-amber', 'strength': 'b-amber', 'swimming': 'b-sky', 'swim': 'b-sky', 'cycling': 'b-sky', 'running': 'b-emerald', 'run': 'b-emerald', 'padel': 'b-emerald', 'rest': 'b-zinc'} %}
 
-<!-- Hero -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:18px;">
-    <div class="eyebrow">Week of {{ week_start }}</div>
-    <div class="verdict" style="font-size:38px;margin-top:10px;">Weekly Plan</div>
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+{% call ui.hero("Week of " ~ week_start) %}
+    <div class="verdict">Weekly Plan</div>
     {% if summary %}
-    <div class="lead" style="margin-top:14px;">{{ summary }}</div>
+    <div class="lead" style="margin-top:12px;">{{ summary }}</div>
     {% endif %}
-    {% if availability_source == 'default' %}
-    <div class="coach" style="margin-top:16px;padding:12px 14px;">
+{% endcall %}
+
+{% if availability_source == 'default' %}
+{% call ui.section(layout) %}
+    <div class="coach" style="padding:16px;">
       <div class="coach-t">Planned against your standing schedule — you didn't set this week, so it was filled in from your default. <a href="{{ default_schedule_url|default('#') }}">Change it here</a> if that's wrong.</div>
     </div>
-    {% endif %}
-  </td>
-</tr>
+{% endcall %}
+{% endif %}
 
-<!-- Sessions -->
 {% for session in sessions %}
-<tr>
-  <td class="px block-b" style="padding-top:18px;padding-bottom:18px;">
+{% call ui.section(layout) %}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
         <td style="vertical-align:top;">
           <div class="msub" style="text-transform:uppercase;letter-spacing:.1em;">{{ session.day_name }}</div>
-          <div class="strong" style="font:600 17px 'IBM Plex Sans',sans-serif;margin-top:3px;">{{ session.title }}</div>
+          <div class="strong" style="font:600 17px 'IBM Plex Sans',sans-serif;margin-top:4px;">{{ session.title }}</div>
         </td>
         <td style="vertical-align:top;text-align:right;white-space:nowrap;">
           <span class="badge {{ _sportbadge.get(session.sport|lower, 'b-zinc') }}">{{ session.sport }}</span>
@@ -40,25 +38,20 @@
     <div class="msub" style="margin-top:8px;">{{ session.duration_minutes }} min</div>
     {% endif %}
     {% if session.notes %}
-    <div class="p" style="margin-top:8px;">{{ session.notes }}</div>
+    <div class="p" style="margin-top:12px;">{{ session.notes }}</div>
     {% endif %}
     {% if session.details %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
       {% for key, value in session.details.items() %}
       <tr>
-        <td class="mlabel" style="padding:6px 0;font-weight:400;color:#78716c;">{{ key }}</td>
-        <td class="mval" style="padding:6px 0;font-size:13px;">{{ value }}</td>
+        <td class="mrow mlabel" style="padding:6px 0;font-weight:400;color:#71717a;">{{ key }}</td>
+        <td class="mrow mval" style="padding:6px 0;font-size:13px;">{{ value }}</td>
       </tr>
       {% endfor %}
     </table>
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 {% endfor %}
 
-<tr>
-  <td class="px" style="padding-top:22px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">Open this week &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "Open this week →") }}
 {% endblock %}

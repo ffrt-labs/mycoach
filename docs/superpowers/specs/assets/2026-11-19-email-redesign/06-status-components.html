@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Life context and status components</title>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</head>
+<body>
+
+
+<div style="width: 1240px; height: 1760px; box-sizing: border-box; padding: 64px; background: #fafaf9; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b; display: flex; flex-direction: column; gap: 32px">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">PR #223 · completion, intent, open this week, life context</div>
+    <h1 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em">Status components — all code-rendered</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46; max-width: 900px">Labels come from <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">STATUS_LABEL</span> and the CONTEXT.md glossary. The LLM never writes a status, a count or an episode.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Life context banner · top of briefing, plan, post-workout</div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #b91c1c; color: #ffffff">Ill · sick</span>
+            <a href="#" style="font-size: 12px; font-weight: 600">Feeling better →</a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">Ill since Mon 9 Nov · day 2</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">Rest today. Nothing to make up — sick days are excused.</div>
+          
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #b45309; color: #ffffff">Ill · mild</span>
+            <a href="#" style="font-size: 12px; font-weight: 600">Update →</a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">Mild cold · day 1</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">Light and short at most, or skip. Mild days excuse nothing.</div>
+          
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #047857; color: #ffffff">Ramp-back</span>
+            <a href="#" style="font-size: 12px; font-weight: 600"></a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">Returning from illness · day 2/5 · ~60% of normal load</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">Keep today at or under that load.</div>
+          
+            <div style="display: flex; gap: 3px">
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #d1fae5"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #d1fae5"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #d1fae5"></div>
+              
+            </div>
+          
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #047857; color: #ffffff">Ramp-back · last day</span>
+            <a href="#" style="font-size: 12px; font-weight: 600"></a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">Day 5/5 · ~90% of normal load</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">HRV still below your range: consider one more easy day. Never shortened.</div>
+          
+            <div style="display: flex; gap: 3px">
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+                <div style="flex: 1; height: 6px; border-radius: 3px; background: #10b981"></div>
+              
+            </div>
+          
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #1d4ed8; color: #ffffff">Travelling</span>
+            <a href="#" style="font-size: 12px; font-weight: 600">Edit trip →</a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">Hotel gym · 6 h ahead of home · back Fri 27 Nov</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">Sessions adapted to the equipment; jet-lag rules apply today.</div>
+          
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: #f4f4f5; border: 1px solid #e4e4e7">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: #52525b; color: #ffffff">Travelling · no training</span>
+            <a href="#" style="font-size: 12px; font-weight: 600">Back home →</a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">No training possible today</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">Rest. Today excuses one session; nothing to make up.</div>
+          
+        </div>
+      
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Session status · recap “Sessions” list</div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ecfdf5; color: #047857">Done</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Same-sport activity in the week. Other day → “Done Wednesday” in muted text.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ecfdf5; color: #047857">Substituted</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Unplanned activity delivered the intent, ≥ 70% duration. Show “← source · min · HR · TE”.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #eff6ff; color: #1d4ed8">Adapted (travel)</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Substitution done on a travel day, relaxed rules. Counts as done.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #f4f4f5; color: #52525b">Excused (ill)</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Left the count. Struck-through title, no action asked.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #f4f4f5; color: #52525b">Excused (no training while travelling)</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Left the count, same as ill.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #f4f4f5; color: #52525b; border: 1px solid #d4d4d8">Not done (travelling)</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Stays in the count. The trip is named as the cause, no blame.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #fffbeb; color: #b45309">Not done</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Stays in the count. Watch tone, never alert red.</div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ffffff; color: #71717a; border: 1px solid #e4e4e7">Extra</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Listed under “Extras · training load only”, never counted.</div>
+          </div>
+        
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Session intent · plan, briefing, recap</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ffffff; color: #9a3412; border: 1px solid #fed7aa">strength</span>
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ffffff; color: #1d4ed8; border: 1px solid #bfdbfe">aerobic base</span>
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ea6d1f; color: #ffffff">threshold · quality</span>
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ea6d1f; color: #ffffff">intervals · quality</span>
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ffffff; color: #047857; border: 1px solid #a7f3d0">recovery</span>
+          
+            <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ffffff; color: #6d28d9; border: 1px solid #ddd6fe">skill</span>
+          
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Threshold and intervals are the quality intents: solid orange, and the week strip outlines their day. No intent → no chip (never substitutable).</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Open this week · rows</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #52525b">5 left · 4 days remaining</div>
+      </div>
+      
+        <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">MON</div>
+          <div style="font-size: 14px; font-weight: 600">Squat Day</div>
+          <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #fffbeb; color: #b45309">Planned day passed</span>
+        </div>
+      
+        <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">THU</div>
+          <div style="font-size: 14px; font-weight: 600">Threshold intervals swim</div>
+          <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #ea6d1f; color: #ffffff">Today’s pick</span>
+        </div>
+      
+        <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">THU</div>
+          <div style="font-size: 14px; font-weight: 600">Easy recovery spin</div>
+          <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #f4f4f5; color: #18191b">Today</span>
+        </div>
+      
+        <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">SAT</div>
+          <div style="font-size: 14px; font-weight: 600">Long run</div>
+          <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #f4f4f5; color: #52525b">Sat</span>
+        </div>
+      
+      <div style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 14px; line-height: 1.45; color: #78350f">
+        <span style="font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #ffffff; color: #b45309; flex-shrink: 0">Overload</span>
+        <span>More sessions open than days left. The coach's pick says which to combine or drop.</span>
+      </div>
+      <div style="font-size: 13px; color: #52525b">Empty state: “Every planned session is done.” (good tone)</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Completion line · completion_line()</div>
+        
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">4/5 done · 1 substituted</div>
+        
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">2/2 done · 3 excused (ill 3 days)</div>
+        
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">2/3 done · 1 adapted (travel)</div>
+        
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">0/5 done</div>
+        
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Hero shows “X/Y done” large; the rest of the line sits beside it. “On planned day 3/4” goes underneath in 12 px muted text, never as a score.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 0">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 12px">Wording · glossary</div>
+        
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">done (on another day)</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">moved, late, rescheduled</span>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">not done</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">missed, skipped</span>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">excused</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">cancelled, skipped</span>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">substituted</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">swap, replacement</span>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">ramp-back</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">comeback, return-to-play</span>
+          </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+</body></html>

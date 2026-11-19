@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weekly recap email</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 600px; min-height: 2620px; box-sizing: border-box; background: #ffffff; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #e7e5e4">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 10px; height: 10px; border-radius: 3px; background: #ea6d1f"></span>
+      <span style="font-size: 15px; font-weight: 700">MyCoach</span>
+    </div>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #71717a">Weekly recap · 2–8 Nov</span>
+  </header>
+
+  <section style="padding: 32px 40px 24px; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Week of 2 Nov · completion</div>
+    <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+      <h1 style="margin: 0; font-size: 44px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; font-family: 'IBM Plex Mono', monospace">4/5 done</h1>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 500; color: #52525b">· 1 substituted</span>
+    </div>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46">Both lifts and the swim are in, and Sunday's padel delivered the long run's aerobic base. Thursday's intervals were the week's only high-intensity work.</p>
+    <div style="font-size: 12px; color: #71717a">On planned day 3/4 · informational</div>
+  </section>
+
+  <section style="padding: 0 40px 32px">
+    <div style="border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #c2410c">Next week</div>
+      <sc-for list="{{actions}}" as="a" hint-placeholder-count="3">
+        <div style="display: flex; gap: 14px; align-items: flex-start">
+          <span style="width: 24px; height: 24px; flex-shrink: 0; border-radius: 12px; background: #ea6d1f; color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{a.n}}</span>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="font-size: 15px; font-weight: 600; line-height: 1.45; color: #18191b">{{a.do}}</div>
+            <div style="font-size: 13px; line-height: 1.45; color: #7c2d12">{{a.why}}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Sessions</div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #52525b">4/5 done · 1 substituted</div>
+    </div>
+    <sc-for list="{{sessions}}" as="s" hint-placeholder-count="5">
+      <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: start; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a; padding-top: 3px">{{s.day}}</div>
+        <div style="display: flex; flex-direction: column; gap: 3px">
+          <div style="font-size: 15px; font-weight: 600">{{s.title}}</div>
+          <div style="font-size: 12px; color: #71717a">{{s.meta}}</div>
+          <div style="{{s.detailStyle}}">{{s.detail}}</div>
+        </div>
+        <span style="{{s.chip}}">{{s.status}}</span>
+      </div>
+    </sc-for>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px">
+      <div style="font-size: 12px; color: #71717a">Extras · training load only, not counted</div>
+      <div style="font-size: 14px; color: #3f3f46"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12px; color: #71717a">SAT</span>  Walk · 45 min · recovery</div>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Life context</div>
+    <div style="font-size: 14px; line-height: 1.5; color: #3f3f46">No illness or travel logged this week. <a href="#">Something going on? Log it →</a></div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Recovery</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="2">
+        <div style="border: 1px solid #e7e5e4; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #71717a">{{t.label}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2">{{t.value}}<span style="font-size: 12px; font-weight: 400; color: #71717a"> {{t.unit}}</span></div>
+          <div style="{{t.noteStyle}}">{{t.note}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size: 14px; line-height: 1.5; color: #3f3f46">Thursday's night was the low point; sleep was back to 81 by Sunday.</div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Strength</div>
+    <div style="display: grid; grid-template-columns: 1fr 120px 150px; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+      <div>Lift</div><div style="text-align: right">Top set</div><div style="text-align: right">Trend</div>
+    </div>
+    <sc-for list="{{lifts}}" as="l" hint-placeholder-count="2">
+      <div style="display: grid; grid-template-columns: 1fr 120px 150px; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5; align-items: baseline">
+        <div style="font-size: 14px; color: #18191b">{{l.name}}</div>
+        <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">{{l.set}}</div>
+        <div style="text-align: right; font-size: 13px; {{l.trendStyle}}">{{l.trend}}</div>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 8px">Setup</div>
+    <div style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: #f4f4f5; font-size: 14px; line-height: 1.5; color: #3f3f46">
+      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #ffffff; color: #52525b; flex-shrink: 0">No block set</span>
+      <span>Progression is generic until a mesocycle exists. <a href="#">Set one up →</a></span>
+    </div>
+  </section>
+
+  <section style="padding: 8px 40px 32px">
+    <a href="#" style="display: block; text-align: center; font-size: 15px; font-weight: 700; color: #ffffff; background: #ea6d1f; padding: 15px 0; border-radius: 10px; text-decoration: none">Full recap →</a>
+  </section>
+
+  <footer style="padding: 20px 40px 28px; border-top: 1px solid #e7e5e4; display: flex; justify-content: space-between; font-size: 12px; color: #71717a">
+    <span>Example: fixture weekly_recap_2026_11_02</span>
+    <a href="#" style="color: #71717a">Email settings</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":2620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const note = (c) => 'font-size: 12px; color: ' + c;
+    const chip = (bg, fg) => 'font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: ' + bg + '; color: ' + fg;
+    const good = chip('#ecfdf5', '#047857');
+    const notDone = chip('#fffbeb', '#b45309');
+    const detail = (c) => 'font-size: 13px; line-height: 1.45; color: ' + c;
+    return {
+      actions: [
+        { n: '1', do: 'Keep one intervals session in the week.', why: 'It was the only high-intensity work planned; the block has none without it.' },
+        { n: '2', do: 'Swim the full 1.7 km.', why: '1325 m swum — done, but 22% short on volume.' },
+        { n: '3', do: 'Protect sleep before the hard days.', why: 'Sleep score 64 on Thu, the lowest of the week.' }
+      ],
+      sessions: [
+        { day: 'MON', title: 'Squat', meta: 'Gym · strength', status: 'Done', chip: good, detail: 'Done Wednesday', detailStyle: detail('#71717a') },
+        { day: 'TUE', title: 'Swim 1.7 km', meta: 'Swim · aerobic base', status: 'Done', chip: good, detail: '1325 m · volume note, still done', detailStyle: detail('#71717a') },
+        { day: 'THU', title: 'Intervals 6×3 min', meta: 'Run · intervals', status: 'Not done', chip: notDone, detail: '', detailStyle: detail('#71717a') },
+        { day: 'FRI', title: 'Deadlift', meta: 'Gym · strength', status: 'Done', chip: good, detail: '', detailStyle: detail('#71717a') },
+        { day: 'SUN', title: 'Long easy run', meta: 'Run · aerobic base', status: 'Substituted', chip: good, detail: '← Padel Sun · 101 min · avg HR 118 · aerobic TE 2.7', detailStyle: detail('#047857') }
+      ],
+      tiles: [
+        { label: 'Sleep score', value: '64–81', unit: '', note: 'Low on Thu 5 Nov', noteStyle: note('#b45309') },
+        { label: 'Resting HR', value: '52–55', unit: 'bpm', note: 'Two readings this week', noteStyle: note('#71717a') }
+      ],
+      lifts: [
+        { name: 'Barbell Squat', set: '100 kg × 5 @8', trend: 'No history yet', trendStyle: 'color: #71717a' },
+        { name: 'Barbell Deadlift', set: '140 kg × 5 @8', trend: 'No history yet', trendStyle: 'color: #71717a' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

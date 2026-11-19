@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Structured output contract</title>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</head>
+<body>
+
+
+<div style="width: 1320px; height: 1960px; box-sizing: border-box; padding: 64px; background: #fafaf9; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b; display: flex; flex-direction: column; gap: 32px">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">coaching/response_parser.py · v4 email schemas</div>
+    <h1 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em">One field per component. Budgets on every string.</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46; max-width: 900px">Today every field is a free <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">str</span>, so the template can only print paragraphs. These models make the LLM fill slots the template already knows how to draw. Metrics are not in the schema — code passes them to the template directly.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      
+        <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e7e5e4">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">shared.py</span>
+            <span style="font-size: 12px; color: #71717a">primitives → components</span>
+          </div>
+          <div style="padding: 16px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #27272a; white-space: pre">Tone = Literal["good", "neutral", "watch", "alert"]
+Short = Annotated[str, Field(max_length=40)]
+
+class Headline(BaseModel):          # → Headline
+    verdict: str = Field(max_length=28)
+    tone: Tone
+    summary: str = Field(max_length=140)
+
+class Action(BaseModel):            # → ActionList
+    do: str = Field(max_length=70)      # imperative
+    why: str | None = Field(None, max_length=90)
+
+class Rule(BaseModel):              # → IF → THEN row
+    when: str = Field(max_length=60)
+    then: str = Field(max_length=60)
+
+class Note(BaseModel):              # → tone chip + line
+    tone: Tone
+    text: str = Field(max_length=90)
+
+class Block(BaseModel):             # → BlockTable row
+    phase: Literal["warmup", "drill", "main", "pull",
+                   "kick", "strides", "cooldown"]
+    set: str = Field(max_length=24)     # "5×200"
+    cue: str | None = Field(None, max_length=48)
+    target: str | None = Field(None, max_length=24)
+    rest_s: int | None = None</div>
+        </div>
+      
+        <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e7e5e4">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">PostWorkoutEmail</span>
+            <span style="font-size: 12px; color: #71717a">replaces PostWorkoutResponse</span>
+          </div>
+          <div style="padding: 16px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #27272a; white-space: pre">class PostWorkoutEmail(BaseModel):
+    headline: Headline
+    actions: list[Action] = Field(min_length=1, max_length=3)
+    zone_note: Note | None = None    # judges the code-drawn bar
+    trend_note: str = Field(max_length=100)
+    next_session: list[Block] = Field(max_length=6)
+    rules: list[Rule] = Field(max_length=2)
+    week_addition: str | None = Field(None, max_length=60)
+    ready_in_hours: int
+    recovery: str = Field(max_length=70)
+    analysis_md: str                 # dashboard only, never emailed
+# code: distance, time, pace, SWOLF, str/len, TE, zones, trend table,
+#       fulfilled session + status, open this week, life context chip</div>
+        </div>
+      
+        <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e7e5e4">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">DailyBriefingEmail</span>
+            <span style="font-size: 12px; color: #71717a">replaces DailyBriefingResponse</span>
+          </div>
+          <div style="padding: 16px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #27272a; white-space: pre">class SessionOption(BaseModel):
+    open_session_id: int | None = None   # an OpenSession.id;
+    # code renders its title, sport, intent, minutes, planned day
+    title: str | None = Field(None, max_length=32)  # only if no id
+    steps: list[Short] = Field(min_length=1, max_length=3)
+    why: str = Field(max_length=70)
+    recommended: bool
+
+class DailyBriefingEmail(BaseModel):
+    readiness: Literal["go_hard", "moderate",
+                       "active_recovery", "rest"]
+    headline: Headline
+    options: list[SessionOption] = Field(min_length=1, max_length=2)
+    guardrail: Rule | None = None
+    sleep_note: str = Field(max_length=60)
+    tonight: list[Note] = Field(max_length=3)
+    analysis_md: str
+# code: sleep, RHR, HRV line, steps, body, open this week,
+#       life context banner (episode / ramp-back), unknown id → drop</div>
+        </div>
+      
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      
+        <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e7e5e4">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">WeeklyPlanEmail</span>
+            <span style="font-size: 12px; color: #71717a">merges plan + gym adjustment</span>
+          </div>
+          <div style="padding: 16px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #27272a; white-space: pre">class PlannedSession(BaseModel):
+    day_of_week: int = Field(ge=0, le=6)
+    sport: Literal["gym", "swim", "run", "bike", "padel"]
+    intent: SessionIntent | None     # quality = threshold|intervals
+    title: str = Field(max_length=40)
+    minutes: int
+    focus: str = Field(max_length=100)
+    blocks: list[Block] = []          # cardio only
+    foot: str | None = Field(None, max_length=100)
+
+class WeeklyPlanEmail(BaseModel):
+    focus: str = Field(max_length=120)
+    rules: list[Rule] = Field(max_length=3)
+    sessions: list[PlannedSession]
+# code: session count, total minutes, week strip,
+#       gym rows from routine + GymAdjustmentResponse,
+#       routine sanity check (sets &gt; 10 → Notice),
+#       life context notice (trips / illness in the week)</div>
+        </div>
+      
+        <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e7e5e4">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">WeeklyRecapEmail</span>
+            <span style="font-size: 12px; color: #71717a">replaces WeeklyRecapResponse</span>
+          </div>
+          <div style="padding: 16px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #27272a; white-space: pre">class SessionNote(BaseModel):         # judgment on a status row
+    session_id: int
+    text: str = Field(max_length=80)   # "padel delivered aerobic base"
+
+class LiftNote(BaseModel):
+    exercise_id: str                  # joined to DB numbers
+    tone: Tone
+    trend: str = Field(max_length=24)  # "flat 3 weeks"
+
+class WeeklyRecapEmail(BaseModel):
+    headline: Headline                # verdict = code completion line
+    actions: list[Action] = Field(min_length=1, max_length=3)
+    session_notes: list[SessionNote] = Field(max_length=5)
+    guardrail: Rule | None = None
+    lift_notes: list[LiftNote] = Field(max_length=6)
+    load_note: str = Field(max_length=100)
+    block_suggestion: str | None = Field(None, max_length=110)
+    analysis_md: str
+# code: completion_line, session statuses + substitutes, extras,
+#       life context, cause quick replies, recovery, job failures</div>
+        </div>
+      
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Wiring</div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>Send the model’s JSON Schema as response_format (json_schema) on OpenRouter for models that support it; keep parse_response + Pydantic as the actual gate, since not every provider enforces length limits.</span>
+          </div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>On ValidationError, retry once with the error text appended. Never fall back to rendering raw text in the email.</span>
+          </div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>Inject the schema into the Langfuse prompt as today ({output_schema}); add one rule: “No numbers the context does not contain.”</span>
+          </div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>Store analysis_md with the insight; the dashboard renders it behind “Full analysis →”.</span>
+          </div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>Bump to prompt v5 and keep the v4 parser for stored insights until they age out.</span>
+          </div>
+        
+          <div style="display: flex; gap: 12px; font-size: 14px; line-height: 1.5; color: #3f3f46">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #c2410c">→</span><span>Prompt rule from #217 stays: the LLM may quote completion_line, never compute or contrast another count.</span>
+          </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+</body></html>

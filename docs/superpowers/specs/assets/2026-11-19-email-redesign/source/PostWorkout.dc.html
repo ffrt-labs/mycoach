@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Post-workout email</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 600px; min-height: 2620px; box-sizing: border-box; background: #ffffff; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #e7e5e4">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 10px; height: 10px; border-radius: 3px; background: #ea6d1f"></span>
+      <span style="font-size: 15px; font-weight: 700">MyCoach</span>
+    </div>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #71717a">Post-workout · Swim</span>
+  </header>
+
+  <section style="padding: 32px 40px 24px; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Session A · Pool swim</div>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+      <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">Solid, but short</h1>
+      <span style="font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fffbeb; color: #b45309">75% of plan</span>
+    </div>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46">Steady aerobic swim with efficient technique. You stopped at 1500 of 2000 m and the main set drifted into Z3.</p>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 4px; font-size: 13px; color: #52525b">
+      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #ecfdf5; color: #047857">Done</span>
+      <span>Completes <span style="font-weight: 600; color: #18191b">Tue · Aerobic base swim + technique</span></span>
+      <span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid #bfdbfe; color: #1d4ed8">aerobic base</span>
+    </div>
+  </section>
+
+  <section style="padding: 0 40px 32px">
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
+        <div style="border: 1px solid #e7e5e4; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #71717a">{{t.label}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2">{{t.value}}<span style="font-size: 12px; font-weight: 400; color: #71717a"> {{t.unit}}</span></div>
+          <div style="{{t.noteStyle}}">{{t.note}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 0 40px 32px">
+    <div style="border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #c2410c">Next time</div>
+      <sc-for list="{{actions}}" as="a" hint-placeholder-count="3">
+        <div style="display: flex; gap: 14px; align-items: flex-start">
+          <span style="width: 24px; height: 24px; flex-shrink: 0; border-radius: 12px; background: #ea6d1f; color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{a.n}}</span>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="font-size: 15px; font-weight: 600; line-height: 1.45; color: #18191b">{{a.do}}</div>
+            <div style="font-size: 13px; line-height: 1.45; color: #7c2d12">{{a.why}}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Heart rate zones</div>
+      <div style="font-size: 12px; color: #71717a">Target: Z2 · RPE ≤ 5</div>
+    </div>
+    <div style="display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 2px">
+      <sc-for list="{{zones}}" as="z" hint-placeholder-count="3">
+        <div style="{{z.bar}}">{{z.inBar}}</div>
+      </sc-for>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{zoneLegend}}" as="z" hint-placeholder-count="4">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #52525b"><span style="{{z.dot}}"></span>{{z.label}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600">{{z.min}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; color: #3f3f46">
+      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #fffbeb; color: #b45309; flex-shrink: 0">Watch</span>
+      <span>8 min in Z3, above the “keep Z2” target. No Z4–5: intensity control was good.</span>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Trend · last 6 swims</div>
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+      <div>Metric</div><div style="text-align: right">Today</div><div style="text-align: right">05 Nov</div><div style="text-align: right">Best</div>
+    </div>
+    <sc-for list="{{trend}}" as="r" hint-placeholder-count="4">
+      <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5; align-items: baseline">
+        <div style="font-size: 14px; color: #3f3f46">{{r.m}}</div>
+        <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; {{r.todayStyle}}">{{r.today}}</div>
+        <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #71717a">{{r.last}}</div>
+        <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #71717a">{{r.best}}</div>
+      </div>
+    </sc-for>
+    <div style="font-size: 14px; line-height: 1.5; color: #3f3f46">Efficiency is recovering after the 05 Nov dip. Distance has been flat for 7 weeks.</div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Next session · repeat</div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">~2000 m</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 92px 1fr 104px 44px; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+      <div>Phase</div><div>Set</div><div>Target</div><div style="text-align: right">Rest</div>
+    </div>
+    <sc-for list="{{blocks}}" as="b" hint-placeholder-count="5">
+      <div style="display: grid; grid-template-columns: 92px 1fr 104px 44px; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5; align-items: baseline">
+        <div style="font-size: 12px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em">{{b.phase}}</div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600">{{b.set}}</div>
+          <div style="font-size: 12px; line-height: 1.4; color: #71717a">{{b.cue}}</div>
+        </div>
+        <div style="font-size: 13px; color: #3f3f46">{{b.target}}</div>
+        <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #52525b">{{b.rest}}</div>
+      </div>
+    </sc-for>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: #fafaf9; border: 1px solid #e7e5e4; font-size: 14px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 6px; border-radius: 4px; background: #18191b; color: #ffffff">IF</span>
+        <span>Short on time</span><span style="font-family: 'IBM Plex Mono', monospace; color: #a1a1aa">→</span><span style="font-weight: 600">Pull 2×100, keep the main set</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: #fafaf9; border: 1px solid #e7e5e4; font-size: 14px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 6px; border-radius: 4px; background: #ea6d1f; color: #ffffff">+1</span>
+        <span>This week: one extra easy Z2 swim, 1200–1500 m</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Recovery</div>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #ecfdf5; color: #047857">Ready again in &lt; 24 h</span>
+      <span style="font-size: 14px; color: #3f3f46">Protein + carbs within 2 h · light shoulder mobility</span>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Still open this week</div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #52525b">4 left · 5 days</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <span style="font-size: 13px; padding: 6px 10px; border-radius: 8px; background: #fffbeb; color: #78350f"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600">MON</span> Squat Day · planned day passed</span>
+      <span style="font-size: 13px; padding: 6px 10px; border-radius: 8px; background: #f4f4f5; color: #3f3f46"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600">THU</span> Threshold swim</span>
+      <span style="font-size: 13px; padding: 6px 10px; border-radius: 8px; background: #f4f4f5; color: #3f3f46"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600">FRI</span> Deadlift</span>
+      <span style="font-size: 13px; padding: 6px 10px; border-radius: 8px; background: #f4f4f5; color: #3f3f46"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600">SUN</span> Easy run</span>
+    </div>
+  </section>
+
+  <section style="padding: 8px 40px 32px">
+    <a href="#" style="display: block; text-align: center; font-size: 15px; font-weight: 700; color: #ffffff; background: #ea6d1f; padding: 15px 0; border-radius: 10px; text-decoration: none">Full analysis →</a>
+  </section>
+
+  <footer style="padding: 20px 40px 28px; border-top: 1px solid #e7e5e4; display: flex; justify-content: space-between; font-size: 12px; color: #71717a">
+    <span>MyCoach — AI-powered fitness coaching</span>
+    <a href="#" style="color: #71717a">Email settings</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":2620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const note = (c) => 'font-size: 12px; color: ' + c;
+    const good = '#047857', watch = '#b45309', muted = '#71717a';
+    const zc = { z1: '#bfdbfe', z2: '#3b82f6', z3: '#f59e0b', z45: '#b91c1c' };
+    const bar = (pct, color, fg) => 'width: ' + pct + '%; background: ' + color + '; color: ' + fg + '; font-family: \'IBM Plex Mono\', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center';
+    const dot = (color) => 'width: 8px; height: 8px; border-radius: 2px; background: ' + color;
+    return {
+      tiles: [
+        { label: 'Distance', value: '1500', unit: 'm', note: 'of 2000 planned', noteStyle: note(watch) },
+        { label: 'Moving time', value: '36:14', unit: '', note: 'of 45 min planned', noteStyle: note(muted) },
+        { label: 'Pace', value: '2:24', unit: '/100m', note: '−7 s vs last', noteStyle: note(good) },
+        { label: 'SWOLF', value: '51', unit: '', note: '−3 vs last', noteStyle: note(good) },
+        { label: 'Strokes / length', value: '15.1', unit: '', note: '−1.2 vs last', noteStyle: note(good) },
+        { label: 'Training effect', value: '2.4', unit: '', note: 'Maintaining · load 46', noteStyle: note(muted) }
+      ],
+      actions: [
+        { n: '1', do: 'Swim the full 2000 m. Keep the main set intact.', why: 'Distance flat at 1.1–1.6 km for 7 weeks.' },
+        { n: '2', do: 'Main set at RPE 4, HR in Z2.', why: '8 min in Z3 today — 26% of the session.' },
+        { n: '3', do: 'Take the full rest and log every 200 m split.', why: 'Splits set your CSS pace. Rest today: 166 s vs ~6 min planned.' }
+      ],
+      zones: [
+        { bar: bar(18, zc.z1, '#1e3a8a'), inBar: '18%' },
+        { bar: bar(56, zc.z2, '#ffffff'), inBar: '55%' },
+        { bar: bar(26, zc.z3, '#451a03'), inBar: '26%' }
+      ],
+      zoneLegend: [
+        { label: 'Z1', min: '5.6 min', dot: dot(zc.z1) },
+        { label: 'Z2', min: '17.3 min', dot: dot(zc.z2) },
+        { label: 'Z3', min: '8.0 min', dot: dot(zc.z3) },
+        { label: 'Z4–5', min: '0 min', dot: dot(zc.z45) }
+      ],
+      trend: [
+        { m: 'Pace /100m', today: '2:24', last: '2:31', best: '2:18', todayStyle: 'color: ' + good },
+        { m: 'SWOLF', today: '51', last: '54', best: '48', todayStyle: 'color: ' + good },
+        { m: 'Strokes / length', today: '15.1', last: '16.3', best: '14.5', todayStyle: 'color: ' + good },
+        { m: 'Distance', today: '1500', last: '—', best: '1600', todayStyle: 'color: #18191b' }
+      ],
+      blocks: [
+        { phase: 'Warm-up', set: '300 + 4×50', cue: 'Easy, then build', target: 'RPE 3', rest: '15s' },
+        { phase: 'Drills', set: '6×50', cue: 'Catch-up · fingertip drag · 6-kick switch', target: '≤ 15 str/len', rest: '20s' },
+        { phase: 'Main', set: '5×200', cue: 'Even splits ±2 s, record each', target: 'RPE 4–5 · Z2', rest: '25s' },
+        { phase: 'Pull', set: '4×100', cue: 'Buoy, breathe every 3', target: 'RPE 4', rest: '15s' },
+        { phase: 'Cool-down', set: '200', cue: 'Easy', target: '—', rest: '—' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

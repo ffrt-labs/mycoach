@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MyCoach email foundations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1520px; box-sizing: border-box; padding: 64px; background: #fafaf9; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b; display: flex; flex-direction: column; gap: 40px">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">MyCoach · Email system v2</div>
+    <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">Read in 10 seconds. Act on it.</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46; max-width: 760px">The LLM fills typed slots with length budgets; code renders every number. Long analysis moves to the dashboard behind “Full analysis →”.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Principles</div>
+        <sc-for list="{{principles}}" as="p" hint-placeholder-count="6">
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">{{p.n}}</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">{{p.title}}</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">{{p.body}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Layout &amp; spacing fixes</div>
+        <sc-for list="{{specs}}" as="s" hint-placeholder-count="7">
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">{{s.k}}</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">{{s.was}}</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">{{s.now}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Tones — the only colours that carry meaning</div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{tones}}" as="t" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="{{t.chip}}">{{t.label}}</span>
+              <div style="font-size: 12px; line-height: 1.4; color: #71717a">{{t.use}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Orange stays the brand accent (actions, CTA). Tone is chosen by the LLM as a label; colour is mapped by the template.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 0">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 16px">Components → who fills them</div>
+        <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+          <div>Component</div><div>Content</div><div style="text-align: right">Source</div>
+        </div>
+        <sc-for list="{{components}}" as="c" hint-placeholder-count="15">
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">{{c.name}}</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">{{c.what}}</div>
+            <div style="text-align: right"><span style="{{c.chip}}">{{c.src}}</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (bg, fg) => 'display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: ' + bg + '; color: ' + fg;
+    const llm = chip('#fff7ed', '#c2410c');
+    const code = chip('#f4f4f5', '#3f3f46');
+    return {
+      principles: [
+        { n: '01', title: 'Verdict and actions first', body: 'Every email opens with a verdict, one sentence, and at most three actions. Everything below is evidence.' },
+        { n: '02', title: 'Numbers come from code', body: 'Pace, zones, HRV, totals and trends are rendered from the DB (as HRV/steps/body already are). The LLM writes judgments, never metrics.' },
+        { n: '03', title: 'Every LLM string has a slot and a budget', body: 'No free paragraphs in the email. Fields have max lengths and list caps; the long write-up goes to analysis_md for the dashboard.' },
+        { n: '04', title: 'Conditions are rules, not prose', body: '“If HRV < 65 or RHR > 45 → Z2 only” renders as a when/then row you can scan in the morning.' },
+        { n: '05', title: 'System issues are not coaching', body: 'Missing data, failed plans and routine typos render as a separate notice with a fix link, never inside advice.' },
+        { n: '06', title: 'Week-scoped, glossary words only (PR #223)', body: 'Completion is per Mon–Sun week (ADR 0005). Statuses, intents and episodes are code-rendered with CONTEXT.md labels — never “missed” or “moved”.' }
+      ],
+      specs: [
+        { k: 'Email width', was: '420px', now: '600px · fluid below' },
+        { k: 'Side padding', was: '24px', now: '40px / 20px mobile' },
+        { k: 'Section padding (top / bottom)', was: '20 / 2px', now: '32 / 32px' },
+        { k: 'Section label → content', was: '8–10px', now: '16px' },
+        { k: 'List row gap', was: '10px (5+5)', now: '12px' },
+        { k: 'Body text', was: '14 / 1.7', now: '15 / 1.6' },
+        { k: 'Divider rule', was: 'some sections', now: 'every section' }
+      ],
+      tones: [
+        { label: 'Good', use: 'On target, improved', chip: chip('#ecfdf5', '#047857') },
+        { label: 'Neutral', use: 'Context, no action', chip: chip('#f4f4f5', '#52525b') },
+        { label: 'Watch', use: 'Drifting, adjust', chip: chip('#fffbeb', '#b45309') },
+        { label: 'Alert', use: 'Missed, act now', chip: chip('#fef2f2', '#b91c1c') }
+      ],
+      components: [
+        { name: 'Headline', what: 'Verdict (≤28) + tone + one sentence (≤140)', src: 'LLM', chip: llm },
+        { name: 'ActionList', what: '1–3 imperative actions, each with a short why', src: 'LLM', chip: llm },
+        { name: 'Rule', what: 'when → then guardrail rows', src: 'LLM', chip: llm },
+        { name: 'StatGrid', what: '3-up tiles: value, unit, delta vs last', src: 'Code', chip: code },
+        { name: 'ZoneBar', what: 'HR zone minutes as one stacked bar', src: 'Code', chip: code },
+        { name: 'TrendTable', what: 'Today · last · best for key metrics', src: 'Code', chip: code },
+        { name: 'WeekStrip', what: '7-day row with sport and minutes', src: 'Code', chip: code },
+        { name: 'BlockTable', what: 'Cardio set: phase, set, target, rest', src: 'LLM', chip: llm },
+        { name: 'ExerciseTable', what: 'Gym: sets × reps, RPE, load', src: 'Code', chip: code },
+        { name: 'Notice', what: 'Data gaps, failed jobs, routine errors', src: 'Code', chip: code },
+        { name: 'CompletionLine', what: '“4/5 done · 1 substituted” hero + on-planned-day note', src: 'Code', chip: code },
+        { name: 'SessionStatusList', what: 'Recap rows: planned day, intent, status, substitute', src: 'Code', chip: code },
+        { name: 'OpenThisWeek', what: 'Sessions still owed, days left, overload warning', src: 'Code', chip: code },
+        { name: 'LifeContextBanner', what: 'Ill / ramp-back / travelling state + dashboard link', src: 'Code', chip: code },
+        { name: 'CauseQuickReplies', what: 'Recap “What happened?” deep links (GET → form)', src: 'Code', chip: code }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

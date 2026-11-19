@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>MyCoach email foundations</title>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</head>
+<body>
+
+
+<div style="width: 1240px; height: 1520px; box-sizing: border-box; padding: 64px; background: #fafaf9; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b; display: flex; flex-direction: column; gap: 40px">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">MyCoach · Email system v2</div>
+    <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">Read in 10 seconds. Act on it.</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46; max-width: 760px">The LLM fills typed slots with length budgets; code renders every number. Long analysis moves to the dashboard behind “Full analysis →”.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Principles</div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">01</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">Verdict and actions first</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">Every email opens with a verdict, one sentence, and at most three actions. Everything below is evidence.</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">02</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">Numbers come from code</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">Pace, zones, HRV, totals and trends are rendered from the DB (as HRV/steps/body already are). The LLM writes judgments, never metrics.</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">03</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">Every LLM string has a slot and a budget</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">No free paragraphs in the email. Fields have max lengths and list caps; the long write-up goes to analysis_md for the dashboard.</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">04</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">Conditions are rules, not prose</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">“If HRV &lt; 65 or RHR &gt; 45 → Z2 only” renders as a when/then row you can scan in the morning.</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">05</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">System issues are not coaching</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">Missing data, failed plans and routine typos render as a separate notice with a fix link, never inside advice.</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; gap: 16px; align-items: flex-start">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #c2410c; width: 20px; flex-shrink: 0; padding-top: 2px">06</div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="font-size: 15px; font-weight: 600">Week-scoped, glossary words only (PR #223)</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #52525b">Completion is per Mon–Sun week (ADR 0005). Statuses, intents and episodes are code-rendered with CONTEXT.md labels — never “missed” or “moved”.</div>
+            </div>
+          </div>
+        
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Layout &amp; spacing fixes</div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Email width</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">420px</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">600px · fluid below</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Side padding</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">24px</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">40px / 20px mobile</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Section padding (top / bottom)</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">20 / 2px</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">32 / 32px</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Section label → content</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">8–10px</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">16px</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">List row gap</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">10px (5+5)</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">12px</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Body text</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">14 / 1.7</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">15 / 1.6</div>
+            </div>
+          </div>
+        
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+            <div style="font-size: 14px; color: #3f3f46">Divider rule</div>
+            <div style="display: flex; gap: 12px; align-items: baseline">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a1a1aa; text-decoration: line-through">some sections</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #18191b">every section</div>
+            </div>
+          </div>
+        
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Tones — the only colours that carry meaning</div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #ecfdf5; color: #047857">Good</span>
+              <div style="font-size: 12px; line-height: 1.4; color: #71717a">On target, improved</div>
+            </div>
+          
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #52525b">Neutral</span>
+              <div style="font-size: 12px; line-height: 1.4; color: #71717a">Context, no action</div>
+            </div>
+          
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fffbeb; color: #b45309">Watch</span>
+              <div style="font-size: 12px; line-height: 1.4; color: #71717a">Drifting, adjust</div>
+            </div>
+          
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fef2f2; color: #b91c1c">Alert</span>
+              <div style="font-size: 12px; line-height: 1.4; color: #71717a">Missed, act now</div>
+            </div>
+          
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Orange stays the brand accent (actions, CTA). Tone is chosen by the LLM as a label; colour is mapped by the template.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 0">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 16px">Components → who fills them</div>
+        <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+          <div>Component</div><div>Content</div><div style="text-align: right">Source</div>
+        </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">Headline</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Verdict (≤28) + tone + one sentence (≤140)</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fff7ed; color: #c2410c">LLM</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">ActionList</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">1–3 imperative actions, each with a short why</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fff7ed; color: #c2410c">LLM</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">Rule</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">when → then guardrail rows</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fff7ed; color: #c2410c">LLM</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">StatGrid</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">3-up tiles: value, unit, delta vs last</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">ZoneBar</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">HR zone minutes as one stacked bar</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">TrendTable</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Today · last · best for key metrics</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">WeekStrip</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">7-day row with sport and minutes</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">BlockTable</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Cardio set: phase, set, target, rest</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #fff7ed; color: #c2410c">LLM</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">ExerciseTable</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Gym: sets × reps, RPE, load</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">Notice</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Data gaps, failed jobs, routine errors</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">CompletionLine</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">“4/5 done · 1 substituted” hero + on-planned-day note</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">SessionStatusList</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Recap rows: planned day, intent, status, substitute</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">OpenThisWeek</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Sessions still owed, days left, overload warning</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">LifeContextBanner</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Ill / ramp-back / travelling state + dashboard link</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+          <div style="display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f4f4f5; align-items: center">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">CauseQuickReplies</div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">Recap “What happened?” deep links (GET → form)</div>
+            <div style="text-align: right"><span style="display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #f4f4f5; color: #3f3f46">Code</span></div>
+          </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+</body></html>

@@ -9,13 +9,12 @@ from sqlalchemy.orm import selectinload
 
 from mycoach.database import get_db
 from mycoach.exercise_catalogue import load_exercise_catalogue
+from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
 
 router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
-
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 @router.get("/routine", response_class=HTMLResponse)
@@ -39,7 +38,7 @@ async def routine_page(
         {
             "active_page": "routine",
             "routine": routine,
-            "day_names": DAY_NAMES,
+            "day_names": WEEKDAY_NAMES,
             "exercise_catalogue": [
                 {"id": exercise.id, "name": exercise.name} for exercise in load_exercise_catalogue()
             ],

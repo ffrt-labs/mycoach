@@ -17,7 +17,7 @@ from mycoach.coaching.context import get_open_this_week, get_today_health
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.config import get_settings
 from mycoach.database import get_db
-from mycoach.localtime import local_today
+from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.life_context import EpisodeKind
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -26,8 +26,6 @@ from mycoach.scheduler.briefing_window import load_briefing_window
 router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
-
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 _AVG_FIELDS = [
     "resting_hr", "hrv_status", "sleep_score", "sleep_duration_minutes",
@@ -169,7 +167,7 @@ async def dashboard(
             "briefing_blocked_reason": briefing_blocked_reason,
             "active_page": "dashboard",
             "today_str": today.strftime("%B %d, %Y"),
-            "weekday": DAY_NAMES[weekday_num],
+            "weekday": WEEKDAY_NAMES[weekday_num],
             "health": health_snapshot,
             "yesterday_health": yesterday_health,
             "avg_metrics": avg_metrics,

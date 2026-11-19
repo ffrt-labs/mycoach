@@ -11,13 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.context import get_default_availability
 from mycoach.database import get_db
+from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 
 router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
-
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 def _current_monday(ref: date | None = None) -> date:
@@ -56,7 +55,7 @@ async def availability_page(
         week_days: list[dict[str, Any]] = [
             {
                 "day_of_week": i,
-                "day_name": DAY_NAMES[i],
+                "day_name": WEEKDAY_NAMES[i],
                 "date": None,
                 "slot": slots_by_day.get(i),
                 "from_default": False,
@@ -115,7 +114,7 @@ async def availability_page(
         week_days.append(
             {
                 "day_of_week": i,
-                "day_name": DAY_NAMES[i],
+                "day_name": WEEKDAY_NAMES[i],
                 "date": day_date,
                 "slot": slot,
                 "from_default": from_default,

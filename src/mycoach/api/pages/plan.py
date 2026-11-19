@@ -16,15 +16,13 @@ from mycoach.coaching.context import (
 )
 from mycoach.config import get_settings
 from mycoach.database import get_db
-from mycoach.localtime import local_today
+from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 
 router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
-
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 @router.get("/plan", response_class=HTMLResponse)
@@ -101,7 +99,7 @@ async def plan_page(
                 "session": ps,
                 "done": ps.id in done_ids,
                 "details": details,
-                "day_name": DAY_NAMES[ps.day_of_week],
+                "day_name": WEEKDAY_NAMES[ps.day_of_week],
                 "is_today": is_current_week and ps.day_of_week == today.weekday(),
             }
 
@@ -121,7 +119,7 @@ async def plan_page(
                 {
                     "session": None,
                     "details": None,
-                    "day_name": DAY_NAMES[i],
+                    "day_name": WEEKDAY_NAMES[i],
                     "is_today": is_current_week and i == today.weekday(),
                     "date": day_date,
                 }

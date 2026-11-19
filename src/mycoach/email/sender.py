@@ -6,6 +6,7 @@ Backend is selected based on configuration: Resend API key takes precedence over
 
 import logging
 import smtplib
+from collections.abc import Mapping
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -514,12 +515,39 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
     )
 
 
-def send_weekly_recap(content: dict, week_start: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]
-    """Send weekly recap email."""
+def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
+    """The week's completion as the recap email shows it: "4/5 · 1 substituted".
+
+    Substitutions are already in the done count (#216). None without a plan.
+    """
+    if not adherence or not adherence.get("total_sessions"):
+        return None
+    line = f"{adherence['completed_sessions']}/{adherence['total_sessions']}"
+    if adherence.get("substituted_sessions"):
+        line += f" · {adherence['substituted_sessions']} substituted"
+    return line
+
+
+def send_weekly_recap(
+    content: dict,  # type: ignore[type-arg]
+    week_start: str,
+    settings: Settings | None = None,
+    adherence: Mapping[str, Any] | None = None,
+) -> bool:
+    """Send weekly recap email.
+
+    ``adherence`` is the recapped week's plan adherence, from the DB, not the
+    LLM; its completion line heads the Adherence section (#217).
+    """
     if settings is None:
         settings = get_settings()
     html = _render_template(
         "weekly_recap.html",
-        {"recap": content, "week_start": week_start, "dashboard_url": _dashboard_url(settings)},
+        {
+            "recap": content,
+            "week_start": week_start,
+            "dashboard_url": _dashboard_url(settings),
+            "completion": completion_line(adherence),
+        },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Recap", html, settings)

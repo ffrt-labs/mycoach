@@ -388,6 +388,8 @@ class CoachingEngine:
                     "operation": "weekly_recap",
                     "completed_sessions": completed,
                     "planned_sessions": planned,
+                    # Already in completed_sessions: the ratio is completion (#217).
+                    "substituted_sessions": plan_adherence["substituted_sessions"],
                 },
             )
         )

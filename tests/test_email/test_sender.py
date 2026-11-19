@@ -426,6 +426,50 @@ def test_send_weekly_recap_calls_send_email(mock_send: MagicMock) -> None:
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
+def test_weekly_recap_email_leads_adherence_with_the_completion_line(
+    mock_send: MagicMock,
+) -> None:
+    """The Adherence section carries the code-rendered "4/5 · 1 substituted" (#217)."""
+    from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
+
+    send_weekly_recap(
+        content={"adherence_analysis": "Four of five done."},
+        week_start="2026-11-02",
+        adherence=WEEK_2026_11_02_ADHERENCE,
+        settings=_make_settings(),
+    )
+
+    html = mock_send.call_args[0][2]
+    assert "4/5 · 1 substituted" in html
+    assert html.index("4/5 · 1 substituted") < html.index("Four of five done.")
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_weekly_recap_email_without_substitutions_shows_the_bare_ratio(
+    mock_send: MagicMock,
+) -> None:
+    adherence = {"total_sessions": 3, "completed_sessions": 2, "substituted_sessions": 0}
+
+    send_weekly_recap(
+        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
+    )
+
+    html = mock_send.call_args[0][2]
+    assert "Adherence" in html
+    assert "2/3" in html
+    assert "substituted" not in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_weekly_recap_email_without_a_plan_has_no_adherence_section(mock_send: MagicMock) -> None:
+    send_weekly_recap(
+        content={}, week_start="2026-11-02", adherence=None, settings=_make_settings()
+    )
+
+    assert "Adherence" not in mock_send.call_args[0][2]
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
 def test_send_daily_briefing_wires_dashboard_url(mock_send: MagicMock) -> None:
     """send_daily_briefing's CTA points at settings.app_base_url, not a dead '#' link."""
     settings = _make_settings(app_base_url="https://coach.example.com")

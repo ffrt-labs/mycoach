@@ -119,6 +119,31 @@ async def test_weekly_recap_sends_email(
         mock_send.assert_called_once()
 
 
+async def test_weekly_recap_email_gets_the_recapped_weeks_adherence(
+    mock_session: AsyncMock,
+) -> None:
+    """The completion line comes from the DB, for the week the recap covers (#217)."""
+    insight = MagicMock()
+    insight.content = json.dumps({"week_summary": "Solid"})
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+    adherence = {"total_sessions": 5, "completed_sessions": 4, "substituted_sessions": 1}
+    load = AsyncMock(return_value=adherence)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.get_plan_adherence_for_week", load),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+
+    week_start = mock_engine.generate_weekly_recap.call_args[0][2]
+    assert load.call_args[0][2] == week_start
+    assert mock_send.call_args.kwargs["adherence"] == adherence
+
+
 # --- The code-rendered steps strip (#196) ---------------------------------------------
 
 

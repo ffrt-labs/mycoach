@@ -116,6 +116,10 @@ class SubstituteActivity(TypedDict):
     # The classified intent it delivered (a SessionIntent value); None only when a
     # relaxed rule accepted an activity the classifier can't read.
     intent: str | None
+    # Key metrics, for judging the stimulus delivered (#217).
+    duration_minutes: int | None
+    avg_hr: int | None
+    training_effect_aerobic: float | None
 
 
 class ExtraActivity(TypedDict):
@@ -355,6 +359,9 @@ async def get_plan_adherence_for_week(
                         "sport": sub["sport"],
                         "title": sub["title"],
                         "intent": _intent_value(sub),
+                        "duration_minutes": sub["duration_minutes"],
+                        "avg_hr": sub["avg_hr"],
+                        "training_effect_aerobic": sub["training_effect_aerobic"],
                     }
                 ),
             }

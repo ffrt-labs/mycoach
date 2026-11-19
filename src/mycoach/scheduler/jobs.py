@@ -21,7 +21,7 @@ from sqlalchemy import select
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.context import get_body_summary
+from mycoach.coaching.context import get_body_summary, get_plan_adherence_for_week
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
@@ -627,8 +627,14 @@ async def _weekly_recap() -> None:
 
         if await _get_user_email_pref("email_weekly_recap"):
             content = json.loads(insight.content)
+            # The code-rendered completion line (#217); best-effort like #196's numbers.
+            adherence = await _or_none(
+                "plan adherence", get_plan_adherence_for_week(session, USER_ID, last_monday)
+            )
             _deliver(
-                partial(send_weekly_recap, content, week_start=str(last_monday)),
+                partial(
+                    send_weekly_recap, content, week_start=str(last_monday), adherence=adherence
+                ),
                 "weekly recap",
             )
 

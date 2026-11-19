@@ -2,13 +2,14 @@
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 
 from mycoach.config import get_settings
 from mycoach.localtime import local_today
+from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -286,6 +287,39 @@ async def test_plan_page_lists_the_sessions_open_this_week(client: AsyncClient) 
     days_left = 7 - today.weekday()
     remaining = f"{days_left} day{'s' if days_left != 1 else ''} remaining"
     assert f"Open this week — 2 left · {remaining}" in resp.text
+
+
+async def test_plan_page_counts_week_completion(client: AsyncClient) -> None:
+    """A run done on another day of the week completes the planned run (ADR 0005),
+    as Open this week counts it, though nobody ticked it."""
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    await _plan_for(
+        last_monday,
+        [
+            PlannedSession(day_of_week=0, sport="running", title="Easy Run"),
+            PlannedSession(day_of_week=2, sport="swimming", title="Swim"),
+        ],
+    )
+    async with test_session() as session:
+        wednesday = last_monday + timedelta(days=2)
+        session.add(
+            Activity(
+                user_id=1,
+                title="Run",
+                sport="running",
+                start_time=datetime(wednesday.year, wednesday.month, wednesday.day, 7, 0),
+                duration_minutes=40,
+                data_source="garmin",
+            )
+        )
+        await session.commit()
+
+    resp = await client.get(f"/plan?week={last_monday.isoformat()}")
+
+    assert "1/2 done" in resp.text
+    assert resp.text.count(">Done</span>") == 1
 
 
 def _shifted_timezone() -> str:

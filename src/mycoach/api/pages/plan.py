@@ -9,7 +9,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.coaching.context import get_open_this_week
+from mycoach.coaching.context import (
+    done_session_ids,
+    get_open_this_week,
+    week_completion_of,
+)
 from mycoach.config import get_settings
 from mycoach.database import get_db
 from mycoach.localtime import local_today
@@ -75,10 +79,18 @@ async def plan_page(
             .where(PlannedSession.plan_id == plan.id)
             .order_by(PlannedSession.day_of_week)
         )
-        for ps in sessions_result.scalars().all():
-            total_sessions += 1
-            if ps.completed:
-                completed_sessions += 1
+        planned = sessions_result.scalars().all()
+        # Week completion (ADR 0005), the count Open this week uses: a session
+        # done on another day, or substituted, is done though nobody ticked it.
+        completion = await week_completion_of(session, USER_ID, plan, today)
+        done_ids = done_session_ids(completion, planned)
+        if completion is not None:
+            total_sessions = completion["total_sessions"]
+            completed_sessions = completion["completed_sessions"]
+        else:
+            total_sessions = len(planned)
+            completed_sessions = len(done_ids)
+        for ps in planned:
             details = None
             if ps.details:
                 try:
@@ -87,6 +99,7 @@ async def plan_page(
                     details = None
             sessions_by_day[ps.day_of_week] = {
                 "session": ps,
+                "done": ps.id in done_ids,
                 "details": details,
                 "day_name": DAY_NAMES[ps.day_of_week],
                 "is_today": is_current_week and ps.day_of_week == today.weekday(),

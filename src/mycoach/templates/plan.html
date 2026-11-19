@@ -117,7 +117,7 @@
                 </div>
                 {% if day.session %}
                 <div class="flex items-center gap-2">
-                    {% if day.session.completed %}
+                    {% if day.done %}
                     <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">Done</span>
                     {% elif day.is_today %}
                     <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent-soft">Today</span>

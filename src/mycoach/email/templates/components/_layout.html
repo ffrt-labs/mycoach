@@ -10,13 +10,18 @@
       {{ ui.cta(url, "Open dashboard →") }}
 
     ``layout`` tracks whether a section is the first one after the hero: that one
-    sits 0 / 32 px under the hero with no divider; every later one is 32 / 32 px
-    with a divider. Sections inside optional blocks can't know their position, so
-    the namespace decides at render time. -#}
+    sits 0 / 32 px under the hero; every later one is 32 / 32 px. Every section
+    carries the divider. Sections inside optional blocks can't know their position,
+    so the namespace decides at render time. -#}
+
+{#- The 40 px side padding, inline on every row; the ``px`` class in base.html drops
+    it to 20 px at ≤ 480 px. -#}
+{% set side_padding = "padding-left:40px;padding-right:40px;" %}
+{% set divider = "border-top:1px solid #e7e5e4;" %}
 
 {% macro hero(eyebrow=none) -%}
 <tr>
-  <td class="px hero" style="padding-top:32px;padding-bottom:24px;padding-left:40px;padding-right:40px;">
+  <td class="px hero" style="padding-top:32px;padding-bottom:24px;{{ side_padding }}">
     {% if eyebrow %}<div class="sec" style="margin-bottom:12px;">{{ eyebrow }}</div>{% endif %}
     {{ caller() }}
   </td>
@@ -27,11 +32,7 @@
 {%- set first = layout is not none and layout.after_hero -%}
 {%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
 <tr>
-  {% if first -%}
-  <td class="px section" style="padding-top:0px;padding-bottom:32px;padding-left:40px;padding-right:40px;">
-  {%- else -%}
-  <td class="px section block-b" style="padding-top:32px;padding-bottom:32px;padding-left:40px;padding-right:40px;border-top:1px solid #e7e5e4;">
-  {%- endif %}
+  <td class="px section block-b" style="padding-top:{{ '0px' if first else '32px' }};padding-bottom:32px;{{ side_padding }}{{ divider }}">
     {% if label %}<div class="sec" style="margin-bottom:{{ label_gap }}px;">{{ label }}</div>{% endif %}
     {{ caller() }}
   </td>
@@ -40,7 +41,7 @@
 
 {% macro cta(url, label) -%}
 <tr>
-  <td class="px" style="padding-top:8px;padding-bottom:32px;padding-left:40px;padding-right:40px;">
+  <td class="px" style="padding-top:8px;padding-bottom:32px;{{ side_padding }}">
     <a href="{{ url|default('#', true) }}" class="cta" style="display:block;text-align:center;padding:15px 0;border-radius:10px;">{{ label }}</a>
   </td>
 </tr>
@@ -49,4 +50,27 @@
 {#- A status, intent or tone chip from one of the shared maps (``Chip``). -#}
 {% macro chip(c) -%}
 {%- if c %}<span class="{{ c.css }}">{{ c.label }}</span>{% endif -%}
+{%- endmacro %}
+
+{#- The coach card: the caller's text in the orange box, under an optional kicker
+    ("Next session"). -#}
+{% macro coach(kicker=none, padding=24, margin_top=none) -%}
+<div class="coach" style="{% if margin_top is not none %}margin-top:{{ margin_top }}px;{% endif %}padding:{{ padding }}px;">
+  {% if kicker %}<div class="coach-k">{{ kicker }}</div>{% endif %}
+  <div class="coach-t"{% if kicker %} style="margin-top:12px;"{% endif %}>{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{#- A marked bullet list; ``marker`` is "plus" (+) or "arrow" (→). -#}
+{% macro bullets(items, marker="plus") -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  {% for item in items %}
+  <tr>
+    <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;">
+      {%- if marker == "arrow" %}<span class="mk-arrow">&rarr;</span>{% else %}<span class="mk-plus">+</span>{% endif -%}
+    </td>
+    <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
+  </tr>
+  {% endfor %}
+</table>
 {%- endmacro %}

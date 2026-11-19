@@ -198,10 +198,24 @@ def test_the_hero_opens_with_32px_and_the_first_section_after_it_hugs_it(html: s
         assert (first["padding-top"], first["padding-bottom"]) == ("0px", "32px")
 
 
-def test_every_later_section_has_32_32_padding_and_a_divider(html: str) -> None:
+def test_every_later_section_has_32_32_padding(html: str) -> None:
     for style in _tds(html, "section")[1:]:
         assert (style["padding-top"], style["padding-bottom"]) == ("32px", "32px"), style
+
+
+def test_every_section_has_a_divider_including_the_first_after_the_hero(html: str) -> None:
+    for style in _tds(html, "section"):
         assert style.get("border-top") == DIVIDER, style
+
+
+def test_the_weekly_plan_default_schedule_notice_sits_in_the_hero() -> None:
+    html = _render("weekly_plan")
+    hero = re.search(r'<td class="px hero"[^>]*>(.*?)</td>', html, re.S)
+    assert hero
+    assert "Planned against your standing schedule" in hero.group(1)
+    starts = [m.start() for m in re.finditer(r'class="px section', html)]
+    assert html.index("Planned against your standing schedule") < starts[0]
+    assert starts[0] < html.index("Squat Day") < starts[1], "the first section is Monday's card"
 
 
 def test_an_included_block_right_after_the_hero_is_the_first_section() -> None:
@@ -213,7 +227,7 @@ def test_an_included_block_right_after_the_hero_is_the_first_section() -> None:
     html = str(mock_send.call_args[0][2])
     sections = _tds(html, "section")
     assert sections[0]["padding-top"] == "0px"
-    assert html.index("HRV") > html.index('class="px section"')
+    assert html.index("HRV") > html.index('class="px section')
 
 
 @pytest.mark.parametrize("name", ["daily_briefing", "post_workout", "weekly_recap"])

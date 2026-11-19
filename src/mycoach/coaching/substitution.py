@@ -5,7 +5,7 @@ Every threshold the classifier and the volume gate use is a named constant here.
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -100,13 +100,43 @@ class SubstitutionRules:
     The default applies to every session. A relaxation (e.g. a travel week, #221)
     is a different instance for the days it covers, handed to
     ``get_plan_adherence_for_week`` through ``rules_for_day``.
+
+    ``min_minutes`` replaces the volume ratio for the intents it names with an
+    absolute floor (travel: 20 min of resistance work fills a strength slot).
     """
 
     min_volume_ratio: float = MIN_VOLUME_RATIO
     matches_intent: IntentMatch = delivers_intent
+    min_minutes: Mapping[SessionIntent, int] = field(default_factory=dict)
 
 
 DEFAULT_RULES = SubstitutionRules()
+
+# Travel (#221): this much bodyweight or hotel resistance work fills a strength slot.
+TRAVEL_STRENGTH_MIN_MINUTES = 20
+
+
+def is_resistance_work(activity: Mapping[str, Any]) -> bool:
+    """A gym-sport activity (a Logger entry, a Garmin strength activity) of any kind.
+
+    With performed sets it already classifies as strength; without them it is
+    the hotel-room circuit the travel relaxation accepts.
+    """
+    return activity.get("sport") == "gym"
+
+
+def delivers_intent_travelling(activity: Mapping[str, Any], intent: SessionIntent) -> bool:
+    """The travel match: the default, or resistance work without sets for strength."""
+    if delivers_intent(activity, intent):
+        return True
+    return intent is SessionIntent.STRENGTH and is_resistance_work(activity)
+
+
+TRAVEL_RULES = SubstitutionRules(
+    matches_intent=delivers_intent_travelling,
+    min_minutes={SessionIntent.STRENGTH: TRAVEL_STRENGTH_MIN_MINUTES},
+)
+"""The relaxed rules for a session planned on a travel day (Adapted (travel))."""
 
 # Which rules apply to the session planned on a given day.
 RulesForDay = Callable[[date], SubstitutionRules]
@@ -129,8 +159,11 @@ def can_substitute(
         slot_intent = None
     if slot_intent is None:
         return False
-    if planned_minutes:
-        done = activity.get("duration_minutes")
-        if done is None or done < rules.min_volume_ratio * planned_minutes:
+    done = activity.get("duration_minutes")
+    floor = rules.min_minutes.get(slot_intent)
+    if floor is not None:
+        if done is None or done < floor:
             return False
+    elif planned_minutes and (done is None or done < rules.min_volume_ratio * planned_minutes):
+        return False
     return rules.matches_intent(activity, slot_intent)

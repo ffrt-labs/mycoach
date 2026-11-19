@@ -687,9 +687,16 @@ class CoachingEngine:
         sport_profiles = await get_sport_profiles(session, user_id)
         last_week_activities = await get_last_week_all_activities(session, user_id, week_start)
         # An open illness or a ramp-back as the plan is written (#220): a lighter week.
+        # Trips entered in advance for the plan week too (#221), to plan around.
         # The plan is never regenerated mid-week when an episode opens later.
         plan_day = local_today(get_settings().timezone, now=self._clock())
-        life = await life_context_for(session, user_id, plan_day, plan_day, today=plan_day)
+        life = await life_context_for(
+            session,
+            user_id,
+            min(plan_day, week_start),
+            max(plan_day, week_start + timedelta(days=6)),
+            today=plan_day,
+        )
 
         # 3. Split slots by user-assigned sport
         gym_slots = [s for s in availability if s.get("sport") == "gym"]

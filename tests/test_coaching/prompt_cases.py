@@ -324,6 +324,30 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             ),
         },
     ),
+    # #221: day 2 of a bodyweight-only trip six hours west, mildly ill since today.
+    "daily_briefing_travel_jet_lag": (
+        "daily_briefing",
+        {
+            "health_today": {"resting_hr": 58, "sleep_score": 61},
+            "health_trends": [],
+            "recent_activities": [],
+            "life_context": LifeContext(
+                today=date(2024, 6, 13),
+                episodes=[
+                    Episode(
+                        id=2, kind="travel", started_on=date(2024, 6, 12),
+                        ended_on=date(2024, 6, 15), equipment="none", tz_shift_hours=-6.0,
+                        note="Conference in Boston",
+                    ),
+                    Episode(
+                        id=3, kind="illness", started_on=date(2024, 6, 13), ended_on=None,
+                        severity="mild",
+                    ),
+                ],  # fmt: skip
+                ramp_back=None,
+            ),
+        },
+    ),
     # #220: the last day of a five-day ramp-back, resting HR still up.
     "daily_briefing_ramp_back_end": (
         "daily_briefing",

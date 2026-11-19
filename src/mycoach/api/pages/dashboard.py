@@ -129,6 +129,16 @@ async def dashboard(
         iter(await life_context.open_episodes(session, USER_ID, EpisodeKind.ILLNESS)), None
     )
     life = await life_context.life_context_for(session, USER_ID, local, local, today=local)
+    # Travel (#221): the trip under way, and trips entered in advance.
+    trips = [
+        e
+        for e in await life_context.episodes_between(
+            session, USER_ID, local, local + timedelta(days=365)
+        )
+        if e.kind == EpisodeKind.TRAVEL
+    ]
+    current_trip = next((t for t in trips if t.started_on <= local), None)
+    upcoming_trips = [t for t in trips if t.started_on > local]
 
     # Last Garmin sync time. updated_at is bumped on every successful sync touch
     # (even ones that change nothing), so it's a truer "last synced" stamp than
@@ -175,6 +185,11 @@ async def dashboard(
                 (local - open_illness.started_on).days + 1 if open_illness is not None else None
             ),
             "ramp_back": life.ramp_back,
+            "current_trip": current_trip,
+            "current_trip_day": (
+                (local - current_trip.started_on).days + 1 if current_trip is not None else None
+            ),
+            "upcoming_trips": upcoming_trips,
             "garmin_last_sync": garmin_last_sync,
         },
     )

@@ -1,6 +1,6 @@
 """Life context episodes (CONTEXT.md, #220): what they excuse and how training ramps back.
 
-An episode is something the athlete tells MyCoach about (illness here; travel in #221)
+An episode is something the athlete tells MyCoach about (an illness, a trip: #221)
 that every coaching run reads around. This module holds the rules as pure functions over
 ``Episode`` values; the ORM row is ``models.life_context.LifeContextEpisode``.
 """
@@ -14,19 +14,27 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mycoach.models.life_context import EpisodeKind, IllnessSeverity, LifeContextEpisode
+from mycoach.models.life_context import (
+    EpisodeKind,
+    Equipment,
+    IllnessSeverity,
+    LifeContextEpisode,
+)
 
 __all__ = [
     "DayEffect",
     "Episode",
     "EpisodeKind",
+    "Equipment",
     "IllnessSeverity",
     "RampBack",
     "RecoverySignals",
     "ramp_back_length",
     "effect_on",
+    "is_jet_lag",
     "excusing_days",
     "ramp_back_on",
+    "travel_on",
 ]
 
 RAMP_BACK_MIN_DAYS = 3
@@ -34,13 +42,21 @@ RAMP_BACK_MAX_DAYS = 7
 RAMP_BACK_FIRST_DAY_PCT = 50
 RAMP_BACK_LAST_DAY_PCT = 90
 
+JET_LAG_MIN_SHIFT_HOURS = 3
+"""A trip this many hours or more off the home clock brings the jet-lag principles in."""
+
+
+def is_jet_lag(tz_shift_hours: float | None) -> bool:
+    return tz_shift_hours is not None and abs(tz_shift_hours) >= JET_LAG_MIN_SHIFT_HOURS
+
 
 @dataclass(frozen=True)
 class Episode:
     """One life context episode. ``ended_on`` is its last affected day, None while open.
 
     Kind-specific fields default to None and only their kind sets them
-    (illness: ``severity``).
+    (illness: ``severity``; travel: ``equipment``, ``tz_shift_hours``, ``no_training``).
+    A trip may be entered in advance: ``started_on`` in the future.
     """
 
     id: int
@@ -49,6 +65,9 @@ class Episode:
     ended_on: date | None
     note: str | None = None
     severity: str | None = None
+    equipment: str | None = None
+    tz_shift_hours: float | None = None
+    no_training: bool | None = None
 
     @classmethod
     def from_row(cls, row: LifeContextEpisode) -> "Episode":
@@ -59,6 +78,9 @@ class Episode:
             ended_on=row.ended_on,
             note=row.note,
             severity=row.severity,
+            equipment=row.equipment,
+            tz_shift_hours=row.tz_shift_hours,
+            no_training=row.no_training,
         )
 
     @property
@@ -135,23 +157,37 @@ class RampBack:
 
 
 class DayEffect(StrEnum):
-    """What an episode does to one day, most restrictive first (``RESTRICTIVENESS``).
-
-    #221 adds travel's effects; place them in ``RESTRICTIVENESS`` and, if they
-    excuse sessions, in ``EXCUSED_STATUS``.
-    """
+    """What an episode does to one day, most restrictive first (``RESTRICTIVENESS``)."""
 
     SICK = "sick"  # rest or very light only; excuses one session
+    TRAVEL_NO_TRAINING = "travel_no_training"  # "no training possible"; excuses one session
     MILD = "mild"  # lighter or shorter; excuses nothing
+    TRAVEL = "travel"  # adapted to the trip's equipment; excuses nothing
 
 
-RESTRICTIVENESS: tuple[DayEffect, ...] = (DayEffect.SICK, DayEffect.MILD)
-"""Per day the most restrictive effect wins: earlier here beats later."""
+RESTRICTIVENESS: tuple[DayEffect, ...] = (
+    DayEffect.SICK,
+    DayEffect.TRAVEL_NO_TRAINING,
+    DayEffect.MILD,
+    DayEffect.TRAVEL,
+)
+"""Per day the most restrictive effect wins: earlier here beats later.
 
-EXCUSED_STATUS: dict[DayEffect, str] = {DayEffect.SICK: "excused_ill"}
+Sick beats travel; mild beats travel (a light session, within what the trip allows).
+Whether a day is a travel day at all, for relaxed substitution and "Not done
+(travelling)", is ``travel_on``: that holds under any illness too.
+"""
+
+EXCUSED_STATUS: dict[DayEffect, str] = {
+    DayEffect.SICK: "excused_ill",
+    DayEffect.TRAVEL_NO_TRAINING: "excused_travel",
+}
 """The ``SessionAdherence.status`` a day with this effect gives the session it excuses."""
 
-EXCUSED_LABEL: dict[str, str] = {"excused_ill": "ill"}
+EXCUSED_LABEL: dict[str, str] = {
+    "excused_ill": "ill",
+    "excused_travel": "no training while travelling",
+}
 """How the recap and the email name an excused status: "3 excused (ill 3 days)"."""
 
 
@@ -169,6 +205,8 @@ def excused_summary(excused_sessions: int, excused_days: dict[str, int]) -> str 
 def _effect_of(episode: Episode) -> DayEffect | None:
     if episode.kind == EpisodeKind.ILLNESS:
         return DayEffect.MILD if episode.severity == IllnessSeverity.MILD else DayEffect.SICK
+    if episode.kind == EpisodeKind.TRAVEL:
+        return DayEffect.TRAVEL_NO_TRAINING if episode.no_training else DayEffect.TRAVEL
     return None
 
 
@@ -181,6 +219,15 @@ def effect_on(episodes: Iterable[Episode], day: date, *, today: date) -> DayEffe
         effect for e in episodes if e.covers(day, today) and (effect := _effect_of(e)) is not None
     }
     return next((e for e in RESTRICTIVENESS if e in effects), None)
+
+
+def travel_on(episodes: Iterable[Episode], day: date, *, today: date) -> Episode | None:
+    """The trip covering ``day``, or None (the latest-started one if trips overlap).
+
+    Up to ``today`` only, like every effect: a future trip changes no completion yet.
+    """
+    trips = [e for e in episodes if e.kind == EpisodeKind.TRAVEL and e.covers(day, today)]
+    return max(trips, key=lambda e: (e.started_on, e.id), default=None)
 
 
 def excusing_days(episodes: Iterable[Episode], week_start: date, *, today: date) -> dict[date, str]:
@@ -291,12 +338,59 @@ async def get_episode(
     return episode if episode is not None and episode.user_id == user_id else None
 
 
+async def open_travel(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    started_on: date,
+    ended_on: date | None,
+    equipment: Equipment,
+    tz_shift_hours: float | None,
+    no_training: bool,
+    note: str | None,
+) -> LifeContextEpisode:
+    """ "Travelling" (#221): a trip from ``started_on``, which may be in the future.
+
+    ``ended_on`` is the expected last travel day, if known. Trips may overlap any
+    other episode: per day the most restrictive effect wins.
+    """
+    episode = LifeContextEpisode(
+        user_id=user_id,
+        kind=EpisodeKind.TRAVEL,
+        started_on=started_on,
+        ended_on=ended_on,
+        equipment=equipment,
+        tz_shift_hours=tz_shift_hours,
+        no_training=no_training,
+        note=note,
+    )
+    session.add(episode)
+    await session.flush()
+    return episode
+
+
 def close(episode: LifeContextEpisode, *, today: date) -> None:
     """ "Feeling better": the episode's last day is yesterday (today is ramp-back day 1).
 
-    An episode opened today and closed today still covers today.
+    An episode opened today and closed today still covers today. "Back home" on a
+    trip ends it today instead: the journey home is still a travel day.
     """
+    if episode.kind == EpisodeKind.TRAVEL:
+        episode.ended_on = max(episode.started_on, today)
+        return
     episode.ended_on = max(episode.started_on, today - timedelta(days=1))
+
+
+class EpisodeUnderWayError(Exception):
+    """Only a trip that has not started can be cancelled; close one under way."""
+
+
+async def cancel_trip(session: AsyncSession, episode: LifeContextEpisode, *, today: date) -> None:
+    """Drop a trip entered in advance that will not happen."""
+    if episode.kind != EpisodeKind.TRAVEL or episode.started_on <= today:
+        raise EpisodeUnderWayError("Only a trip that has not started can be cancelled")
+    await session.delete(episode)
+    await session.flush()
 
 
 async def episodes_between(
@@ -344,7 +438,9 @@ async def life_context_for(
     """The episodes touching ``start``..``end`` and ``today``'s ramp-back.
 
     The ramp-back looks back far enough to find the illness that set it
-    (``RAMP_BACK_MAX_DAYS`` before today).
+    (``RAMP_BACK_MAX_DAYS`` before today). A trip entered in advance (#221) is
+    read too, so the weekly plan can plan around it; illness never starts later
+    than today.
     """
     episodes = await episodes_between(session, user_id, start, end)
     recent = await episodes_between(
@@ -352,6 +448,6 @@ async def life_context_for(
     )
     return LifeContext(
         today=today,
-        episodes=[e for e in episodes if e.started_on <= today],
+        episodes=[e for e in episodes if e.started_on <= today or e.kind == EpisodeKind.TRAVEL],
         ramp_back=ramp_back_on(recent, today, recovery=recovery),
     )

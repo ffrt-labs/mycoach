@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mycoach.database import COACHING_SCHEMA, Base
@@ -21,13 +21,22 @@ class IllnessSeverity(StrEnum):
     SICK = "sick"
 
 
+class Equipment(StrEnum):
+    """What a trip gives the athlete to train with (``LifeContextEpisode.equipment``)."""
+
+    NONE = "none"  # bodyweight only
+    HOTEL_GYM = "hotel_gym"  # a few machines, dumbbells, a treadmill
+    FULL_GYM = "full_gym"
+
+
 class LifeContextEpisode(Base):
     """A stretch of the athlete's life that coaching must read around (CONTEXT.md).
 
     Coaching-owned, never a health fact: the athlete says it, no device measures it.
     One row per episode, of one ``kind``. The shared fields say when it ran;
     kind-specific fields are nullable columns that only their kind sets (illness:
-    ``severity``). ``ended_on`` is the last affected day, null while open.
+    ``severity``; travel: ``equipment``, ``tz_shift_hours``, ``no_training``).
+    ``ended_on`` is the last affected day, null while open.
     Episodes may overlap: per day the most restrictive effect wins
     (``coaching.life_context``).
     """
@@ -43,5 +52,11 @@ class LifeContextEpisode(Base):
     note: Mapped[str | None] = mapped_column(Text, default=None)
     # illness only: an IllnessSeverity value
     severity: Mapped[str | None] = mapped_column(String(10), default=None)
+    # travel only (#221): an Equipment value, editable mid-trip
+    equipment: Mapped[str | None] = mapped_column(String(10), default=None)
+    # travel only: destination clock minus home clock, in hours (may be fractional)
+    tz_shift_hours: Mapped[float | None] = mapped_column(Float, default=None)
+    # travel only: "no training possible" -- each covered day excuses one session
+    no_training: Mapped[bool | None] = mapped_column(Boolean, default=None)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)

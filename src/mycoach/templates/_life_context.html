@@ -1,4 +1,9 @@
-{# Life context (#220): the illness check-in, the open-illness banner and the ramp-back. #}
+{# Life context (#220): the illness check-in, the open-illness banner and the ramp-back.
+   Travel (#221): the trip under way, trips entered in advance, the travelling form. #}
+{% set equipment_options = [('none', 'No equipment — bodyweight'), ('hotel_gym', 'Hotel gym'), ('full_gym', 'Full gym')] %}
+{% macro tz_text(shift) -%}
+{%- if shift %} · {{ '%g' % (shift|abs) }} h {{ 'behind' if shift < 0 else 'ahead of' }} home{% endif -%}
+{%- endmacro %}
 <div id="life-context" class="mt-6">
     {% if open_illness %}
     <div class="p-4 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-sm">
@@ -32,6 +37,51 @@
         </form>
     </details>
     {% endif %}
+    {% if current_trip %}
+    <div class="mt-3 p-4 rounded-lg bg-sky-500/[0.08] border border-sky-500/25 text-sm">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="font-semibold text-sky-300">Travelling · day {{ current_trip_day }}</span>
+            <span class="text-zinc-400">{% if current_trip.ended_on %}until {{ current_trip.ended_on.strftime('%A %d %B') }}{% else %}return date not set{% endif %}{{ tz_text(current_trip.tz_shift_hours) }}{% if current_trip.no_training %} · no training possible{% endif %}{% if current_trip.note %} · {{ current_trip.note }}{% endif %}</span>
+            <select aria-label="Equipment" onchange="setEquipment({{ current_trip.id }}, this.value)"
+                class="rounded-lg text-sm px-2 py-1">
+                {% for value, label in equipment_options %}
+                <option value="{{ value }}"{% if current_trip.equipment == value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button onclick="closeEpisode({{ current_trip.id }})"
+                class="ml-auto font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg">
+                Back home
+            </button>
+        </div>
+    </div>
+    {% endif %}
+    {% for trip in upcoming_trips %}
+    <div class="mt-3 p-3 rounded-lg bg-sky-500/[0.05] border border-sky-500/20 text-sm flex flex-wrap items-center gap-3">
+        <span class="text-sky-300">Trip planned from {{ trip.started_on.strftime('%A %d %B') }}{% if trip.ended_on %} to {{ trip.ended_on.strftime('%A %d %B') }}{% endif %}</span>
+        <span class="text-zinc-400">{% for value, label in equipment_options if value == trip.equipment %}{{ label }}{% endfor %}{{ tz_text(trip.tz_shift_hours) }}{% if trip.no_training %} · no training possible{% endif %}</span>
+        <button onclick="cancelTrip({{ trip.id }})" class="ml-auto font-semibold text-zinc-500 hover:text-red-300">Cancel trip</button>
+    </div>
+    {% endfor %}
+    {% if not current_trip %}
+    <details class="mt-3 text-sm">
+        <summary class="cursor-pointer font-semibold text-zinc-500 hover:text-accent-soft">Travelling</summary>
+        <form onsubmit="travelling(event)" class="mt-3 flex flex-wrap items-end gap-3">
+            <label class="flex flex-col gap-1 text-zinc-400">From <input type="date" name="started_on" class="rounded-lg text-sm px-3 py-2"></label>
+            <label class="flex flex-col gap-1 text-zinc-400">Back (optional) <input type="date" name="ended_on" class="rounded-lg text-sm px-3 py-2"></label>
+            <label class="flex flex-col gap-1 text-zinc-400">Equipment
+                <select name="equipment" class="rounded-lg text-sm px-2 py-2">
+                    {% for value, label in equipment_options %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="flex flex-col gap-1 text-zinc-400">Time zone vs home (h) <input type="number" name="tz_shift_hours" step="0.5" min="-14" max="14" placeholder="0" class="w-24 rounded-lg text-sm px-3 py-2"></label>
+            <label class="flex items-center gap-2 text-zinc-400"><input type="checkbox" name="no_training"> No training possible</label>
+            <input type="text" name="note" maxlength="500" placeholder="Note (optional)" class="rounded-lg text-sm px-3 py-2">
+            <button type="submit" class="font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg">Tell the coach</button>
+        </form>
+    </details>
+    {% endif %}
     <div id="life-context-status"></div>
 </div>
 <script>
@@ -56,6 +106,24 @@ function feelingUnwell(e) {
 }
 function setSeverity(id, severity) {
     _lifeContext('/api/life-context/episodes/' + id, 'PATCH', { severity: severity });
+}
+function travelling(e) {
+    e.preventDefault();
+    var f = e.target;
+    _lifeContext('/api/life-context/travel', 'POST', {
+        started_on: f.started_on.value || null,
+        ended_on: f.ended_on.value || null,
+        equipment: f.equipment.value,
+        tz_shift_hours: f.tz_shift_hours.value === '' ? null : Number(f.tz_shift_hours.value),
+        no_training: f.no_training.checked,
+        note: f.note.value || null
+    });
+}
+function setEquipment(id, equipment) {
+    _lifeContext('/api/life-context/episodes/' + id, 'PATCH', { equipment: equipment });
+}
+function cancelTrip(id) {
+    _lifeContext('/api/life-context/episodes/' + id, 'DELETE');
 }
 function closeEpisode(id) {
     _lifeContext('/api/life-context/episodes/' + id + '/close', 'POST');

@@ -75,6 +75,16 @@ def test_principles_cover_the_tickets_in_list() -> None:
         assert phrase in text, phrase
 
 
+def test_a_jet_lag_principle_is_triggered_by_a_three_hour_time_zone_shift() -> None:
+    """#221: the briefing flags jet lag on a trip of 3 h or more off the home clock."""
+    text = coaching_principles()
+
+    assert "Jet lag" in text
+    assert "time-zone shift of 3 h or more" in text
+    for phrase in ["destination", "caffeine cutoff on local time", "local morning or afternoon"]:
+        assert phrase in text, phrase
+
+
 def test_principles_never_recommend_supplements_or_doses() -> None:
     text = coaching_principles().lower()
 

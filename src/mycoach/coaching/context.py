@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary, summarize_body
-from mycoach.coaching.life_context import episodes_between, excusing_days
+from mycoach.coaching.life_context import episodes_between, excusing_days, travel_on
 from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
 from mycoach.coaching.substitution import (
     DEFAULT_RULES,
+    TRAVEL_RULES,
     RulesForDay,
+    SubstitutionRules,
     can_substitute,
     classify_activity_intent,
 )
@@ -105,7 +107,18 @@ async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | No
     return "Current mesocycle status:\n" + "\n".join(parts)
 
 
-SessionStatus = Literal["done", "substituted", "not_done", "excused_ill"]
+SessionStatus = Literal[
+    "done",
+    "substituted",
+    "adapted_travel",
+    "not_done",
+    "not_done_travelling",
+    "excused_ill",
+    "excused_travel",
+]
+
+OWED_STATUSES: frozenset[str] = frozenset({"not_done", "not_done_travelling"})
+"""Statuses of a session still owed this week (open in the briefing and the Logger)."""
 
 
 class SubstituteActivity(TypedDict):
@@ -137,13 +150,16 @@ class ExtraActivity(TypedDict):
 class SessionAdherence(TypedDict):
     """One planned session of the week and whether it was done.
 
-    ``completed`` is week-scoped (ADR 0005) and true for both ``status`` "done"
-    and "substituted". "excused_ill" (#220) is a not-done session a sick day
-    excused: out of the week's denominator. ``actual_day`` names the day of the activity that
+    ``completed`` is week-scoped (ADR 0005) and true for ``status`` "done",
+    "substituted" and "adapted_travel" (#221: substituted under the relaxed travel
+    rules on a travel day). "excused_ill" (#220) and "excused_travel" (a "no
+    training possible" travel day) are not-done sessions an episode excused: out
+    of the week's denominator. "not_done_travelling" is not done, planned on a
+    travel day, and still in the denominator. ``actual_day`` names the day of the activity that
     completed it and ``on_planned_day`` says whether that was the planned day;
     both are ``None`` when no activity completed it (missed, or ticked by hand).
     On planned day is informational, never a penalty. ``substitute`` is set
-    only when ``status`` is "substituted".
+    only when ``status`` is "substituted" or "adapted_travel".
     """
 
     id: int
@@ -162,8 +178,9 @@ class PlanAdherence(TypedDict):
     """How much of a week's plan was done (``get_plan_adherence_for_week``).
 
     ``completed_sessions`` counts substituted sessions too; ``substituted_sessions``
-    says how many of them were ("4/5 done · 1 substituted"). ``extras`` are the
-    week's activities that filled no session.
+    says how many of them were ("4/5 done · 1 substituted"), ``adapted_sessions``
+    how many were adapted on a trip (#221). ``extras`` are the week's activities
+    that filled no session.
 
     ``total_sessions`` is the denominator: the planned sessions minus the
     ``excused_sessions`` (#220), which life context episodes excused.
@@ -176,6 +193,7 @@ class PlanAdherence(TypedDict):
     total_sessions: int
     completed_sessions: int
     substituted_sessions: int
+    adapted_sessions: int
     excused_sessions: int
     excused_days: dict[str, int]
     adherence_pct: float
@@ -202,8 +220,9 @@ async def get_plan_adherence_for_week(
     and the week's extra activities. Returns None if no plan exists for the week.
 
     ``rules_for_day`` picks the substitution rules for a session by its planned
-    date (default: ``substitution.DEFAULT_RULES`` everywhere); a relaxation such
-    as a travel week plugs in here.
+    date. By default a travel day (#221) gets ``substitution.TRAVEL_RULES`` and
+    every other day ``DEFAULT_RULES``; a substitution under the travel rules is
+    Adapted (travel), and a session left on a travel day is Not done (travelling).
 
     Life context episodes (#220) then excuse leftover sessions: each excusing
     day (a sick day) excuses at most one not-done session, its own day's first,
@@ -316,6 +335,16 @@ async def get_plan_adherence_for_week(
     # fills at most one session. The substitute pool is every in-week activity
     # not yet credited; the claim guard is a same-sport rule, and an empty gym
     # session never classifies as strength anyway.
+    episodes = await episodes_between(session, user_id, week_start, week_start + timedelta(days=6))
+
+    def travelling(day: date) -> bool:
+        return travel_on(episodes, day, today=today) is not None
+
+    if rules_for_day is None:
+
+        def rules_for_day(day: date) -> SubstitutionRules:
+            return TRAVEL_RULES if travelling(day) else DEFAULT_RULES
+
     substitutes = sorted(
         (a for a in in_week if a["external_id"] not in consumed),
         key=lambda a: (a["start_date"], a["external_id"]),
@@ -326,7 +355,7 @@ async def get_plan_adherence_for_week(
             if s.id in done:
                 continue
             planned_on = week_start + timedelta(days=s.day_of_week)
-            rules = rules_for_day(planned_on) if rules_for_day is not None else DEFAULT_RULES
+            rules = rules_for_day(planned_on)
             match = next(
                 (
                     a
@@ -344,11 +373,7 @@ async def get_plan_adherence_for_week(
 
     # Excusal (#220): after every way of being done, so a session done while ill
     # is done, never excused. A day excuses once however many episodes cover it.
-    excusing = excusing_days(
-        await episodes_between(session, user_id, week_start, week_start + timedelta(days=6)),
-        week_start,
-        today=today,
-    )
+    excusing = excusing_days(episodes, week_start, today=today)
     excused: dict[int, str] = {}
     leftover_days: list[tuple[date, str]] = []
     for day, excused_status in excusing.items():
@@ -374,6 +399,7 @@ async def get_plan_adherence_for_week(
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list: list[SessionAdherence] = []
+    statuses: list[str] = []
     completed = 0
     for s in sessions:
         is_done = s.id in done
@@ -381,13 +407,15 @@ async def get_plan_adherence_for_week(
             completed += 1
         actual = done_on.get(s.id)
         sub = substituted.get(s.id)
-        status: SessionStatus = (
-            "substituted"
-            if sub is not None
-            else "done"
-            if is_done
-            else excused.get(s.id, "not_done")  # type: ignore[assignment]
-        )
+        on_trip = travelling(week_start + timedelta(days=s.day_of_week))
+        status: SessionStatus
+        if sub is not None:
+            status = "adapted_travel" if on_trip else "substituted"
+        elif is_done:
+            status = "done"
+        else:
+            status = excused.get(s.id, "not_done_travelling" if on_trip else "not_done")  # type: ignore[assignment]
+        statuses.append(status)
         session_list.append(
             {
                 "id": s.id,
@@ -441,7 +469,8 @@ async def get_plan_adherence_for_week(
         "plan_summary": plan.summary,
         "total_sessions": total,
         "completed_sessions": completed,
-        "substituted_sessions": len(substituted),
+        "substituted_sessions": statuses.count("substituted"),
+        "adapted_sessions": statuses.count("adapted_travel"),
         "excused_sessions": len(excused),
         "excused_days": excused_days,
         "adherence_pct": adherence_pct,
@@ -492,8 +521,8 @@ async def get_open_this_week(
     if adherence is None:
         return None
 
-    # An excused session (#220) is no longer owed.
-    open_ids = [s["id"] for s in adherence["sessions"] if s["status"] == "not_done"]
+    # An excused session (#220) is no longer owed; one on a trip (#221) still is.
+    open_ids = [s["id"] for s in adherence["sessions"] if s["status"] in OWED_STATUSES]
     rows = (
         (
             await session.execute(

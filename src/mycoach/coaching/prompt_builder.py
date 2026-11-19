@@ -17,6 +17,7 @@ from mycoach.coaching.life_context import (
     LifeContext,
     RampBack,
     excused_summary,
+    is_jet_lag,
 )
 
 if TYPE_CHECKING:
@@ -442,7 +443,7 @@ def _format_body(body: BodySummary | None) -> str:
     return "\n".join(lines)
 
 
-_NO_LIFE_CONTEXT = "Nothing to report: no illness or ramp-back."
+_NO_LIFE_CONTEXT = "Nothing to report: no illness, travel or ramp-back."
 _SEVERITY_TEXT = {"mild": "mild (above the neck)", "sick": "sick (below the neck)"}
 
 
@@ -451,7 +452,9 @@ def _day_text(day: date) -> str:
 
 
 def _format_episode(e: Episode, today: date) -> str:
-    """One episode line. #221: travel episodes get their own wording here."""
+    """One episode line: an illness, or a trip with what it allows (#221)."""
+    if e.kind == EpisodeKind.TRAVEL:
+        return _format_trip(e, today)
     label = e.kind.capitalize()
     if e.kind == EpisodeKind.ILLNESS and e.severity:
         label += f", {_SEVERITY_TEXT.get(e.severity, e.severity)}"
@@ -462,6 +465,44 @@ def _format_episode(e: Episode, today: date) -> str:
         noun = "day" if days == 1 else "days"
         when = f"{_day_text(e.started_on)} to {_day_text(e.ended_on)} ({days} {noun})"
     return f"- {label}: {when}" + (f". Note: {e.note}" if e.note else "")
+
+
+_EQUIPMENT_TEXT = {
+    "none": "none (bodyweight only)",
+    "hotel_gym": "hotel gym (a few machines, dumbbells, a treadmill)",
+    "full_gym": "full gym",
+}
+
+
+def _format_trip(e: Episode, today: date) -> str:
+    label = "Travel, planned" if e.started_on > today else "Travel"
+    if e.started_on > today:
+        if e.ended_on is None:
+            when = f"from {_day_text(e.started_on)}, return date not set"
+        else:
+            days = e.length_days(today)
+            noun = "day" if days == 1 else "days"
+            when = f"{_day_text(e.started_on)} to {_day_text(e.ended_on)} ({days} {noun})"
+    elif e.ended_on is not None and e.ended_on < today:
+        days = e.length_days(today)
+        noun = "day" if days == 1 else "days"
+        when = f"{_day_text(e.started_on)} to {_day_text(e.ended_on)} ({days} {noun})"
+    else:
+        day = (today - e.started_on).days + 1
+        until = "return date not set" if e.ended_on is None else f"until {_day_text(e.ended_on)}"
+        when = f"since {_day_text(e.started_on)} (day {day}), {until}"
+    parts = [f"- {label}: {when}."]
+    if e.equipment:
+        parts.append(f"Equipment: {_EQUIPMENT_TEXT.get(e.equipment, e.equipment)}.")
+    if e.tz_shift_hours:
+        shift = f"{e.tz_shift_hours:+g} h from home"
+        jet_lag = ": jet lag, apply the jet-lag principles" if is_jet_lag(e.tz_shift_hours) else ""
+        parts.append(f"Time zone: {shift}{jet_lag}.")
+    if e.no_training:
+        parts.append("No training possible on these days.")
+    if e.note:
+        parts.append(f"Note: {e.note}")
+    return " ".join(parts)
 
 
 def _format_ramp_back(r: RampBack) -> str:
@@ -1109,8 +1150,12 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
     counts = [f"{len(by_status['done'])} as planned"]
     if by_status["substituted"]:
         counts.append(f"{len(by_status['substituted'])} substituted")
+    if by_status.get("adapted_travel"):
+        counts.append(f"{len(by_status['adapted_travel'])} adapted (travel)")
     if by_status["not_done"]:
         counts.append(f"{len(by_status['not_done'])} not done")
+    if by_status.get("not_done_travelling"):
+        counts.append(f"{len(by_status['not_done_travelling'])} not done (travelling)")
     excused = excused_summary(
         adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
     )
@@ -1132,9 +1177,14 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         for s in by_status["done"]:
             when = f"done {s['actual_day']}" if s.get("actual_day") else "ticked off by hand"
             lines.append(f"- {s['title']} {_session_tag(s)} — {when} (planned {s['day']})")
-    if by_status["substituted"]:
-        lines.append("Substituted:")
-        for s in by_status["substituted"]:
+    for status, heading in (
+        ("substituted", "Substituted:"),
+        ("adapted_travel", "Adapted (travel), counted as done:"),
+    ):
+        if not by_status.get(status):
+            continue
+        lines.append(heading)
+        for s in by_status[status]:
             sub = s.get("substitute") or {}
             detail = ", ".join(
                 p
@@ -1150,10 +1200,14 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
                 f" ← {sub.get('title', '?')} [{sub.get('sport', '?')}]{on}"
                 + (f": {detail}" if detail else "")
             )
-    if by_status["not_done"]:
-        lines.append("Not done:")
-        for s in by_status["not_done"]:
-            lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
+    for status, heading in (
+        ("not_done", "Not done:"),
+        ("not_done_travelling", "Not done (travelling), still in the count:"),
+    ):
+        if by_status.get(status):
+            lines.append(heading)
+            for s in by_status[status]:
+                lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
     for status, label in EXCUSED_LABEL.items():
         if by_status.get(status):
             lines.append(f"Excused ({label}), out of the count:")

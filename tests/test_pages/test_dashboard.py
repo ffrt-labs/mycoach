@@ -480,7 +480,7 @@ def _local_today() -> date:
 
 async def _episode(**fields: object) -> int:
     async with test_session() as session:
-        episode = LifeContextEpisode(user_id=1, kind="illness", **fields)
+        episode = LifeContextEpisode(user_id=1, **({"kind": "illness"} | fields))
         session.add(episode)
         await session.commit()
         return episode.id
@@ -528,3 +528,56 @@ async def test_a_ramp_back_shows_its_day(client: AsyncClient) -> None:
 
     assert "Returning from illness · day 2/5" in resp.text
     assert "Feeling unwell" in resp.text
+
+
+# --- Travel (#221) -------------------------------------------------------------------
+
+
+async def test_dashboard_offers_the_travelling_form(client: AsyncClient) -> None:
+    await _seed_user()
+
+    resp = await client.get("/")
+
+    assert "Travelling" in resp.text
+    assert "travelling(event)" in resp.text
+    for equipment in ("none", "hotel_gym", "full_gym"):
+        assert f'value="{equipment}"' in resp.text
+    assert 'name="no_training"' in resp.text
+    assert 'name="tz_shift_hours"' in resp.text
+
+
+async def test_a_trip_under_way_shows_its_day_equipment_and_back_home(
+    client: AsyncClient,
+) -> None:
+    await _seed_user()
+    today = _local_today()
+    trip_id = await _episode(
+        kind="travel",
+        equipment="hotel_gym",
+        tz_shift_hours=-6,
+        started_on=today - timedelta(days=1),
+        ended_on=today + timedelta(days=2),
+    )
+
+    resp = await client.get("/")
+
+    assert "Travelling · day 2" in resp.text
+    assert "6 h behind home" in resp.text
+    assert f"setEquipment({trip_id}, this.value)" in resp.text
+    assert '<option value="hotel_gym" selected>' in resp.text
+    assert f"closeEpisode({trip_id})" in resp.text
+    assert "Back home" in resp.text
+
+
+async def test_a_trip_entered_in_advance_shows_as_planned_and_cancellable(
+    client: AsyncClient,
+) -> None:
+    await _seed_user()
+    start = _local_today() + timedelta(days=3)
+    trip_id = await _episode(kind="travel", equipment="none", no_training=True, started_on=start)
+
+    resp = await client.get("/")
+
+    assert f"Trip planned from {start.strftime('%A %d %B')}" in resp.text
+    assert "no training possible" in resp.text
+    assert f"cancelTrip({trip_id})" in resp.text

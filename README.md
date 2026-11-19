@@ -412,7 +412,7 @@ Total LLM calls per generation: **N + 1** (one per gym day + one for all cardio 
 - *List context* (daily briefing, recap, etc.): compact format with `title`, `sport`, `start_time`, `duration_minutes` only
 - *Detail context* (post-workout): all 12 fields with labels + full gym set breakdown
 
-**Prompt templates** are versioned in `prompts/v1/`, `prompts/v2/` and `prompts/v3/` (`BUNDLED_VERSION` in `prompt_builder.py` picks the bundled set). Each template receives pre-formatted markdown sections assembled by `prompt_builder.py`.
+**Prompt templates** are versioned in `prompts/v1/`, `prompts/v2/`, `prompts/v3/` and `prompts/v4/` (`BUNDLED_VERSION` in `prompt_builder.py` picks the bundled set). Each template receives pre-formatted markdown sections assembled by `prompt_builder.py`.
 
 ## Architecture Decisions
 

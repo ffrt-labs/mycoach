@@ -513,7 +513,7 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             "health_trends": [],
         },
     ),
-    # The bad v2 recap's week, under the v3 recap prompt (#217).
+    # The bad v2 recap's week, under the v4 recap prompt (#217).
     "weekly_recap_2026_11_02": (
         "weekly_recap",
         {

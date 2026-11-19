@@ -12,23 +12,6 @@ Generate a daily coaching briefing based on the following data.
 ## Today's Planned Workout
 {planned_workout}
 
-## Open This Week
-{open_this_week}
-
-Open-session rules:
-- The planned day is the default suggestion, not a constraint. If today's recovery data argues against the session planned for today, recommend the open session that fits today better (for example, after poor sleep do the easy swim and push the heavy squat), name it and say why.
-- A session whose planned day has passed is still owed this week and can be done today.
-- When more sessions are open than days are left, say so now, not on Sunday, and suggest which to combine or drop.
-
-## Life Context
-{life_context}
-
-Life-context rules:
-- While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or skip. Recommend no open session at intensity, and do not ask for sessions to be made up later.
-- During a ramp-back, keep today's session at or under the load given, and name the ramp-back day. Extend the ramp-back only when the section says recovery has not come back; never shorten it.
-- While travelling, adapt the open sessions to the trip's equipment: swap exercises for what is there (bodyweight with none; dumbbells, machines or a treadmill in a hotel gym) and keep each session's intent. On a day with no training possible, recommend rest and ask for nothing to be made up. Ill on a trip: the illness rule wins; mild means one light, short session the trip allows.
-- When the trip is 3 h or more off the home clock, add jet-lag advice from the principles for today.
-
 ## Steps (7 days ending yesterday)
 {steps_summary}
 

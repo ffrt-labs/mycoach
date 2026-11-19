@@ -32,36 +32,19 @@
 
 {% if analysis.key_highlights %}
 {% call ui.section(layout, "Highlights") %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for item in analysis.key_highlights %}
-      <tr>
-        <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;"><span class="mk-plus">+</span></td>
-        <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+    {{ ui.bullets(analysis.key_highlights) }}
 {% endcall %}
 {% endif %}
 
 {% if analysis.areas_for_improvement %}
 {% call ui.section(layout, "Work on") %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for item in analysis.areas_for_improvement %}
-      <tr>
-        <td style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;"><span class="mk-arrow">&rarr;</span></td>
-        <td class="li" style="padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ item }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+    {{ ui.bullets(analysis.areas_for_improvement, "arrow") }}
 {% endcall %}
 {% endif %}
 
 {% if analysis.next_session_recommendations %}
 {% call ui.section(layout) %}
-    <div class="coach" style="padding:24px;">
-      <div class="coach-k">Next session</div>
-      <div class="coach-t" style="margin-top:12px;">{{ analysis.next_session_recommendations }}</div>
-    </div>
+    {% call ui.coach("Next session") %}{{ analysis.next_session_recommendations }}{% endcall %}
 {% endcall %}
 {% endif %}
 

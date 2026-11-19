@@ -547,7 +547,7 @@ def send_weekly_recap(
     """Send weekly recap email.
 
     ``adherence`` is the recapped week's plan adherence, from the DB, not the
-    LLM; its completion line heads the Adherence section (#217).
+    LLM; its Completion line tops the recap email, above the coach's analysis (#217).
     """
     if settings is None:
         settings = get_settings()

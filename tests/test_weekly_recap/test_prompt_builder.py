@@ -527,17 +527,17 @@ class TestRecapPromptV4:
 
     @staticmethod
     def _without_rules(message: str) -> str:
-        """The message minus its Adherence Rules section, the one place that names
+        """The message minus its Completion Rules section, the one place that names
         the banned language in order to ban it."""
-        head, _, rest = message.partition("## Adherence Rules")
-        assert rest, "the v4 recap prompt has an Adherence Rules section"
+        head, _, rest = message.partition("## Completion Rules")
+        assert rest, "the v4 recap prompt has a Completion Rules section"
         _, _, tail = rest.partition("\n## ")
         return head + tail
 
     def test_headline_is_completion(self) -> None:
         message = self._user_message()
         assert "Completion: 4/5 planned sessions done (80%)" in message
-        assert "Headline adherence is the Completion line" in message
+        assert "The headline is the Completion line" in message
 
     def test_nothing_outside_the_rules_names_rigid_language(self) -> None:
         rest = self._without_rules(self._user_message()).lower()
@@ -546,9 +546,9 @@ class TestRecapPromptV4:
 
     def test_rules_ban_moved_language_and_rigidity_advice(self) -> None:
         message = self._user_message()
-        rules = message.partition("## Adherence Rules")[2].partition("\n## ")[0]
+        rules = message.partition("## Completion Rules")[2].partition("\n## ")[0]
         assert "not call it moved, shifted or missed" in rules
         assert "fewer or firmer slots" in rules
         assert "back-to-back heavy sessions" in rules
         assert "stimulus it delivered" in rules
-        assert "volume note, not an adherence one" in rules
+        assert "volume note, not a completion one" in rules

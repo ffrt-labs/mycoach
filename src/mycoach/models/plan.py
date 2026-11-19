@@ -14,6 +14,17 @@ class Track(StrEnum):
     CARDIO = "cardio"  # designed from goals in one cardio-plan call
 
 
+class SessionIntent(StrEnum):
+    """The training purpose of a planned session: the stimulus a substitute must deliver."""
+
+    STRENGTH = "strength"
+    AEROBIC_BASE = "aerobic_base"
+    THRESHOLD = "threshold"
+    INTERVALS = "intervals"
+    RECOVERY = "recovery"
+    SKILL = "skill"
+
+
 class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
     __table_args__ = (
@@ -66,3 +77,7 @@ class PlannedSession(Base):
     # for a failed generation. Null for a generated session. Prompts read it to leave the
     # placeholder's failure text out of the plan they describe (ticket #187).
     generation_error: Mapped[str | None] = mapped_column(Text, default=None)
+    # The session's training purpose, a SessionIntent. The cardio plan emits it and gym
+    # sessions default to strength. Null for sessions planned before the column existed
+    # and when the LLM gave none or an unknown one: such a session is never substitutable.
+    intent: Mapped[str | None] = mapped_column(String(20), default=None)

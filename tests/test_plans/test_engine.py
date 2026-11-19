@@ -25,6 +25,7 @@ VALID_CARDIO_RESPONSE = json.dumps(
                 "day_of_week": 0,
                 "sport": "running",
                 "title": "Easy Recovery Run",
+                "intent": "aerobic_base",
                 "duration_minutes": 60,
                 "details": {"type": "easy", "description": "Zone 2 easy run"},
                 "notes": "Keep HR under 140.",
@@ -456,6 +457,50 @@ class TestGenerateWeeklyPlan:
                 select(PlannedSession).where(PlannedSession.plan_id == plan.id)
             )
             assert all(s.generation_error is None for s in result.scalars().all())
+
+    async def test_cardio_sessions_keep_the_intent_the_plan_gave(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            engine = CoachingEngine(llm_client=_mock_llm_client())
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            result = await session.execute(
+                select(PlannedSession).where(PlannedSession.plan_id == plan.id)
+            )
+            intents = {s.sport: s.intent for s in result.scalars().all()}
+            # The swim came back without one.
+            assert intents == {"running": "aerobic_base", "swimming": None}
+
+    async def test_gym_sessions_default_to_strength(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_with_routine(session)
+
+            engine = CoachingEngine(llm_client=_mock_llm_two_track())
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            result = await session.execute(
+                select(PlannedSession).where(
+                    PlannedSession.plan_id == plan.id, PlannedSession.track == "gym"
+                )
+            )
+            assert [s.intent for s in result.scalars().all()] == ["strength"]
+
+    async def test_a_gym_session_from_the_bare_routine_is_still_strength(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_with_routine(session)
+
+            mock_llm = _mock_llm_two_track()
+            mock_llm.call.side_effect = Exception("API timeout")
+            engine = CoachingEngine(llm_client=mock_llm)
+            plan = await engine.generate_weekly_plan(session, user_id, week_start)
+
+            result = await session.execute(
+                select(PlannedSession).where(PlannedSession.plan_id == plan.id)
+            )
+            intents = {s.track: s.intent for s in result.scalars().all()}
+            # A cardio placeholder has no plan behind it, so no intent.
+            assert intents == {"gym": "strength", "cardio": None}
 
     async def test_gym_session_details_stored_as_json(self) -> None:
         async with test_session() as session:

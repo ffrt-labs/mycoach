@@ -5,7 +5,17 @@ import logging
 import re
 from typing import Any, TypeVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+
+from mycoach.models.plan import SessionIntent
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +106,19 @@ class CardioSessionResponse(BaseModel):
     day_of_week: int = Field(ge=0, le=6)
     sport: str
     title: str
+    intent: SessionIntent | None = None
     duration_minutes: int | None = None
     details: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
+
+    @field_validator("intent", mode="before")
+    @classmethod
+    def _unknown_intent_is_null(cls, value: Any) -> Any:
+        """Drop an intent outside the enum rather than fail the whole plan (#215)."""
+        if value is None or value in {i.value for i in SessionIntent}:
+            return value
+        logger.warning("Ignoring unknown session intent %r from the cardio plan", value)
+        return None
 
 
 class CardioPlanResponse(BaseModel):

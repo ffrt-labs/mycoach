@@ -25,6 +25,7 @@ No sport profiles configured.
 - Progress from last week's performance — increase volume or intensity gradually (max 10% per week)
 - Consider health trends when setting intensity: poor sleep/recovery → easier sessions
 - If this is a deload week, reduce volume by ~40% and keep intensity low
+- Give each session one intent, its training purpose: strength, aerobic_base (easy zone 2 volume), threshold (tempo or sustained hard), intervals (short hard repeats), recovery (very easy, to absorb load), or skill (technique, drills, match play)
 
 Respond with a JSON object matching this exact schema:
 {
@@ -33,6 +34,7 @@ Respond with a JSON object matching this exact schema:
       "day_of_week": 0,
       "sport": "swimming | running | padel",
       "title": "Session title (e.g. 'Easy Recovery Run', 'Endurance Swim')",
+      "intent": "strength | aerobic_base | threshold | intervals | recovery | skill",
       "duration_minutes": 45,
       "details": {
         "type": "Session type (e.g. 'easy', 'tempo', 'intervals', 'drills')",

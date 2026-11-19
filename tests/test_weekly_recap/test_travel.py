@@ -1,6 +1,6 @@
 """Travel in week completion (#221): adapted sessions count, travel days stay owed.
 
-A session done in adapted form on a travel day is **Adapted (travel)** and counts as
+A session filled in adapted form by an activity on a travel day is **Adapted (travel)** and counts as
 done. A session not done while travelling stays in the denominator as **Not done
 (travelling)**. Only days under "no training possible" excuse a session, like sick days.
 """
@@ -245,3 +245,59 @@ async def test_a_session_left_on_a_trip_is_still_open_this_week() -> None:
 
     assert result is not None
     assert [s["title"] for s in result["sessions"]] == ["Lower A (squat)", "Long run"]
+
+
+def _home_ride(user_id: int, day: int) -> Activity:
+    """An easy ride: delivers aerobic base under the normal substitution rules."""
+    zones = [{"zoneNumber": i + 1, "secsInZone": m * 60} for i, m in enumerate((5, 30, 3, 0, 0))]
+    return Activity(
+        user_id=user_id,
+        title="Easy ride",
+        sport="cycling",
+        start_time=datetime(2026, 11, day, 7, 0),
+        duration_minutes=38,
+        hr_zones=json.dumps(zones),
+        training_effect_aerobic=2.4,
+        training_effect_anaerobic=0.3,
+        data_source="garmin",
+    )
+
+
+async def test_a_travel_day_slot_filled_at_home_is_substituted_not_adapted() -> None:
+    async with test_session() as session:
+        user_id = await _plan(session, _easy_run(2))
+        session.add(_travel(user_id, 3, 4))  # Tue-Wed away
+        session.add(_home_ride(user_id, 6))  # Friday, home
+        await session.commit()
+
+        result = await get_plan_adherence_for_week(session, user_id, WEEK, today=AFTER)
+
+    assert result is not None
+    assert _statuses(result) == {"Easy run": "substituted"}
+    assert (result["substituted_sessions"], result["adapted_sessions"]) == (1, 0)
+
+
+async def test_a_circuit_at_home_does_not_fill_a_travel_day_strength_slot() -> None:
+    async with test_session() as session:
+        user_id = await _plan(session, _squats(1))  # Tuesday, away
+        session.add(_travel(user_id, 3, 4))
+        session.add(_circuit(user_id, 6))  # Friday, home
+        await session.commit()
+
+        result = await get_plan_adherence_for_week(session, user_id, WEEK, today=AFTER)
+
+    assert result is not None
+    assert _statuses(result) == {"Lower A (squat)": "not_done_travelling"}
+
+
+async def test_a_circuit_on_a_trip_fills_a_home_day_strength_slot_as_adapted() -> None:
+    async with test_session() as session:
+        user_id = await _plan(session, _squats(0))  # Monday, home
+        session.add(_travel(user_id, 3, 4))
+        session.add(_circuit(user_id, 3))  # Tuesday, away
+        await session.commit()
+
+        result = await get_plan_adherence_for_week(session, user_id, WEEK, today=AFTER)
+
+    assert result is not None
+    assert _statuses(result) == {"Lower A (squat)": "adapted_travel"}

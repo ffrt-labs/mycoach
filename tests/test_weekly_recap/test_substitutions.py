@@ -4,7 +4,6 @@ import json
 from datetime import date, datetime
 
 from mycoach.coaching.context import get_open_this_week, get_plan_adherence_for_week
-from mycoach.coaching.substitution import DEFAULT_RULES, SubstitutionRules
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, SessionIntent, WeeklyPlan
 from mycoach.models.user import User
@@ -215,27 +214,6 @@ class TestSubstitution:
         # Day is a soft preference: Sunday's padel fills Sunday's run.
         assert by_title == {"Saturday run": "not_done", "Long easy run": "substituted"}
         assert result["extras"] == []
-
-    async def test_per_day_rules_can_relax_a_substitution(self) -> None:
-        """A relaxation (e.g. a travel week, #221) plugs in as rules for the days it covers."""
-        relaxed = SubstitutionRules(min_volume_ratio=0.5)
-        async with test_session() as session:
-            user_id = await _plan(session, _sunday_run())
-            session.add(_padel(user_id, duration_minutes=50))
-            await session.commit()
-
-            strict = await get_plan_adherence_for_week(session, user_id, WEEK)
-            travel = await get_plan_adherence_for_week(
-                session,
-                user_id,
-                WEEK,
-                rules_for_day=lambda day: relaxed if day == date(2026, 11, 8) else DEFAULT_RULES,
-            )
-
-        assert strict is not None and travel is not None
-        assert strict["sessions"][0]["status"] == "not_done"
-        assert travel["sessions"][0]["status"] == "substituted"
-
 
     async def test_a_substituted_session_is_not_open_this_week(self) -> None:
         """Open this week (#218) is built on completion, so a substitution closes the slot."""

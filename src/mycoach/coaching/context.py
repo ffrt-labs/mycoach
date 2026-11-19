@@ -16,7 +16,6 @@ from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
 from mycoach.coaching.substitution import (
     DEFAULT_RULES,
     TRAVEL_RULES,
-    RulesForDay,
     SubstitutionRules,
     can_substitute,
     classify_activity_intent,
@@ -210,7 +209,6 @@ async def get_plan_adherence_for_week(
     session: AsyncSession,
     user_id: int,
     week_start: date,
-    rules_for_day: RulesForDay | None = None,
     today: date | None = None,
 ) -> PlanAdherence | None:
     """Get plan adherence data for a given week.
@@ -219,10 +217,11 @@ async def get_plan_adherence_for_week(
     total_sessions, completed_sessions, adherence_pct, per-session breakdown
     and the week's extra activities. Returns None if no plan exists for the week.
 
-    ``rules_for_day`` picks the substitution rules for a session by its planned
-    date. By default a travel day (#221) gets ``substitution.TRAVEL_RULES`` and
-    every other day ``DEFAULT_RULES``; a substitution under the travel rules is
-    Adapted (travel), and a session left on a travel day is Not done (travelling).
+    A substitute's own day picks its rules: an activity on a travel day (#221)
+    is judged by ``substitution.TRAVEL_RULES`` and fills the session as Adapted
+    (travel); any other by ``DEFAULT_RULES``, as Substituted, whatever day the
+    session was planned on. A session planned on a travel day and left is Not
+    done (travelling).
 
     Life context episodes (#220) then excuse leftover sessions: each excusing
     day (a sick day) excuses at most one not-done session, its own day's first,
@@ -340,10 +339,8 @@ async def get_plan_adherence_for_week(
     def travelling(day: date) -> bool:
         return travel_on(episodes, day, today=today) is not None
 
-    if rules_for_day is None:
-
-        def rules_for_day(day: date) -> SubstitutionRules:
-            return TRAVEL_RULES if travelling(day) else DEFAULT_RULES
+    def rules_for(activity: dict[str, Any]) -> SubstitutionRules:
+        return TRAVEL_RULES if travelling(activity["start_date"]) else DEFAULT_RULES
 
     substitutes = sorted(
         (a for a in in_week if a["external_id"] not in consumed),
@@ -355,13 +352,12 @@ async def get_plan_adherence_for_week(
             if s.id in done:
                 continue
             planned_on = week_start + timedelta(days=s.day_of_week)
-            rules = rules_for_day(planned_on)
             match = next(
                 (
                     a
                     for a in substitutes
                     if (not same_day_only or a["start_date"] == planned_on)
-                    and can_substitute(a, s.intent, s.duration_minutes, rules)
+                    and can_substitute(a, s.intent, s.duration_minutes, rules_for(a))
                 ),
                 None,
             )
@@ -420,7 +416,7 @@ async def get_plan_adherence_for_week(
         on_trip = travelling(week_start + timedelta(days=s.day_of_week))
         status: SessionStatus
         if sub is not None:
-            status = "adapted_travel" if on_trip else "substituted"
+            status = "adapted_travel" if travelling(sub["start_date"]) else "substituted"
         elif is_done:
             status = "done"
         else:

@@ -6,7 +6,6 @@ Every threshold the classifier and the volume gate use is a named constant here.
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 
 from mycoach.models.plan import SessionIntent
@@ -97,9 +96,8 @@ def delivers_intent(activity: Mapping[str, Any], intent: SessionIntent) -> bool:
 class SubstitutionRules:
     """What a substitute must meet for one planned session.
 
-    The default applies to every session. A relaxation (e.g. a travel week, #221)
-    is a different instance for the days it covers, handed to
-    ``get_plan_adherence_for_week`` through ``rules_for_day``.
+    The default applies to every substitute. A relaxation (travel, #221) is a
+    different instance, applied to activities done on the days it covers.
 
     ``min_minutes`` replaces the volume ratio for the intents it names with an
     absolute floor (travel: 20 min of resistance work fills a strength slot).
@@ -136,11 +134,7 @@ TRAVEL_RULES = SubstitutionRules(
     matches_intent=delivers_intent_travelling,
     min_minutes={SessionIntent.STRENGTH: TRAVEL_STRENGTH_MIN_MINUTES},
 )
-"""The relaxed rules for a session planned on a travel day (Adapted (travel))."""
-
-# Which rules apply to the session planned on a given day.
-RulesForDay = Callable[[date], SubstitutionRules]
-
+"""The relaxed rules for an activity done on a travel day (Adapted (travel))."""
 
 def can_substitute(
     activity: Mapping[str, Any],

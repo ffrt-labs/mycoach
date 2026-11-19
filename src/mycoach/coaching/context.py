@@ -1,7 +1,6 @@
 """Database queries that gather context data for prompt building."""
 
 import logging
-from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypedDict
 from zoneinfo import ZoneInfo
@@ -100,12 +99,20 @@ async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | No
 
 
 class SessionAdherence(TypedDict):
-    """One planned session of the week and whether it was done."""
+    """One planned session of the week and whether it was done.
+
+    ``completed`` is week-scoped (ADR 0005). ``actual_day`` names the day of the
+    activity that completed it and ``on_planned_day`` says whether that was the
+    planned day; both are ``None`` when no activity completed it (missed, or
+    ticked by hand). On planned day is informational, never a penalty.
+    """
 
     day: str
     sport: str
     title: str
     completed: bool
+    on_planned_day: bool | None
+    actual_day: str | None
 
 
 class PlanAdherence(TypedDict):
@@ -168,6 +175,7 @@ async def get_plan_adherence_for_week(
     # that activity, so it can't also fill a different session.
     done: set[int] = set()
     consumed: set[str] = set()
+    done_on: dict[int, date] = {}  # session id -> day of the activity that completed it
     for s in sessions:
         if s.activity_external_id is None:
             continue
@@ -179,6 +187,7 @@ async def get_plan_adherence_for_week(
         ):
             done.add(s.id)
             consumed.add(s.activity_external_id)
+            done_on[s.id] = fact["start_date"]
 
     # Manual completes: no linked activity, nothing consumed.
     for s in sessions:
@@ -186,28 +195,43 @@ async def get_plan_adherence_for_week(
             done.add(s.id)
 
     # Pass 2: match remaining eligible activities to leftover sessions by sport
-    # within the week, not by day: a session shifted to another day was still
-    # done. One activity fills one session, so extras never inflate adherence.
-    # A session whose link no longer fulfils it is unlinked here: its activity
-    # returns to the pool.
+    # within the week, not by day (ADR 0005): a session done on another day was
+    # still done. One activity fills one session, so extras never inflate
+    # completion. A session whose link no longer fulfils it is unlinked here:
+    # its activity returns to the pool.
     #
-    # Logger activities are excluded unless explicitly linked (#146): a logger
-    # session could have carried a planned_session_id and didn't, meaning the
-    # athlete chose not to follow a prescription. Garmin/Hevy keep feeding the
-    # pool since they can never carry that id.
-    sport_budget: Counter[str] = Counter(
-        a["sport"]
-        for a in in_week
-        if a["external_id"] not in consumed
-        and fulfils(a["external_id"], a["sport"])
-        and ("logger" not in a["sources"] or a["external_id"] in linked_ids)
+    # Unlinked Logger activities feed the pool too (#214, revisiting #146): not
+    # picking the plan in the Logger says the athlete didn't follow the
+    # prescription to the set, not that the session wasn't done. Set-level
+    # adherence scores still need the explicit link (``plan_linking``).
+    pool = sorted(
+        (
+            a
+            for a in in_week
+            if a["external_id"] not in consumed and fulfils(a["external_id"], a["sport"])
+        ),
+        key=lambda a: (a["start_date"], a["external_id"]),
     )
-    for s in sessions:
-        if s.id in done:
-            continue
-        if sport_budget[s.sport] > 0:
-            sport_budget[s.sport] -= 1
-            done.add(s.id)
+    # Day is a soft preference: activities on a session's own day go to it
+    # first, then the rest fill leftover sessions in day order.
+    for same_day_only in (True, False):
+        for s in sessions:
+            if s.id in done:
+                continue
+            planned_on = week_start + timedelta(days=s.day_of_week)
+            match = next(
+                (
+                    a
+                    for a in pool
+                    if a["sport"] == s.sport
+                    and (not same_day_only or a["start_date"] == planned_on)
+                ),
+                None,
+            )
+            if match is not None:
+                pool.remove(match)
+                done.add(s.id)
+                done_on[s.id] = match["start_date"]
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list: list[SessionAdherence] = []
@@ -216,12 +240,17 @@ async def get_plan_adherence_for_week(
         is_done = s.id in done
         if is_done:
             completed += 1
+        actual = done_on.get(s.id)
         session_list.append(
             {
                 "day": day_names[s.day_of_week],
                 "sport": s.sport,
                 "title": s.title,
                 "completed": is_done,
+                "on_planned_day": (
+                    None if actual is None else actual == week_start + timedelta(days=s.day_of_week)
+                ),
+                "actual_day": None if actual is None else day_names[actual.weekday()],
             }
         )
 

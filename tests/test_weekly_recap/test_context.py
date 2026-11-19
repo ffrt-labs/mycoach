@@ -1,19 +1,23 @@
 """Tests for weekly recap context functions."""
 
+import json
 from datetime import date, datetime
 
-from mycoach import health
+import pytest
+
 from mycoach.coaching.context import (
     get_activities_for_week,
     get_gym_details_for_week,
     get_gym_performance_history,
     get_plan_adherence_for_week,
 )
+from mycoach.coaching.workout_log import log_workouts
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from mycoach.sources.workout_import import WorkoutImport, WorkoutSetImport
 from tests.conftest import test_session
+from tests.test_observability.conftest import RecordingScoreSink
 
 
 async def _create_user(session: object) -> int:
@@ -220,51 +224,92 @@ class TestGetPlanAdherenceForWeek:
             assert result["completed_sessions"] == 1
             assert result["adherence_pct"] == 50.0
 
-    async def test_unlinked_logger_activity_does_not_feed_sport_pool(self) -> None:
-        """An unlinked logger session (routine day / blank start) leaves the plan open.
+    async def test_unlinked_logger_session_fills_a_slot_in_the_week(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Completion is per week (#214): Mon squat / Fri deadlift planned; the athlete
+        logs Wednesday without picking the plan and Friday linked to the deadlift.
 
-        Garmin/Hevy activities can never carry a prescription id, so they keep
-        the day-and-sport guessing. A logger activity could have carried one —
-        the athlete chose not to follow a prescription — so it must not fill a
-        same-sport slot it was never linked to.
+        Both gym sessions are done. Only Friday was on its planned day, and only
+        Friday's explicitly linked session is scored for set-level adherence.
         """
+        sink = RecordingScoreSink()
+        monkeypatch.setattr("mycoach.plan_linking.get_score_sink", lambda: sink)
         async with test_session() as session:
-            user_id = await _create_user(session)
-            week_start = date(2024, 6, 10)  # Monday
+            user_id, plan_id = await _plan(session)
+            def prescribed(exercise: str) -> str:
+                return json.dumps(
+                    {"exercises": [{"exercise_id": exercise, "sets": 1, "reps": "5"}]}
+                )
 
-            plan = WeeklyPlan(
-                user_id=user_id,
-                week_start=week_start,
-                status="active",
-                summary="Test plan",
-                prompt_version="v1",
+            squat = PlannedSession(
+                plan_id=plan_id, day_of_week=0, sport="gym", title="Squat", track="gym",
+                details=prescribed("Barbell_Squat"),
             )
-            session.add(plan)
-            await session.flush()
-
-            s1 = PlannedSession(
-                plan_id=plan.id, day_of_week=1, sport="gym", title="Push", completed=False
+            deadlift = PlannedSession(
+                plan_id=plan_id, day_of_week=4, sport="gym", title="Deadlift", track="gym",
+                details=prescribed("Barbell_Deadlift"),
             )
-            session.add(s1)
-
-            # Logged from a routine day with no planned_session_id, with sets
-            # performed (so the claim guard alone wouldn't explain it being skipped)
+            session.add_all([squat, deadlift])
             await session.commit()
-            await health.record_workout(
-                user_id,
-                "logger",
-                WorkoutImport(
+
+            def logged(
+                external_id: str, day: int, exercise: str, planned_session_id: int | None
+            ) -> WorkoutImport:
+                return WorkoutImport(
                     title="Gym Session",
-                    start_time=datetime(2024, 6, 12, 9, 0),
-                    external_id="unlinked-logger-1",
-                    sets=[WorkoutSetImport(exercise_title="Bench", set_index=1, weight_kg=60, reps=5)],
-                ),
+                    start_time=datetime(2024, 6, day, 9, 0),
+                    external_id=external_id,
+                    planned_session_id=planned_session_id,
+                    sets=[
+                        WorkoutSetImport(
+                            exercise_id=exercise, exercise_title=exercise, set_index=1, reps=5
+                        )
+                    ],
+                )
+
+            await log_workouts(
+                session, user_id, [logged("wed", 12, "Barbell_Squat", None)], "logger"
+            )
+            await log_workouts(
+                session, user_id, [logged("fri", 14, "Barbell_Deadlift", deadlift.id)], "logger"
             )
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start)
-            assert result is not None
-            assert result["completed_sessions"] == 0
-            assert result["adherence_pct"] == 0.0
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+
+        assert result is not None
+        assert result["completed_sessions"] == 2
+        assert result["total_sessions"] == 2
+        by_title = {s["title"]: s for s in result["sessions"]}
+        assert by_title["Squat"]["completed"] is True
+        assert by_title["Squat"]["on_planned_day"] is False
+        assert by_title["Squat"]["actual_day"] == "Wednesday"
+        assert by_title["Deadlift"]["on_planned_day"] is True
+        assert by_title["Deadlift"]["actual_day"] == "Friday"
+        scored = {score.id.split(":planned_session:")[1] for score in sink.scores}
+        assert scored == {str(deadlift.id)}
+
+    async def test_an_activity_on_a_sessions_own_day_goes_to_that_session(self) -> None:
+        """Day is a soft preference: Thursday's lift answers Thursday's plan, not Wednesday's."""
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            session.add_all(
+                [
+                    PlannedSession(plan_id=plan_id, day_of_week=2, sport="gym", title="Wed"),
+                    PlannedSession(plan_id=plan_id, day_of_week=3, sport="gym", title="Thu"),
+                ]
+            )
+            await _gym(session, user_id, sets=1, day=13)
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(session, user_id, WEEK)
+
+        assert result is not None
+        by_title = {s["title"]: s for s in result["sessions"]}
+        assert by_title["Thu"]["completed"] is True
+        assert by_title["Thu"]["on_planned_day"] is True
+        assert by_title["Wed"]["completed"] is False
+        assert by_title["Wed"]["on_planned_day"] is None
 
     async def test_no_plan_returns_none(self) -> None:
         async with test_session() as session:

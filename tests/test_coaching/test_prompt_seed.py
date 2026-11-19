@@ -74,7 +74,7 @@ def test_seed_publishes_a_new_production_version_over_an_older_seeded_one(
     assert [v["version"] for v in history] == [1, 2, 3]
     assert history[-1]["labels"] == ["production"]
     assert history[-1]["prompt"] == history[0]["prompt"]
-    assert history[-1]["config"] == {"source": "bundled:v3"}
+    assert history[-1]["config"] == {"source": "bundled:v4"}
 
 
 def test_seed_never_publishes_over_a_version_edited_in_the_langfuse_ui(

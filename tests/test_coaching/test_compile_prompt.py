@@ -8,13 +8,16 @@ And the system message now ends with the coaching principles (#219).
 """
 
 from pathlib import Path
+from string import Formatter
 
 import pytest
 
 from mycoach.coaching.prompt_builder import (
+    BUNDLED_VERSION,
     PROMPT_VARIABLES,
     Operation,
     compile_prompt,
+    operation_template,
 )
 from tests.test_coaching.prompt_cases import CASES
 
@@ -43,6 +46,24 @@ def test_variable_map_holds_only_strings(operation: Operation) -> None:
     variables = PROMPT_VARIABLES[operation](**inputs)
     assert variables
     assert all(isinstance(k, str) and isinstance(v, str) for k, v in variables.items())
+
+
+def _placeholders(template: str) -> set[str]:
+    return {name for _, name, _, _ in Formatter().parse(template) if name}
+
+
+@pytest.mark.parametrize("operation", list(Operation))
+def test_published_v3_keeps_its_variable_set(operation: Operation) -> None:
+    """ADR 0003: adding a variable makes a new bundled version (v4), so v3
+    keeps the variables it was seeded with."""
+    v3 = _placeholders(operation_template(operation, "v3"))
+    v4 = _placeholders(operation_template(operation, "v4"))
+    assert not v3 & {"open_this_week", "life_context"}
+    assert v4 - v3 <= {"open_this_week", "life_context"}
+
+
+def test_bundled_version_is_v4() -> None:
+    assert BUNDLED_VERSION == "v4"
 
 
 def test_missing_variable_fails_to_compile() -> None:

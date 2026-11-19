@@ -60,8 +60,8 @@ class Operation(StrEnum):
     WEEKLY_RECAP = "weekly_recap"
 
 
-BUNDLED_VERSION = "v3"
-"""The bundled template set (``prompts/v3``): the default compile, the
+BUNDLED_VERSION = "v4"
+"""The bundled template set (``prompts/v4``): the default compile, the
 fallback the prompt store serves, and the seed of each Langfuse prompt."""
 
 PRINCIPLES_VERSION = "v1"

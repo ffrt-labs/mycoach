@@ -510,8 +510,8 @@ class TestBuildWeeklyRecapPrompt:
         assert "77.5kg × 8" in result
 
 
-class TestRecapPromptV3:
-    """The v3 recap prompt does not induce schedule-rigidity language (#217).
+class TestRecapPromptV4:
+    """The v4 recap prompt does not induce schedule-rigidity language (#217).
 
     The v2 recap of the week of 2026-11-02 said "2/5 planned sessions done...
     40% on paper... Mon squat moved to Wed... Fix: fewer, firmer slots".
@@ -530,7 +530,7 @@ class TestRecapPromptV3:
         """The message minus its Adherence Rules section, the one place that names
         the banned language in order to ban it."""
         head, _, rest = message.partition("## Adherence Rules")
-        assert rest, "the v3 recap prompt has an Adherence Rules section"
+        assert rest, "the v4 recap prompt has an Adherence Rules section"
         _, _, tail = rest.partition("\n## ")
         return head + tail
 

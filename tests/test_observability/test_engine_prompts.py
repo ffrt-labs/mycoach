@@ -102,7 +102,7 @@ class TestGenerationsShowThePrompt:
         [gen] = captured.generations()
         assert attr(gen, "langfuse.observation.prompt.name") is None
         assert json_attr(gen, "langfuse.observation.metadata.prompt_source") == "bundled"
-        assert insight.prompt_version == "bundled:v3"
+        assert insight.prompt_version == "bundled:v4"
 
 
 class TestArtifactsRecordThePrompt:
@@ -122,7 +122,7 @@ class TestArtifactsRecordThePrompt:
             plan = await engine.generate_weekly_plan(session, user_id, MONDAY)
 
         assert plan.gym_prompt_version == "lf:4"
-        assert plan.cardio_prompt_version == "bundled:v3"
+        assert plan.cardio_prompt_version == "bundled:v4"
         gym, _, cardio = captured.generations()
         assert attr(gym, "langfuse.observation.prompt.version") == 4
         assert json_attr(cardio, "langfuse.observation.metadata.prompt_source") == "bundled"
@@ -175,4 +175,4 @@ async def test_engine_serves_bundled_prompts_when_langfuse_is_off() -> None:
             session, user_id, MONDAY
         )
 
-    assert insight.prompt_version == "bundled:v3"
+    assert insight.prompt_version == "bundled:v4"

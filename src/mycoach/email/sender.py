@@ -19,7 +19,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
-from mycoach.coaching.life_context import excused_summary
+from mycoach.coaching.life_context import STATUS_LABEL, excused_summary
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
@@ -526,10 +526,12 @@ def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
     if not adherence or not (adherence.get("total_sessions") or adherence.get("excused_sessions")):
         return None
     line = f"{adherence['completed_sessions']}/{adherence['total_sessions']} done"
-    if adherence.get("substituted_sessions"):
-        line += f" · {adherence['substituted_sessions']} substituted"
-    if adherence.get("adapted_sessions"):
-        line += f" · {adherence['adapted_sessions']} adapted (travel)"
+    for key, status in (
+        ("substituted_sessions", "substituted"),
+        ("adapted_sessions", "adapted_travel"),
+    ):
+        if adherence.get(key):
+            line += f" · {adherence[key]} {STATUS_LABEL[status]}"
     excused = excused_summary(
         adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
     )

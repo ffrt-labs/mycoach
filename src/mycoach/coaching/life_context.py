@@ -190,6 +190,15 @@ EXCUSED_LABEL: dict[str, str] = {
 }
 """How the recap and the email name an excused status: "3 excused (ill 3 days)"."""
 
+STATUS_LABEL: dict[str, str] = {
+    "substituted": "substituted",
+    "adapted_travel": "adapted (travel)",
+    "not_done": "not done",
+    "not_done_travelling": "not done (travelling)",
+    **{status: f"excused ({reason})" for status, reason in EXCUSED_LABEL.items()},
+}
+"""How the recap and the email name a session status in a count: "1 adapted (travel)"."""
+
 
 def excused_summary(excused_sessions: int, excused_days: dict[str, int]) -> str | None:
     """ "3 excused (ill 3 days)", or None when nothing was excused."""

@@ -12,6 +12,7 @@ from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     EXCUSED_LABEL,
+    STATUS_LABEL,
     Episode,
     EpisodeKind,
     LifeContext,
@@ -1124,6 +1125,12 @@ def _session_status(s: Mapping[str, Any]) -> str:
     return str(s.get("status") or ("done" if s["completed"] else "not_done"))
 
 
+def _heading(status: str) -> str:
+    """A status's label as a section heading: "Adapted (travel)"."""
+    label = STATUS_LABEL[status]
+    return label[0].upper() + label[1:]
+
+
 def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
     """The weekly recap's completion block (#217): completion first, planned day last.
 
@@ -1139,14 +1146,9 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         by_status.setdefault(_session_status(s), []).append(s)
 
     counts = [f"{len(by_status['done'])} as planned"]
-    if by_status["substituted"]:
-        counts.append(f"{len(by_status['substituted'])} substituted")
-    if by_status.get("adapted_travel"):
-        counts.append(f"{len(by_status['adapted_travel'])} adapted (travel)")
-    if by_status["not_done"]:
-        counts.append(f"{len(by_status['not_done'])} not done")
-    if by_status.get("not_done_travelling"):
-        counts.append(f"{len(by_status['not_done_travelling'])} not done (travelling)")
+    for status in ("substituted", "adapted_travel", "not_done", "not_done_travelling"):
+        if by_status.get(status):
+            counts.append(f"{len(by_status[status])} {STATUS_LABEL[status]}")
     excused = excused_summary(
         adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
     )
@@ -1169,8 +1171,8 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
             when = f"done {s['actual_day']}" if s.get("actual_day") else "ticked off by hand"
             lines.append(f"- {s['title']} {_session_tag(s)} — {when} (planned {s['day']})")
     for status, heading in (
-        ("substituted", "Substituted:"),
-        ("adapted_travel", "Adapted (travel), counted as done:"),
+        ("substituted", f"{_heading('substituted')}:"),
+        ("adapted_travel", f"{_heading('adapted_travel')}, counted as done:"),
     ):
         if not by_status.get(status):
             continue
@@ -1192,16 +1194,16 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
                 + (f": {detail}" if detail else "")
             )
     for status, heading in (
-        ("not_done", "Not done:"),
-        ("not_done_travelling", "Not done (travelling), still in the count:"),
+        ("not_done", f"{_heading('not_done')}:"),
+        ("not_done_travelling", f"{_heading('not_done_travelling')}, still in the count:"),
     ):
         if by_status.get(status):
             lines.append(heading)
             for s in by_status[status]:
                 lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
-    for status, label in EXCUSED_LABEL.items():
+    for status in EXCUSED_LABEL:
         if by_status.get(status):
-            lines.append(f"Excused ({label}), out of the count:")
+            lines.append(f"{_heading(status)}, out of the count:")
             for s in by_status[status]:
                 lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
     extras = adherence.get("extras") or []

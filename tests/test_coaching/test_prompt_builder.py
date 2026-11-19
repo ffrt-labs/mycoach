@@ -43,6 +43,10 @@ class TestFormatHealth:
         assert "REM sleep (min): 110" in result
         assert "Awake time (min): 30" in result
 
+    def test_includes_wake_time(self) -> None:
+        result = _format_health({"sleep_score": 70, "wake_time": "06:42"})
+        assert "Wake time: 06:42" in result
+
     def test_includes_max_hr(self) -> None:
         data = {"max_hr": 185}
         result = _format_health(data)

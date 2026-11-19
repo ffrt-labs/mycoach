@@ -54,6 +54,23 @@ BUNDLED_VERSION = "v3"
 """The bundled template set (``prompts/v3``): the default compile, the
 fallback the prompt store serves, and the seed of each Langfuse prompt."""
 
+PRINCIPLES_VERSION = "v1"
+"""The coaching principles file (``prompts/principles/v1.md``) appended to the
+bundled system prompt. Sourced from the Huberman Lab Neural Network Digest
+Vol. 1; each principle names the data that triggers it (#219)."""
+
+
+def coaching_principles(version: str = PRINCIPLES_VERSION) -> str:
+    """The coaching principles text, as appended to the system prompt."""
+    return _load_template(f"{version}.md", "principles").strip()
+
+
+def operation_system_prompt(version: str = BUNDLED_VERSION) -> str:
+    """The system message every coaching operation sends: the shared system
+    prompt, then the coaching principles. Seeded into Langfuse as-is."""
+    return f"{get_system_prompt(version)}\n\n{coaching_principles()}"
+
+
 PromptVariables = dict[str, str]
 """An operation's formatted Coaching context, keyed by template placeholder."""
 
@@ -73,11 +90,14 @@ def compile_prompt(
 ) -> CompiledPrompt:
     """Render an operation's bundled template with its variable map.
 
-    Returns the shared system prompt and the user message sent to the model.
+    Returns the system message (shared system prompt plus coaching
+    principles) and the user message sent to the model.
     Raises ``KeyError`` when the map lacks a placeholder the template uses.
     """
     template = operation_template(operation, version)
-    return CompiledPrompt(system=get_system_prompt(version), user=template.format(**variables))
+    return CompiledPrompt(
+        system=operation_system_prompt(version), user=template.format(**variables)
+    )
 
 
 _TRAINING_STATUS_MAP = {
@@ -180,6 +200,7 @@ def _format_health(snapshot: dict[str, Any]) -> str:
         "sleep_light_minutes": "Light sleep (min)",
         "sleep_rem_minutes": "REM sleep (min)",
         "sleep_awake_minutes": "Awake time (min)",
+        "wake_time": "Wake time",
         "avg_stress": "Avg stress",
         "training_readiness": "Training readiness",
         "training_load": "Training load",

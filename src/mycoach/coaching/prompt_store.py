@@ -28,7 +28,7 @@ from mycoach.coaching.prompt_builder import (
     BUNDLED_VERSION,
     Operation,
     compile_prompt,
-    get_system_prompt,
+    operation_system_prompt,
     operation_template,
 )
 
@@ -121,7 +121,10 @@ def langfuse_messages(operation: Operation) -> list[dict[str, str]]:
     """The bundled prompt as a Langfuse chat prompt: system, then user."""
     template = operation_template(operation, BUNDLED_VERSION)
     return [
-        {"role": "system", "content": to_langfuse_template(get_system_prompt(BUNDLED_VERSION))},
+        {
+            "role": "system",
+            "content": to_langfuse_template(operation_system_prompt(BUNDLED_VERSION)),
+        },
         {"role": "user", "content": to_langfuse_template(template)},
     ]
 

@@ -1,7 +1,7 @@
 """Database queries that gather context data for prompt building."""
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal, TypedDict
 from zoneinfo import ZoneInfo
@@ -295,35 +295,46 @@ async def get_plan_adherence_for_week(
     # picking the plan in the Logger says the athlete didn't follow the
     # prescription to the set, not that the session wasn't done. Set-level
     # adherence scores still need the explicit link (``plan_linking``).
-    pool = sorted(
-        (
+    def planned_on(s: PlannedSession) -> date:
+        return week_start + timedelta(days=s.day_of_week)
+
+    def fill(
+        pool: list[dict[str, Any]], accepts: Callable[[PlannedSession, dict[str, Any]], bool]
+    ) -> dict[int, dict[str, Any]]:
+        """Fill leftover sessions from ``pool``, one activity each; returns session id ->
+        activity. Day is a soft preference: activities on a session's own day go to
+        it first, then the rest fill leftover sessions in day order. What is left
+        stays in ``pool``."""
+        pool.sort(key=lambda a: (a["start_date"], a["external_id"]))
+        filled: dict[int, dict[str, Any]] = {}
+        for same_day_only in (True, False):
+            for s in sessions:
+                if s.id in done:
+                    continue
+                match = next(
+                    (
+                        a
+                        for a in pool
+                        if (not same_day_only or a["start_date"] == planned_on(s)) and accepts(s, a)
+                    ),
+                    None,
+                )
+                if match is not None:
+                    pool.remove(match)
+                    done.add(s.id)
+                    done_on[s.id] = match["start_date"]
+                    filled[s.id] = match
+        return filled
+
+    matched = fill(
+        [
             a
             for a in in_week
             if a["external_id"] not in consumed and fulfils(a["external_id"], a["sport"])
-        ),
-        key=lambda a: (a["start_date"], a["external_id"]),
+        ],
+        lambda s, a: a["sport"] == s.sport,
     )
-    # Day is a soft preference: activities on a session's own day go to it
-    # first, then the rest fill leftover sessions in day order.
-    for same_day_only in (True, False):
-        for s in sessions:
-            if s.id in done:
-                continue
-            planned_on = week_start + timedelta(days=s.day_of_week)
-            match = next(
-                (
-                    a
-                    for a in pool
-                    if a["sport"] == s.sport
-                    and (not same_day_only or a["start_date"] == planned_on)
-                ),
-                None,
-            )
-            if match is not None:
-                pool.remove(match)
-                consumed.add(match["external_id"])
-                done.add(s.id)
-                done_on[s.id] = match["start_date"]
+    consumed.update(a["external_id"] for a in matched.values())
 
     # Pass 3 (#216): a leftover session with an intent can be filled by an
     # unplanned activity that delivered that intent and enough of its volume:
@@ -339,30 +350,10 @@ async def get_plan_adherence_for_week(
     def rules_for(activity: dict[str, Any]) -> SubstitutionRules:
         return TRAVEL_RULES if travelling(activity["start_date"]) else DEFAULT_RULES
 
-    substitutes = sorted(
-        (a for a in in_week if a["external_id"] not in consumed),
-        key=lambda a: (a["start_date"], a["external_id"]),
+    substitutes = [a for a in in_week if a["external_id"] not in consumed]
+    substituted = fill(
+        substitutes, lambda s, a: can_substitute(a, s.intent, s.duration_minutes, rules_for(a))
     )
-    substituted: dict[int, dict[str, Any]] = {}
-    for same_day_only in (True, False):
-        for s in sessions:
-            if s.id in done:
-                continue
-            planned_on = week_start + timedelta(days=s.day_of_week)
-            match = next(
-                (
-                    a
-                    for a in substitutes
-                    if (not same_day_only or a["start_date"] == planned_on)
-                    and can_substitute(a, s.intent, s.duration_minutes, rules_for(a))
-                ),
-                None,
-            )
-            if match is not None:
-                substitutes.remove(match)
-                done.add(s.id)
-                done_on[s.id] = match["start_date"]
-                substituted[s.id] = match
 
     # Excusal (#220): after every way of being done, so a session done while ill
     # is done, never excused. A day excuses once however many episodes cover it.
@@ -374,9 +365,7 @@ async def get_plan_adherence_for_week(
             (
                 s
                 for s in sessions
-                if s.id not in done
-                and s.id not in excused
-                and week_start + timedelta(days=s.day_of_week) == day
+                if s.id not in done and s.id not in excused and planned_on(s) == day
             ),
             None,
         )
@@ -391,9 +380,7 @@ async def get_plan_adherence_for_week(
             (
                 s
                 for s in sessions
-                if s.id not in done
-                and s.id not in excused
-                and week_start + timedelta(days=s.day_of_week) <= day
+                if s.id not in done and s.id not in excused and planned_on(s) <= day
             ),
             None,
         )
@@ -408,7 +395,7 @@ async def get_plan_adherence_for_week(
             completed += 1
         actual = done_on.get(s.id)
         sub = substituted.get(s.id)
-        on_trip = travelling(week_start + timedelta(days=s.day_of_week))
+        on_trip = travelling(planned_on(s))
         status: SessionStatus
         if sub is not None:
             status = "adapted_travel" if travelling(sub["start_date"]) else "substituted"
@@ -430,9 +417,7 @@ async def get_plan_adherence_for_week(
                 "intent": s.intent,
                 "completed": is_done,
                 "status": status,
-                "on_planned_day": (
-                    None if actual is None else actual == week_start + timedelta(days=s.day_of_week)
-                ),
+                "on_planned_day": None if actual is None else actual == planned_on(s),
                 "actual_day": None if actual is None else WEEKDAY_NAMES[actual.weekday()],
                 "substitute": (
                     None

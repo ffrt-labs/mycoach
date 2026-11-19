@@ -437,8 +437,10 @@ async def get_activity_facts(
 ) -> list[dict[str, Any]]:
     """Who-did-what for a week's plan adherence: the week's activities plus ``extra``.
 
-    Each row: ``external_id``, ``sport``, ``sources``, ``has_performed_sets``, ``in_week``,
-    ``start_date`` (the day the activity started).
+    Each row: ``external_id``, ``sport``, ``title``, ``sources``, ``has_performed_sets``,
+    ``in_week``, ``start_date`` (the day the activity started), and what substitution
+    (#216) classifies by: ``duration_minutes``, ``avg_hr``, ``max_hr``, ``hr_zones`` (JSON),
+    ``training_effect_aerobic``, ``training_effect_anaerobic``.
     """
     week_end = week_start + timedelta(days=7)
     async with health_session() as session:
@@ -470,6 +472,13 @@ async def get_activity_facts(
                 "has_performed_sets": a.id in with_sets,
                 "in_week": week_start <= a.start_time.date() < week_end,
                 "start_date": a.start_time.date(),
+                "title": a.title,
+                "duration_minutes": a.duration_minutes,
+                "avg_hr": a.avg_hr,
+                "max_hr": a.max_hr,
+                "hr_zones": a.hr_zones,
+                "training_effect_aerobic": a.training_effect_aerobic,
+                "training_effect_anaerobic": a.training_effect_anaerobic,
             }
             for a in rows
         ]

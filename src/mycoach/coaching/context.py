@@ -12,6 +12,12 @@ from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary, summarize_body
 from mycoach.coaching.prescriptions import NO_PRESCRIPTION, prescriptions_for
+from mycoach.coaching.substitution import (
+    DEFAULT_RULES,
+    RulesForDay,
+    can_substitute,
+    classify_activity_intent,
+)
 from mycoach.config import get_settings
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import MesocycleConfig
@@ -98,43 +104,92 @@ async def get_mesocycle_context(session: AsyncSession, user_id: int) -> str | No
     return "Current mesocycle status:\n" + "\n".join(parts)
 
 
+SessionStatus = Literal["done", "substituted", "not_done"]
+
+
+class SubstituteActivity(TypedDict):
+    """The unplanned activity that filled a leftover session by intent (#216)."""
+
+    external_id: str
+    sport: str
+    title: str
+    # The classified intent it delivered (a SessionIntent value); None only when a
+    # relaxed rule accepted an activity the classifier can't read.
+    intent: str | None
+
+
+class ExtraActivity(TypedDict):
+    """An in-week activity that filled no planned session (#216)."""
+
+    external_id: str
+    sport: str
+    title: str
+    day: str
+    duration_minutes: int | None
+    intent: str | None  # classified intent; None when unclassifiable
+
+
 class SessionAdherence(TypedDict):
     """One planned session of the week and whether it was done.
 
-    ``completed`` is week-scoped (ADR 0005). ``actual_day`` names the day of the
-    activity that completed it and ``on_planned_day`` says whether that was the
-    planned day; both are ``None`` when no activity completed it (missed, or
-    ticked by hand). On planned day is informational, never a penalty.
+    ``completed`` is week-scoped (ADR 0005) and true for both ``status`` "done"
+    and "substituted". ``actual_day`` names the day of the activity that
+    completed it and ``on_planned_day`` says whether that was the planned day;
+    both are ``None`` when no activity completed it (missed, or ticked by hand).
+    On planned day is informational, never a penalty. ``substitute`` is set
+    only when ``status`` is "substituted".
     """
 
     id: int
     day: str
     sport: str
     title: str
+    intent: str | None
     completed: bool
+    status: SessionStatus
     on_planned_day: bool | None
     actual_day: str | None
+    substitute: SubstituteActivity | None
 
 
 class PlanAdherence(TypedDict):
-    """How much of a week's plan was done (``get_plan_adherence_for_week``)."""
+    """How much of a week's plan was done (``get_plan_adherence_for_week``).
+
+    ``completed_sessions`` counts substituted sessions too; ``substituted_sessions``
+    says how many of them were ("4/5 done · 1 substituted"). ``extras`` are the
+    week's activities that filled no session.
+    """
 
     plan_id: int
     plan_summary: str | None
     total_sessions: int
     completed_sessions: int
+    substituted_sessions: int
     adherence_pct: float
     sessions: list[SessionAdherence]
+    extras: list[ExtraActivity]
+
+
+def _intent_value(activity: dict[str, Any]) -> str | None:
+    intent = classify_activity_intent(activity)
+    return None if intent is None else intent.value
 
 
 async def get_plan_adherence_for_week(
-    session: AsyncSession, user_id: int, week_start: date
+    session: AsyncSession,
+    user_id: int,
+    week_start: date,
+    rules_for_day: RulesForDay | None = None,
 ) -> PlanAdherence | None:
     """Get plan adherence data for a given week.
 
     Returns a dict with the plan_id it measured (the week's latest plan),
-    total_sessions, completed_sessions, adherence_pct, and per-session
-    breakdown. Returns None if no plan exists for the week.
+    total_sessions, completed_sessions, adherence_pct, per-session breakdown
+    and the week's extra activities. Returns None if no plan exists for the week.
+
+    ``rules_for_day`` picks the substitution rules for a session by its planned
+    date (default: ``substitution.DEFAULT_RULES`` everywhere); a relaxation such
+    as a travel week plugs in here.
     """
     stmt = (
         select(WeeklyPlan)
@@ -231,8 +286,41 @@ async def get_plan_adherence_for_week(
             )
             if match is not None:
                 pool.remove(match)
+                consumed.add(match["external_id"])
                 done.add(s.id)
                 done_on[s.id] = match["start_date"]
+
+    # Pass 3 (#216): a leftover session with an intent can be filled by an
+    # unplanned activity that delivered that intent and enough of its volume:
+    # Substituted. Same-sport matches above go first, and one activity still
+    # fills at most one session. The substitute pool is every in-week activity
+    # not yet credited; the claim guard is a same-sport rule, and an empty gym
+    # session never classifies as strength anyway.
+    substitutes = sorted(
+        (a for a in in_week if a["external_id"] not in consumed),
+        key=lambda a: (a["start_date"], a["external_id"]),
+    )
+    substituted: dict[int, dict[str, Any]] = {}
+    for same_day_only in (True, False):
+        for s in sessions:
+            if s.id in done:
+                continue
+            planned_on = week_start + timedelta(days=s.day_of_week)
+            rules = rules_for_day(planned_on) if rules_for_day is not None else DEFAULT_RULES
+            match = next(
+                (
+                    a
+                    for a in substitutes
+                    if (not same_day_only or a["start_date"] == planned_on)
+                    and can_substitute(a, s.intent, s.duration_minutes, rules)
+                ),
+                None,
+            )
+            if match is not None:
+                substitutes.remove(match)
+                done.add(s.id)
+                done_on[s.id] = match["start_date"]
+                substituted[s.id] = match
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list: list[SessionAdherence] = []
@@ -242,17 +330,46 @@ async def get_plan_adherence_for_week(
         if is_done:
             completed += 1
         actual = done_on.get(s.id)
+        sub = substituted.get(s.id)
+        status: SessionStatus = (
+            "substituted" if sub is not None else "done" if is_done else "not_done"
+        )
         session_list.append(
             {
                 "id": s.id,
                 "day": day_names[s.day_of_week],
                 "sport": s.sport,
                 "title": s.title,
+                "intent": s.intent,
                 "completed": is_done,
+                "status": status,
                 "on_planned_day": (
                     None if actual is None else actual == week_start + timedelta(days=s.day_of_week)
                 ),
                 "actual_day": None if actual is None else day_names[actual.weekday()],
+                "substitute": (
+                    None
+                    if sub is None
+                    else {
+                        "external_id": sub["external_id"],
+                        "sport": sub["sport"],
+                        "title": sub["title"],
+                        "intent": _intent_value(sub),
+                    }
+                ),
+            }
+        )
+
+    extras: list[ExtraActivity] = []
+    for a in substitutes:
+        extras.append(
+            {
+                "external_id": a["external_id"],
+                "sport": a["sport"],
+                "title": a["title"],
+                "day": day_names[a["start_date"].weekday()],
+                "duration_minutes": a["duration_minutes"],
+                "intent": _intent_value(a),
             }
         )
 
@@ -264,8 +381,10 @@ async def get_plan_adherence_for_week(
         "plan_summary": plan.summary,
         "total_sessions": total,
         "completed_sessions": completed,
+        "substituted_sessions": len(substituted),
         "adherence_pct": adherence_pct,
         "sessions": session_list,
+        "extras": extras,
     }
 
 

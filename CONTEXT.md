@@ -84,6 +84,14 @@ _Avoid_: Moved, missed, late, rescheduled
 The training purpose of a Planned session, one of `strength`, `aerobic_base`, `threshold`, `intervals`, `recovery`, `skill`: the stimulus another activity must deliver to stand in for it. The cardio plan sets it per session and gym sessions are `strength`. A session with no intent (planned before intents existed, or given an unknown one) is never substitutable.
 _Avoid_: Session type, workout type, zone
 
+**Substitution**:
+A Planned session left without a same-sport activity is **Substituted** when an unplanned activity in its week delivered its Session intent (classified from time in HR zones and training effect, or performed sets for `strength`) and lasted at least 70% of its planned duration. It counts toward Completion and is reported separately ("4/5 done · 1 substituted"). Same-sport matches are taken first and one activity fills at most one session. An activity with no HR zone data can't be classified and never substitutes.
+_Avoid_: Swap, replacement, equivalent session
+
+**Extra activity**:
+An activity in the plan's week that completed no Planned session, by sport or by Substitution. Extras never raise Completion.
+_Avoid_: Bonus session, unplanned workout, missed match
+
 ## Gym coaching
 
 **Exercise**:

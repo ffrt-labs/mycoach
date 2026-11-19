@@ -414,7 +414,8 @@ async def get_activity_facts(
 ) -> list[dict[str, Any]]:
     """Who-did-what for a week's plan adherence: the week's activities plus ``extra``.
 
-    Each row: ``external_id``, ``sport``, ``sources``, ``has_performed_sets``, ``in_week``.
+    Each row: ``external_id``, ``sport``, ``sources``, ``has_performed_sets``, ``in_week``,
+    ``start_date`` (the day the activity started).
     """
     week_end = week_start + timedelta(days=7)
     async with health_session() as session:
@@ -445,6 +446,7 @@ async def get_activity_facts(
                 "sources": sources.get(a.id, []),
                 "has_performed_sets": a.id in with_sets,
                 "in_week": week_start <= a.start_time.date() < week_end,
+                "start_date": a.start_time.date(),
             }
             for a in rows
         ]

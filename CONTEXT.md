@@ -68,6 +68,14 @@ _Avoid_: Insight overwrite, duplicate insight
 The association MyCoach makes between a Planned session and the Canonical activity that fulfilled it. Each side stores the other's immutable external ID, keyed to the specific performed set; neither uses a cross-schema foreign key.
 _Avoid_: Activity foreign key, title matching, date matching
 
+**Completion**:
+Whether a Planned session was done: a qualifying activity of its sport happened anywhere in its Mon–Sun week (ADR 0005). Any source counts, including a Logger session that picked no prescription, but a gym activity with no performed sets never does. Completion needs no Prescription fulfillment and is not an Adherence score.
+_Avoid_: Adherence, compliance, done on the day
+
+**On planned day**:
+Whether the activity that completed a Planned session happened on the day it was planned for. It is informational only: it never lowers Completion and is never described as a session moved or missed.
+_Avoid_: Moved, missed, late, rescheduled
+
 ## Gym coaching
 
 **Exercise**:
@@ -107,5 +115,5 @@ A Langfuse score computed by code from what a generation already produced: `pars
 _Avoid_: Validation, LLM judge
 
 **Adherence score**:
-A Langfuse score measuring how a Canonical activity compares with the Planned session it fulfils, sent on the weekly plan's trace at Prescription fulfillment: set completion, weight, reps and RPE deltas for gym, duration ratio for cardio. A score with nothing to measure is left out rather than sent as zero.
+A Langfuse score measuring how a Canonical activity compares with the Planned session it fulfils, sent on the weekly plan's trace at Prescription fulfillment: set completion, weight, reps and RPE deltas for gym, duration ratio for cardio. A score with nothing to measure is left out rather than sent as zero. Only an explicitly linked session is scored; Completion is a separate, week-scoped measure.
 _Avoid_: Compliance, completion rate

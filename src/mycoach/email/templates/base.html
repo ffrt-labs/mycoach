@@ -9,90 +9,106 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+{#- Layout system (#231, spec 2026-11-19-email-redesign): 600 px table, 40 px side
+    padding (20 px at ≤ 480 px), 32 / 32 px sections with a divider. Layout-critical
+    styles are inline in components/_layout.html; this sheet carries type, colour and
+    dark mode. Tone and chip colours are generated from the shared maps in sender.py
+    (email/tones.py CHIP_STYLES), never re-typed here. -#}
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
   body { margin:0; padding:0; background:#ffffff; -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; }
   table { border-collapse:collapse; }
   img { border:0; line-height:100%; }
-  a { text-decoration:none; }
+  a { text-decoration:none; color:#c2410c; }
 
   .wrap { width:100%; background:#ffffff; padding:26px 0; }
-  .email { max-width:420px; margin:0 auto; background:#ffffff; }
-  .px { padding-left:24px; padding-right:24px; }
+  .email { max-width:600px; width:100%; margin:0 auto; background:#ffffff; }
 
-  .hd-b { border-bottom:1px solid rgba(0,0,0,.08); }
-  .dot { display:inline-block; width:9px; height:9px; border-radius:3px; background:#ea6d1f; vertical-align:middle; margin-right:9px; }
+  .hd-b { border-bottom:1px solid #e7e5e4; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:3px; background:#ea6d1f; vertical-align:middle; margin-right:8px; }
   .brand { font:700 15px 'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#18191b; vertical-align:middle; }
-  .hd-meta { font:400 11px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#78716c; }
+  .hd-meta { font:400 12px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#71717a; }
 
-  .eyebrow { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#78716c; }
-  .sec { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#78716c; }
-  .verdict { font:700 46px/1 'IBM Plex Sans',-apple-system,sans-serif; letter-spacing:-.02em; color:#18191b; }
-  .rule { width:120px; height:5px; border-radius:3px; background:#ea6d1f; font-size:0; line-height:0; }
-  .lead { font:400 15px/1.55 'IBM Plex Sans',sans-serif; color:#52525b; }
-  .p { font:400 14px/1.7 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .sec { font:600 12px 'IBM Plex Sans',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:#71717a; }
+  .verdict { font:700 40px/1.1 'IBM Plex Sans',-apple-system,sans-serif; letter-spacing:-.02em; color:#18191b; }
+  .verdict-mono { font:600 44px/1.1 'IBM Plex Mono',ui-monospace,Menlo,monospace; letter-spacing:-.02em; color:#18191b; }
+  .lead { font:400 16px/1.5 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .p { font:400 15px/1.6 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .muted { font:400 12px/1.5 'IBM Plex Sans',sans-serif; color:#71717a; }
   .strong { color:#18191b; font-weight:600; }
 
-  .block-b { border-top:1px solid rgba(0,0,0,.08); }
-  .mrow { border-bottom:1px solid rgba(0,0,0,.06); }
-  .mlabel { font:500 13px 'IBM Plex Sans',sans-serif; color:#3f3f46; }
-  .msub { font:400 11px 'IBM Plex Mono',monospace; color:#a1a1aa; }
-  .mval { font:600 17px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#18191b; text-align:right; white-space:nowrap; }
-  .munit { font-size:12px; color:#a1a1aa; }
+  .block-b { border-top:1px solid #e7e5e4; }
+  .mrow { border-bottom:1px solid #f4f4f5; }
+  .mlabel { font:500 14px 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .msub { font:400 12px 'IBM Plex Mono',monospace; color:#71717a; }
+  .mval { font:600 22px 'IBM Plex Mono',ui-monospace,Menlo,monospace; color:#18191b; text-align:right; white-space:nowrap; }
+  .munit { font-size:12px; color:#71717a; }
 
-  .coach { background:rgba(234,109,31,.07); border:1px solid rgba(234,109,31,.28); border-radius:10px; }
-  .coach-k { font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#c2560f; }
-  .coach-t { font:400 14px/1.55 'IBM Plex Sans',sans-serif; color:#7c4a26; }
+  .coach { background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; }
+  .coach-k { font:600 12px 'IBM Plex Sans',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:#c2410c; }
+  .coach-t { font:400 15px/1.6 'IBM Plex Sans',sans-serif; color:#7c2d12; }
 
-  .li { font:400 14px/1.5 'IBM Plex Sans',sans-serif; color:#3f3f46; }
-  .mk-plus { font:600 14px 'IBM Plex Mono',monospace; color:#c2560f; }
-  .mk-arrow { font:600 14px 'IBM Plex Mono',monospace; color:#9ca3af; }
+  .li { font:400 15px/1.6 'IBM Plex Sans',sans-serif; color:#3f3f46; }
+  .mk-plus { font:600 14px 'IBM Plex Mono',monospace; color:#c2410c; }
+  .mk-arrow { font:600 14px 'IBM Plex Mono',monospace; color:#c2410c; }
 
-  .badge { display:inline-block; font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:.03em; padding:4px 10px; border-radius:999px; }
-  .b-amber { background:rgba(234,109,31,.10); color:#c2560f; }
-  .b-emerald { background:rgba(5,150,105,.12); color:#047857; }
-  .b-sky { background:rgba(2,132,199,.12); color:#0369a1; }
-  .b-zinc { background:rgba(0,0,0,.06); color:#52525b; }
+  .badge { display:inline-block; font:600 12px 'IBM Plex Sans',sans-serif; padding:4px 10px; border-radius:999px; }
+  .b-amber { background:#fff7ed; color:#c2410c; }
+  .b-emerald { background:#ecfdf5; color:#047857; }
+  .b-sky { background:#eff6ff; color:#1d4ed8; }
+  .b-zinc { background:#f4f4f5; color:#52525b; }
+
+  {#- Shared tone and chip colours, from email/tones.py CHIP_STYLES. -#}
+  .chip { display:inline-block; font:600 12px 'IBM Plex Sans',sans-serif; padding:4px 10px; border-radius:999px; white-space:nowrap; border:1px solid transparent; }
+  {%- for name, s in chip_styles.items() %}
+  .c-{{ name }} { background:{{ s.light.bg }}; color:{{ s.light.fg }}; border-color:{{ s.light.border }}; }
+  {%- endfor %}
 
   .st-tick { font:600 12px 'IBM Plex Sans',sans-serif; color:#047857; }
-  .st-track { background:rgba(0,0,0,.05); }
+  .st-track { background:#f4f4f5; }
   .st-bar { background:#a1a1aa; border-radius:3px 3px 0 0; }
   .st-bar-y { background:#ea6d1f; }
-  .st-day { font:500 11px 'IBM Plex Mono',monospace; color:#a1a1aa; }
+  .st-day { font:500 12px 'IBM Plex Mono',monospace; color:#71717a; }
   .st-day-y { font-weight:700; color:#18191b; }
 
-  .cta { display:block; text-align:center; font:700 15px 'IBM Plex Sans',sans-serif; color:#ffffff !important; background:#ea6d1f; padding:15px 0; border-radius:12px; }
+  .cta { display:block; text-align:center; font:700 15px 'IBM Plex Sans',sans-serif; color:#ffffff !important; background:#ea6d1f; padding:15px 0; border-radius:10px; }
 
-  .ft { border-top:1px solid rgba(0,0,0,.08); }
-  .ft-t { font:400 12px/1.6 'IBM Plex Sans',sans-serif; color:#a1a1aa; }
-  .ft-t a { color:#78716c; }
+  .ft { border-top:1px solid #e7e5e4; }
+  .ft-t { font:400 12px/1.6 'IBM Plex Sans',sans-serif; color:#71717a; }
+  .ft-t a { color:#71717a; }
+
+  @media only screen and (max-width:480px) {
+    .px { padding-left:20px !important; padding-right:20px !important; }
+  }
 
   @media (prefers-color-scheme: dark) {
     body, .wrap { background:#0b0c0e !important; }
     .email { background:#0b0c0e !important; }
-    .hd-b, .block-b, .ft { border-color:rgba(255,255,255,.08) !important; }
-    .brand, .verdict, .strong, .mval { color:#fafafa !important; }
-    .hd-meta, .eyebrow, .sec, .mk-arrow, .msub, .munit { color:#6b7280 !important; }
-    .lead, .mlabel { color:#a1a1aa !important; }
+    a { color:#fb923c !important; }
+    .hd-b, .block-b, .ft { border-color:rgba(255,255,255,.10) !important; }
+    .brand, .verdict, .verdict-mono, .strong, .mval { color:#fafafa !important; }
+    .hd-meta, .sec, .msub, .munit, .muted { color:#8b8b93 !important; }
+    .lead, .mlabel { color:#c9c9cd !important; }
     .p, .li { color:#c9c9cd !important; }
-    .rule { background:#fb923c !important; }
     .coach { background:rgba(251,146,60,.09) !important; border-color:rgba(251,146,60,.22) !important; }
-    .coach-k, .mk-plus { color:#fb923c !important; }
+    .coach-k, .mk-plus, .mk-arrow { color:#fb923c !important; }
     .coach-t { color:#e4c9ac !important; }
     .mrow { border-color:rgba(255,255,255,.06) !important; }
     .b-amber { background:rgba(251,146,60,.13) !important; color:#fdba74 !important; }
     .b-emerald { background:rgba(16,185,129,.15) !important; color:#6ee7b7 !important; }
-    .b-sky { background:rgba(56,189,248,.15) !important; color:#7dd3fc !important; }
+    .b-sky { background:rgba(96,165,250,.15) !important; color:#93c5fd !important; }
     .b-zinc { background:rgba(255,255,255,.08) !important; color:#a1a1aa !important; }
+    {%- for name, s in chip_styles.items() %}
+    .c-{{ name }} { background:{{ s.dark.bg }} !important; color:{{ s.dark.fg }} !important; border-color:{{ s.dark.border }} !important; }
+    {%- endfor %}
     .st-tick { color:#6ee7b7 !important; }
     .st-track { background:rgba(255,255,255,.06) !important; }
     .st-bar { background:#57575c !important; }
     .st-bar-y { background:#fb923c !important; }
-    .st-day { color:#6b7280 !important; }
+    .st-day { color:#8b8b93 !important; }
     .st-day-y { color:#fafafa !important; }
     .cta { background:#fb923c !important; color:#0a0b0d !important; }
-    .ft-t { color:#57575c !important; }
-    .ft-t a { color:#78716c !important; }
+    .ft-t, .ft-t a { color:#8b8b93 !important; }
   }
 </style>
 </head>
@@ -101,11 +117,11 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     <tr>
       <td align="center">
-        <table role="presentation" class="email" width="420" cellpadding="0" cellspacing="0" border="0" align="center">
+        <table role="presentation" class="email" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;">
 
           <!-- Header -->
           <tr>
-            <td class="px hd-b" style="padding-top:18px;padding-bottom:18px;">
+            <td class="px hd-b" style="padding-top:20px;padding-bottom:20px;padding-left:40px;padding-right:40px;border-bottom:1px solid #e7e5e4;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="vertical-align:middle;"><span class="dot"></span><span class="brand">MyCoach</span></td>
@@ -119,7 +135,7 @@
 
           <!-- Footer -->
           <tr>
-            <td class="ft px" style="padding-top:18px;padding-bottom:22px;">
+            <td class="ft px" style="padding-top:20px;padding-bottom:28px;padding-left:40px;padding-right:40px;border-top:1px solid #e7e5e4;">
               <div class="ft-t">MyCoach &mdash; AI-powered personal fitness coaching.</div>
             </td>
           </tr>

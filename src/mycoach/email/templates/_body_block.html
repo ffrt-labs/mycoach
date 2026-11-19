@@ -1,23 +1,21 @@
 {# Body block (#198): numbers rendered by code from the DB, never by the LLM. #}
+{% import "components/_layout.html" as ui %}
 {% if body %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Body</div>
+{% call ui.section(layout|default(none), "Body") %}
     {% if body.empty %}
     <div class="p">No weight or waist logged yet. <a href="{{ body.url }}">Log one on the Body page</a>.</div>
     {% else %}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for row in body.rows %}
       <tr>
-        <td class="mrow mlabel" style="padding:10px 0;">{{ row.label }}{% if row.badge %} <span class="badge b-zinc">{{ row.badge }}</span>{% endif %}{% if row.sub %}<div class="msub" style="margin-top:2px;">{{ row.sub }}</div>{% endif %}</td>
-        <td class="mrow mval" style="padding:10px 0;">{{ row.value }}</td>
+        <td class="mrow mlabel" style="padding:12px 0;">{{ row.label }}{% if row.badge %} <span class="badge b-zinc">{{ row.badge }}</span>{% endif %}{% if row.sub %}<div class="msub" style="margin-top:2px;">{{ row.sub }}</div>{% endif %}</td>
+        <td class="mrow mval" style="padding:12px 0;">{{ row.value }}</td>
       </tr>
       {% endfor %}
     </table>
     {% for nudge in body.nudges %}
-    <div class="p" style="margin-top:8px;"><a href="{{ body.url }}">{{ nudge }}</a></div>
+    <div class="p" style="margin-top:12px;"><a href="{{ body.url }}">{{ nudge }}</a></div>
     {% endfor %}
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 {% endif %}

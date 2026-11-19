@@ -1,23 +1,19 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}No Briefing Today{% endblock %}
 {% block subtitle %}No briefing today{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 
-<!-- Hero -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:18px;">
-    <div class="eyebrow">{{ day }}</div>
-    <div class="verdict" style="font-size:32px;margin-top:10px;">No briefing yet</div>
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
-    <div class="lead" style="margin-top:14px;">{{ headline }}</div>
-  </td>
-</tr>
+{% call ui.hero(day) %}
+    <div class="verdict">No briefing yet</div>
+    <div class="lead" style="margin-top:12px;">{{ headline }}</div>
+{% endcall %}
 
 {% if last_upload %}
-<!-- The one fact the reader can act on -->
-<tr>
-  <td class="px" style="padding-top:6px;padding-bottom:6px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid rgba(0,0,0,.08);">
+{# The one fact the reader can act on #}
+{% call ui.section(layout) %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
         <td class="mrow mlabel" style="padding:12px 0;">Last upload</td>
         <td class="mrow mval" style="padding:12px 0;">{{ last_upload }}</td>
@@ -29,34 +25,23 @@
       </tr>
       {% endif %}
     </table>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% include "_steps_block.html" %}
 {% include "_hrv.html" %}
 
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">What happens next</div>
+{% call ui.section(layout, "What happens next") %}
     <div class="p">{{ next_step }}</div>
-  </td>
-</tr>
+{% endcall %}
 
 {% if detail %}
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Detail</div>
+{% call ui.section(layout, "Detail") %}
     <div class="p">{{ detail }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% include "_body_block.html" %}
 
-<tr>
-  <td class="px" style="padding-top:22px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">Open the dashboard &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "Open the dashboard →") }}
 {% endblock %}

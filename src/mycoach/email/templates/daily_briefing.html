@@ -1,26 +1,21 @@
 {% extends "base.html" %}
+{% import "components/_layout.html" as ui %}
 {% block title %}Daily Briefing{% endblock %}
 {% block subtitle %}Daily briefing{% endblock %}
 {% block content %}
+{% set layout = ui_layout() %}
 {% set _vmap = {'go_hard': 'Go Hard', 'moderate': 'Moderate', 'active_recovery': 'Active Recovery', 'rest': 'Rest'} %}
 
-<!-- Hero: readiness verdict -->
-<tr>
-  <td class="px" style="padding-top:26px;padding-bottom:20px;">
-    <div class="eyebrow">Today's readiness</div>
-    <div class="verdict" style="margin-top:12px;">{{ _vmap.get(briefing.readiness_verdict, 'Moderate') }}</div>
-    <div class="rule" style="margin-top:16px;">&nbsp;</div>
+{% call ui.hero("Today's readiness") %}
+    <div class="verdict">{{ _vmap.get(briefing.readiness_verdict, 'Moderate') }}</div>
     {% if briefing.recovery_status %}
-    <div class="lead" style="margin-top:14px;">{{ briefing.recovery_status }}</div>
+    <div class="lead" style="margin-top:12px;">{{ briefing.recovery_status }}</div>
     {% endif %}
-  </td>
-</tr>
+{% endcall %}
 
 {% if briefing.key_metrics %}
-<!-- Key metrics -->
-<tr>
-  <td class="px" style="padding-top:6px;padding-bottom:6px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid rgba(0,0,0,.08);">
+{% call ui.section(layout) %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for key, value in briefing.key_metrics.items() %}
       <tr>
         <td class="mrow mlabel" style="padding:12px 0;">{{ key }}</td>
@@ -28,51 +23,34 @@
       </tr>
       {% endfor %}
     </table>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% include "_steps_block.html" %}
 {% include "_hrv.html" %}
 
 {% if briefing.sleep_assessment %}
-<!-- Sleep assessment -->
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;">
-    <div class="sec" style="margin-bottom:8px;">Sleep assessment</div>
+{% call ui.section(layout, "Sleep assessment") %}
     <div class="p">{{ briefing.sleep_assessment }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if briefing.workout_adjustments %}
-<!-- Workout adjustments -->
-<tr>
-  <td class="px" style="padding-top:20px;padding-bottom:2px;">
-    <div class="coach" style="padding:14px 16px;">
+{% call ui.section(layout) %}
+    <div class="coach" style="padding:24px;">
       <div class="coach-k">Coach adjustment</div>
-      <div class="coach-t" style="margin-top:5px;">{{ briefing.workout_adjustments }}</div>
+      <div class="coach-t" style="margin-top:12px;">{{ briefing.workout_adjustments }}</div>
     </div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% if briefing.sleep_recommendation %}
-<!-- Tonight -->
-<tr>
-  <td class="px block-b" style="padding-top:20px;padding-bottom:2px;margin-top:20px;">
-    <div class="sec" style="margin-bottom:8px;">Tonight</div>
+{% call ui.section(layout, "Tonight") %}
     <div class="p">{{ briefing.sleep_recommendation }}</div>
-  </td>
-</tr>
+{% endcall %}
 {% endif %}
 
 {% include "_body_block.html" %}
 
-<!-- CTA -->
-<tr>
-  <td class="px" style="padding-top:24px;padding-bottom:28px;">
-    <a href="{{ dashboard_url|default('#') }}" class="cta">Open dashboard &rarr;</a>
-  </td>
-</tr>
+{{ ui.cta(dashboard_url, "Open dashboard →") }}
 {% endblock %}

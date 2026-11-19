@@ -93,7 +93,9 @@ class TestSubstitution:
             session.add(_padel(user_id))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["total_sessions"] == 2
@@ -124,7 +126,9 @@ class TestSubstitution:
             session.add(_padel(user_id, duration_minutes=60))  # < 70% of 90
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["completed_sessions"] == 0
@@ -141,7 +145,9 @@ class TestSubstitution:
             session.add(_padel(user_id))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["sessions"][0]["status"] == "not_done"
@@ -153,7 +159,9 @@ class TestSubstitution:
             session.add(_padel(user_id))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["sessions"][0]["status"] == "not_done"
@@ -165,7 +173,9 @@ class TestSubstitution:
             session.add(_padel(user_id, hr_zones=None))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["sessions"][0]["status"] == "not_done"
@@ -188,7 +198,9 @@ class TestSubstitution:
             )
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["sessions"][0]["status"] == "done"
@@ -205,7 +217,9 @@ class TestSubstitution:
             session.add(_padel(user_id))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["completed_sessions"] == 1

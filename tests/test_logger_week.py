@@ -10,13 +10,15 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
+from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 
 
 def _monday(offset_weeks: int = 0) -> date:
-    today = date.today()
+    today = local_today(get_settings().timezone)
     return today - timedelta(days=today.weekday()) + timedelta(weeks=offset_weeks)
 
 

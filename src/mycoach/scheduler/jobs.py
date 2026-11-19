@@ -619,7 +619,10 @@ def job_weekly_recap() -> None:
 
 async def _weekly_recap() -> None:
     engine = CoachingEngine()
-    last_monday = recap_week_start(date.today())
+    settings = get_settings()
+    # The scheduler's local day, as the briefing job uses (the server runs on UTC).
+    today = local_today(settings.scheduler_timezone or settings.timezone)
+    last_monday = recap_week_start(today)
 
     async with async_session() as session:
         insight = await engine.generate_weekly_recap(session, USER_ID, last_monday)
@@ -629,7 +632,8 @@ async def _weekly_recap() -> None:
             content = json.loads(insight.content)
             # The code-rendered completion line (#217); best-effort like #196's numbers.
             adherence = await _or_none(
-                "plan adherence", get_plan_adherence_for_week(session, USER_ID, last_monday)
+                "plan adherence",
+                get_plan_adherence_for_week(session, USER_ID, last_monday, today=today),
             )
             _deliver(
                 partial(

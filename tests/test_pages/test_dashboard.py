@@ -46,7 +46,7 @@ async def test_dashboard_with_health(client: AsyncClient) -> None:
     async with test_session() as session:
         snapshot = DailyHealthSnapshot(
             user_id=1,
-            snapshot_date=date.today(),
+            snapshot_date=_local_today(),
             resting_hr=52,
             hrv_status=65.0,
             body_battery_high=85,
@@ -70,7 +70,7 @@ async def test_dashboard_with_health(client: AsyncClient) -> None:
 async def test_dashboard_steps_and_stress_use_yesterday(client: AsyncClient) -> None:
     """Steps and Avg Stress render yesterday's completed values, labelled as yesterday's."""
     await _seed_user()
-    today = date.today()
+    today = _local_today()
     yesterday = today - timedelta(days=1)
     async with test_session() as session:
         session.add(
@@ -112,7 +112,7 @@ async def test_dashboard_steps_and_stress_fallback_when_no_yesterday(client: Asy
         session.add(
             DailyHealthSnapshot(
                 user_id=1,
-                snapshot_date=date.today(),
+                snapshot_date=_local_today(),
                 steps=8500,
                 avg_stress=28,
             )
@@ -128,7 +128,7 @@ async def test_dashboard_steps_and_stress_fallback_when_no_yesterday(client: Asy
 async def test_dashboard_7day_baseline_excludes_today(client: AsyncClient) -> None:
     """The 7-day comparison window ends before today, excluding today's partial data."""
     await _seed_user()
-    today = date.today()
+    today = _local_today()
     async with test_session() as session:
         # Yesterday's total is distinct from the rest of the week so it can't be
         # mistaken for the main Steps tile (which also renders yesterday's value).
@@ -179,7 +179,7 @@ async def test_dashboard_with_briefing(client: AsyncClient) -> None:
     async with test_session() as session:
         insight = CoachingInsight(
             user_id=1,
-            insight_date=date.today(),
+            insight_date=_local_today(),
             insight_type="daily_briefing",
             content=briefing_content,
             prompt_version="v1",
@@ -198,7 +198,7 @@ async def test_dashboard_with_briefing(client: AsyncClient) -> None:
 async def test_dashboard_with_plan(client: AsyncClient) -> None:
     """Dashboard shows today's planned workout."""
     await _seed_user()
-    today = date.today()
+    today = _local_today()
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -235,7 +235,7 @@ async def test_dashboard_with_plan(client: AsyncClient) -> None:
 async def test_dashboard_no_session_today(client: AsyncClient) -> None:
     """Dashboard shows rest day message when plan exists but no session today."""
     await _seed_user()
-    today = date.today()
+    today = _local_today()
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -311,7 +311,7 @@ async def test_dashboard_shows_sync_time_in_local_timezone(client: AsyncClient) 
     async with test_session() as session:
         snapshot = DailyHealthSnapshot(
             user_id=1,
-            snapshot_date=date.today(),
+            snapshot_date=_local_today(),
             resting_hr=52,
             data_source="garmin",
         )
@@ -333,7 +333,7 @@ async def test_dashboard_sync_stamp_advances_on_no_op_resync(client: AsyncClient
     advance so the header time isn't stuck.
     """
     await _seed_user()
-    today = date.today()
+    today = _local_today()
 
     async with test_session() as session:
         snapshot = DailyHealthSnapshot(
@@ -405,7 +405,7 @@ async def test_dashboard_disables_the_button_it_knows_would_be_refused(
     await _seed_user()
     async with test_session() as session:
         session.add(
-            DailyHealthSnapshot(user_id=1, snapshot_date=date.today(), resting_hr=58)
+            DailyHealthSnapshot(user_id=1, snapshot_date=_local_today(), resting_hr=58)
         )
         await session.commit()
 
@@ -422,7 +422,7 @@ async def test_dashboard_leaves_the_button_alone_on_a_usable_day(
     async with test_session() as session:
         session.add(
             DailyHealthSnapshot(
-                user_id=1, snapshot_date=date.today(), resting_hr=58, sleep_score=82
+                user_id=1, snapshot_date=_local_today(), resting_hr=58, sleep_score=82
             )
         )
         await session.commit()
@@ -433,7 +433,7 @@ async def test_dashboard_leaves_the_button_alone_on_a_usable_day(
 
 
 async def _plan_this_week(sessions: list[PlannedSession]) -> None:
-    today = date.today()
+    today = _local_today()
     async with test_session() as session:
         plan = WeeklyPlan(
             user_id=1,
@@ -452,7 +452,7 @@ async def _plan_this_week(sessions: list[PlannedSession]) -> None:
 async def test_dashboard_lists_the_sessions_open_this_week(client: AsyncClient) -> None:
     """#218: a session whose day isn't today is still listed while it is open."""
     await _seed_user()
-    today = date.today()
+    today = _local_today()
     other_day = (today.weekday() + 1) % 7
     await _plan_this_week(
         [

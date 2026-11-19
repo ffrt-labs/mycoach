@@ -1,7 +1,7 @@
 """Dashboard page — today's readiness, health metrics, planned workout."""
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -59,7 +59,8 @@ async def dashboard(
     session: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Render the dashboard page with today's data."""
-    today = date.today()
+    # One today: the athlete's local day, as the check-in API and the briefing use.
+    today = local_today(get_settings().timezone)
     weekday_num = today.weekday()
 
     # Health facts come through the health module (plain dicts), never SQL on its schema.
@@ -122,23 +123,21 @@ async def dashboard(
     # The week's work still owed (#218), not just today's slot.
     open_this_week = await get_open_this_week(session, USER_ID, today)
 
-    # Life context (#220): an open illness, or the ramp-back after one. Episode days
-    # are local days, as the check-in API records them.
-    local = local_today(get_settings().timezone)
+    # Life context (#220): an open illness, or the ramp-back after one.
     open_illness = next(
         iter(await life_context.open_episodes(session, USER_ID, EpisodeKind.ILLNESS)), None
     )
-    life = await life_context.life_context_for(session, USER_ID, local, local, today=local)
+    life = await life_context.life_context_for(session, USER_ID, today, today, today=today)
     # Travel (#221): the trip under way, and trips entered in advance.
     trips = [
         e
         for e in await life_context.episodes_between(
-            session, USER_ID, local, local + timedelta(days=365)
+            session, USER_ID, today, today + timedelta(days=365)
         )
         if e.kind == EpisodeKind.TRAVEL
     ]
-    current_trip = next((t for t in trips if t.started_on <= local), None)
-    upcoming_trips = [t for t in trips if t.started_on > local]
+    current_trip = next((t for t in trips if t.started_on <= today), None)
+    upcoming_trips = [t for t in trips if t.started_on > today]
 
     # Last Garmin sync time. updated_at is bumped on every successful sync touch
     # (even ones that change nothing), so it's a truer "last synced" stamp than
@@ -182,12 +181,12 @@ async def dashboard(
             "open_this_week": open_this_week,
             "open_illness": open_illness,
             "open_illness_day": (
-                (local - open_illness.started_on).days + 1 if open_illness is not None else None
+                (today - open_illness.started_on).days + 1 if open_illness is not None else None
             ),
             "ramp_back": life.ramp_back,
             "current_trip": current_trip,
             "current_trip_day": (
-                (local - current_trip.started_on).days + 1 if current_trip is not None else None
+                (today - current_trip.started_on).days + 1 if current_trip is not None else None
             ),
             "upcoming_trips": upcoming_trips,
             "garmin_last_sync": garmin_last_sync,

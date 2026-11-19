@@ -1,11 +1,14 @@
 """Tests for the weekly plan page route."""
 
 import json
+import re
 from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
 
+from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -34,7 +37,7 @@ async def test_plan_page_no_plan(client: AsyncClient) -> None:
 async def test_plan_page_with_sessions(client: AsyncClient) -> None:
     """Plan page shows all sessions for the week."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -112,7 +115,7 @@ async def test_plan_page_with_sessions(client: AsyncClient) -> None:
 async def test_plan_page_adherence(client: AsyncClient) -> None:
     """Plan page shows adherence percentage."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -158,7 +161,7 @@ async def test_plan_page_adherence(client: AsyncClient) -> None:
 async def test_plan_page_today_highlighted(client: AsyncClient) -> None:
     """Plan page highlights today's session."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -191,7 +194,7 @@ async def test_plan_page_today_highlighted(client: AsyncClient) -> None:
 async def test_plan_page_completed_badge(client: AsyncClient) -> None:
     """Plan page shows Done badge for completed sessions."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -225,7 +228,7 @@ async def test_plan_page_completed_badge(client: AsyncClient) -> None:
 async def test_plan_page_tags_each_session_with_its_intent(client: AsyncClient) -> None:
     """A session with an intent shows it as a tag; one planned before intents shows none."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     async with test_session() as session:
@@ -268,7 +271,7 @@ async def _plan_for(monday: date, sessions: list[PlannedSession]) -> None:
 async def test_plan_page_lists_the_sessions_open_this_week(client: AsyncClient) -> None:
     """#218: the current week shows what is still owed and the days left for it."""
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     await _plan_for(
         today - timedelta(days=today.weekday()),
         [
@@ -285,9 +288,31 @@ async def test_plan_page_lists_the_sessions_open_this_week(client: AsyncClient) 
     assert f"Open this week — 2 left · {remaining}" in resp.text
 
 
+def _shifted_timezone() -> str:
+    """UTC+14 and UTC-12 are 26 hours apart: one is always on another date than the server."""
+    return next(z for z in ("Pacific/Kiritimati", "Etc/GMT+12") if local_today(z) != date.today())
+
+
+async def test_plan_page_marks_today_in_the_athletes_timezone(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tz = _shifted_timezone()
+    monkeypatch.setenv("MYCOACH_TIMEZONE", tz)
+    local = local_today(tz)
+    await _seed_user()
+    monday = local - timedelta(days=local.weekday())
+    await _plan_for(monday, [PlannedSession(day_of_week=0, sport="gym", title="Squat Day")])
+
+    resp = await client.get(f"/plan?week={monday.isoformat()}")
+
+    today_cell = re.search(r"font-mono text-accent\">\s*(\d+)\s*<", resp.text)
+    assert today_cell is not None
+    assert int(today_cell.group(1)) == local.day
+
+
 async def test_plan_page_for_another_week_has_no_open_list(client: AsyncClient) -> None:
     await _seed_user()
-    today = date.today()
+    today = local_today(get_settings().timezone)
     last_monday = today - timedelta(days=today.weekday() + 7)
     await _plan_for(last_monday, [PlannedSession(day_of_week=0, sport="gym", title="Squat Day")])
 

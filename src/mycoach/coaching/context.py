@@ -209,7 +209,8 @@ async def get_plan_adherence_for_week(
     session: AsyncSession,
     user_id: int,
     week_start: date,
-    today: date | None = None,
+    *,
+    today: date,
 ) -> PlanAdherence | None:
     """Get plan adherence data for a given week.
 
@@ -225,10 +226,11 @@ async def get_plan_adherence_for_week(
 
     Life context episodes (#220) then excuse leftover sessions: each excusing
     day (a sick day) excuses at most one not-done session, its own day's first,
-    then the earliest one planned on or before it, never a later one. ``today`` (default: the server's) bounds an open
-    episode: it covers days up to today, never the future.
+    then the earliest one planned on or before it, never a later one.
+
+    ``today`` is the athlete's local day (``localtime.local_today``): it bounds
+    an open episode, which covers days up to today, never the future.
     """
-    today = today or date.today()
     stmt = (
         select(WeeklyPlan)
         .where(

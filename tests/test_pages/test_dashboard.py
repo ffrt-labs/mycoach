@@ -11,7 +11,9 @@ from httpx import AsyncClient
 from mycoach.config import get_settings
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.localtime import local_today
 from mycoach.models.job_run import JobRun
+from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -467,3 +469,62 @@ async def test_dashboard_lists_the_sessions_open_this_week(client: AsyncClient) 
     assert f"Open this week — 1 left · {remaining}" in resp.text
     assert "Squat Day" in resp.text
     assert "Swim" not in resp.text
+
+
+# --- Life context (#220) -------------------------------------------------------------
+
+
+def _local_today() -> date:
+    return local_today(get_settings().timezone)
+
+
+async def _episode(**fields: object) -> int:
+    async with test_session() as session:
+        episode = LifeContextEpisode(user_id=1, kind="illness", **fields)
+        session.add(episode)
+        await session.commit()
+        return episode.id
+
+
+async def test_dashboard_offers_the_feeling_unwell_check_in(client: AsyncClient) -> None:
+    await _seed_user()
+
+    resp = await client.get("/")
+
+    assert "Feeling unwell" in resp.text
+    assert 'value="mild"' in resp.text
+    assert 'value="sick"' in resp.text
+    assert "Still unwell?" not in resp.text
+
+
+async def test_an_open_illness_shows_the_still_unwell_banner(client: AsyncClient) -> None:
+    await _seed_user()
+    episode_id = await _episode(
+        severity="sick", started_on=_local_today() - timedelta(days=1), note="fever"
+    )
+
+    resp = await client.get("/")
+
+    assert "Still unwell?" in resp.text
+    assert "Feeling better" in resp.text
+    assert f"closeEpisode({episode_id})" in resp.text
+    assert f"setSeverity({episode_id}, this.value)" in resp.text
+    assert '<option value="sick" selected>' in resp.text
+    assert "day 2" in resp.text
+    assert "Feeling unwell" not in resp.text
+
+
+async def test_a_ramp_back_shows_its_day(client: AsyncClient) -> None:
+    await _seed_user()
+    today = _local_today()
+    # Sick five days, ended the day before yesterday: today is ramp-back day 2 of 5.
+    await _episode(
+        severity="sick",
+        started_on=today - timedelta(days=6),
+        ended_on=today - timedelta(days=2),
+    )
+
+    resp = await client.get("/")
+
+    assert "Returning from illness · day 2/5" in resp.text
+    assert "Feeling unwell" in resp.text

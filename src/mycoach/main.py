@@ -35,6 +35,7 @@ from mycoach.api.routes.coaching import router as coaching_router
 from mycoach.api.routes.credentials import router as credentials_router
 from mycoach.api.routes.email_preferences import router as email_prefs_router
 from mycoach.api.routes.health import router as health_router
+from mycoach.api.routes.life_context import router as life_context_router
 from mycoach.api.routes.logger import router as logger_router
 from mycoach.api.routes.mesocycles import router as mesocycles_router
 from mycoach.api.routes.plans import router as plans_router
@@ -177,6 +178,7 @@ def create_app() -> FastAPI:
     app.include_router(credentials_router)
     app.include_router(email_prefs_router)
     app.include_router(health_router)
+    app.include_router(life_context_router)
     app.include_router(logger_router)
     app.include_router(mesocycles_router)
     app.include_router(plans_router)

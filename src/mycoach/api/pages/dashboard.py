@@ -11,11 +11,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.coaching import life_context
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.context import get_open_this_week, get_today_health
 from mycoach.coaching.recovery_data import missing_recovery_data
+from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import local_today
 from mycoach.models.coaching import CoachingInsight
+from mycoach.models.life_context import EpisodeKind
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.scheduler.briefing_window import load_briefing_window
 
@@ -118,6 +122,14 @@ async def dashboard(
     # The week's work still owed (#218), not just today's slot.
     open_this_week = await get_open_this_week(session, USER_ID, today)
 
+    # Life context (#220): an open illness, or the ramp-back after one. Episode days
+    # are local days, as the check-in API records them.
+    local = local_today(get_settings().timezone)
+    open_illness = next(
+        iter(await life_context.open_episodes(session, USER_ID, EpisodeKind.ILLNESS)), None
+    )
+    life = await life_context.life_context_for(session, USER_ID, local, local, today=local)
+
     # Last Garmin sync time. updated_at is bumped on every successful sync touch
     # (even ones that change nothing), so it's a truer "last synced" stamp than
     # created_at, which is only ever set once per row.
@@ -158,6 +170,11 @@ async def dashboard(
             "today_session": today_session,
             "today_session_details": today_session_details,
             "open_this_week": open_this_week,
+            "open_illness": open_illness,
+            "open_illness_day": (
+                (local - open_illness.started_on).days + 1 if open_illness is not None else None
+            ),
+            "ramp_back": life.ramp_back,
             "garmin_last_sync": garmin_last_sync,
         },
     )

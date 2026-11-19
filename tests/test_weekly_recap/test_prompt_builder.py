@@ -145,6 +145,51 @@ class TestFormatPlanAdherence:
             "- Push [gym] — ticked off by hand (planned Monday)"
         )
 
+    def test_sick_days_excuse_sessions_out_of_the_denominator(self) -> None:
+        def planned(day: str, title: str, status: str, actual: str | None = None) -> dict:  # type: ignore[type-arg]
+            return {
+                "day": day,
+                "sport": "running",
+                "title": title,
+                "intent": None,
+                "completed": status == "done",
+                "status": status,
+                "on_planned_day": None if actual is None else actual == day,
+                "actual_day": actual,
+                "substitute": None,
+            }
+
+        adherence = {
+            "plan_summary": None,
+            "total_sessions": 2,
+            "completed_sessions": 2,
+            "substituted_sessions": 0,
+            "excused_sessions": 3,
+            "excused_days": {"excused_ill": 3},
+            "adherence_pct": 100.0,
+            "sessions": [
+                planned("Monday", "Easy run", "excused_ill"),
+                planned("Tuesday", "Tempo run", "excused_ill"),
+                planned("Wednesday", "Hills", "excused_ill"),
+                planned("Thursday", "Steady run", "done", "Thursday"),
+                planned("Saturday", "Long run", "done", "Saturday"),
+            ],
+            "extras": [],
+        }
+
+        assert _format_plan_adherence(adherence) == (
+            "Completion: 2/2 planned sessions done (100%)"
+            " — 2 as planned, 3 excused (ill 3 days)\n"
+            "On planned day: 2/2 (informational only — never a penalty)\n"
+            "Done:\n"
+            "- Steady run [running] — done Thursday (planned Thursday)\n"
+            "- Long run [running] — done Saturday (planned Saturday)\n"
+            "Excused (ill), out of the count:\n"
+            "- Easy run [running] (planned Monday)\n"
+            "- Tempo run [running] (planned Tuesday)\n"
+            "- Hills [running] (planned Wednesday)"
+        )
+
     def test_empty_sessions(self) -> None:
         adherence = {
             "plan_summary": "Empty plan",

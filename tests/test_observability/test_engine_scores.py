@@ -6,7 +6,7 @@ the same ones ``test_engine_tracing.py`` uses.
 
 import json
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +15,7 @@ from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import LLMQuotaExceeded
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
+from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from mycoach.observability.scores import LangfuseScoreSink, NoopScoreSink, ScoreSink
@@ -291,6 +292,38 @@ class TestPlanCompletionScore:
             "substituted_sessions": 0,
         }
         assert [s.id for s in sink.scores if s.trace_id != RECAP] == [RATIO]
+
+    async def test_sessions_excused_by_illness_leave_the_ratio(self) -> None:
+        """#220: a sick day excuses a not-done session out of the denominator."""
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            await _plan_with_sessions(session, user_id, MONDAY, done=1)
+            session.add(
+                LifeContextEpisode(
+                    user_id=user_id,
+                    kind="illness",
+                    severity="sick",
+                    started_on=MONDAY + timedelta(days=1),
+                    ended_on=None,  # still open when the recap runs
+                )
+            )
+            await session.commit()
+            engine = CoachingEngine(
+                llm_client=_recap_llm(), scores=sink, clock=lambda: _at(2024, 6, 11, 20, 0)
+            )
+            await engine.generate_weekly_recap(session, user_id, MONDAY)
+
+        ratio = sink.by_id()[RATIO]
+        # Open since Tuesday and the clock says Tuesday: one sick day so far, one excused.
+        assert ratio.value == pytest.approx(1 / 2)
+        assert ratio.metadata == {
+            "operation": "weekly_recap",
+            "completed_sessions": 1,
+            "planned_sessions": 2,
+            "substituted_sessions": 0,
+            "excused_sessions": 1,
+        }
 
     async def test_a_week_without_a_plan_scores_no_ratio(self) -> None:
         sink = RecordingScoreSink()

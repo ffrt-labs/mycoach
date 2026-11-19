@@ -31,6 +31,11 @@ Analyze the following completed workout and provide a post-workout coaching anal
 - Training status: Productive
 - HRV Status: BALANCED
 
+## Life Context
+Nothing to report: no illness or ramp-back.
+
+If the athlete was ill or is in a ramp-back on this day, a light or short session is the plan working, not a regression: never read lower pace, power or volume as lost fitness.
+
 Provide a detailed post-workout analysis. Compare actual performance to the planned session. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
 
 Respond with a JSON object matching this exact schema:

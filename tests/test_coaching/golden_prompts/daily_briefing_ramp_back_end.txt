@@ -1,0 +1,75 @@
+Generate a daily coaching briefing based on the following data.
+
+## Today's Health Data
+- Resting Heart Rate: 60
+- Sleep score: 80
+
+## Recent Health Trends (last 3 days)
+No recent health data.
+
+## Recent Activities (last 3 days)
+No recent activities.
+
+## Today's Planned Workout
+No planned workout for today.
+
+## Open This Week
+No plan this week.
+
+Open-session rules:
+- The planned day is the default suggestion, not a constraint. If today's recovery data argues against the session planned for today, recommend the open session that fits today better (for example, after poor sleep do the easy swim and push the heavy squat), name it and say why.
+- A session whose planned day has passed is still owed this week and can be done today.
+- When more sessions are open than days are left, say so now, not on Sunday, and suggest which to combine or drop.
+
+## Life Context
+Returning from illness: ramp-back day 5/5, about 90% of normal training load today (50% on day 1 rising to 90% on day 5; last day Thursday 2024-06-13).
+Resting HR is still elevated on the last ramp-back day: you may suggest extending the ramp-back by a few days. Never shorten it.
+
+Life-context rules:
+- While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or skip. Recommend no open session at intensity, and do not ask for sessions to be made up later.
+- During a ramp-back, keep today's session at or under the load given, and name the ramp-back day. Extend the ramp-back only when the section says recovery has not come back; never shorten it.
+
+## Steps (7 days ending yesterday)
+No step data for the last 7 days.
+
+Steps rules:
+- A 7-day average at or above the target means "maintain". Do not ask for more steps; redirect extra effort to Zone 2 and strength.
+- Ignore single low days. Treat changes within +/-10% as noise (wrist step counts are about that accurate). A weekend-heavy pattern that still meets the weekly volume is fine.
+- Comment on steps only if the 7-day average is more than 15% below the previous 7-day average, or there are 3 or more consecutive days below 50% of the 7-day average. In that case, ask about the cause first (illness, injury, travel, schedule) before prescribing anything.
+- Say "associated with", never diagnose.
+
+## Body (weight and waist)
+No body measurements logged.
+
+Body rules (the numbers above are computed; interpret them, never recompute them):
+- Never comment on a single day's weight; use the weight trend (2+ weeks). A jump of 1-2 kg is water: look at the notes (salt, carbs, alcohol, travel, a hard session).
+- Under 0.3 kg/week, or a waist change of 1 cm or less, means no detectable change. Losing more than 1% of bodyweight per week is too aggressive.
+- Waist down with weight flat is a win (recomposition). Waist up with weight flat is worth raising gently.
+- Frame risk with waist-to-height (target under 0.50), never BMI. Never diagnose; suggest a DEXA scan if body composition detail is wanted.
+- Mention weight or waist only when something changed meaningfully or a nudge is due.
+
+## How to read HRV
+- The primary signal is the HRV 7-day avg against the athlete's own range (Garmin's baseline band). Never prescribe from one night; last night is context only.
+- Treat changes under about 10% as noise.
+- A drop counts only when it agrees with resting HR at least 5 bpm above its recent level, or with poor sleep. A drop under high training load is expected fatigue; a drop without load suggests illness, stress or alcohol: ask, don't prescribe.
+- Low status, or 3+ days below the Low threshold, means a recovery block; ask about illness.
+- Unbalanced above the range together with elevated resting HR or a recent heavy block means possible overreaching.
+- Never compare HRV to other people or population norms. If no range is listed, Garmin is still building the baseline: say so and don't infer from HRV.
+
+Respond with a JSON object matching this exact schema:
+{
+  "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",
+  "recovery_status": "Assessment of current recovery state based on Body Battery, HRV, stress",
+  "readiness_verdict": "go_hard | moderate | active_recovery | rest",
+  "readiness_explanation": "Why this verdict, referencing specific metrics",
+  "workout_adjustments": "Specific adjustments to today's planned workout (or 'No adjustments needed')",
+  "sleep_recommendation": "Recommended bedtime and sleep hygiene tips for tonight",
+  "key_metrics": {
+    "body_battery": <number or null>,
+    "hrv_last_night_avg": <last night's average HRV in ms, a number, or null>,
+    "hrv_status_text": <the HRV status word as a string, e.g. "BALANCED", or null>,
+    "sleep_score": <number or null>,
+    "training_readiness": <number or null>,
+    "resting_hr": <number or null>
+  }
+}

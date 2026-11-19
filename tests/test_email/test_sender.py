@@ -429,7 +429,7 @@ def test_send_weekly_recap_calls_send_email(mock_send: MagicMock) -> None:
 def test_weekly_recap_email_leads_adherence_with_the_completion_line(
     mock_send: MagicMock,
 ) -> None:
-    """The Adherence section carries the code-rendered "4/5 · 1 substituted" (#217)."""
+    """The Adherence section carries the code-rendered "4/5 done · 1 substituted" (#217)."""
     from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 
     send_weekly_recap(
@@ -440,8 +440,43 @@ def test_weekly_recap_email_leads_adherence_with_the_completion_line(
     )
 
     html = mock_send.call_args[0][2]
-    assert "4/5 · 1 substituted" in html
-    assert html.index("4/5 · 1 substituted") < html.index("Four of five done.")
+    assert "4/5 done · 1 substituted" in html
+    assert html.index("4/5 done · 1 substituted") < html.index("Four of five done.")
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_weekly_recap_email_counts_sessions_excused_by_illness(mock_send: MagicMock) -> None:
+    """Five planned, sick three days, two done (#220)."""
+    adherence = {
+        "total_sessions": 2,
+        "completed_sessions": 2,
+        "substituted_sessions": 0,
+        "excused_sessions": 3,
+        "excused_days": {"excused_ill": 3},
+    }
+
+    send_weekly_recap(
+        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
+    )
+
+    assert "2/2 done · 3 excused (ill 3 days)" in mock_send.call_args[0][2]
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_a_week_excused_entirely_still_shows_its_line(mock_send: MagicMock) -> None:
+    adherence = {
+        "total_sessions": 0,
+        "completed_sessions": 0,
+        "substituted_sessions": 0,
+        "excused_sessions": 4,
+        "excused_days": {"excused_ill": 6},
+    }
+
+    send_weekly_recap(
+        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
+    )
+
+    assert "0/0 done · 4 excused (ill 6 days)" in mock_send.call_args[0][2]
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)

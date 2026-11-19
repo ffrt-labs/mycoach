@@ -238,7 +238,7 @@ COACHING_TABLES = {
     "users", "workout_routines", "routine_days", "routine_exercises", "weekly_plans",
     "planned_sessions", "coaching_insights", "mesocycle_configs", "prompt_logs",
     "sport_profiles", "weekly_availabilities", "default_availability", "job_runs",
-    "prescription_fulfillments",
+    "prescription_fulfillments", "life_context_episodes",
 }  # fmt: skip
 HEALTH_TABLES = {
     "athletes", "canonical_activities", "gym_workout_details", "daily_health_snapshots",
@@ -271,7 +271,7 @@ def test_tables_land_in_their_schemas_owned_by_their_owner(migrated: str) -> Non
 
 
 def test_two_histories_each_have_their_own_version_table(migrated: str) -> None:
-    assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c215a1b2c3d4"
+    assert _scalar(migrated, "SELECT version_num FROM public.alembic_version") == "c220a1b2c3d4"
     assert _scalar(migrated, "SELECT version_num FROM health.alembic_version") == "h199a1b2c3d4"
 
 

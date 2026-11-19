@@ -26,7 +26,11 @@ Week 2 of 4 (accumulation)
 - Preferences: Mornings
 - Benchmarks: 5k in 24:00
 
+## Life Context
+Nothing to report: no illness or ramp-back.
+
 ## Instructions
+- If an illness is open, plan a lighter week: lower weights and RPE targets (no sets above RPE 7). During a ramp-back, keep the session at the ramp-back load. Never add volume to make up for sessions lost to illness.
 - For each exercise, recommend a target weight (kg) and RPE based on last week's actual performance
 - Where a set shows both a prescribed and a performed value, judge "completed all reps" against the prescribed target, not by guessing intent from the rep range. A set with no prescription (manual entry, imported history) is unprescribed, not missed — judge it on the performed reps alone.
 - If last week's data shows the user completed all reps at a given weight with RPE < 8, suggest a small increase (1-2.5kg upper body, 2.5-5kg lower body)

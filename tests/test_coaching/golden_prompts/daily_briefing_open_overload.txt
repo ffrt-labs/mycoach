@@ -24,6 +24,13 @@ Open-session rules:
 - A session whose planned day has passed is still owed this week and can be done today.
 - When more sessions are open than days are left, say so now, not on Sunday, and suggest which to combine or drop.
 
+## Life Context
+Nothing to report: no illness or ramp-back.
+
+Life-context rules:
+- While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or skip. Recommend no open session at intensity, and do not ask for sessions to be made up later.
+- During a ramp-back, keep today's session at or under the load given, and name the ramp-back day. Extend the ramp-back only when the section says recovery has not come back; never shorten it.
+
 ## Steps (7 days ending yesterday)
 No step data for the last 7 days.
 

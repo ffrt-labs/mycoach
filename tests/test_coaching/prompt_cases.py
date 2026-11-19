@@ -11,6 +11,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from mycoach.coaching.body import summarize_body
+from mycoach.coaching.life_context import Episode, LifeContext, RampBack, RecoverySignals
 from mycoach.coaching.steps import summarize_steps
 
 # The week of 2026-11-02 whose v2 recap said "2/5 planned sessions done... 40%
@@ -302,6 +303,44 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 {"snapshot_date": "2024-06-07", "sleep_score": 79, "wake_time": "06:20"},
             ],
             "recent_activities": [],
+        },
+    ),
+    # #220: sick since Wednesday, still open on Thursday.
+    "daily_briefing_ill": (
+        "daily_briefing",
+        {
+            "health_today": {"resting_hr": 62, "sleep_score": 58},
+            "health_trends": [],
+            "recent_activities": [],
+            "life_context": LifeContext(
+                today=date(2024, 6, 13),
+                episodes=[
+                    Episode(
+                        id=1, kind="illness", started_on=date(2024, 6, 12), ended_on=None,
+                        severity="sick", note="fever, aches",
+                    )  # fmt: skip
+                ],
+                ramp_back=None,
+            ),
+        },
+    ),
+    # #220: the last day of a five-day ramp-back, resting HR still up.
+    "daily_briefing_ramp_back_end": (
+        "daily_briefing",
+        {
+            "health_today": {"resting_hr": 60, "sleep_score": 80},
+            "health_trends": [],
+            "recent_activities": [],
+            "life_context": LifeContext(
+                today=date(2024, 6, 13),
+                episodes=[],
+                ramp_back=RampBack(
+                    episode_id=1, day=5, length=5, load_pct=90, ends_on=date(2024, 6, 13),
+                    extend_because=RecoverySignals(
+                        hrv_below_baseline=False, resting_hr_elevated=True
+                    ),
+                ),  # fmt: skip
+            ),
         },
     ),
     "daily_briefing_empty": (

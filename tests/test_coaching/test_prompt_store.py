@@ -20,6 +20,7 @@ VARIABLES = {
     "last_week_cardio": "none",
     "health_trends": "fine",
     "mesocycle_context": "week 2",
+    "life_context": "well",
 }
 TEMPLATE = [
     {"role": "system", "content": "Coach."},

@@ -19,6 +19,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
+from mycoach.coaching.life_context import excused_summary
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 
@@ -516,15 +517,21 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
 
 
 def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
-    """The week's completion as the recap email shows it: "4/5 · 1 substituted".
+    """The week's completion as the recap email shows it: "4/5 done · 1 substituted".
 
-    Substitutions are already in the done count (#216). None without a plan.
+    Substitutions are already in the done count (#216); excused sessions (#220) are
+    out of the denominator: "2/2 done · 3 excused (ill 3 days)". None without a plan.
     """
-    if not adherence or not adherence.get("total_sessions"):
+    if not adherence or not (adherence.get("total_sessions") or adherence.get("excused_sessions")):
         return None
-    line = f"{adherence['completed_sessions']}/{adherence['total_sessions']}"
+    line = f"{adherence['completed_sessions']}/{adherence['total_sessions']} done"
     if adherence.get("substituted_sessions"):
         line += f" · {adherence['substituted_sessions']} substituted"
+    excused = excused_summary(
+        adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
+    )
+    if excused:
+        line += f" · {excused}"
     return line
 
 

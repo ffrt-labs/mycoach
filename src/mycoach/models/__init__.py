@@ -7,6 +7,7 @@ from mycoach.models.data_source import DataSourceConfig
 from mycoach.models.exercise import Exercise
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.job_run import JobRun
+from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prescription import PrescriptionFulfillment
 from mycoach.models.prompt_log import PromptLog
@@ -27,6 +28,7 @@ __all__ = [
     "Exercise",
     "GymWorkoutDetail",
     "JobRun",
+    "LifeContextEpisode",
     "MesocycleConfig",
     "PlannedSession",
     "PrescriptionFulfillment",

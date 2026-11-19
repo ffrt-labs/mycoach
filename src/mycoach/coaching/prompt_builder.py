@@ -10,6 +10,14 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
+from mycoach.coaching.life_context import (
+    EXCUSED_LABEL,
+    Episode,
+    EpisodeKind,
+    LifeContext,
+    RampBack,
+    excused_summary,
+)
 
 if TYPE_CHECKING:
     from mycoach.coaching.context import OpenThisWeek
@@ -434,6 +442,58 @@ def _format_body(body: BodySummary | None) -> str:
     return "\n".join(lines)
 
 
+_NO_LIFE_CONTEXT = "Nothing to report: no illness or ramp-back."
+_SEVERITY_TEXT = {"mild": "mild (above the neck)", "sick": "sick (below the neck)"}
+
+
+def _day_text(day: date) -> str:
+    return f"{day.strftime('%A')} {day.isoformat()}"
+
+
+def _format_episode(e: Episode, today: date) -> str:
+    """One episode line. #221: travel episodes get their own wording here."""
+    label = e.kind.capitalize()
+    if e.kind == EpisodeKind.ILLNESS and e.severity:
+        label += f", {_SEVERITY_TEXT.get(e.severity, e.severity)}"
+    days = e.length_days(today)
+    if e.ended_on is None:
+        when = f"since {_day_text(e.started_on)}, still unwell today (day {days})"
+    else:
+        noun = "day" if days == 1 else "days"
+        when = f"{_day_text(e.started_on)} to {_day_text(e.ended_on)} ({days} {noun})"
+    return f"- {label}: {when}" + (f". Note: {e.note}" if e.note else "")
+
+
+def _format_ramp_back(r: RampBack) -> str:
+    text = (
+        f"Returning from illness: ramp-back day {r.day}/{r.length}, about {r.load_pct}% of "
+        f"normal training load today (50% on day 1 rising to 90% on day {r.length}; "
+        f"last day {_day_text(r.ends_on)})."
+    )
+    if r.extend_because is not None:
+        reasons = []
+        if r.extend_because.hrv_below_baseline:
+            reasons.append("HRV is still below baseline")
+        if r.extend_because.resting_hr_elevated:
+            reasons.append("resting HR is still elevated")
+        because = " and ".join(reasons)
+        text += (
+            f"\n{because[0].upper()}{because[1:]} on the last ramp-back day: you may suggest "
+            "extending the ramp-back by a few days. Never shorten it."
+        )
+    return text
+
+
+def _format_life_context(ctx: LifeContext | None) -> str:
+    """The ``life_context`` variable (#220): open and recent episodes, and the ramp-back."""
+    if ctx is None or ctx.is_empty:
+        return _NO_LIFE_CONTEXT
+    lines = [_format_episode(e, ctx.today) for e in ctx.episodes]
+    if ctx.ramp_back is not None:
+        lines.append(_format_ramp_back(ctx.ramp_back))
+    return "\n".join(lines)
+
+
 _OPEN_STATUS_NOTE = {"overdue": ", planned day passed", "today": ", planned for today"}
 
 
@@ -466,6 +526,7 @@ def daily_briefing_variables(
     steps: "StepsSummary | None" = None,
     body: BodySummary | None = None,
     open_this_week: "OpenThisWeek | None" = None,
+    life_context: LifeContext | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a daily briefing LLM call."""
     if isinstance(planned_workout, list):
@@ -480,6 +541,7 @@ def daily_briefing_variables(
         "open_this_week": _format_open_this_week(open_this_week),
         "steps_summary": _format_steps(steps),
         "body_summary": _format_body(body),
+        "life_context": _format_life_context(life_context),
     }
 
 
@@ -816,6 +878,7 @@ def post_workout_variables(
     planned_session: dict[str, Any] | None,
     similar_activities: list[dict[str, Any]],
     health_context: dict[str, Any],
+    life_context: LifeContext | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a post-workout analysis LLM call.
 
@@ -845,6 +908,7 @@ def post_workout_variables(
             " Compare actual performance to the planned session." if has_planned else ""
         ),
         "output_schema": _build_post_workout_schema(sport, has_planned),
+        "life_context": _format_life_context(life_context),
     }
 
 
@@ -1047,6 +1111,11 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         counts.append(f"{len(by_status['substituted'])} substituted")
     if by_status["not_done"]:
         counts.append(f"{len(by_status['not_done'])} not done")
+    excused = excused_summary(
+        adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
+    )
+    if excused:
+        counts.append(excused)
     lines = [
         f"Completion: {adherence['completed_sessions']}/{adherence['total_sessions']} "
         f"planned sessions done ({adherence['adherence_pct']:g}%) — {', '.join(counts)}"
@@ -1085,6 +1154,11 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         lines.append("Not done:")
         for s in by_status["not_done"]:
             lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
+    for status, label in EXCUSED_LABEL.items():
+        if by_status.get(status):
+            lines.append(f"Excused ({label}), out of the count:")
+            for s in by_status[status]:
+                lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
     extras = adherence.get("extras") or []
     if extras:
         lines.append("Extras (unplanned, not counted):")
@@ -1112,6 +1186,7 @@ def weekly_recap_variables(
     weekly_gym_details: list[dict[str, Any]] | None = None,
     gym_history: list[dict[str, Any]] | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
+    life_context: LifeContext | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a weekly recap LLM call."""
     from datetime import timedelta
@@ -1130,6 +1205,7 @@ def weekly_recap_variables(
         "routine_summary": _format_routine_summary(routine),
         "availability": _format_availability(availability or []),
         "sport_profiles": _format_sport_profiles(sport_profiles or []),
+        "life_context": _format_life_context(life_context),
     }
 
 
@@ -1392,6 +1468,7 @@ def gym_adjustment_variables(
     last_week_activities: list[dict[str, Any]] | None = None,
     mesocycle_context: str | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
+    life_context: LifeContext | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a gym adjustment LLM call."""
     return {
@@ -1402,6 +1479,7 @@ def gym_adjustment_variables(
         "mesocycle_context": mesocycle_context
         or "No mesocycle configured. Use general progressive programming.",
         "sport_profiles": _format_sport_profiles(sport_profiles or []),
+        "life_context": _format_life_context(life_context),
     }
 
 
@@ -1434,6 +1512,7 @@ def cardio_plan_variables(
     health_trends: list[dict[str, Any]],
     mesocycle_context: str | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
+    life_context: LifeContext | None = None,
 ) -> PromptVariables:
     """Format the Coaching context of a cardio plan LLM call."""
     return {
@@ -1443,6 +1522,7 @@ def cardio_plan_variables(
         "mesocycle_context": mesocycle_context
         or "No mesocycle configured. Use general progressive programming.",
         "sport_profiles": _format_sport_profiles(sport_profiles or []),
+        "life_context": _format_life_context(life_context),
     }
 
 

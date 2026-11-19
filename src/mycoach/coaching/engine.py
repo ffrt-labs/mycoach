@@ -5,7 +5,7 @@ import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel
@@ -41,6 +41,7 @@ from mycoach.coaching.exceptions import (
     NoAvailabilityConfigured,
     PipelineSkip,
 )
+from mycoach.coaching.life_context import life_context_for, recovery_signals
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
     BUNDLED_VERSION,
@@ -258,6 +259,15 @@ class CoachingEngine:
             session, user_id, today, target=get_settings().steps_daily_target
         )
         body = await get_body_summary(session, user_id, now=self._clock())
+        # Illness and ramp-back (#220); recovery data may only extend a ramp-back.
+        life = await life_context_for(
+            session,
+            user_id,
+            today,
+            today,
+            today=today,
+            recovery=recovery_signals(health_today, health_trends),
+        )
 
         # Build prompts
         variables = daily_briefing_variables(
@@ -268,6 +278,7 @@ class CoachingEngine:
             steps=steps,
             body=body,
             open_this_week=open_this_week,
+            life_context=life,
         )
         prompt = await self._serve(Operation.DAILY_BRIEFING, variables)
 
@@ -377,20 +388,23 @@ class CoachingEngine:
         if not plan_adherence or not plan_adherence["total_sessions"]:
             return
         completed = plan_adherence["completed_sessions"]
-        planned = plan_adherence["total_sessions"]
+        planned = plan_adherence["total_sessions"]  # excused sessions are already out (#220)
+        metadata: dict[str, Any] = {
+            "operation": "weekly_recap",
+            "completed_sessions": completed,
+            "planned_sessions": planned,
+            # Already in completed_sessions: the ratio is completion (#217).
+            "substituted_sessions": plan_adherence["substituted_sessions"],
+        }
+        if plan_adherence.get("excused_sessions"):
+            metadata["excused_sessions"] = plan_adherence["excused_sessions"]
         self._scores.emit(
             Score.numeric(
                 trace_id(weekly_plan_seed(plan_adherence["plan_id"])),
                 "plan_sessions_completed_ratio",
                 completed / planned,
                 timestamp=at,
-                metadata={
-                    "operation": "weekly_recap",
-                    "completed_sessions": completed,
-                    "planned_sessions": planned,
-                    # Already in completed_sessions: the ratio is completion (#217).
-                    "substituted_sessions": plan_adherence["substituted_sessions"],
-                },
+                metadata=metadata,
             )
         )
 
@@ -672,6 +686,10 @@ class CoachingEngine:
         routine = await get_active_routine(session, user_id)
         sport_profiles = await get_sport_profiles(session, user_id)
         last_week_activities = await get_last_week_all_activities(session, user_id, week_start)
+        # An open illness or a ramp-back as the plan is written (#220): a lighter week.
+        # The plan is never regenerated mid-week when an episode opens later.
+        plan_day = local_today(get_settings().timezone, now=self._clock())
+        life = await life_context_for(session, user_id, plan_day, plan_day, today=plan_day)
 
         # 3. Split slots by user-assigned sport
         gym_slots = [s for s in availability if s.get("sport") == "gym"]
@@ -720,6 +738,7 @@ class CoachingEngine:
                     last_week_activities=last_week_activities,
                     mesocycle_context=mesocycle_ctx,
                     sport_profiles=sport_profiles,
+                    life_context=life,
                 )
                 prompt = await self._serve(Operation.GYM_ADJUSTMENT, variables)
                 plan.gym_prompt_version = prompt.artifact_version
@@ -844,6 +863,7 @@ class CoachingEngine:
                     health_trends=health_trends_list,
                     mesocycle_context=mesocycle_ctx,
                     sport_profiles=sport_profiles,
+                    life_context=life,
                 )
                 prompt = await self._serve(Operation.CARDIO_PLAN, variables)
                 plan.cardio_prompt_version = prompt.artifact_version
@@ -1020,6 +1040,10 @@ class CoachingEngine:
             with contextlib.suppress(ValueError, TypeError):
                 activity_date = dt.fromisoformat(start_time_str).date()
         health_ctx = await get_today_health(session, user_id, activity_date)
+        # Ill or ramping back on the activity's day (#220): light is not a regression.
+        life = await life_context_for(
+            session, user_id, activity_date, activity_date, today=activity_date
+        )
 
         # Build prompts
         variables = post_workout_variables(
@@ -1028,6 +1052,7 @@ class CoachingEngine:
             planned_session=planned_session,
             similar_activities=similar,
             health_context=health_ctx,
+            life_context=life,
         )
         prompt = await self._serve(Operation.POST_WORKOUT, variables)
 
@@ -1111,8 +1136,11 @@ class CoachingEngine:
             else:
                 raise PipelineSkip(f"Weekly recap already exists for week of {week_start}")
 
-        # Gather context
-        plan_adherence = await get_plan_adherence_for_week(session, user_id, week_start)
+        # Gather context. ``today`` bounds an open life context episode (#220).
+        today = local_today(get_settings().timezone, now=self._clock())
+        plan_adherence = await get_plan_adherence_for_week(
+            session, user_id, week_start, today=today
+        )
         weekly_activities = await get_activities_for_week(session, user_id, week_start)
         health_trends = await get_health_trends(session, user_id, days=7, today=week_start)
         mesocycle_ctx = await get_mesocycle_context(session, user_id)
@@ -1121,6 +1149,11 @@ class CoachingEngine:
         sport_profiles = await get_sport_profiles(session, user_id)
         weekly_gym_details = await get_gym_details_for_week(session, user_id, week_start)
         gym_history = await get_gym_performance_history(session, user_id, week_start, weeks=3)
+        # The week's episodes (#220): low volume while ill is not a performance problem.
+        week_end = week_start + timedelta(days=6)
+        life = await life_context_for(
+            session, user_id, week_start, week_end, today=min(today, week_end)
+        )
 
         # Build prompts
         variables = weekly_recap_variables(
@@ -1134,6 +1167,7 @@ class CoachingEngine:
             weekly_gym_details=weekly_gym_details,
             gym_history=gym_history,
             sport_profiles=sport_profiles,
+            life_context=life,
         )
         prompt = await self._serve(Operation.WEEKLY_RECAP, variables)
 

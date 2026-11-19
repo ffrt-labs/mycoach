@@ -92,6 +92,18 @@ _Avoid_: Swap, replacement, equivalent session
 An activity in the plan's week that completed no Planned session, by sport or by Substitution. Extras never raise Completion.
 _Avoid_: Bonus session, unplanned workout, missed match
 
+**Life context episode**:
+A stretch of the athlete's life that every Coaching run reads around, told to MyCoach rather than measured, so a Coaching artifact and never an Observed health fact. It has a `kind` (`illness`, `travel`), a start day, an end day (its last affected day; none while open), a note, and kind-specific fields (an illness's severity: `mild` above the neck, `sick` below it). Episodes may overlap; on each day the most restrictive effect wins.
+_Avoid_: Event, status, absence
+
+**Excused session**:
+A Planned session left not done that a Life context episode excuses: each `sick` day excuses at most one in its week, its own day's session first. It leaves Completion's denominator ("2/2 done · 3 excused (ill 3 days)"). A day excuses once however many episodes cover it, and a session done while ill is done, never excused. `mild` days excuse nothing.
+_Avoid_: Skipped, missed, cancelled session
+
+**Ramp-back**:
+The days after an illness ends when training builds back: 3 after a `mild` illness, else the illness's length clamped to 3-7. Guidance starts near 50% of normal load on day 1 and rises linearly to about 90% on the last day. Recovery data (HRV below baseline, resting HR elevated) on the last day may only extend it, never shorten it.
+_Avoid_: Recovery period, comeback, return-to-play
+
 ## Gym coaching
 
 **Exercise**:

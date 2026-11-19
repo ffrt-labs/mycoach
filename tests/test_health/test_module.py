@@ -245,3 +245,29 @@ class TestHealthReads:
         ) == (47.0, 58.0, 43.0)
         trends = await health.get_health_trends(ATHLETE, days=3, today=day)
         assert trends[0]["hrv_baseline_low"] == 46.0
+
+    async def test_the_snapshot_carries_the_wake_time_from_garmin_sleep(self):
+        """Wake time is read from the stored Garmin sleep payload; nothing new is tracked."""
+        import calendar
+
+        from mycoach.sources.garmin.mappers import map_health_snapshot
+        from tests.conftest import test_session
+
+        day = date(2026, 11, 2)
+        # Garmin's *Local timestamps are the local wall clock written as UTC epoch ms.
+        woke = calendar.timegm(datetime(2026, 11, 1, 6, 42).timetuple()) * 1000
+        async with test_session() as session:
+            session.add(
+                map_health_snapshot(
+                    ATHLETE,
+                    day - timedelta(days=1),
+                    {},
+                    sleep={"dailySleepDTO": {"sleepEndTimestampLocal": woke}},
+                )
+            )
+            session.add(map_health_snapshot(ATHLETE, day, {}, sleep={"dailySleepDTO": {}}))
+            await session.commit()
+
+        trends = await health.get_health_trends(ATHLETE, days=3, today=day)
+        assert trends[0]["wake_time"] == "06:42"
+        assert "wake_time" not in await health.get_today_health(ATHLETE, today=day)

@@ -13,8 +13,9 @@ serialisation: swapping this module's implementation for HTTP changes no caller.
 Health side: must never import coaching.
 """
 
+import json
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -70,6 +71,26 @@ _SNAPSHOT_FIELDS = [
 _SNAPSHOT_EXTRA_FIELDS = ["body_battery_high", "body_battery_low"]
 
 
+def _wake_time(snapshot: DailyHealthSnapshot) -> str | None:
+    """Local wake time (``HH:MM``) from the stored Garmin sleep payload, if any.
+
+    Garmin's ``sleepEndTimestampLocal`` is the local wall clock written as UTC
+    epoch milliseconds. Read from ``raw_data``, which every Garmin snapshot
+    keeps, so wake-time consistency needs no new column (#219).
+    """
+    if not snapshot.raw_data:
+        return None
+    try:
+        sleep = json.loads(snapshot.raw_data).get("sleep") or {}
+        daily = sleep.get("dailySleepDTO") or sleep
+        end_ms = daily.get("sleepEndTimestampLocal")
+        if end_ms is None:
+            return None
+        return datetime.fromtimestamp(int(end_ms) / 1000, tz=UTC).strftime("%H:%M")
+    except (ValueError, TypeError, AttributeError, OverflowError):
+        return None
+
+
 def _snapshot(snapshot: DailyHealthSnapshot) -> dict[str, Any]:
     """A snapshot as a dict, omitting fields with no value."""
     result: dict[str, Any] = {}
@@ -77,6 +98,8 @@ def _snapshot(snapshot: DailyHealthSnapshot) -> dict[str, Any]:
         value = getattr(snapshot, name, None)
         if value is not None:
             result[name] = str(value) if isinstance(value, date) else value
+    if (wake := _wake_time(snapshot)) is not None:
+        result["wake_time"] = wake
     return result
 
 

@@ -60,6 +60,10 @@ _Avoid_: Health fact, health metric
 The selection and interpretation of Observed health facts and Coaching artifacts prepared for a coaching decision. MyCoach builds it from factual Health-data API queries; the health side never returns prompt-shaped projections.
 _Avoid_: Health-data projection, prompt-ready health response
 
+**Coaching principles**:
+The versioned habit rules (`prompts/principles/v1.md`, from the Huberman Lab Neural Network Digest Vol. 1) appended to every coaching operation's system message. Each principle names the data that triggers it; the coach applies one only when the athlete's data gives a reason. It never recommends a supplement or a dose.
+_Avoid_: Protocols, Huberman rules, supplement advice
+
 **Insight revision**:
 An immutable version of a coaching insight. When a settled activity changes in a coaching-relevant way, MyCoach produces a new version and retains the earlier ones.
 _Avoid_: Insight overwrite, duplicate insight

@@ -153,6 +153,20 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             "recent_activities": [],
         },
     ),
+    # Evals case (#219): wake times swing by over 3 h, so the briefing should
+    # nudge toward an anchored wake time.
+    "daily_briefing_irregular_wake": (
+        "daily_briefing",
+        {
+            "health_today": {"sleep_score": 68, "wake_time": "09:40", "resting_hr": 57},
+            "health_trends": [
+                {"snapshot_date": "2024-06-09", "sleep_score": 74, "wake_time": "06:05"},
+                {"snapshot_date": "2024-06-08", "sleep_score": 61, "wake_time": "10:15"},
+                {"snapshot_date": "2024-06-07", "sleep_score": 79, "wake_time": "06:20"},
+            ],
+            "recent_activities": [],
+        },
+    ),
     "daily_briefing_empty": (
         "daily_briefing",
         {"health_today": {}, "health_trends": [], "recent_activities": []},

@@ -4,6 +4,7 @@ Trace IDs are independent fixtures (``printf '<seed>' | sha256sum | cut -c1-32``
 the same ones ``test_engine_tracing.py`` uses.
 """
 
+import json
 import logging
 from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
@@ -16,8 +17,8 @@ from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
-from mycoach.observability.trace_ids import post_workout_seed, trace_id
 from mycoach.observability.scores import LangfuseScoreSink, NoopScoreSink, ScoreSink
+from mycoach.observability.trace_ids import post_workout_seed, trace_id
 from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import _add_recovery_snapshot
 from tests.test_coaching.test_engine import _create_user as _create_briefing_user
@@ -287,6 +288,7 @@ class TestPlanCompletionScore:
             "operation": "weekly_recap",
             "completed_sessions": 1,
             "planned_sessions": 3,
+            "substituted_sessions": 0,
         }
         assert [s.id for s in sink.scores if s.trace_id != RECAP] == [RATIO]
 
@@ -325,6 +327,59 @@ class TestPlanCompletionScore:
                 ).generate_weekly_recap(session, user_id, MONDAY)
 
         assert sink.values()[RATIO] == 0.0
+
+    async def test_a_substituted_session_counts_as_completed(self) -> None:
+        """The ratio is completion (#217): a substitution is a done session."""
+        sink = RecordingScoreSink()
+        async with new_session() as session:
+            user_id = await _create_briefing_user(session)
+            plan = WeeklyPlan(user_id=user_id, week_start=MONDAY, status="active", summary="P")
+            session.add(plan)
+            await session.flush()
+            session.add_all(
+                [
+                    PlannedSession(
+                        plan_id=plan.id,
+                        day_of_week=6,
+                        sport="running",
+                        title="Long easy run",
+                        duration_minutes=90,
+                        intent="aerobic_base",
+                    ),
+                    PlannedSession(plan_id=plan.id, day_of_week=2, sport="swimming", title="Swim"),
+                    Activity(
+                        user_id=user_id,
+                        title="Padel",
+                        sport="padel",
+                        start_time=datetime(2024, 6, 16, 10, 0),
+                        duration_minutes=101,
+                        avg_hr=118,
+                        max_hr=152,
+                        hr_zones=json.dumps(
+                            [
+                                {"zoneNumber": z, "secsInZone": m * 60}
+                                for z, m in ((1, 38), (2, 46), (3, 13), (4, 4), (5, 0))
+                            ]
+                        ),
+                        training_effect_aerobic=2.7,
+                        training_effect_anaerobic=0.6,
+                        data_source="garmin",
+                    ),
+                ]
+            )
+            await session.commit()
+            await CoachingEngine(
+                llm_client=_recap_llm(), scores=sink, clock=lambda: _at(2024, 6, 17, 6, 0)
+            ).generate_weekly_recap(session, user_id, MONDAY)
+
+        ratio = sink.by_id()[RATIO]
+        assert ratio.value == pytest.approx(1 / 2)
+        assert ratio.metadata == {
+            "operation": "weekly_recap",
+            "completed_sessions": 1,
+            "planned_sessions": 2,
+            "substituted_sessions": 1,
+        }
 
 
 class _FailingClient:

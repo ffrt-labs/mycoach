@@ -13,6 +13,99 @@ from zoneinfo import ZoneInfo
 from mycoach.coaching.body import summarize_body
 from mycoach.coaching.steps import summarize_steps
 
+# The week of 2026-11-02 whose v2 recap said "2/5 planned sessions done... 40%
+# on paper... Mon squat moved to Wed... Fix: fewer, firmer slots" (#214, #216,
+# #217): the squat was done Wednesday, the swim came up short (1325 m of 1.7 km),
+# Sunday's run was replaced by padel, and Thursday's intervals were not done.
+WEEK_2026_11_02_ADHERENCE: dict[str, Any] = {
+    "plan_id": 41,
+    "plan_summary": "Base block week 3: two lifts, a swim, intervals and a long run.",
+    "total_sessions": 5,
+    "completed_sessions": 4,
+    "substituted_sessions": 1,
+    "adherence_pct": 80.0,
+    "sessions": [
+        {
+            "id": 1,
+            "day": "Monday",
+            "sport": "gym",
+            "title": "Squat",
+            "intent": "strength",
+            "completed": True,
+            "status": "done",
+            "on_planned_day": False,
+            "actual_day": "Wednesday",
+            "substitute": None,
+        },
+        {
+            "id": 2,
+            "day": "Tuesday",
+            "sport": "swimming",
+            "title": "Swim 1.7 km",
+            "intent": "aerobic_base",
+            "completed": True,
+            "status": "done",
+            "on_planned_day": True,
+            "actual_day": "Tuesday",
+            "substitute": None,
+        },
+        {
+            "id": 3,
+            "day": "Thursday",
+            "sport": "running",
+            "title": "Intervals 6x3 min",
+            "intent": "intervals",
+            "completed": False,
+            "status": "not_done",
+            "on_planned_day": None,
+            "actual_day": None,
+            "substitute": None,
+        },
+        {
+            "id": 4,
+            "day": "Friday",
+            "sport": "gym",
+            "title": "Deadlift",
+            "intent": "strength",
+            "completed": True,
+            "status": "done",
+            "on_planned_day": True,
+            "actual_day": "Friday",
+            "substitute": None,
+        },
+        {
+            "id": 5,
+            "day": "Sunday",
+            "sport": "running",
+            "title": "Long easy run",
+            "intent": "aerobic_base",
+            "completed": True,
+            "status": "substituted",
+            "on_planned_day": True,
+            "actual_day": "Sunday",
+            "substitute": {
+                "external_id": "g-padel-1108",
+                "sport": "padel",
+                "title": "Padel",
+                "intent": "aerobic_base",
+                "duration_minutes": 101,
+                "avg_hr": 118,
+                "training_effect_aerobic": 2.7,
+            },
+        },
+    ],
+    "extras": [
+        {
+            "external_id": "g-walk-1107",
+            "sport": "walking",
+            "title": "Walk",
+            "day": "Saturday",
+            "duration_minutes": 45,
+            "intent": "recovery",
+        }
+    ],
+}
+
 _HEALTH_TODAY: dict[str, Any] = {
     "resting_hr": 55,
     "sleep_score": 82,
@@ -355,6 +448,63 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             "plan_adherence": None,
             "weekly_activities": [],
             "health_trends": [],
+        },
+    ),
+    # The bad v2 recap's week, under the v3 recap prompt (#217).
+    "weekly_recap_2026_11_02": (
+        "weekly_recap",
+        {
+            "week_start": date(2026, 11, 2),
+            "plan_adherence": WEEK_2026_11_02_ADHERENCE,
+            "weekly_activities": [
+                {
+                    "title": "Pool swim",
+                    "sport": "swimming",
+                    "start_time": "2026-11-03 07:00:00",
+                    "duration_minutes": 35,
+                    "distance_meters": 1325.0,
+                },
+                {
+                    "title": "Walk",
+                    "sport": "walking",
+                    "start_time": "2026-11-07 11:00:00",
+                    "duration_minutes": 45,
+                    "avg_hr": 96,
+                },
+                {
+                    "title": "Padel",
+                    "sport": "padel",
+                    "start_time": "2026-11-08 10:00:00",
+                    "duration_minutes": 101,
+                    "avg_hr": 118,
+                },
+            ],
+            "health_trends": [
+                {"snapshot_date": "2026-11-08", "resting_hr": 52, "sleep_score": 81},
+                {"snapshot_date": "2026-11-05", "resting_hr": 55, "sleep_score": 64},
+            ],
+            "weekly_gym_details": [
+                {
+                    "session_date": "2026-11-04",
+                    "session_title": "Squat",
+                    "exercise_title": "Barbell Squat",
+                    "set_index": 1,
+                    "set_type": "normal",
+                    "weight_kg": 100.0,
+                    "reps": 5,
+                    "rpe": 8,
+                },
+                {
+                    "session_date": "2026-11-06",
+                    "session_title": "Deadlift",
+                    "exercise_title": "Barbell Deadlift",
+                    "set_index": 1,
+                    "set_type": "normal",
+                    "weight_kg": 140.0,
+                    "reps": 5,
+                    "rpe": 8,
+                },
+            ],
         },
     ),
 }

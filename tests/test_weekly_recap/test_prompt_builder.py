@@ -3,13 +3,17 @@
 from datetime import date
 
 from mycoach.coaching.prompt_builder import (
+    PROMPT_VARIABLES,
+    Operation,
     _format_gym_details,
     _format_gym_history,
     _format_last_week_training_log,
     _format_plan_adherence,
     _format_weekly_gym_details,
     build_weekly_recap_prompt,
+    compile_prompt,
 )
+from tests.test_coaching.prompt_cases import CASES, WEEK_2026_11_02_ADHERENCE
 
 
 def _renamed_squat_sets() -> list[dict]:
@@ -84,23 +88,62 @@ class TestFormatPlanAdherence:
         result = _format_plan_adherence(None)
         assert "No training plan" in result
 
-    def test_with_adherence_data(self) -> None:
+    def test_week_of_2026_11_02_reads_completion_first(self) -> None:
+        result = _format_plan_adherence(WEEK_2026_11_02_ADHERENCE)
+
+        assert result == (
+            "Completion: 4/5 planned sessions done (80%)"
+            " — 3 as planned, 1 substituted, 1 not done\n"
+            "On planned day: 3/4 (informational only — never a penalty)\n"
+            "Done:\n"
+            "- Squat [gym] — done Wednesday (planned Monday)\n"
+            "- Swim 1.7 km [swimming, aerobic base] — done Tuesday (planned Tuesday)\n"
+            "- Deadlift [gym] — done Friday (planned Friday)\n"
+            "Substituted:\n"
+            "- Long easy run [running, aerobic base] (planned Sunday)"
+            " ← Padel [padel] on Sunday: 101 min, avg HR 118, aerobic TE 2.7,"
+            " delivered aerobic base\n"
+            "Not done:\n"
+            "- Intervals 6x3 min [running, intervals] (planned Thursday)\n"
+            "Extras (unplanned, not counted):\n"
+            "- Walk [walking] on Saturday: 45 min, recovery\n"
+            "Plan summary: Base block week 3: two lifts, a swim, intervals and a long run."
+        )
+
+    def test_no_schedule_rigidity_language(self) -> None:
+        result = _format_plan_adherence(WEEK_2026_11_02_ADHERENCE).lower()
+
+        for phrase in ("missed", "moved", "on paper", "2/5", "40%"):
+            assert phrase not in result
+
+    def test_a_session_ticked_by_hand_is_done_with_no_day(self) -> None:
         adherence = {
-            "plan_summary": "Test plan",
-            "total_sessions": 3,
-            "completed_sessions": 2,
-            "adherence_pct": 66.7,
+            "plan_summary": None,
+            "total_sessions": 1,
+            "completed_sessions": 1,
+            "substituted_sessions": 0,
+            "adherence_pct": 100.0,
             "sessions": [
-                {"day": "Monday", "sport": "gym", "title": "Push", "completed": True},
-                {"day": "Wednesday", "sport": "swimming", "title": "Swim", "completed": True},
-                {"day": "Friday", "sport": "padel", "title": "Padel", "completed": False},
+                {
+                    "day": "Monday",
+                    "sport": "gym",
+                    "title": "Push",
+                    "intent": "strength",
+                    "completed": True,
+                    "status": "done",
+                    "on_planned_day": None,
+                    "actual_day": None,
+                    "substitute": None,
+                }
             ],
+            "extras": [],
         }
-        result = _format_plan_adherence(adherence)
-        assert "2/3" in result
-        assert "66.7%" in result
-        assert "DONE" in result
-        assert "MISSED" in result
+
+        assert _format_plan_adherence(adherence) == (
+            "Completion: 1/1 planned sessions done (100%) — 1 as planned\n"
+            "Done:\n"
+            "- Push [gym] — ticked off by hand (planned Monday)"
+        )
 
     def test_empty_sessions(self) -> None:
         adherence = {
@@ -369,3 +412,47 @@ class TestBuildWeeklyRecapPrompt:
         assert "Bench Press" in result
         assert "80kg×8" in result
         assert "77.5kg × 8" in result
+
+
+class TestRecapPromptV3:
+    """The v3 recap prompt does not induce schedule-rigidity language (#217).
+
+    The v2 recap of the week of 2026-11-02 said "2/5 planned sessions done...
+    40% on paper... Mon squat moved to Wed... Fix: fewer, firmer slots".
+    """
+
+    RIGID = ("on paper", "moved", "shifted", "missed", "firmer", "40%", "2/5")
+
+    @staticmethod
+    def _user_message() -> str:
+        operation, inputs = CASES["weekly_recap_2026_11_02"]
+        variables = PROMPT_VARIABLES[Operation(operation)](**inputs)
+        return compile_prompt(Operation(operation), variables).user
+
+    @staticmethod
+    def _without_rules(message: str) -> str:
+        """The message minus its Adherence Rules section, the one place that names
+        the banned language in order to ban it."""
+        head, _, rest = message.partition("## Adherence Rules")
+        assert rest, "the v3 recap prompt has an Adherence Rules section"
+        _, _, tail = rest.partition("\n## ")
+        return head + tail
+
+    def test_headline_is_completion(self) -> None:
+        message = self._user_message()
+        assert "Completion: 4/5 planned sessions done (80%)" in message
+        assert "Headline adherence is the Completion line" in message
+
+    def test_nothing_outside_the_rules_names_rigid_language(self) -> None:
+        rest = self._without_rules(self._user_message()).lower()
+        for phrase in self.RIGID:
+            assert phrase not in rest, phrase
+
+    def test_rules_ban_moved_language_and_rigidity_advice(self) -> None:
+        message = self._user_message()
+        rules = message.partition("## Adherence Rules")[2].partition("\n## ")[0]
+        assert "not call it moved, shifted or missed" in rules
+        assert "fewer or firmer slots" in rules
+        assert "back-to-back heavy sessions" in rules
+        assert "stimulus it delivered" in rules
+        assert "volume note, not an adherence one" in rules

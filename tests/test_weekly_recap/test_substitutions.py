@@ -114,6 +114,10 @@ class TestSubstitution:
         assert run["substitute"]["sport"] == "padel"
         assert run["substitute"]["title"] == "Padel"
         assert run["substitute"]["intent"] == "aerobic_base"
+        # Key metrics, so the recap can judge the stimulus delivered (#217).
+        assert run["substitute"]["duration_minutes"] == 101
+        assert run["substitute"]["avg_hr"] == 118
+        assert run["substitute"]["training_effect_aerobic"] == 2.7
 
     async def test_a_short_activity_stays_an_extra(self) -> None:
         async with test_session() as session:

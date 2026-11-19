@@ -999,20 +999,104 @@ def _format_gym_history(history: list[dict[str, Any]]) -> str:
     return "\n\n".join(parts)
 
 
+def _intent_label(intent: str | None) -> str | None:
+    return intent.replace("_", " ") if intent else None
+
+
+def _session_tag(s: Mapping[str, Any]) -> str:
+    """``[sport]``, or ``[sport, intent]`` when the intent says more than the sport."""
+    intent = _intent_label(s.get("intent"))
+    if intent is None or intent == "strength":
+        return f"[{s['sport']}]"
+    return f"[{s['sport']}, {intent}]"
+
+
+def _activity_metrics(a: Mapping[str, Any]) -> str:
+    """Key metrics of an activity, for judging the stimulus it delivered."""
+    parts: list[str] = []
+    if a.get("duration_minutes"):
+        parts.append(f"{a['duration_minutes']} min")
+    if a.get("avg_hr"):
+        parts.append(f"avg HR {a['avg_hr']}")
+    if a.get("training_effect_aerobic") is not None:
+        parts.append(f"aerobic TE {a['training_effect_aerobic']:g}")
+    return ", ".join(parts)
+
+
+def _session_status(s: Mapping[str, Any]) -> str:
+    # Pre-#216 dicts carry only ``completed``.
+    return str(s.get("status") or ("done" if s["completed"] else "not_done"))
+
+
 def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
-    """Format plan adherence data for the weekly recap prompt."""
+    """The weekly recap's adherence block (#217): completion first, planned day last.
+
+    Completion is week-scoped (ADR 0005): a session done on another day, or
+    filled by a substitution, is done. On planned day is informational only,
+    so nothing here reads as a session missed or moved.
+    """
     if not adherence:
         return "No training plan was active this week."
+    sessions = list(adherence.get("sessions", []))
+    by_status: dict[str, list[Mapping[str, Any]]] = {"done": [], "substituted": [], "not_done": []}
+    for s in sessions:
+        by_status.setdefault(_session_status(s), []).append(s)
+
+    counts = [f"{len(by_status['done'])} as planned"]
+    if by_status["substituted"]:
+        counts.append(f"{len(by_status['substituted'])} substituted")
+    if by_status["not_done"]:
+        counts.append(f"{len(by_status['not_done'])} not done")
     lines = [
-        f"Plan summary: {adherence.get('plan_summary', 'N/A')}",
-        f"Adherence: {adherence['completed_sessions']}/{adherence['total_sessions']} "
-        f"sessions completed ({adherence['adherence_pct']}%)",
-        "",
-        "Session breakdown:",
+        f"Completion: {adherence['completed_sessions']}/{adherence['total_sessions']} "
+        f"planned sessions done ({adherence['adherence_pct']:g}%) — {', '.join(counts)}"
     ]
-    for s in adherence.get("sessions", []):
-        status = "DONE" if s["completed"] else "MISSED"
-        lines.append(f"- {s['day']}: {s['title']} [{s['sport']}] — {status}")
+    dated = [s for s in sessions if s.get("on_planned_day") is not None]
+    if dated:
+        on_day = sum(1 for s in dated if s["on_planned_day"])
+        lines.append(
+            f"On planned day: {on_day}/{len(dated)} (informational only — never a penalty)"
+        )
+
+    if by_status["done"]:
+        lines.append("Done:")
+        for s in by_status["done"]:
+            when = f"done {s['actual_day']}" if s.get("actual_day") else "ticked off by hand"
+            lines.append(f"- {s['title']} {_session_tag(s)} — {when} (planned {s['day']})")
+    if by_status["substituted"]:
+        lines.append("Substituted:")
+        for s in by_status["substituted"]:
+            sub = s.get("substitute") or {}
+            detail = ", ".join(
+                p
+                for p in (
+                    _activity_metrics(sub),
+                    f"delivered {_intent_label(sub['intent'])}" if sub.get("intent") else "",
+                )
+                if p
+            )
+            on = f" on {s['actual_day']}" if s.get("actual_day") else ""
+            lines.append(
+                f"- {s['title']} {_session_tag(s)} (planned {s['day']})"
+                f" ← {sub.get('title', '?')} [{sub.get('sport', '?')}]{on}"
+                + (f": {detail}" if detail else "")
+            )
+    if by_status["not_done"]:
+        lines.append("Not done:")
+        for s in by_status["not_done"]:
+            lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
+    extras = adherence.get("extras") or []
+    if extras:
+        lines.append("Extras (unplanned, not counted):")
+        for a in extras:
+            detail = ", ".join(
+                p for p in (_activity_metrics(a), _intent_label(a.get("intent"))) if p
+            )
+            lines.append(
+                f"- {a['title']} [{a['sport']}] on {a['day']}" + (f": {detail}" if detail else "")
+            )
+    if adherence.get("plan_summary"):
+        lines.append(f"Plan summary: {adherence['plan_summary']}")
     return "\n".join(lines)
 
 

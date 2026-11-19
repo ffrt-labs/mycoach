@@ -84,7 +84,9 @@ class TestGetPlanAdherenceForWeek:
             session.add_all([s1, s2])
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start, today=week_start + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, week_start, today=week_start + timedelta(days=7)
+            )
             assert result is not None
             assert result["total_sessions"] == 2
             assert result["completed_sessions"] == 1
@@ -129,7 +131,9 @@ class TestGetPlanAdherenceForWeek:
             session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start, today=week_start + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, week_start, today=week_start + timedelta(days=7)
+            )
             assert result is not None
             assert result["total_sessions"] == 2
             assert result["completed_sessions"] == 1
@@ -175,7 +179,9 @@ class TestGetPlanAdherenceForWeek:
             session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start, today=week_start + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, week_start, today=week_start + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 1
             assert result["adherence_pct"] == 100.0
@@ -218,7 +224,9 @@ class TestGetPlanAdherenceForWeek:
             session.add(GymWorkoutDetail(activity_id=a1.id, exercise_title="Bench", set_index=1))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start, today=week_start + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, week_start, today=week_start + timedelta(days=7)
+            )
             assert result is not None
             assert result["total_sessions"] == 2
             assert result["completed_sessions"] == 1
@@ -237,17 +245,26 @@ class TestGetPlanAdherenceForWeek:
         monkeypatch.setattr("mycoach.plan_linking.get_score_sink", lambda: sink)
         async with test_session() as session:
             user_id, plan_id = await _plan(session)
+
             def prescribed(exercise: str) -> str:
                 return json.dumps(
                     {"exercises": [{"exercise_id": exercise, "sets": 1, "reps": "5"}]}
                 )
 
             squat = PlannedSession(
-                plan_id=plan_id, day_of_week=0, sport="gym", title="Squat", track="gym",
+                plan_id=plan_id,
+                day_of_week=0,
+                sport="gym",
+                title="Squat",
+                track="gym",
                 details=prescribed("Barbell_Squat"),
             )
             deadlift = PlannedSession(
-                plan_id=plan_id, day_of_week=4, sport="gym", title="Deadlift", track="gym",
+                plan_id=plan_id,
+                day_of_week=4,
+                sport="gym",
+                title="Deadlift",
+                track="gym",
                 details=prescribed("Barbell_Deadlift"),
             )
             session.add_all([squat, deadlift])
@@ -275,7 +292,9 @@ class TestGetPlanAdherenceForWeek:
                 session, user_id, [logged("fri", 14, "Barbell_Deadlift", deadlift.id)], "logger"
             )
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         assert result["completed_sessions"] == 2
@@ -302,7 +321,9 @@ class TestGetPlanAdherenceForWeek:
             await _gym(session, user_id, sets=1, day=13)
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
 
         assert result is not None
         by_title = {s["title"]: s for s in result["sessions"]}
@@ -314,7 +335,9 @@ class TestGetPlanAdherenceForWeek:
     async def test_no_plan_returns_none(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
-            result = await get_plan_adherence_for_week(session, user_id, date(2024, 6, 10), today=date(2024, 6, 10) + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, date(2024, 6, 10), today=date(2024, 6, 10) + timedelta(days=7)
+            )
             assert result is None
 
     async def test_all_completed(self) -> None:
@@ -341,7 +364,9 @@ class TestGetPlanAdherenceForWeek:
             session.add_all([s1, s2])
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, week_start, today=week_start + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, week_start, today=week_start + timedelta(days=7)
+            )
             assert result is not None
             assert result["adherence_pct"] == 100.0
 
@@ -352,7 +377,9 @@ class TestGetPlanAdherenceForWeek:
             await _gym(session, user_id, sets=0)
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 0
 
@@ -372,7 +399,9 @@ class TestGetPlanAdherenceForWeek:
             )
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 0
 
@@ -398,7 +427,9 @@ class TestGetPlanAdherenceForWeek:
             await session.commit()
             assert first.id != second.id
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert [s["completed"] for s in result["sessions"]] == [True, True]
 
@@ -409,16 +440,26 @@ class TestGetPlanAdherenceForWeek:
             session.add_all(
                 [
                     PlannedSession(
-                        plan_id=plan_id, day_of_week=0, sport="gym", title="A", activity_external_id=act.external_id
+                        plan_id=plan_id,
+                        day_of_week=0,
+                        sport="gym",
+                        title="A",
+                        activity_external_id=act.external_id,
                     ),
                     PlannedSession(
-                        plan_id=plan_id, day_of_week=2, sport="gym", title="B", activity_external_id=act.external_id
+                        plan_id=plan_id,
+                        day_of_week=2,
+                        sport="gym",
+                        title="B",
+                        activity_external_id=act.external_id,
                     ),
                 ]
             )
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 1
 
@@ -429,7 +470,9 @@ class TestGetPlanAdherenceForWeek:
             session.add(PlannedSession(plan_id=plan_id, day_of_week=3, sport="gym", title="Pull"))
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 1
 
@@ -447,7 +490,9 @@ class TestGetPlanAdherenceForWeek:
             )
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 2
 
@@ -468,7 +513,9 @@ class TestGetPlanAdherenceForWeek:
             )
             await session.commit()
 
-            result = await get_plan_adherence_for_week(session, user_id, WEEK, today=WEEK + timedelta(days=7))
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
             assert result is not None
             assert result["completed_sessions"] == 1
 

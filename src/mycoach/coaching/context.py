@@ -226,7 +226,7 @@ async def get_plan_adherence_for_week(
 
     Life context episodes (#220) then excuse leftover sessions: each excusing
     day (a sick day) excuses at most one not-done session, its own day's first,
-    then the earliest left. ``today`` (default: the server's) bounds an open
+    then the earliest one planned on or before it, never a later one. ``today`` (default: the server's) bounds an open
     episode: it covers days up to today, never the future.
     """
     today = today or date.today()
@@ -391,11 +391,21 @@ async def get_plan_adherence_for_week(
             excused[own.id] = excused_status
         else:
             leftover_days.append((day, excused_status))
-    for _day, excused_status in leftover_days:
-        other = next((s for s in sessions if s.id not in done and s.id not in excused), None)
-        if other is None:
-            break
-        excused[other.id] = excused_status
+    # A sick day with nothing of its own excuses the earliest not-done session
+    # planned on or before it: owed work it kept the athlete from, never a later one.
+    for day, excused_status in leftover_days:
+        other = next(
+            (
+                s
+                for s in sessions
+                if s.id not in done
+                and s.id not in excused
+                and week_start + timedelta(days=s.day_of_week) <= day
+            ),
+            None,
+        )
+        if other is not None:
+            excused[other.id] = excused_status
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list: list[SessionAdherence] = []

@@ -102,10 +102,10 @@ async def test_five_planned_sick_three_days_two_done_is_two_of_two() -> None:
     }
 
 
-async def test_a_sick_day_with_nothing_planned_excuses_another_not_done_session() -> None:
+async def test_a_sick_day_with_nothing_planned_excuses_an_earlier_not_done_session() -> None:
     async with test_session() as session:
         user_id = await _plan(session, _run(1, "Easy run"), _run(5, "Long run"))
-        session.add(_ill(user_id, 2, 2))  # Monday, a rest day
+        session.add(_ill(user_id, 4, 4))  # Wednesday, a rest day
         await session.commit()
 
         result = await get_plan_adherence_for_week(session, user_id, WEEK, today=AFTER)
@@ -113,6 +113,20 @@ async def test_a_sick_day_with_nothing_planned_excuses_another_not_done_session(
     assert result is not None
     assert [s["status"] for s in result["sessions"]] == ["excused_ill", "not_done"]
     assert (result["completed_sessions"], result["total_sessions"]) == (0, 1)
+
+
+async def test_a_sick_day_never_excuses_a_later_session() -> None:
+    async with test_session() as session:
+        user_id = await _plan(session, _run(5, "Long run"))
+        session.add(_ill(user_id, 2, 2))  # Monday, a rest day
+        await session.commit()
+
+        result = await get_plan_adherence_for_week(session, user_id, WEEK, today=AFTER)
+
+    assert result is not None
+    assert [s["status"] for s in result["sessions"]] == ["not_done"]
+    assert (result["completed_sessions"], result["total_sessions"]) == (0, 1)
+    assert result["excused_sessions"] == 0
 
 
 async def test_done_sessions_are_never_excused_and_extra_sick_days_excuse_nothing() -> None:

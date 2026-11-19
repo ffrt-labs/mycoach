@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Daily briefing email</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 600px; min-height: 2060px; box-sizing: border-box; background: #ffffff; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #e7e5e4">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 10px; height: 10px; border-radius: 3px; background: #ea6d1f"></span>
+      <span style="font-size: 15px; font-weight: 700">MyCoach</span>
+    </div>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #71717a">Daily briefing · Wed 18 Nov</span>
+  </header>
+
+  <section style="padding: 32px 40px 24px; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Today's readiness</div>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+      <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">Go hard</h1>
+      <span style="font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: #ecfdf5; color: #047857">Fully recovered</span>
+    </div>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46">Nothing planned for today and you're fresh: a good day for Squat Day, still open from Monday.</p>
+  </section>
+
+  <section style="padding: 0 40px 32px">
+    <div style="border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #c2410c">Do today · pick one</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #9a3412">from your open sessions</div>
+      </div>
+      <sc-for list="{{options}}" as="o" hint-placeholder-count="2">
+        <div style="background: #ffffff; border: 1px solid #fde4cf; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+              <span style="font-size: 16px; font-weight: 600">{{o.title}}</span>
+              <sc-if value="{{o.recommended}}" hint-placeholder-val="{{ true }}">
+                <span style="font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #ea6d1f; color: #ffffff">Recommended</span>
+              </sc-if>
+            </div>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #52525b">{{o.minutes}}</span>
+          </div>
+          <div style="font-size: 12px; color: #71717a">{{o.source}}</div>
+          <sc-for list="{{o.steps}}" as="s" hint-placeholder-count="2">
+            <div style="display: flex; gap: 10px; font-size: 15px; line-height: 1.5; color: #3f3f46">
+              <span style="font-family: 'IBM Plex Mono', monospace; color: #c2410c">→</span><span>{{s}}</span>
+            </div>
+          </sc-for>
+          <div style="font-size: 13px; color: #7c2d12">{{o.why}}</div>
+        </div>
+      </sc-for>
+      <div style="font-size: 14px; color: #7c2d12">Don't stack both.</div>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Open this week</div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #52525b">4 left · 5 days remaining</div>
+    </div>
+    <sc-for list="{{open}}" as="s" hint-placeholder-count="4">
+      <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #f4f4f5">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">{{s.day}}</div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <div style="font-size: 15px; font-weight: 600">{{s.title}}</div>
+          <div style="font-size: 12px; color: #71717a">{{s.meta}}</div>
+        </div>
+        <span style="{{s.chip}}">{{s.status}}</span>
+      </div>
+    </sc-for>
+    <div style="font-size: 13px; color: #71717a">Tue's swim is done. The planned day is a default — anything done this week counts.</div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Guardrail · tomorrow</div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 10px; background: #fafaf9; border: 1px solid #e7e5e4">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 6px; border-radius: 4px; background: #18191b; color: #ffffff">IF</span>
+      <span style="font-size: 15px; color: #18191b">HRV 7-day avg below range or RHR &gt; 45</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; color: #a1a1aa">→</span>
+      <span style="font-size: 15px; font-weight: 600; color: #18191b">Easy swim instead</span>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Last night</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="3">
+        <div style="border: 1px solid #e7e5e4; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #71717a">{{t.label}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 600; line-height: 1.2">{{t.value}}<span style="font-size: 13px; font-weight: 400; color: #71717a"> {{t.unit}}</span></div>
+          <div style="{{t.noteStyle}}">{{t.note}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px">
+        <sc-for list="{{stages}}" as="s" hint-placeholder-count="3">
+          <div style="{{s.bar}}"></div>
+        </sc-for>
+      </div>
+      <div style="display: flex; gap: 16px; flex-wrap: wrap">
+        <sc-for list="{{stages}}" as="s" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #52525b">
+            <span style="{{s.dot}}"></span><span>{{s.label}}</span><span style="font-family: 'IBM Plex Mono', monospace; color: #18191b">{{s.value}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="border: 1px dashed #d4d4d8; border-radius: 10px; padding: 14px; font-size: 13px; color: #71717a; text-align: center">[HRV line — 7-day avg against your range, code-rendered (#197)]</div>
+    <div style="font-size: 14px; line-height: 1.5; color: #3f3f46">Best REM in 3 days. Awake 1 min.</div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Tonight</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{tonight}}" as="n" hint-placeholder-count="3">
+        <div style="background: #fafaf9; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 12px; color: #71717a">{{n.k}}</div>
+          <div style="font-size: 14px; font-weight: 600; line-height: 1.35">{{n.v}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4">
+    <div style="border: 1px dashed #d4d4d8; border-radius: 10px; padding: 20px; font-size: 13px; color: #71717a; text-align: center">[Steps strip + Body block — existing code-rendered blocks, same spacing]</div>
+  </section>
+
+  <section style="padding: 8px 40px 32px">
+    <a href="#" style="display: block; text-align: center; font-size: 15px; font-weight: 700; color: #ffffff; background: #ea6d1f; padding: 15px 0; border-radius: 10px; text-decoration: none">Open dashboard →</a>
+  </section>
+
+  <footer style="padding: 20px 40px 28px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #71717a">
+    <div style="display: flex; justify-content: space-between">
+      <span>Feeling unwell or travelling? <a href="#">Tell the coach →</a></span>
+      <a href="#" style="color: #71717a">Full analysis →</a>
+    </div>
+    <span>MyCoach — AI-powered fitness coaching</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":2060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const note = (c) => 'font-size: 12px; color: ' + c;
+    const chip = (bg, fg) => 'font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: ' + bg + '; color: ' + fg;
+    const stage = (label, value, pct, color) => ({
+      label, value,
+      bar: 'width: ' + pct + '%; background: ' + color,
+      dot: 'width: 8px; height: 8px; border-radius: 2px; background: ' + color
+    });
+    return {
+      options: [
+        { title: 'Squat Day', minutes: '75 min', recommended: true, source: 'Open since Mon · gym · strength',
+          steps: ['Last working weights, RPE 7–8', 'Log every load'],
+          why: 'Fresh legs today, and Thursday keeps its swim.' },
+        { title: 'Threshold intervals swim', minutes: '45 min', recommended: false, source: 'Planned Thu · swim · threshold',
+          steps: ['8×100 at RPE 6, 20 s rest'],
+          why: 'If you would rather swim today; then lift on Thursday.' }
+      ],
+      open: [
+        { day: 'MON', title: 'Squat Day', meta: 'Gym · strength · 75 min', status: 'Today’s pick', chip: chip('#ea6d1f', '#ffffff') },
+        { day: 'THU', title: 'Threshold intervals swim', meta: 'Swim · threshold · 45 min', status: 'Thu', chip: chip('#f4f4f5', '#52525b') },
+        { day: 'FRI', title: 'Deadlift', meta: 'Gym · strength · 65 min', status: 'Fri', chip: chip('#f4f4f5', '#52525b') },
+        { day: 'SUN', title: 'Easy aerobic run', meta: 'Run · aerobic base · 40 min', status: 'Sun', chip: chip('#f4f4f5', '#52525b') }
+      ],
+      tiles: [
+        { label: 'Sleep score', value: '97', unit: '', note: 'Excellent', noteStyle: note('#047857') },
+        { label: 'Sleep', value: '9h03', unit: '', note: 'Target 8–9 h', noteStyle: note('#71717a') },
+        { label: 'Resting HR', value: '43', unit: 'bpm', note: 'Within range', noteStyle: note('#71717a') }
+      ],
+      stages: [
+        stage('Deep', '133m · 24%', 24, '#1d4ed8'),
+        stage('REM', '156m · 29%', 29, '#60a5fa'),
+        stage('Light', '253m · 47%', 47, '#bfdbfe')
+      ],
+      tonight: [
+        { k: 'Bed', v: '22:00–22:30' },
+        { k: 'Screens off', v: '60 min before bed' },
+        { k: 'After session', v: 'Protein + carbs' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

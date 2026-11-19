@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Life context and status components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1760px; box-sizing: border-box; padding: 64px; background: #fafaf9; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b; display: flex; flex-direction: column; gap: 32px">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">PR #223 · completion, intent, open this week, life context</div>
+    <h1 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em">Status components — all code-rendered</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46; max-width: 900px">Labels come from <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">STATUS_LABEL</span> and the CONTEXT.md glossary. The LLM never writes a status, a count or an episode.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Life context banner · top of briefing, plan, post-workout</div>
+      <sc-for list="{{banners}}" as="b" hint-placeholder-count="6">
+        <div style="{{b.box}}">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="{{b.tag}}">{{b.kind}}</span>
+            <a href="#" style="font-size: 12px; font-weight: 600">{{b.link}}</a>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: #18191b">{{b.line}}</div>
+          <div style="font-size: 13px; line-height: 1.45; color: #52525b">{{b.sub}}</div>
+          <sc-if value="{{b.hasBar}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; gap: 3px">
+              <sc-for list="{{b.bar}}" as="seg" hint-placeholder-count="5">
+                <div style="{{seg}}"></div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Session status · recap “Sessions” list</div>
+        <sc-for list="{{statuses}}" as="s" hint-placeholder-count="9">
+          <div style="display: grid; grid-template-columns: 270px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+            <div><span style="{{s.chip}}">{{s.label}}</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #52525b">{{s.rule}}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Session intent · plan, briefing, recap</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{intents}}" as="i" hint-placeholder-count="6">
+            <span style="{{i.chip}}">{{i.label}}</span>
+          </sc-for>
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Threshold and intervals are the quality intents: solid orange, and the week strip outlines their day. No intent → no chip (never substitutable).</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Open this week · rows</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #52525b">5 left · 4 days remaining</div>
+      </div>
+      <sc-for list="{{open}}" as="s" hint-placeholder-count="4">
+        <div style="display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #71717a">{{s.day}}</div>
+          <div style="font-size: 14px; font-weight: 600">{{s.title}}</div>
+          <span style="{{s.chip}}">{{s.status}}</span>
+        </div>
+      </sc-for>
+      <div style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 14px; line-height: 1.45; color: #78350f">
+        <span style="font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #ffffff; color: #b45309; flex-shrink: 0">Overload</span>
+        <span>More sessions open than days left. The coach's pick says which to combine or drop.</span>
+      </div>
+      <div style="font-size: 13px; color: #52525b">Empty state: “Every planned session is done.” (good tone)</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Completion line · completion_line()</div>
+        <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5">{{l}}</div>
+        </sc-for>
+        <div style="font-size: 13px; line-height: 1.5; color: #52525b">Hero shows “X/Y done” large; the rest of the line sits beside it. “On planned day 3/4” goes underneath in 12 px muted text, never as a score.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 0">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 12px">Wording · glossary</div>
+        <sc-for list="{{words}}" as="w" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px">
+            <span style="color: #047857; font-weight: 600">{{w.use}}</span>
+            <span style="color: #a1a1aa; text-decoration: line-through">{{w.avoid}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (bg, fg, bd) => 'display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: ' + bg + '; color: ' + fg + (bd ? '; border: 1px solid ' + bd : '');
+    const box = (bg, bd) => 'display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 10px; background: ' + bg + '; border: 1px solid ' + bd;
+    const seg = (on) => 'flex: 1; height: 6px; border-radius: 3px; background: ' + (on ? '#10b981' : '#d1fae5');
+    const tag = (bg, fg) => 'font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: ' + bg + '; color: ' + fg;
+    return {
+      banners: [
+        { kind: 'Ill · sick', link: 'Feeling better →', line: 'Ill since Mon 9 Nov · day 2', sub: 'Rest today. Nothing to make up — sick days are excused.',
+          box: box('#fef2f2', '#fecaca'), tag: tag('#b91c1c', '#ffffff'), hasBar: false, bar: [] },
+        { kind: 'Ill · mild', link: 'Update →', line: 'Mild cold · day 1', sub: 'Light and short at most, or skip. Mild days excuse nothing.',
+          box: box('#fffbeb', '#fde68a'), tag: tag('#b45309', '#ffffff'), hasBar: false, bar: [] },
+        { kind: 'Ramp-back', link: '', line: 'Returning from illness · day 2/5 · ~60% of normal load', sub: 'Keep today at or under that load.',
+          box: box('#ecfdf5', '#a7f3d0'), tag: tag('#047857', '#ffffff'), hasBar: true, bar: [seg(true), seg(true), seg(false), seg(false), seg(false)] },
+        { kind: 'Ramp-back · last day', link: '', line: 'Day 5/5 · ~90% of normal load', sub: 'HRV still below your range: consider one more easy day. Never shortened.',
+          box: box('#ecfdf5', '#a7f3d0'), tag: tag('#047857', '#ffffff'), hasBar: true, bar: [seg(true), seg(true), seg(true), seg(true), seg(true)] },
+        { kind: 'Travelling', link: 'Edit trip →', line: 'Hotel gym · 6 h ahead of home · back Fri 27 Nov', sub: 'Sessions adapted to the equipment; jet-lag rules apply today.',
+          box: box('#eff6ff', '#bfdbfe'), tag: tag('#1d4ed8', '#ffffff'), hasBar: false, bar: [] },
+        { kind: 'Travelling · no training', link: 'Back home →', line: 'No training possible today', sub: 'Rest. Today excuses one session; nothing to make up.',
+          box: box('#f4f4f5', '#e4e4e7'), tag: tag('#52525b', '#ffffff'), hasBar: false, bar: [] }
+      ],
+      statuses: [
+        { label: 'Done', rule: 'Same-sport activity in the week. Other day → “Done Wednesday” in muted text.', chip: chip('#ecfdf5', '#047857') },
+        { label: 'Substituted', rule: 'Unplanned activity delivered the intent, ≥ 70% duration. Show “← source · min · HR · TE”.', chip: chip('#ecfdf5', '#047857') },
+        { label: 'Adapted (travel)', rule: 'Substitution done on a travel day, relaxed rules. Counts as done.', chip: chip('#eff6ff', '#1d4ed8') },
+        { label: 'Excused (ill)', rule: 'Left the count. Struck-through title, no action asked.', chip: chip('#f4f4f5', '#52525b') },
+        { label: 'Excused (no training while travelling)', rule: 'Left the count, same as ill.', chip: chip('#f4f4f5', '#52525b') },
+        { label: 'Not done (travelling)', rule: 'Stays in the count. The trip is named as the cause, no blame.', chip: chip('#f4f4f5', '#52525b', '#d4d4d8') },
+        { label: 'Not done', rule: 'Stays in the count. Watch tone, never alert red.', chip: chip('#fffbeb', '#b45309') },
+        { label: 'Extra', rule: 'Listed under “Extras · training load only”, never counted.', chip: chip('#ffffff', '#71717a', '#e4e4e7') }
+      ],
+      intents: [
+        { label: 'strength', chip: chip('#ffffff', '#9a3412', '#fed7aa') },
+        { label: 'aerobic base', chip: chip('#ffffff', '#1d4ed8', '#bfdbfe') },
+        { label: 'threshold · quality', chip: chip('#ea6d1f', '#ffffff') },
+        { label: 'intervals · quality', chip: chip('#ea6d1f', '#ffffff') },
+        { label: 'recovery', chip: chip('#ffffff', '#047857', '#a7f3d0') },
+        { label: 'skill', chip: chip('#ffffff', '#6d28d9', '#ddd6fe') }
+      ],
+      open: [
+        { day: 'MON', title: 'Squat Day', status: 'Planned day passed', chip: chip('#fffbeb', '#b45309') },
+        { day: 'THU', title: 'Threshold intervals swim', status: 'Today’s pick', chip: chip('#ea6d1f', '#ffffff') },
+        { day: 'THU', title: 'Easy recovery spin', status: 'Today', chip: chip('#f4f4f5', '#18191b') },
+        { day: 'SAT', title: 'Long run', status: 'Sat', chip: chip('#f4f4f5', '#52525b') }
+      ],
+      lines: ['4/5 done · 1 substituted', '2/2 done · 3 excused (ill 3 days)', '2/3 done · 1 adapted (travel)', '0/5 done'],
+      words: [
+        { use: 'done (on another day)', avoid: 'moved, late, rescheduled' },
+        { use: 'not done', avoid: 'missed, skipped' },
+        { use: 'excused', avoid: 'cancelled, skipped' },
+        { use: 'substituted', avoid: 'swap, replacement' },
+        { use: 'ramp-back', avoid: 'comeback, return-to-play' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

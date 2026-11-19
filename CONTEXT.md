@@ -64,6 +64,14 @@ _Avoid_: Health-data projection, prompt-ready health response
 The versioned habit rules (`prompts/principles/v1.md`, from the Huberman Lab Neural Network Digest Vol. 1) appended to every coaching operation's system message. Each principle names the data that triggers it; the coach applies one only when the athlete's data gives a reason. It never recommends a supplement or a dose.
 _Avoid_: Protocols, Huberman rules, supplement advice
 
+**Coach note**:
+Text the coach writes into a typed, length-limited slot of a coaching insight: a judgment, an instruction or a prescribed target. Every observed or derived number, count and status around it is rendered by code, never written by the coach.
+_Avoid_: LLM output, coach text, analysis
+
+**Guardrail**:
+A conditional instruction from the coach: when a stated signal appears, then adjust the session ("HRV below 68 ms that morning → drop to 6×100"). It names its trigger, so it applies only when the signal shows.
+_Avoid_: Caveat, warning, rule of thumb
+
 **Insight revision**:
 An immutable version of a coaching insight. When a settled activity changes in a coaching-relevant way, MyCoach produces a new version and retains the earlier ones.
 _Avoid_: Insight overwrite, duplicate insight
@@ -93,7 +101,7 @@ An activity in the plan's week that completed no Planned session, by sport or by
 _Avoid_: Bonus session, unplanned workout, missed match
 
 **Life context episode**:
-A stretch of the athlete's life that every Coaching run reads around, told to MyCoach rather than measured, so a Coaching artifact and never an Observed health fact. It has a `kind` (`illness`, `travel`), a start day, an end day (its last affected day; none while open), a note, and kind-specific fields (an illness's severity: `mild` above the neck, `sick` below it). Episodes may overlap; on each day the most restrictive effect wins.
+A stretch of the athlete's life that every Coaching run reads around, told to MyCoach rather than measured, so a Coaching artifact and never an Observed health fact. It has a `kind` (`illness`, `travel`), a start day, an end day (its last affected day; none while open), a note, and kind-specific fields (an illness's severity: `mild` above the neck, `sick` below it). Episodes may overlap, except two illnesses: an illness may only touch another one, so "ill since" always names one episode. On each day the most restrictive effect wins. An illness may be told after the fact, with past start and end days.
 _Avoid_: Event, status, absence
 
 **Excused session**:
@@ -151,7 +159,7 @@ A named value attached to a Coaching run's trace, with a deterministic ID so re-
 _Avoid_: Metric, eval result, rating
 
 **Code check**:
-A Langfuse score computed by code from what a generation already produced: `parse_ok`, `needed_retry`, `truncated`, and `fallback_used` for a gym slot. Every generation emits them, a provider failure included, and the evals harness emits the same ones.
+A Langfuse score computed by code from what a generation already produced: `parse_ok`, `needed_retry`, `truncated`, `fallback_used` for a gym slot, and `notes_fallback` when an email went out without its Coach notes. Every generation emits them, a provider failure included, and the evals harness emits the same ones.
 _Avoid_: Validation, LLM judge
 
 **Adherence score**:

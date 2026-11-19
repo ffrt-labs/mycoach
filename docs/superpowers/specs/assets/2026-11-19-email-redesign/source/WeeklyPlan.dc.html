@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weekly plan email</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c2410c}a:hover{color:#9a3412}
+</style>
+</helmet>
+<div style="width: 600px; min-height: 3680px; box-sizing: border-box; background: #ffffff; font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif; color: #18191b">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #e7e5e4">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 10px; height: 10px; border-radius: 3px; background: #ea6d1f"></span>
+      <span style="font-size: 15px; font-weight: 700">MyCoach</span>
+    </div>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #71717a">Weekly plan · 16–22 Nov</span>
+  </header>
+
+  <section style="padding: 32px 40px 24px; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a">Week of 16 Nov</div>
+    <div style="display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap">
+      <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">5 sessions</h1>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600; color: #52525b">4 h 30 min</span>
+    </div>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3f3f46">One quality day: Thursday's threshold swim. Everything else stays easy to rebuild aerobic base.</p>
+  </section>
+
+  <section style="padding: 0 40px 24px">
+    <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px">
+      <sc-for list="{{week}}" as="d" hint-placeholder-count="7">
+        <div style="{{d.box}}">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; color: #71717a">{{d.day}}</div>
+          <div style="{{d.sportStyle}}">{{d.sport}}</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #3f3f46">{{d.min}}</div>
+          <div style="font-size: 10px; color: #71717a">{{d.intent}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 0 40px 32px; display: flex; flex-direction: column; gap: 8px">
+    <div style="border: 1px dashed #d4d4d8; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #71717a">[Life context notice when an episode touches this week — e.g. “Trip Wed–Fri · hotel gym · 6 h ahead: Wed–Thu kept easy”. See Life context &amp; status sheet.]</div>
+    <div style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: #f4f4f5; font-size: 14px; line-height: 1.5; color: #3f3f46">
+      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #ffffff; color: #52525b; flex-shrink: 0">Default schedule</span>
+      <span>You didn't set this week, so your standing schedule was used. <a href="#">Change it →</a></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 14px; line-height: 1.5; color: #78350f">
+      <span style="font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #ffffff; color: #b45309; flex-shrink: 0">Routine error</span>
+      <span>Friday lists Deadlift and Pull Up at 36 sets, Split Squat at 32. Planned as 3. <a href="#">Fix routine →</a></span>
+    </div>
+  </section>
+
+  <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 4px">Rules this week</div>
+    <sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+      <div style="display: grid; grid-template-columns: 32px 1fr 16px 1fr; gap: 10px; align-items: center; padding: 12px 16px; border-radius: 10px; background: #fafaf9; border: 1px solid #e7e5e4; font-size: 14px; line-height: 1.4">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 0; text-align: center; border-radius: 4px; background: #18191b; color: #ffffff">IF</span>
+        <span style="color: #3f3f46">{{r.when}}</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; color: #a1a1aa">→</span>
+        <span style="font-weight: 600">{{r.then}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <sc-for list="{{days}}" as="d" hint-placeholder-count="5">
+    <section style="padding: 32px 40px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #71717a">{{d.day}}</div>
+          <div style="font-size: 20px; font-weight: 700; line-height: 1.25">{{d.title}}</div>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0">
+          <span style="{{d.intentChip}}">{{d.intentLabel}}</span>
+          <span style="{{d.chip}}">{{d.sport}}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #52525b">{{d.min}}</span>
+        </div>
+      </div>
+      <div style="font-size: 14px; line-height: 1.5; color: #7c2d12; background: #fff7ed; border-radius: 8px; padding: 10px 14px">{{d.focus}}</div>
+
+      <sc-if value="{{d.isGym}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: grid; grid-template-columns: 1fr 80px 56px 64px; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+            <div>Exercise</div><div style="text-align: right">Sets × reps</div><div style="text-align: right">RPE</div><div style="text-align: right">Load</div>
+          </div>
+          <sc-for list="{{d.rows}}" as="x" hint-placeholder-count="8">
+            <div style="display: grid; grid-template-columns: 1fr 80px 56px 64px; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5; align-items: baseline">
+              <div style="font-size: 14px; color: #18191b">{{x.name}}</div>
+              <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; {{x.setStyle}}">{{x.sets}}</div>
+              <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3f3f46">{{x.rpe}}</div>
+              <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #a1a1aa">{{x.load}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{d.isCardio}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: grid; grid-template-columns: 92px 1fr 104px 44px; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e7e5e4; font-size: 12px; color: #71717a">
+            <div>Phase</div><div>Set</div><div>Target</div><div style="text-align: right">Rest</div>
+          </div>
+          <sc-for list="{{d.rows}}" as="b" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: 92px 1fr 104px 44px; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #f4f4f5; align-items: baseline">
+              <div style="font-size: 12px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em">{{b.phase}}</div>
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600">{{b.set}}</div>
+                <div style="font-size: 12px; line-height: 1.4; color: #71717a">{{b.cue}}</div>
+              </div>
+              <div style="font-size: 13px; color: #3f3f46">{{b.target}}</div>
+              <div style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #52525b">{{b.rest}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div style="font-size: 12px; color: #71717a">{{d.foot}}</div>
+    </section>
+  </sc-for>
+
+  <section style="padding: 8px 40px 32px">
+    <a href="#" style="display: block; text-align: center; font-size: 15px; font-weight: 700; color: #ffffff; background: #ea6d1f; padding: 15px 0; border-radius: 10px; text-decoration: none">Open this week →</a>
+  </section>
+
+  <footer style="padding: 20px 40px 28px; border-top: 1px solid #e7e5e4; display: flex; justify-content: space-between; font-size: 12px; color: #71717a">
+    <span>MyCoach — AI-powered fitness coaching</span>
+    <a href="#" style="color: #71717a">Email settings</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":600,"height":3680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sports = {
+      GYM: { bg: '#fff7ed', fg: '#c2410c' },
+      SWIM: { bg: '#eff6ff', fg: '#1d4ed8' },
+      RUN: { bg: '#ecfdf5', fg: '#047857' },
+      '—': { bg: '#fafaf9', fg: '#a1a1aa' }
+    };
+    const chip = (s) => 'font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: ' + sports[s].bg + '; color: ' + sports[s].fg;
+    const cell = (day, sport, min, quality, intent) => ({
+      day, sport, min, intent: intent || '',
+      box: 'display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; border-radius: 8px; background: ' + sports[sport].bg + (quality ? '; box-shadow: inset 0 0 0 2px #ea6d1f' : ''),
+      sportStyle: 'font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: ' + sports[sport].fg
+    });
+    const ex = (name, sets, rpe, flagged) => ({ name, sets, rpe: rpe, load: 'log', setStyle: flagged ? 'color: #b45309' : 'color: #18191b' });
+    const blk = (phase, set, cue, target, rest) => ({ phase, set, cue, target, rest });
+    const intents = {
+      strength: { label: 'strength', bg: '#ffffff', fg: '#9a3412', bd: '#fed7aa', solid: false },
+      aerobic_base: { label: 'aerobic base', bg: '#ffffff', fg: '#1d4ed8', bd: '#bfdbfe', solid: false },
+      threshold: { label: 'threshold · quality', bg: '#ea6d1f', fg: '#ffffff', bd: '#ea6d1f', solid: true },
+      intervals: { label: 'intervals · quality', bg: '#ea6d1f', fg: '#ffffff', bd: '#ea6d1f', solid: true },
+      recovery: { label: 'recovery', bg: '#ffffff', fg: '#047857', bd: '#a7f3d0', solid: false },
+      skill: { label: 'skill', bg: '#ffffff', fg: '#6d28d9', bd: '#ddd6fe', solid: false }
+    };
+    const withIntent = (o) => {
+      const i = intents[o.intent];
+      return Object.assign(o, { intentLabel: i.label,
+        intentChip: 'font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; border: 1px solid ' + i.bd + '; background: ' + i.bg + '; color: ' + i.fg });
+    };
+    const gym = (o) => withIntent(Object.assign({ isGym: true, isCardio: false, intent: 'strength' }, o));
+    const cardio = (o) => withIntent(Object.assign({ isGym: false, isCardio: true }, o));
+    return {
+      week: [
+        cell('MON', 'GYM', '75′', false, 'strength'), cell('TUE', 'SWIM', '45′', false, 'aerobic'), cell('WED', '—', ''),
+        cell('THU', 'SWIM', '45′', true, 'threshold'), cell('FRI', 'GYM', '65′', false, 'strength'), cell('SAT', '—', ''), cell('SUN', 'RUN', '40′', false, 'aerobic')
+      ],
+      rules: [
+        { when: 'HRV < 68 ms or sleep < 80 on Thu', then: 'Swap main set to 6×100 at RPE 5' },
+        { when: 'HRV still unbalanced', then: 'Cap RPE 8 Mon, 7 Fri. No grinding.' },
+        { when: 'Legs heavy on Sunday', then: 'Skip the strides' }
+      ],
+      days: [
+        gym({ day: 'MONDAY', title: 'Squat Day', sport: 'GYM', chip: chip('GYM'), min: '75′',
+          focus: 'Start at last working weights, RPE 7. Log every load — next week progresses from it.',
+          rows: [
+            ex('Standing Calf Raise', '3 × 10', '7'), ex('Squat (Barbell)', '6 × 5', '7'),
+            ex('Overhead Press (DB)', '6 × 5', '7'), ex('Bench Press (DB)', '2 × 8–10', '7'),
+            ex('Lateral Raise (DB)', '2 × 8–10', '8'), ex('Seated Incline Curl', '2 × 8–10', '8'),
+            ex('Triceps Extension (DB)', '2 × 8–10', '8'), ex('Face Pull', '3 × 8–10', '7')
+          ], foot: 'No prior-week loads, so targets are RPE-only. +2.5–5 kg next week if every set stays under RPE 8.' }),
+        cardio({ day: 'TUESDAY', title: 'Aerobic base swim + technique', intent: 'aerobic_base', sport: 'SWIM', chip: chip('SWIM'), min: '45′',
+          focus: 'Keep HR in Z2. Log 200 m splits — they set your CSS pace.',
+          rows: [
+            blk('Warm-up', '300 + 4×50', 'Easy free, then build', 'RPE 3', '15s'),
+            blk('Drills', '6×50', 'Catch-up · fingertip drag · 6-kick switch', 'High elbow', '20s'),
+            blk('Main', '5×200', 'Free, even splits ±2 s', 'RPE 4–5', '25s'),
+            blk('Pull', '4×100', 'Buoy, breathe every 3', 'RPE 4', '15s'),
+            blk('Cool-down', '200', 'Easy, choice', '—', '—')
+          ], foot: 'Total ~2000 m.' }),
+        cardio({ day: 'THURSDAY', title: 'Threshold intervals swim', intent: 'threshold', sport: 'SWIM', chip: chip('SWIM'), min: '45′',
+          focus: 'The only hard session. Stop the intervals if your stroke breaks down. Record 100 m splits.',
+          rows: [
+            blk('Warm-up', '300 + 4×50', 'Odd easy, even fast', 'RPE 3', '15s'),
+            blk('Drills', '4×50', 'Single-arm free', 'Form', '20s'),
+            blk('Main', '8×100', 'Steady-strong, even splits', 'RPE 6 · ~CSS', '20s'),
+            blk('Kick', '4×50', 'Board, easy', 'RPE 3', '20s'),
+            blk('Cool-down', '200', 'Back / free, easy', '—', '—')
+          ], foot: 'Total ~2000 m.' }),
+        gym({ day: 'FRIDAY', title: 'Deadlift', sport: 'GYM', chip: chip('GYM'), min: '65′',
+          focus: 'Cap RPE 7 and avoid grinding. Log every load.',
+          rows: [
+            ex('Scapular Pull Up', '3 × 8–10', '5'), ex('Deadlift', '3* × 5', '7', true),
+            ex('Pull Up', '3* × 5', '7', true), ex('Bulgarian Split Squat', '3* × 8–10', '7', true),
+            ex('Skullcrusher (DB)', '2 × 8–10', '7'), ex('Dumbbell Row', '2 × 8–10', '7'),
+            ex('Kettlebell Halo', '2 × 8–10', '6'), ex('Leg Raise', '3 × 10', '7')
+          ], foot: '* Routine says 36 / 32 sets — assumed 3 until fixed.' }),
+        cardio({ day: 'SUNDAY', title: 'Easy aerobic run', intent: 'aerobic_base', sport: 'RUN', chip: chip('RUN'), min: '40′',
+          focus: 'Pace by HR, not time. Flat route. Log avg pace and HR to set zones.',
+          rows: [
+            blk('Warm-up', '5 min', 'Brisk walk / jog', 'Easy', '—'),
+            blk('Main', '30 min', 'Conversational', 'Z2 · RPE 3–4', '—'),
+            blk('Strides', '4×15 s', 'Relaxed, in the last 5 min', 'Smooth', 'full'),
+            blk('Cool-down', '5 min', 'Walk', '—', '—')
+          ], foot: 'Distance by feel, est. 5–6 km.' })
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

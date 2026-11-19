@@ -96,6 +96,12 @@
                                 {{ day.session.track | capitalize }}
                             </span>
                             <span class="capitalize">{{ day.session.sport }}</span>
+                            {% if day.session.intent %}
+                            <span data-intent="{{ day.session.intent }}"
+                                class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-zinc-500/15 text-zinc-300">
+                                {{ day.session.intent | replace('_', ' ') | capitalize }}
+                            </span>
+                            {% endif %}
                             {% if day.session.duration_minutes %}
                             <span class="font-mono">{{ day.session.duration_minutes }} min</span>
                             {% endif %}

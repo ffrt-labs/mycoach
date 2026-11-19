@@ -220,3 +220,35 @@ async def test_plan_page_completed_badge(client: AsyncClient) -> None:
     assert resp.status_code == 200
     assert "Arms &amp; Abs" in resp.text or "Arms & Abs" in resp.text
     assert "Done" in resp.text
+
+
+async def test_plan_page_tags_each_session_with_its_intent(client: AsyncClient) -> None:
+    """A session with an intent shows it as a tag; one planned before intents shows none."""
+    await _seed_user()
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+
+    async with test_session() as session:
+        plan = WeeklyPlan(user_id=1, week_start=monday, status="active", prompt_version="v3")
+        session.add(plan)
+        await session.flush()
+        session.add_all(
+            [
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=1,
+                    sport="running",
+                    title="Easy Long Run",
+                    intent="aerobic_base",
+                ),
+                PlannedSession(
+                    plan_id=plan.id, day_of_week=3, sport="swimming", title="Old Swim"
+                ),
+            ]
+        )
+        await session.commit()
+
+    resp = await client.get("/plan")
+    assert resp.status_code == 200
+    assert "Aerobic base" in resp.text
+    assert resp.text.count('data-intent="') == 1

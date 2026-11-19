@@ -1,10 +1,12 @@
 """Tests for coaching response parser."""
 
 import json
+import logging
 
 import pytest
 
 from mycoach.coaching.response_parser import (
+    CardioPlanResponse,
     DailyBriefingResponse,
     _extract_json,
     parse_response,
@@ -125,3 +127,26 @@ class TestBriefingHrvFields:
         result = self._parse_metrics(hrv_last_night_avg="  ")
         assert result.key_metrics.hrv_last_night_avg is None
         assert result.key_metrics.hrv_status_text is None
+
+
+def _cardio_plan(**session_fields: object) -> str:
+    session = {"day_of_week": 1, "sport": "running", "title": "Tempo Run", **session_fields}
+    return json.dumps(
+        {"sessions": [session], "goal_assessment": "On track.", "weekly_summary": "One run."}
+    )
+
+
+class TestCardioPlanSessionIntent:
+    def test_valid_intent_is_kept(self) -> None:
+        result = parse_response(_cardio_plan(intent="threshold"), CardioPlanResponse)
+        assert result.sessions[0].intent == "threshold"
+
+    def test_missing_intent_is_null(self) -> None:
+        result = parse_response(_cardio_plan(), CardioPlanResponse)
+        assert result.sessions[0].intent is None
+
+    def test_bogus_intent_is_null_and_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="mycoach.coaching.response_parser"):
+            result = parse_response(_cardio_plan(intent="tempo"), CardioPlanResponse)
+        assert result.sessions[0].intent is None
+        assert "tempo" in caplog.text

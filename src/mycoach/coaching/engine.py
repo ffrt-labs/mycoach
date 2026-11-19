@@ -66,7 +66,7 @@ from mycoach.config import get_settings
 from mycoach.localtime import local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, InsightType
-from mycoach.models.plan import PlannedSession, Track, WeeklyPlan
+from mycoach.models.plan import PlannedSession, SessionIntent, Track, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
 from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
@@ -793,6 +793,7 @@ class CoachingEngine:
                         details=json.dumps(details),
                         notes=parsed.session_notes,
                         track=Track.GYM,
+                        intent=SessionIntent.STRENGTH,
                     )
                     session.add(planned)
                 else:
@@ -820,6 +821,7 @@ class CoachingEngine:
                         details=json.dumps({"exercises": exercises_detail}),
                         notes="LLM adjustment failed — using base routine.",
                         track=Track.GYM,
+                        intent=SessionIntent.STRENGTH,
                         generation_error=gym.error or "gym adjustment failed",
                     )
                     session.add(planned)
@@ -887,6 +889,7 @@ class CoachingEngine:
                                 details=json.dumps(s.details) if s.details else None,
                                 notes=s.notes,
                                 track=Track.CARDIO,
+                                intent=s.intent,
                             )
                         else:
                             logger.warning(

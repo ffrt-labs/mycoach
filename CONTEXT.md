@@ -80,6 +80,10 @@ _Avoid_: Adherence, compliance, done on the day
 Whether the activity that completed a Planned session happened on the day it was planned for. It is informational only: it never lowers Completion and is never described as a session moved or missed.
 _Avoid_: Moved, missed, late, rescheduled
 
+**Session intent**:
+The training purpose of a Planned session, one of `strength`, `aerobic_base`, `threshold`, `intervals`, `recovery`, `skill`: the stimulus another activity must deliver to stand in for it. The cardio plan sets it per session and gym sessions are `strength`. A session with no intent (planned before intents existed, or given an unknown one) is never substitutable.
+_Avoid_: Session type, workout type, zone
+
 ## Gym coaching
 
 **Exercise**:

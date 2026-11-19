@@ -109,7 +109,7 @@ A `travel` Life context episode: dates (the return optional; a trip may be enter
 _Avoid_: Trip mode, holiday, away
 
 **Adapted (travel)**:
-A Planned session on a Travel day filled by a Substitution under relaxed rules: the default intent match, or for a `strength` slot at least 20 min of resistance work without performed sets (a Logger entry or a Garmin strength activity). It counts toward Completion like a done session ("2/3 done · 1 adapted (travel)").
+A Planned session filled by a Substitution done on a Travel day, under relaxed rules: the default intent match, or for a `strength` slot at least 20 min of resistance work without performed sets (a Logger entry or a Garmin strength activity). It counts toward Completion like a done session ("2/3 done · 1 adapted (travel)"). A travel-day slot filled at home is Substituted, under the normal rules.
 _Avoid_: Travel substitute, modified session
 
 **Not done (travelling)**:

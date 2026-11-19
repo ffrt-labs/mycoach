@@ -4,7 +4,8 @@ Tones are the only colours that carry meaning. The LLM (in later prompt versions
 picks a tone *label*; code maps it to a chip here, and ``base.html`` generates the
 light and dark CSS for every style from ``CHIP_STYLES``. Templates read these maps
 (registered as Jinja globals in ``sender``) and never re-type a label or a colour:
-status labels come from ``STATUS_LABEL``, intent labels from ``INTENT_LABEL``.
+status labels come from ``STATUS_LABEL`` (and ``ACTIVITY_LABEL`` for "Extra"), intent
+labels from ``INTENT_LABEL``.
 
 Alert is "act now" (a sick banner, a failed job). It is never a session status:
 "not done" is watch.
@@ -12,7 +13,7 @@ Alert is "act now" (a sick banner, a failed job). It is never a session status:
 
 from dataclasses import dataclass
 
-from mycoach.coaching.life_context import STATUS_LABEL, DayEffect
+from mycoach.coaching.life_context import ACTIVITY_LABEL, STATUS_LABEL, DayEffect
 from mycoach.models.plan import INTENT_LABEL
 
 DARK_PAGE = "#0b0c0e"
@@ -95,15 +96,23 @@ _STATUS_STYLE: dict[str, str] = {
     "not_done": "watch",
 }
 
+_ACTIVITY_STYLE: dict[str, str] = {
+    "extra": "muted-outline",
+}
+
 SESSION_STATUS_CHIP: dict[str, Chip] = {
     **{
         status: Chip(_heading(STATUS_LABEL[status]), style)
         for status, style in _STATUS_STYLE.items()
     },
     # An Extra activity is not a session status; it is listed apart and never counted.
-    "extra": Chip("Extra", "muted-outline"),
+    **{
+        kind: Chip(_heading(ACTIVITY_LABEL[kind]), style)
+        for kind, style in _ACTIVITY_STYLE.items()
+    },
 }
-"""Session status → chip, with the glossary label from ``STATUS_LABEL``."""
+"""Session status (or Extra activity) → chip, with the glossary label from
+``STATUS_LABEL`` (or ``ACTIVITY_LABEL``)."""
 
 QUALITY_INTENTS: frozenset[str] = frozenset({"threshold", "intervals"})
 """The quality intents: solid orange chip, and their day is outlined on the week strip."""

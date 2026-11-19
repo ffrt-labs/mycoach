@@ -66,6 +66,13 @@ def test_status_labels_are_read_from_status_label_not_retyped() -> None:
         assert tones.SESSION_STATUS_CHIP[status].label.lower() == label
 
 
+def test_the_extra_label_is_read_from_activity_label_not_retyped() -> None:
+    from mycoach.coaching.life_context import ACTIVITY_LABEL
+
+    assert ACTIVITY_LABEL["extra"] == "extra"
+    assert tones.SESSION_STATUS_CHIP["extra"].label.lower() == ACTIVITY_LABEL["extra"]
+
+
 def test_alert_is_never_a_session_status() -> None:
     assert all(c.style != "alert" for c in tones.SESSION_STATUS_CHIP.values())
 

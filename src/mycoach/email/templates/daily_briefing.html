@@ -37,10 +37,7 @@
 
 {% if briefing.workout_adjustments %}
 {% call ui.section(layout) %}
-    <div class="coach" style="padding:24px;">
-      <div class="coach-k">Coach adjustment</div>
-      <div class="coach-t" style="margin-top:12px;">{{ briefing.workout_adjustments }}</div>
-    </div>
+    {% call ui.coach("Coach adjustment") %}{{ briefing.workout_adjustments }}{% endcall %}
 {% endcall %}
 {% endif %}
 

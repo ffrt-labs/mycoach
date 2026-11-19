@@ -194,6 +194,7 @@ EXCUSED_LABEL: dict[str, str] = {
 """How the recap and the email name an excused status: "3 excused (ill 3 days)"."""
 
 STATUS_LABEL: dict[str, str] = {
+    "done": "done",
     "substituted": "substituted",
     "adapted_travel": "adapted (travel)",
     "not_done": "not done",

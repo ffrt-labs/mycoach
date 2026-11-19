@@ -1,0 +1,52 @@
+{#- Layout macros shared by every email (#231). Layout-critical styles (width,
+    padding, divider) are inline; colour and dark mode come from classes in base.html.
+
+    Usage in a template's content block:
+
+      {% import "components/_layout.html" as ui %}
+      {% set layout = ui_layout() %}
+      {% call ui.hero("Week of …") %} … {% endcall %}
+      {% call ui.section(layout, "Heart rate") %} … {% endcall %}
+      {{ ui.cta(url, "Open dashboard →") }}
+
+    ``layout`` tracks whether a section is the first one after the hero: that one
+    sits 0 / 32 px under the hero with no divider; every later one is 32 / 32 px
+    with a divider. Sections inside optional blocks can't know their position, so
+    the namespace decides at render time. -#}
+
+{% macro hero(eyebrow=none) -%}
+<tr>
+  <td class="px hero" style="padding-top:32px;padding-bottom:24px;padding-left:40px;padding-right:40px;">
+    {% if eyebrow %}<div class="sec" style="margin-bottom:12px;">{{ eyebrow }}</div>{% endif %}
+    {{ caller() }}
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro section(layout, label=none, label_gap=16) -%}
+{%- set first = layout is not none and layout.after_hero -%}
+{%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
+<tr>
+  {% if first -%}
+  <td class="px section" style="padding-top:0px;padding-bottom:32px;padding-left:40px;padding-right:40px;">
+  {%- else -%}
+  <td class="px section block-b" style="padding-top:32px;padding-bottom:32px;padding-left:40px;padding-right:40px;border-top:1px solid #e7e5e4;">
+  {%- endif %}
+    {% if label %}<div class="sec" style="margin-bottom:{{ label_gap }}px;">{{ label }}</div>{% endif %}
+    {{ caller() }}
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro cta(url, label) -%}
+<tr>
+  <td class="px" style="padding-top:8px;padding-bottom:32px;padding-left:40px;padding-right:40px;">
+    <a href="{{ url|default('#', true) }}" class="cta" style="display:block;text-align:center;padding:15px 0;border-radius:10px;">{{ label }}</a>
+  </td>
+</tr>
+{%- endmacro %}
+
+{#- A status, intent or tone chip from one of the shared maps (``Chip``). -#}
+{% macro chip(c) -%}
+{%- if c %}<span class="{{ c.css }}">{{ c.label }}</span>{% endif -%}
+{%- endmacro %}

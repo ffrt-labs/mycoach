@@ -1098,7 +1098,7 @@ def _format_gym_history(history: list[dict[str, Any]]) -> str:
 
 
 def _intent_label(intent: str | None) -> str | None:
-    return INTENT_LABEL.get(intent, intent.replace("_", " ")) if intent else None
+    return INTENT_LABEL[intent] if intent else None
 
 
 def _session_tag(s: Mapping[str, Any]) -> str:

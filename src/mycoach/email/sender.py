@@ -16,12 +16,14 @@ from zoneinfo import ZoneInfo
 
 import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import STATUS_LABEL, excused_summary
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
+from mycoach.email.tones import JINJA_GLOBALS
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,9 @@ _jinja_env = Environment(
     loader=FileSystemLoader(_TEMPLATE_DIR),
     autoescape=select_autoescape(["html"]),
 )
+_jinja_env.globals.update(JINJA_GLOBALS)
+# A fresh layout state per email: tracks the first section after the hero (#231).
+_jinja_env.globals["ui_layout"] = lambda: Namespace(after_hero=True)
 
 
 class EmailSendError(RuntimeError):

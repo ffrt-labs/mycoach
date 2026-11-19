@@ -25,6 +25,10 @@ class SessionIntent(StrEnum):
     SKILL = "skill"
 
 
+INTENT_LABEL: dict[str, str] = {i.value: i.value.replace("_", " ") for i in SessionIntent}
+"""How prompts and emails name a Session intent: "aerobic base"."""
+
+
 class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
     __table_args__ = (

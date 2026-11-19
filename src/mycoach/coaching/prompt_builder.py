@@ -21,6 +21,7 @@ from mycoach.coaching.life_context import (
     is_jet_lag,
 )
 from mycoach.localtime import WEEKDAY_NAMES
+from mycoach.models.plan import INTENT_LABEL
 
 if TYPE_CHECKING:
     from mycoach.coaching.context import OpenThisWeek
@@ -1097,7 +1098,7 @@ def _format_gym_history(history: list[dict[str, Any]]) -> str:
 
 
 def _intent_label(intent: str | None) -> str | None:
-    return intent.replace("_", " ") if intent else None
+    return INTENT_LABEL.get(intent, intent.replace("_", " ")) if intent else None
 
 
 def _session_tag(s: Mapping[str, Any]) -> str:

@@ -201,7 +201,14 @@ STATUS_LABEL: dict[str, str] = {
     "not_done_travelling": "not done (travelling)",
     **{status: f"excused ({reason})" for status, reason in EXCUSED_LABEL.items()},
 }
-"""How the recap and the email name a session status in a count: "1 adapted (travel)"."""
+"""How the recap and the email name a session status: in a count ("1 adapted (travel)")
+and, capitalised, on its chip ("Done")."""
+
+ACTIVITY_LABEL: dict[str, str] = {
+    "extra": "extra",
+}
+"""How the email names an activity that is not a session status: an Extra activity is
+listed apart from the plan's sessions and never counted."""
 
 
 def excused_summary(excused_sessions: int, excused_days: Mapping[str, int]) -> str | None:

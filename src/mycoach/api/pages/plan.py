@@ -10,7 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.coaching.context import get_open_this_week
+from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 
@@ -32,7 +34,7 @@ async def plan_page(
     Query param ``week`` selects the Monday of the week to display.
     Defaults to the current week. Non-Monday dates snap to their Monday.
     """
-    today = date.today()
+    today = local_today(get_settings().timezone)
     if week is not None:
         monday = week - timedelta(days=week.weekday())
     else:

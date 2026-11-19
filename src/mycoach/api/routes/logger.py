@@ -13,7 +13,9 @@ from mycoach import health
 from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.context import get_plan_adherence_for_week
+from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.localtime import local_today
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
 from mycoach.plan_linking import unlink_planned_session
@@ -195,7 +197,7 @@ async def get_training_week(
     same shape with weights null — the logger has no second code path. Only gym
     sessions are ``loggable``; the rest are display-only.
     """
-    today = date.today()
+    today = local_today(get_settings().timezone)
     monday = today - timedelta(days=today.weekday())
 
     plan_stmt = (
@@ -218,7 +220,9 @@ async def get_training_week(
         planned = (await session.execute(ps_stmt)).scalars().all()
         # ``done`` is the week-scoped completion (#218, ADR 0005): a session
         # lifted on another day, linked or not, isn't offered again.
-        adherence = await get_plan_adherence_for_week(session, DEFAULT_USER_ID, monday)
+        adherence = await get_plan_adherence_for_week(
+            session, DEFAULT_USER_ID, monday, today=today
+        )
         if adherence is not None and adherence["plan_id"] == plan.id:
             done_ids = {s["id"] for s in adherence["sessions"] if s["completed"]}
         else:

@@ -679,17 +679,15 @@ def test_weekly_plan_job_logs_failure(
 async def test_weekly_recap_calculates_last_monday(
     mock_session: AsyncMock, mock_engine: MagicMock
 ) -> None:
-    """Weekly recap job should calculate last Monday correctly."""
+    """Weekly recap job recaps the week before the scheduler's local Monday."""
     fake_today = date(2025, 1, 20)  # Monday
     expected_last_monday = date(2025, 1, 13)  # previous Monday
 
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
-        patch("mycoach.scheduler.jobs.date") as mock_date,
+        patch("mycoach.scheduler.jobs.local_today", return_value=fake_today),
     ):
-        mock_date.today.return_value = fake_today
-        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         await _weekly_recap()
 
     mock_engine.generate_weekly_recap.assert_awaited_once_with(

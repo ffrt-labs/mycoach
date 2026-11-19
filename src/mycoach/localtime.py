@@ -11,6 +11,17 @@ from zoneinfo import ZoneInfo
 
 TimeZone = str | ZoneInfo
 
+WEEKDAY_NAMES = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
+"""Weekday names by ``date.weekday()`` (and ``PlannedSession.day_of_week``)."""
+
 
 def _zone(tz: TimeZone) -> ZoneInfo:
     return tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)

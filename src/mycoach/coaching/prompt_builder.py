@@ -19,6 +19,7 @@ from mycoach.coaching.life_context import (
     excused_summary,
     is_jet_lag,
 )
+from mycoach.localtime import WEEKDAY_NAMES
 
 if TYPE_CHECKING:
     from mycoach.coaching.context import OpenThisWeek
@@ -357,16 +358,7 @@ def _format_routine_summary(routine: dict[str, Any] | None) -> str:
         return "No active workout routine."
     lines = [f"Routine: {routine['name']}"]
     for day in routine.get("days", []):
-        day_names = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
-        day_name = day_names[day["day_of_week"]] if day.get("day_of_week") is not None else "?"
+        day_name = WEEKDAY_NAMES[day["day_of_week"]] if day.get("day_of_week") is not None else "?"
         ex_count = len(day.get("exercises", []))
         lines.append(f"- {day_name}: {day['name']} ({ex_count} exercises)")
     return "\n".join(lines)
@@ -1015,14 +1007,13 @@ def _format_weekly_gym_details(details: list[dict[str, Any]]) -> str:
         by_session[key][_exercise_identity_key(d)].append(d)
 
     parts = []
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     for (sess_date, sess_title), exercises in sorted(by_session.items()):
         # Try to compute day name
         try:
             from datetime import date as _date
 
             d_obj = _date.fromisoformat(sess_date)
-            day_name = day_names[d_obj.weekday()]
+            day_name = WEEKDAY_NAMES[d_obj.weekday()]
             header = f"**{day_name} {sess_date} — {sess_title}**"
         except Exception:
             header = f"**{sess_date} — {sess_title}**"

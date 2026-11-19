@@ -47,7 +47,7 @@ from mycoach.email.sender import (
     send_weekly_recap,
 )
 from mycoach.health.events import CanonicalActivityRevised, CanonicalActivitySettled, HealthEvent
-from mycoach.localtime import local_today
+from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.job_run import JobRun
 from mycoach.models.plan import PlannedSession
@@ -68,8 +68,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 USER_ID = SCHEDULER_USER_ID
-
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 def _run_async(coro):  # type: ignore[no-untyped-def]
@@ -590,7 +588,7 @@ async def _weekly_plan() -> None:
             sessions = result.scalars().all()
             session_dicts = [
                 {
-                    "day_name": DAY_NAMES[s.day_of_week],
+                    "day_name": WEEKDAY_NAMES[s.day_of_week],
                     "title": s.title,
                     "sport": s.sport,
                     "duration_minutes": s.duration_minutes,

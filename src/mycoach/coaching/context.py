@@ -22,6 +22,7 @@ from mycoach.coaching.substitution import (
     classify_activity_intent,
 )
 from mycoach.config import get_settings
+from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.coaching import MesocycleConfig
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -45,11 +46,10 @@ async def get_availability_for_week(
     )
     result = await session.execute(stmt)
     slots = result.scalars().all()
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     return [
         {
             "day_of_week": s.day_of_week,
-            "day_name": day_names[s.day_of_week],
+            "day_name": WEEKDAY_NAMES[s.day_of_week],
             "sport": s.sport,
         }
         for s in slots
@@ -399,8 +399,6 @@ async def get_plan_adherence_for_week(
         )
         if other is not None:
             excused[other.id] = excused_status
-
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     session_list: list[SessionAdherence] = []
     statuses: list[str] = []
     completed = 0
@@ -422,7 +420,7 @@ async def get_plan_adherence_for_week(
         session_list.append(
             {
                 "id": s.id,
-                "day": day_names[s.day_of_week],
+                "day": WEEKDAY_NAMES[s.day_of_week],
                 "sport": s.sport,
                 "title": s.title,
                 "intent": s.intent,
@@ -431,7 +429,7 @@ async def get_plan_adherence_for_week(
                 "on_planned_day": (
                     None if actual is None else actual == week_start + timedelta(days=s.day_of_week)
                 ),
-                "actual_day": None if actual is None else day_names[actual.weekday()],
+                "actual_day": None if actual is None else WEEKDAY_NAMES[actual.weekday()],
                 "substitute": (
                     None
                     if sub is None
@@ -455,7 +453,7 @@ async def get_plan_adherence_for_week(
                 "external_id": a["external_id"],
                 "sport": a["sport"],
                 "title": a["title"],
-                "day": day_names[a["start_date"].weekday()],
+                "day": WEEKDAY_NAMES[a["start_date"].weekday()],
                 "duration_minutes": a["duration_minutes"],
                 "intent": _intent_value(a),
             }
@@ -556,13 +554,12 @@ async def get_open_this_week(
         if open_ids
         else []
     )
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     weekday = today.weekday()
     return {
         "sessions": [
             {
                 "id": ps.id,
-                "day": day_names[ps.day_of_week],
+                "day": WEEKDAY_NAMES[ps.day_of_week],
                 "day_of_week": ps.day_of_week,
                 "status": (
                     "overdue"

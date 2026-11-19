@@ -27,14 +27,14 @@
     </table>
     <div style="margin-top:14px;line-height:2;">
       {%- if steps.avg_7d is not none %}
-      <span class="badge b-zinc st-chip">7-day avg {{ "{:,}".format(steps.avg_7d) }}/day</span>
+      <span class="chip c-neutral st-chip">7-day avg {{ "{:,}".format(steps.avg_7d) }}/day</span>
       {%- endif %}
       {%- if steps.trend %}
-      {%- set chip = {"up": "b-emerald", "down": "b-amber", "neutral": "b-sky"}[steps.trend] %}
+      {%- set chip = {"up": "good", "down": "warm", "neutral": "info"}[steps.trend] %}
       {%- set arrow = "↑" if steps.change > 0 else ("↓" if steps.change < 0 else "=") %}
-      <span class="badge {{ chip }} st-chip">{{ arrow }} {{ "{:,}".format(steps.change|abs) }}/day vs previous 7 days</span>
+      <span class="chip c-{{ chip }} st-chip">{{ arrow }} {{ "{:,}".format(steps.change|abs) }}/day vs previous 7 days</span>
       {%- endif %}
-      <span class="badge b-zinc st-chip">{{ steps.days_at_goal }}/7 days at goal</span>
+      <span class="chip c-neutral st-chip">{{ steps.days_at_goal }}/7 days at goal</span>
     </div>
 {% endcall %}
 {%- endif %}

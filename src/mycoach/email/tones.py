@@ -55,6 +55,8 @@ CHIP_STYLES: dict[str, ChipStyle] = {
     "info": _filled("#eff6ff", "#1d4ed8", "#14213d", "#93c5fd"),
     # Brand orange: the quality intents, "Today's pick", "Recommended".
     "accent": _filled("#ea6d1f", "#ffffff", "#fb923c", "#0a0b0d"),
+    # Soft orange: a strength-type sport on the weekly plan, a drop in daily steps.
+    "warm": _filled("#fff7ed", "#c2410c", "#2a1d14", "#fdba74"),
     "neutral-outline": _outlined("#d4d4d8", "#52525b", "#3f3f46", "#c9c9cd"),
     "muted-outline": _outlined("#e4e4e7", "#71717a", "#3f3f46", "#a1a1aa"),
     # Session intents other than the quality ones.
@@ -107,8 +109,7 @@ SESSION_STATUS_CHIP: dict[str, Chip] = {
     },
     # An Extra activity is not a session status; it is listed apart and never counted.
     **{
-        kind: Chip(_heading(ACTIVITY_LABEL[kind]), style)
-        for kind, style in _ACTIVITY_STYLE.items()
+        kind: Chip(_heading(ACTIVITY_LABEL[kind]), style) for kind, style in _ACTIVITY_STYLE.items()
     },
 }
 """Session status (or Extra activity) → chip, with the glossary label from

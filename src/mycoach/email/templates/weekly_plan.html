@@ -4,7 +4,7 @@
 {% block subtitle %}Weekly plan{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
-{% set _sportbadge = {'gym': 'b-amber', 'strength': 'b-amber', 'swimming': 'b-sky', 'swim': 'b-sky', 'cycling': 'b-sky', 'running': 'b-emerald', 'run': 'b-emerald', 'padel': 'b-emerald', 'rest': 'b-zinc'} %}
+{% set _sportchip = {'gym': 'warm', 'strength': 'warm', 'swimming': 'info', 'swim': 'info', 'cycling': 'info', 'running': 'good', 'run': 'good', 'padel': 'good', 'rest': 'neutral'} %}
 
 {% call ui.hero("Week of " ~ week_start) %}
     <div class="verdict">Weekly Plan</div>
@@ -27,7 +27,7 @@
           <div class="strong" style="font:600 17px 'IBM Plex Sans',sans-serif;margin-top:4px;">{{ session.title }}</div>
         </td>
         <td style="vertical-align:top;text-align:right;white-space:nowrap;">
-          <span class="badge {{ _sportbadge.get(session.sport|lower, 'b-zinc') }}">{{ session.sport }}</span>
+          <span class="chip c-{{ _sportchip.get(session.sport|lower, 'neutral') }}">{{ session.sport }}</span>
         </td>
       </tr>
     </table>

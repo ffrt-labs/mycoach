@@ -11,15 +11,12 @@
     {% if summary %}
     <div class="lead" style="margin-top:12px;">{{ summary }}</div>
     {% endif %}
+    {% if availability_source == 'default' %}
+    {% call ui.coach(padding=16, margin_top=16) -%}
+      Planned against your standing schedule — you didn't set this week, so it was filled in from your default. <a href="{{ default_schedule_url|default('#') }}">Change it here</a> if that's wrong.
+    {%- endcall %}
+    {% endif %}
 {% endcall %}
-
-{% if availability_source == 'default' %}
-{% call ui.section(layout) %}
-    <div class="coach" style="padding:16px;">
-      <div class="coach-t">Planned against your standing schedule — you didn't set this week, so it was filled in from your default. <a href="{{ default_schedule_url|default('#') }}">Change it here</a> if that's wrong.</div>
-    </div>
-{% endcall %}
-{% endif %}
 
 {% for session in sessions %}
 {% call ui.section(layout) %}

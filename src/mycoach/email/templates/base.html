@@ -1,3 +1,4 @@
+{%- import "components/_layout.html" as ui -%}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,8 +13,8 @@
 {#- Layout system (#231, spec 2026-11-19-email-redesign): 600 px table, 40 px side
     padding (20 px at ≤ 480 px), 32 / 32 px sections with a divider. Layout-critical
     styles are inline in components/_layout.html; this sheet carries type, colour and
-    dark mode. Tone and chip colours are generated from the shared maps in sender.py
-    (email/tones.py CHIP_STYLES), never re-typed here. -#}
+    dark mode. Tone and chip colours are generated from the shared maps in
+    email/tones.py (CHIP_STYLES), never re-typed here. -#}
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
   body { margin:0; padding:0; background:#ffffff; -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; }
@@ -121,7 +122,7 @@
 
           <!-- Header -->
           <tr>
-            <td class="px hd-b" style="padding-top:20px;padding-bottom:20px;padding-left:40px;padding-right:40px;border-bottom:1px solid #e7e5e4;">
+            <td class="px hd-b" style="padding-top:20px;padding-bottom:20px;{{ ui.side_padding }}border-bottom:1px solid #e7e5e4;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="vertical-align:middle;"><span class="dot"></span><span class="brand">MyCoach</span></td>
@@ -135,7 +136,7 @@
 
           <!-- Footer -->
           <tr>
-            <td class="ft px" style="padding-top:20px;padding-bottom:28px;padding-left:40px;padding-right:40px;border-top:1px solid #e7e5e4;">
+            <td class="ft px" style="padding-top:20px;padding-bottom:28px;{{ ui.side_padding }}{{ ui.divider }}">
               <div class="ft-t">MyCoach &mdash; AI-powered personal fitness coaching.</div>
             </td>
           </tr>

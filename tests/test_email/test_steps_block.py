@@ -71,7 +71,7 @@ def _columns(html: str) -> list[dict]:
 def _chips(html: str) -> list[str]:
     return [
         re.sub(r"\s+", " ", m.group(1) + " " + m.group(2)).strip()
-        for m in re.finditer(r'class="badge (b-\w+) st-chip"[^>]*>([^<]*)<', html)
+        for m in re.finditer(r'class="chip c-([\w-]+) st-chip"[^>]*>([^<]*)<', html)
     ]
 
 
@@ -136,30 +136,30 @@ def test_chips_show_average_change_and_days_at_goal() -> None:
     html = _briefing_html(_steps(PREVIOUS + [12000] * 7))
 
     assert _chips(html) == [
-        "b-zinc 7-day avg 12,000/day",
-        "b-emerald ↑ 2,000/day vs previous 7 days",
-        "b-zinc 7/7 days at goal",
+        "neutral 7-day avg 12,000/day",
+        "good ↑ 2,000/day vs previous 7 days",
+        "neutral 7/7 days at goal",
     ]
 
 
 def test_a_drop_is_an_amber_chip() -> None:
     html = _briefing_html(_steps(PREVIOUS + [8000] * 7))
 
-    assert "b-amber ↓ 2,000/day vs previous 7 days" in _chips(html)
+    assert "warm ↓ 2,000/day vs previous 7 days" in _chips(html)
 
 
 @pytest.mark.parametrize("week", [[11000] * 7, [9000] * 7])
 def test_a_change_within_ten_percent_is_a_blue_chip(week: list[int]) -> None:
     chips = _chips(_briefing_html(_steps(PREVIOUS + week)))
 
-    assert chips[1].startswith("b-sky ")
+    assert chips[1].startswith("info ")
     assert chips[1].endswith(" 1,000/day vs previous 7 days")
 
 
 def test_no_previous_week_leaves_out_the_change_chip() -> None:
     chips = _chips(_briefing_html(_steps([None] * 7 + [10000] * 7)))
 
-    assert chips == ["b-zinc 7-day avg 10,000/day", "b-zinc 7/7 days at goal"]
+    assert chips == ["neutral 7-day avg 10,000/day", "neutral 7/7 days at goal"]
 
 
 def test_no_step_data_or_no_summary_means_no_strip() -> None:

@@ -254,6 +254,23 @@ def test_dark_mode_overrides_every_tone_and_chip(html: str) -> None:
         assert f"color:{style.dark.fg} !important" in rule.group(1)
 
 
+def test_every_badge_is_a_chip_coloured_from_the_shared_styles(html: str) -> None:
+    from mycoach.email.tones import CHIP_STYLES
+
+    classes = [c for attr in re.findall(r'class="([^"]*)"', html) for c in attr.split()]
+    assert not [c for c in classes if c == "badge" or c.startswith("b-")]
+    assert re.search(r"\.b-\w+\s*\{", html) is None, "no hand-typed badge colours"
+    for c in classes:
+        if c.startswith("c-"):
+            assert c[2:] in CHIP_STYLES, c
+
+
+def test_the_weekly_plan_sport_chips_keep_their_colours() -> None:
+    html = _render("weekly_plan")
+    assert '<span class="chip c-warm">gym</span>' in html
+    assert '<span class="chip c-info">swimming</span>' in html
+
+
 def test_side_padding_drops_to_20px_at_480px_and_below(html: str) -> None:
     rule = re.search(r"\.px\s*\{([^}]*)\}", _media_block(html, "max-width:480px"))
     assert rule

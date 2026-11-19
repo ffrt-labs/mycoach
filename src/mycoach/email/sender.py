@@ -520,13 +520,16 @@ def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
     """The week's completion as the recap email shows it: "4/5 done · 1 substituted".
 
     Substitutions are already in the done count (#216); excused sessions (#220) are
-    out of the denominator: "2/2 done · 3 excused (ill 3 days)". None without a plan.
+    out of the denominator: "2/2 done · 3 excused (ill 3 days)". Sessions adapted on
+    a trip (#221) are done too: "2/3 done · 1 adapted (travel)". None without a plan.
     """
     if not adherence or not (adherence.get("total_sessions") or adherence.get("excused_sessions")):
         return None
     line = f"{adherence['completed_sessions']}/{adherence['total_sessions']} done"
     if adherence.get("substituted_sessions"):
         line += f" · {adherence['substituted_sessions']} substituted"
+    if adherence.get("adapted_sessions"):
+        line += f" · {adherence['adapted_sessions']} adapted (travel)"
     excused = excused_summary(
         adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
     )

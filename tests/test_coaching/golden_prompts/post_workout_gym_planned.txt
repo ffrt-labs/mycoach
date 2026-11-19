@@ -32,9 +32,10 @@ Analyze the following completed workout and provide a post-workout coaching anal
 - HRV Status: BALANCED
 
 ## Life Context
-Nothing to report: no illness or ramp-back.
+Nothing to report: no illness, travel or ramp-back.
 
 If the athlete was ill or is in a ramp-back on this day, a light or short session is the plan working, not a regression: never read lower pace, power or volume as lost fitness.
+If the athlete was travelling, judge the session against what the trip's equipment allowed, not against the home plan.
 
 Provide a detailed post-workout analysis. Compare actual performance to the planned session. Identify performance trends by comparing to recent similar workouts. Be specific about what went well and what to improve.
 

@@ -1,4 +1,4 @@
-"""Life context API (#220): the dashboard's illness check-in, severity edit and close.
+"""Life context API: the dashboard's illness check-in (#220) and travel mode (#221).
 
 Episodes are coaching-owned (``coaching.life_context_episodes``): the athlete says
 them, no device measures them. Days are local days in ``settings.timezone``.
@@ -6,7 +6,7 @@ them, no device measures them. Days are local days in ``settings.timezone``.
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach.api.defaults import DEFAULT_USER_ID
@@ -14,8 +14,8 @@ from mycoach.coaching import life_context
 from mycoach.config import get_settings
 from mycoach.database import get_db
 from mycoach.localtime import local_today
-from mycoach.models.life_context import IllnessSeverity, LifeContextEpisode
-from mycoach.schemas.life_context import EpisodeRead, EpisodeUpdate, IllnessCreate
+from mycoach.models.life_context import Equipment, IllnessSeverity, LifeContextEpisode
+from mycoach.schemas.life_context import EpisodeRead, EpisodeUpdate, IllnessCreate, TravelCreate
 
 router = APIRouter(prefix="/api/life-context", tags=["life-context"])
 
@@ -53,6 +53,31 @@ async def feeling_unwell(
     return episode
 
 
+@router.post("/travel", response_model=EpisodeRead, status_code=201)
+async def travelling(
+    body: TravelCreate, session: AsyncSession = Depends(get_db)
+) -> LifeContextEpisode:
+    """A trip, now or entered in advance; the weekly plan reads it when written."""
+    started_on = body.started_on or _today()
+    if body.ended_on is not None and body.ended_on < started_on:
+        raise HTTPException(status_code=422, detail="A trip cannot end before it starts")
+    episode = await life_context.open_travel(
+        session,
+        DEFAULT_USER_ID,
+        started_on=started_on,
+        ended_on=body.ended_on,
+        equipment=body.equipment,
+        tz_shift_hours=body.tz_shift_hours,
+        no_training=body.no_training,
+        note=_clean(body.note),
+    )
+    await session.commit()
+    return episode
+
+
+_TRAVEL_FIELDS = ("equipment", "tz_shift_hours", "no_training", "ended_on")
+
+
 @router.patch("/episodes/{episode_id}", response_model=EpisodeRead)
 async def update_episode(
     episode_id: int, body: EpisodeUpdate, session: AsyncSession = Depends(get_db)
@@ -62,6 +87,19 @@ async def update_episode(
         if episode.kind != life_context.EpisodeKind.ILLNESS:
             raise HTTPException(status_code=422, detail="Only an illness has a severity")
         episode.severity = IllnessSeverity(body.severity)
+    travel_fields = [f for f in _TRAVEL_FIELDS if f in body.model_fields_set]
+    if travel_fields and episode.kind != life_context.EpisodeKind.TRAVEL:
+        raise HTTPException(status_code=422, detail="Only a trip has equipment and dates to edit")
+    if body.equipment is not None:
+        episode.equipment = Equipment(body.equipment)
+    if "tz_shift_hours" in body.model_fields_set:
+        episode.tz_shift_hours = body.tz_shift_hours
+    if body.no_training is not None:
+        episode.no_training = body.no_training
+    if "ended_on" in body.model_fields_set:
+        if body.ended_on is not None and body.ended_on < episode.started_on:
+            raise HTTPException(status_code=422, detail="A trip cannot end before it starts")
+        episode.ended_on = body.ended_on
     if "note" in body.model_fields_set:
         episode.note = _clean(body.note)
     await session.commit()
@@ -72,9 +110,21 @@ async def update_episode(
 async def close_episode(
     episode_id: int, session: AsyncSession = Depends(get_db)
 ) -> LifeContextEpisode:
-    """ "Feeling better"."""
+    """ "Feeling better", or "Back home" on a trip."""
     episode = await _episode(session, episode_id)
     if episode.ended_on is None:
         life_context.close(episode, today=_today())
         await session.commit()
     return episode
+
+
+@router.delete("/episodes/{episode_id}", status_code=204)
+async def cancel_trip(episode_id: int, session: AsyncSession = Depends(get_db)) -> Response:
+    """Cancel a trip entered in advance (409 once it has started)."""
+    episode = await _episode(session, episode_id)
+    try:
+        await life_context.cancel_trip(session, episode, today=_today())
+    except life_context.EpisodeUnderWayError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await session.commit()
+    return Response(status_code=204)

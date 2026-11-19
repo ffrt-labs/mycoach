@@ -97,12 +97,24 @@ A stretch of the athlete's life that every Coaching run reads around, told to My
 _Avoid_: Event, status, absence
 
 **Excused session**:
-A Planned session left not done that a Life context episode excuses: each `sick` day excuses at most one in its week, its own day's session first. It leaves Completion's denominator ("2/2 done · 3 excused (ill 3 days)"). A day excuses once however many episodes cover it, and a session done while ill is done, never excused. `mild` days excuse nothing.
+A Planned session left not done that a Life context episode excuses: each `sick` day, and each Travel day marked "no training possible", excuses at most one in its week, its own day's session first. It leaves Completion's denominator ("2/2 done · 3 excused (ill 3 days)"). A day excuses once however many episodes cover it, and a session done while ill is done, never excused. `mild` days excuse nothing.
 _Avoid_: Skipped, missed, cancelled session
 
 **Ramp-back**:
 The days after an illness ends when training builds back: 3 after a `mild` illness, else the illness's length clamped to 3-7. Guidance starts near 50% of normal load on day 1 and rises linearly to about 90% on the last day. Recovery data (HRV below baseline, resting HR elevated) on the last day may only extend it, never shorten it.
 _Avoid_: Recovery period, comeback, return-to-play
+
+**Travel**:
+A `travel` Life context episode: dates (the return optional; a trip may be entered in advance), the **Equipment access** it gives (`none`, `hotel_gym`, `full_gym`; editable mid-trip), an optional time-zone shift in hours, and a "no training possible" toggle. Sick beats travel; mild illness on a trip means one light session the trip allows. A shift of 3 h or more brings the jet-lag principle into the briefing. Weekly plans read trips entered for their week; nothing regenerates mid-week.
+_Avoid_: Trip mode, holiday, away
+
+**Adapted (travel)**:
+A Planned session on a Travel day filled by a Substitution under relaxed rules: the default intent match, or for a `strength` slot at least 20 min of resistance work without performed sets (a Logger entry or a Garmin strength activity). It counts toward Completion like a done session ("2/3 done · 1 adapted (travel)").
+_Avoid_: Travel substitute, modified session
+
+**Not done (travelling)**:
+A Planned session on a Travel day left not done. Unlike an Excused session it stays in Completion's denominator; the recap names the trip as the cause and comments on what was done.
+_Avoid_: Excused, missed while away
 
 ## Gym coaching
 

@@ -463,6 +463,28 @@ def test_weekly_recap_email_counts_sessions_excused_by_illness(mock_send: MagicM
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
+def test_weekly_recap_email_counts_sessions_adapted_on_a_trip(mock_send: MagicMock) -> None:
+    """#221: adapted sessions are done; a no-training travel day excuses one."""
+    adherence = {
+        "total_sessions": 3,
+        "completed_sessions": 2,
+        "substituted_sessions": 0,
+        "adapted_sessions": 1,
+        "excused_sessions": 1,
+        "excused_days": {"excused_travel": 1},
+    }
+
+    send_weekly_recap(
+        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
+    )
+
+    assert (
+        "2/3 done · 1 adapted (travel) · 1 excused (no training while travelling 1 day)"
+        in mock_send.call_args[0][2]
+    )
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
 def test_a_week_excused_entirely_still_shows_its_line(mock_send: MagicMock) -> None:
     adherence = {
         "total_sessions": 0,

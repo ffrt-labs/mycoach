@@ -186,8 +186,8 @@ class TestLifeContextPromptText:
     def test_nothing_going_on(self) -> None:
         ctx = LifeContext(today=date(2026, 11, 5), episodes=[], ramp_back=None)
 
-        assert _format_life_context(ctx) == "Nothing to report: no illness or ramp-back."
-        assert _format_life_context(None) == "Nothing to report: no illness or ramp-back."
+        assert _format_life_context(ctx) == "Nothing to report: no illness, travel or ramp-back."
+        assert _format_life_context(None) == "Nothing to report: no illness, travel or ramp-back."
 
     def test_an_open_illness(self) -> None:
         ill = Episode(
@@ -222,3 +222,62 @@ class TestLifeContextPromptText:
             "Resting HR is still elevated on the last ramp-back day: you may suggest "
             "extending the ramp-back by a few days. Never shorten it."
         )
+
+
+def _trip(start: date, end: date | None, **kw: object) -> Episode:
+    return Episode(id=7, kind="travel", started_on=start, ended_on=end, **kw)  # type: ignore[arg-type]
+
+
+class TestTravelPromptText:
+    """Travel episodes in the ``life_context`` variable (#221)."""
+
+    def test_a_trip_under_way_with_jet_lag(self) -> None:
+        trip = _trip(
+            date(2026, 11, 3), date(2026, 11, 6), equipment="hotel_gym", tz_shift_hours=-6.0,
+            note="Boston",
+        )  # fmt: skip
+        ctx = LifeContext(today=date(2026, 11, 4), episodes=[trip], ramp_back=None)
+
+        assert _format_life_context(ctx) == (
+            "- Travel: since Tuesday 2026-11-03 (day 2), until Friday 2026-11-06. "
+            "Equipment: hotel gym (a few machines, dumbbells, a treadmill). "
+            "Time zone: -6 h from home: jet lag, apply the jet-lag principles. Note: Boston"
+        )
+
+    def test_a_small_time_zone_shift_is_not_jet_lag(self) -> None:
+        trip = _trip(date(2026, 11, 3), None, equipment="full_gym", tz_shift_hours=1.0)
+        ctx = LifeContext(today=date(2026, 11, 3), episodes=[trip], ramp_back=None)
+
+        assert _format_life_context(ctx) == (
+            "- Travel: since Tuesday 2026-11-03 (day 1), return date not set. "
+            "Equipment: full gym. Time zone: +1 h from home."
+        )
+
+    def test_a_trip_entered_in_advance_without_training(self) -> None:
+        trip = _trip(date(2026, 11, 11), date(2026, 11, 12), equipment="none", no_training=True)
+        ctx = LifeContext(today=date(2026, 11, 8), episodes=[trip], ramp_back=None)
+
+        assert _format_life_context(ctx) == (
+            "- Travel, planned: Wednesday 2026-11-11 to Thursday 2026-11-12 (2 days). "
+            "Equipment: none (bodyweight only). No training possible on these days."
+        )
+
+
+async def test_the_context_reads_trips_entered_in_advance() -> None:
+    async with test_session() as session:
+        session.add(User(id=1, email="a@example.com", name="A", fitness_level="intermediate"))
+        session.add(
+            LifeContextEpisode(
+                user_id=1, kind="travel", started_on=date(2026, 11, 11),
+                ended_on=date(2026, 11, 13), equipment="none",
+            )
+        )  # fmt: skip
+        await session.commit()
+
+        ctx = await life_context_for(
+            session, 1, date(2026, 11, 9), date(2026, 11, 15), today=date(2026, 11, 8)
+        )
+
+    assert [(e.kind, e.started_on, e.equipment) for e in ctx.episodes] == [
+        ("travel", date(2026, 11, 11), "none")
+    ]

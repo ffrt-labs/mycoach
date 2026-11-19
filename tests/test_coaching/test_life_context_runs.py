@@ -91,6 +91,62 @@ async def test_the_weekly_plan_gym_and_cardio_prompts_know_about_an_open_illness
         assert "still unwell today (day 2)" in call.kwargs["user_message"]
 
 
+async def test_the_briefing_on_a_trip_six_hours_off_brings_in_jet_lag() -> None:
+    async with test_session() as session:
+        user_id = await _create_user(session)
+        await _add_recovery_snapshot(session, user_id, THURSDAY)
+        session.add(
+            LifeContextEpisode(
+                user_id=user_id, kind="travel", started_on=date(2024, 6, 12), ended_on=None,
+                equipment="none", tz_shift_hours=-6,
+            )
+        )  # fmt: skip
+        await session.commit()
+
+        llm = _briefing_llm()
+        await CoachingEngine(llm_client=llm).generate_daily_briefing(session, user_id, THURSDAY)
+
+    kwargs = llm.call.call_args.kwargs
+    assert (
+        "- Travel: since Wednesday 2024-06-12 (day 2), return date not set. "
+        "Equipment: none (bodyweight only). Time zone: -6 h from home: jet lag, "
+        "apply the jet-lag principles."
+    ) in kwargs["user_message"]
+    assert "adapt the open sessions to the trip's equipment" in kwargs["user_message"]
+    assert "time-zone shift of 3 h or more" in kwargs["system"]
+
+
+async def test_the_weekly_plan_reads_a_trip_entered_in_advance() -> None:
+    """#221: a trip later in the plan week reaches every weekly plan prompt."""
+    llm = MagicMock()
+    llm.daily_model = "claude-sonnet-4-5-20250929"
+    llm.weekly_model = "claude-opus-4-6"
+    llm.call.side_effect = [
+        _gym_response(VALID_GYM_ADJUSTMENT),
+        _gym_response(VALID_GYM_ADJUSTMENT),
+        _gym_response(VALID_CARDIO_RESPONSE),
+    ]
+    async with test_session() as session:
+        user_id = await _setup_two_gym_one_cardio(session)
+        session.add(
+            LifeContextEpisode(
+                user_id=user_id, kind="travel", started_on=date(2024, 6, 12),
+                ended_on=date(2024, 6, 14), equipment="hotel_gym", tz_shift_hours=6,
+            )
+        )  # fmt: skip
+        await session.commit()
+        sunday = date(2024, 6, 9)
+        await CoachingEngine(llm_client=llm, clock=_clock(sunday)).generate_weekly_plan(
+            session, user_id, MONDAY
+        )
+
+    for call in llm.call.call_args_list:
+        assert (
+            "- Travel, planned: Wednesday 2024-06-12 to Friday 2024-06-14 (3 days). "
+            "Equipment: hotel gym"
+        ) in call.kwargs["user_message"]
+
+
 async def test_the_post_workout_run_reads_the_context_on_the_activity_day() -> None:
     async with test_session() as session:
         user_id = await _create_user(session)

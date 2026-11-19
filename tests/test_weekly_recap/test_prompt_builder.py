@@ -190,6 +190,57 @@ class TestFormatPlanAdherence:
             "- Hills [running] (planned Wednesday)"
         )
 
+    def test_a_travel_week_names_adapted_and_not_done_travelling_sessions(self) -> None:
+        """#221: adapted counts as done; not done while travelling stays in the count."""
+        circuit = {
+            "external_id": "lg-1",
+            "sport": "gym",
+            "title": "Hotel leg circuit",
+            "intent": None,
+            "duration_minutes": 25,
+            "avg_hr": None,
+            "training_effect_aerobic": None,
+        }
+        adherence = {
+            "plan_summary": None,
+            "total_sessions": 3,
+            "completed_sessions": 2,
+            "substituted_sessions": 0,
+            "adapted_sessions": 1,
+            "excused_sessions": 1,
+            "excused_days": {"excused_travel": 1},
+            "adherence_pct": 66.7,
+            "sessions": [
+                {"day": "Monday", "sport": "running", "title": "Easy run", "intent": None,
+                 "completed": True, "status": "done", "on_planned_day": True,
+                 "actual_day": "Monday", "substitute": None},
+                {"day": "Tuesday", "sport": "gym", "title": "Lower A", "intent": "strength",
+                 "completed": True, "status": "adapted_travel", "on_planned_day": True,
+                 "actual_day": "Tuesday", "substitute": circuit},
+                {"day": "Wednesday", "sport": "gym", "title": "Upper A", "intent": "strength",
+                 "completed": False, "status": "excused_travel", "on_planned_day": None,
+                 "actual_day": None, "substitute": None},
+                {"day": "Thursday", "sport": "running", "title": "Tempo run",
+                 "intent": "threshold", "completed": False, "status": "not_done_travelling",
+                 "on_planned_day": None, "actual_day": None, "substitute": None},
+            ],
+            "extras": [],
+        }  # fmt: skip
+
+        assert _format_plan_adherence(adherence) == (
+            "Completion: 2/3 planned sessions done (66.7%) — 1 as planned, 1 adapted (travel),"
+            " 1 not done (travelling), 1 excused (no training while travelling 1 day)\n"
+            "On planned day: 2/2 (informational only — never a penalty)\n"
+            "Done:\n"
+            "- Easy run [running] — done Monday (planned Monday)\n"
+            "Adapted (travel), counted as done:\n"
+            "- Lower A [gym] (planned Tuesday) ← Hotel leg circuit [gym] on Tuesday: 25 min\n"
+            "Not done (travelling), still in the count:\n"
+            "- Tempo run [running, threshold] (planned Thursday)\n"
+            "Excused (no training while travelling), out of the count:\n"
+            "- Upper A [gym] (planned Wednesday)"
+        )
+
     def test_empty_sessions(self) -> None:
         adherence = {
             "plan_summary": "Empty plan",

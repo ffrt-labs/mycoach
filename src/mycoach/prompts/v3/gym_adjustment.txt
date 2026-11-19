@@ -21,6 +21,7 @@ Adjust the weights, RPE, and volume for today's gym session based on last week's
 {life_context}
 
 ## Instructions
+- If a trip falls in the plan week, keep the routine's exercises and add a coaching note with the swap its equipment allows (bodyweight with none; dumbbells or machines in a hotel gym), same muscle groups and intent. With a time-zone shift of 3 h or more, keep the first two trip days conservative.
 - If an illness is open, plan a lighter week: lower weights and RPE targets (no sets above RPE 7). During a ramp-back, keep the session at the ramp-back load. Never add volume to make up for sessions lost to illness.
 - For each exercise, recommend a target weight (kg) and RPE based on last week's actual performance
 - Where a set shows both a prescribed and a performed value, judge "completed all reps" against the prescribed target, not by guessing intent from the rep range. A set with no prescription (manual entry, imported history) is unprescribed, not missed — judge it on the performed reps alone.

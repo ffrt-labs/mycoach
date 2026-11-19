@@ -18,9 +18,10 @@ Plan summary: Test
 - A partial session (e.g. 1325 m swum of a planned 1.7 km) counts as done; the shortfall is a volume note, not an adherence one.
 - Extras are not counted toward completion; comment on them only as training load.
 - Sessions excused (ill) are out of the count: the athlete owed nothing on a sick day. Do not list them as work to make up.
+- Adapted (travel) sessions are done: judge them on the stimulus the trip allowed. Not done (travelling) sessions stay in the count: say the trip caused them, without blame, and comment on what was done. Sessions excused (no training while travelling) are out of the count.
 
 ## Life Context
-Nothing to report: no illness or ramp-back.
+Nothing to report: no illness, travel or ramp-back.
 
 Low volume or easy sessions during an illness or a ramp-back are recovery, not a performance problem: do not treat them as lost fitness or a lack of commitment.
 

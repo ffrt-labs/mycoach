@@ -97,7 +97,7 @@ A stretch of the athlete's life that every Coaching run reads around, told to My
 _Avoid_: Event, status, absence
 
 **Excused session**:
-A Planned session left not done that a Life context episode excuses: each `sick` day, and each Travel day marked "no training possible", excuses at most one in its week, its own day's session first. It leaves Completion's denominator ("2/2 done · 3 excused (ill 3 days)"). A day excuses once however many episodes cover it, and a session done while ill is done, never excused. `mild` days excuse nothing.
+A Planned session left not done that a Life context episode excuses: each `sick` day, and each Travel day marked "no training possible", excuses at most one in its week: its own day's session first, else the earliest one planned before it, never a later one. It leaves Completion's denominator ("2/2 done · 3 excused (ill 3 days)"). A day excuses once however many episodes cover it, and a session done while ill is done, never excused. `mild` days excuse nothing.
 _Avoid_: Skipped, missed, cancelled session
 
 **Ramp-back**:

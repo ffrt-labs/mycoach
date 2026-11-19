@@ -1,0 +1,25 @@
+{# Open this week (#218): the week's planned sessions not yet completed.
+   Expects `open_this_week` (coaching.context.OpenThisWeek or None). #}
+{% if open_this_week %}
+{% set days = open_this_week.days_remaining %}
+<div class="mt-6">
+    <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Open this week — {{ open_this_week.sessions | length }} left · {{ days }} day{% if days != 1 %}s{% endif %} remaining</div>
+    {% if open_this_week.sessions %}
+    <ul class="space-y-1.5">
+        {% for s in open_this_week.sessions %}
+        <li class="text-sm text-zinc-300">
+            <span class="font-mono text-zinc-500">{{ s.day[:3] }}</span>
+            {{ s.title }}
+            <span class="text-zinc-500 capitalize">· {{ s.sport }}{% if s.duration_minutes %} · {{ s.duration_minutes }} min{% endif %}</span>
+            {% if s.status == "overdue" %}<span class="text-xs text-amber-300">· planned day passed</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% if open_this_week.sessions | length > days %}
+    <p class="text-xs text-amber-300 mt-2">More sessions open than days left.</p>
+    {% endif %}
+    {% else %}
+    <p class="text-sm text-zinc-500">Every planned session is done.</p>
+    {% endif %}
+</div>
+{% endif %}

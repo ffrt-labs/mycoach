@@ -252,3 +252,46 @@ async def test_plan_page_tags_each_session_with_its_intent(client: AsyncClient) 
     assert resp.status_code == 200
     assert "Aerobic base" in resp.text
     assert resp.text.count('data-intent="') == 1
+
+
+async def _plan_for(monday: date, sessions: list[PlannedSession]) -> None:
+    async with test_session() as session:
+        plan = WeeklyPlan(user_id=1, week_start=monday, status="active", prompt_version="v3")
+        session.add(plan)
+        await session.flush()
+        for ps in sessions:
+            ps.plan_id = plan.id
+            session.add(ps)
+        await session.commit()
+
+
+async def test_plan_page_lists_the_sessions_open_this_week(client: AsyncClient) -> None:
+    """#218: the current week shows what is still owed and the days left for it."""
+    await _seed_user()
+    today = date.today()
+    await _plan_for(
+        today - timedelta(days=today.weekday()),
+        [
+            PlannedSession(day_of_week=0, sport="gym", title="Squat Day", track="gym"),
+            PlannedSession(day_of_week=3, sport="running", title="Tempo Run"),
+            PlannedSession(day_of_week=5, sport="swimming", title="Swim", completed=True),
+        ],
+    )
+
+    resp = await client.get("/plan")
+
+    days_left = 7 - today.weekday()
+    remaining = f"{days_left} day{'s' if days_left != 1 else ''} remaining"
+    assert f"Open this week — 2 left · {remaining}" in resp.text
+
+
+async def test_plan_page_for_another_week_has_no_open_list(client: AsyncClient) -> None:
+    await _seed_user()
+    today = date.today()
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    await _plan_for(last_monday, [PlannedSession(day_of_week=0, sport="gym", title="Squat Day")])
+
+    resp = await client.get(f"/plan?week={last_monday.isoformat()}")
+
+    assert resp.status_code == 200
+    assert "Open this week" not in resp.text

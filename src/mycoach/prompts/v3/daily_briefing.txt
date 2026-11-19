@@ -12,6 +12,14 @@ Generate a daily coaching briefing based on the following data.
 ## Today's Planned Workout
 {planned_workout}
 
+## Open This Week
+{open_this_week}
+
+Open-session rules:
+- The planned day is the default suggestion, not a constraint. If today's recovery data argues against the session planned for today, recommend the open session that fits today better (for example, after poor sleep do the easy swim and push the heavy squat), name it and say why.
+- A session whose planned day has passed is still owed this week and can be done today.
+- When more sessions are open than days are left, say so now, not on Sunday, and suggest which to combine or drop.
+
 ## Steps (7 days ending yesterday)
 {steps_summary}
 

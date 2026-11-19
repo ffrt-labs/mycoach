@@ -428,3 +428,42 @@ async def test_dashboard_leaves_the_button_alone_on_a_usable_day(
     resp = await client.get("/")
     assert resp.status_code == 200
     assert "Can't generate" not in resp.text and "Can&#39;t generate" not in resp.text
+
+
+async def _plan_this_week(sessions: list[PlannedSession]) -> None:
+    today = date.today()
+    async with test_session() as session:
+        plan = WeeklyPlan(
+            user_id=1,
+            week_start=today - timedelta(days=today.weekday()),
+            status="active",
+            prompt_version="v3",
+        )
+        session.add(plan)
+        await session.flush()
+        for ps in sessions:
+            ps.plan_id = plan.id
+            session.add(ps)
+        await session.commit()
+
+
+async def test_dashboard_lists_the_sessions_open_this_week(client: AsyncClient) -> None:
+    """#218: a session whose day isn't today is still listed while it is open."""
+    await _seed_user()
+    today = date.today()
+    other_day = (today.weekday() + 1) % 7
+    await _plan_this_week(
+        [
+            PlannedSession(day_of_week=other_day, sport="gym", title="Squat Day", track="gym"),
+            PlannedSession(day_of_week=other_day, sport="swimming", title="Swim", completed=True),
+        ]
+    )
+
+    resp = await client.get("/")
+
+    assert resp.status_code == 200
+    days_left = 7 - today.weekday()
+    remaining = f"{days_left} day{'s' if days_left != 1 else ''} remaining"
+    assert f"Open this week — 1 left · {remaining}" in resp.text
+    assert "Squat Day" in resp.text
+    assert "Swim" not in resp.text

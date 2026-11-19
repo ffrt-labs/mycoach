@@ -15,6 +15,7 @@ const {
     loggableSessions,
     prescribedMeta,
     outstandingSessions,
+    nextOpenSession,
     defaultSetValues,
     prescribedForSet,
     lastPerformedFor,
@@ -299,6 +300,43 @@ test("outstandingSessions counts an unsynced local session as consumed", () => {
     const local = [{ id: "uuid-a", planned_session_id: 1, synced: false }];
 
     assert.deepEqual(outstandingSessions(week, local), []);
+});
+
+test("nextOpenSession pre-selects the earliest open prescription, even a past day's (#218)", () => {
+    // Wednesday: Monday's squat was never lifted, so it comes before Friday's pull.
+    const week = {
+        week_start: "2024-06-10",
+        sessions: [
+            { id: 1, title: "Squat Day", loggable: true, done: false },
+            { id: 2, title: "Easy Run", loggable: false, done: false },
+            { id: 3, title: "Pull Day", loggable: true, done: false },
+        ],
+    };
+
+    assert.equal(nextOpenSession(week, []), week.sessions[0]);
+});
+
+test("nextOpenSession skips what the server or a local session already answers", () => {
+    const week = {
+        week_start: "2024-06-10",
+        sessions: [
+            { id: 1, title: "Squat Day", loggable: true, done: true },
+            { id: 3, title: "Pull Day", loggable: true, done: false },
+            { id: 4, title: "Push Day", loggable: true, done: false },
+        ],
+    };
+    const local = [{ id: "uuid-a", planned_session_id: 3 }];
+
+    assert.equal(nextOpenSession(week, local), week.sessions[2]);
+});
+
+test("nextOpenSession pre-selects nothing without a prescription to link to", () => {
+    const routineWeek = { week_start: "2024-06-10", sessions: [{ id: null, title: "Push", loggable: true, done: false }] };
+    const allDone = { week_start: "2024-06-10", sessions: [{ id: 1, title: "Push", loggable: true, done: true }] };
+
+    assert.equal(nextOpenSession(routineWeek, []), null);
+    assert.equal(nextOpenSession(allDone, []), null);
+    assert.equal(nextOpenSession(null, []), null);
 });
 
 test("outstandingSessions keeps a routine-built session, which has no id to consume", () => {

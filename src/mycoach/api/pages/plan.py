@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.context import get_open_this_week
 from mycoach.database import get_db
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -111,6 +112,11 @@ async def plan_page(
                 }
             )
 
+    # The week's work still owed (#218); only the current week has a "today".
+    open_this_week = (
+        await get_open_this_week(session, USER_ID, today) if plan and is_current_week else None
+    )
+
     adherence_pct = round(completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
 
     week_end = monday + timedelta(days=6)
@@ -135,5 +141,6 @@ async def plan_page(
             "is_current_week": is_current_week,
             "has_availability": has_availability,
             "week_start_iso": monday.isoformat(),
+            "open_this_week": open_this_week,
         },
     )

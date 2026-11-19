@@ -12,6 +12,7 @@ from mycoach.coaching.body import BodySummary
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 
 if TYPE_CHECKING:
+    from mycoach.coaching.context import OpenThisWeek
     from mycoach.coaching.steps import StepsSummary
 
 _PROMPT_DIR: Path | None = None
@@ -433,6 +434,29 @@ def _format_body(body: BodySummary | None) -> str:
     return "\n".join(lines)
 
 
+_OPEN_STATUS_NOTE = {"overdue": ", planned day passed", "today": ", planned for today"}
+
+
+def _format_open_this_week(open_week: "OpenThisWeek | None") -> str:
+    """The week's open sessions for the briefing, earliest planned day first (#218)."""
+    if open_week is None:
+        return "No plan this week."
+    sessions = open_week["sessions"]
+    if not sessions:
+        return "Every planned session this week is done."
+    days = open_week["days_remaining"]
+    noun = "session" if len(sessions) == 1 else "sessions"
+    day_noun = "day" if days == 1 else "days"
+    lines = [f"{len(sessions)} {noun} open, {days} {day_noun} left including today:"]
+    for s in sessions:
+        dur = f" ({s['duration_minutes']} min)" if s["duration_minutes"] else ""
+        note = _OPEN_STATUS_NOTE.get(s["status"], "")
+        lines.append(f"- {s['day']}: {s['title']} [{s['sport']}]{dur}{note}")
+    if len(sessions) > days:
+        lines.append("Warning: more sessions open than days left.")
+    return "\n".join(lines)
+
+
 def daily_briefing_variables(
     *,
     health_today: dict[str, Any],
@@ -441,6 +465,7 @@ def daily_briefing_variables(
     planned_workout: str | list[dict[str, Any]] | None = None,
     steps: "StepsSummary | None" = None,
     body: BodySummary | None = None,
+    open_this_week: "OpenThisWeek | None" = None,
 ) -> PromptVariables:
     """Format the Coaching context of a daily briefing LLM call."""
     if isinstance(planned_workout, list):
@@ -452,6 +477,7 @@ def daily_briefing_variables(
         "health_trends": _format_health_trends(health_trends),
         "recent_activities": _format_activities(recent_activities),
         "planned_workout": formatted_workout,
+        "open_this_week": _format_open_this_week(open_this_week),
         "steps_summary": _format_steps(steps),
         "body_summary": _format_body(body),
     }

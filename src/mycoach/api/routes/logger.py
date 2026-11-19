@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from mycoach import health
 from mycoach.api.defaults import DEFAULT_USER_ID
 from mycoach.coaching.athlete import athlete_id_for
+from mycoach.coaching.context import get_plan_adherence_for_week
 from mycoach.database import get_db
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.routine import RoutineDay, WorkoutRoutine
@@ -108,7 +109,7 @@ async def get_active_routine(
     return result.scalar_one_or_none()
 
 
-def _prescribed_from_planned(ps: PlannedSession) -> PrescribedSession:
+def _prescribed_from_planned(ps: PlannedSession, *, done: bool) -> PrescribedSession:
     """Turn one stored PlannedSession into a wire prescribed session.
 
     Gym sessions unpack the merged ``details`` blob into typed exercises;
@@ -146,7 +147,7 @@ def _prescribed_from_planned(ps: PlannedSession) -> PrescribedSession:
         duration_minutes=ps.duration_minutes,
         notes=ps.notes,
         loggable=loggable,
-        done=ps.completed,
+        done=done,
         exercises=exercises,
         details=passthrough,
     )
@@ -215,9 +216,16 @@ async def get_training_week(
             .order_by(PlannedSession.day_of_week, PlannedSession.id)
         )
         planned = (await session.execute(ps_stmt)).scalars().all()
+        # ``done`` is the week-scoped completion (#218, ADR 0005): a session
+        # lifted on another day, linked or not, isn't offered again.
+        adherence = await get_plan_adherence_for_week(session, DEFAULT_USER_ID, monday)
+        if adherence is not None and adherence["plan_id"] == plan.id:
+            done_ids = {s["id"] for s in adherence["sessions"] if s["completed"]}
+        else:
+            done_ids = {ps.id for ps in planned if ps.completed}
         return TrainingWeek(
             week_start=monday,
-            sessions=[_prescribed_from_planned(ps) for ps in planned],
+            sessions=[_prescribed_from_planned(ps, done=ps.id in done_ids) for ps in planned],
         )
 
     # No plan for this week — fall back to the active routine, weights null.
@@ -250,4 +258,4 @@ async def unlink_session(
     if planned is None:
         raise HTTPException(status_code=404, detail="Planned session not found.")
     await session.commit()
-    return _prescribed_from_planned(planned)
+    return _prescribed_from_planned(planned, done=planned.completed)

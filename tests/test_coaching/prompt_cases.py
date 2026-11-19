@@ -112,6 +112,27 @@ _BODY = summarize_body(
     tz=ZoneInfo("Europe/London"),
 )
 
+_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _open(
+    day_of_week: int, status: str, sport: str, title: str, duration: int | None
+) -> dict[str, Any]:
+    """One session of an Open this week list (#218)."""
+    return {
+        "id": day_of_week + 1,
+        "day": _DAY_NAMES[day_of_week],
+        "day_of_week": day_of_week,
+        "status": status,
+        "sport": sport,
+        "track": sport if sport == "gym" else None,
+        "title": title,
+        "duration_minutes": duration,
+        "details": None,
+        "notes": None,
+    }
+
+
 CASES: dict[str, tuple[str, dict[str, Any]]] = {
     "daily_briefing_full": (
         "daily_briefing",
@@ -124,6 +145,29 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
             ],
             "steps": _STEPS,
             "body": _BODY,
+            "open_this_week": {
+                "sessions": [
+                    _open(0, "overdue", "gym", "Squat Day", 60),
+                    _open(2, "today", "gym", "Pull Day", 60),
+                ],
+                "days_remaining": 5,
+            },
+        },
+    ),
+    "daily_briefing_open_overload": (
+        "daily_briefing",
+        {
+            "health_today": {},
+            "health_trends": [],
+            "recent_activities": [],
+            "open_this_week": {
+                "sessions": [
+                    _open(1, "overdue", "gym", "Squat Day", 60),
+                    _open(5, "today", "running", "Long Run", 90),
+                    _open(5, "today", "swimming", "Swim", None),
+                ],
+                "days_remaining": 2,
+            },
         },
     ),
     "daily_briefing_hrv_band": (

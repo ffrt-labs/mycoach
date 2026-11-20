@@ -534,6 +534,35 @@ class TestGenerateWeeklyPlan:
             rationale = details["exercises"][0]["adjustment_rationale"]
             assert rationale == "Progressing 2.5kg from last week"
 
+    @pytest.mark.parametrize("adjustment_fails", [False, True])
+    async def test_a_routine_typo_of_over_10_sets_is_planned_as_3(
+        self, adjustment_fails: bool
+    ) -> None:
+        """36 sets is a routine error (#187): the stored plan, and so the plan page and
+        the Logger, carry 3, and keep the routine's 36 for the Routine error notice."""
+        async with test_session() as session:
+            user_id, week_start = await _setup_with_routine(session)
+            exercise = (await session.scalars(select(RoutineExercise))).one()
+            exercise.sets = 36
+            await session.commit()
+
+            mock_llm = _mock_llm_two_track()
+            if adjustment_fails:
+                mock_llm.call.side_effect = Exception("API timeout")
+            plan = await CoachingEngine(llm_client=mock_llm).generate_weekly_plan(
+                session, user_id, week_start
+            )
+
+            gym = (
+                await session.scalars(
+                    select(PlannedSession).where(
+                        PlannedSession.plan_id == plan.id, PlannedSession.track == "gym"
+                    )
+                )
+            ).one()
+            (stored,) = json.loads(gym.details)["exercises"]
+            assert (stored["sets"], stored["routine_sets"]) == (3, 36)
+
     async def test_all_gym_slots_no_cardio(self) -> None:
         """When all slots are gym, only gym adjustment calls are made."""
         async with test_session() as session:

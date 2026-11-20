@@ -208,6 +208,48 @@ def test_a_routine_error_shows_as_planned_with_a_footnote(mock_send: MagicMock) 
     assert "* Routine says 36 / 32 sets — assumed 3 until fixed." in _text(html)
 
 
+FAILED_SWIM = {
+    **SWIM,
+    "title": "Swimming Session (plan generation failed)",
+    "duration_minutes": None,
+    "intent": None,
+    "notes": "LLM plan generation failed — please reschedule.",
+    "details": None,
+    "generation_error": "provider timeout",
+}
+
+
+def test_a_session_that_failed_to_generate_is_a_notice_not_coaching(
+    mock_send: MagicMock,
+) -> None:
+    """Story 5: an app problem renders as a Notice with a link to fix it."""
+    html = _html(mock_send, sessions=[FAILED_SWIM])
+    card = html.split("Swimming Session (plan generation failed)", 1)[1]
+
+    assert "please reschedule" not in html
+    assert 'class="coach"' not in card
+    notice = card.split('class="notice', 1)[1].split("<!-- /notice -->", 1)[0]
+    assert "Plan failed" in _text(notice)
+    assert "This session failed to generate." in _text(notice)
+    assert 'href="https://coach.example.com/plan"' in notice
+
+
+def test_a_gym_session_whose_adjustment_failed_says_it_is_the_base_routine(
+    mock_send: MagicMock,
+) -> None:
+    session = {
+        **_gym(_ex("Deadlift", 3, "5"), notes="LLM adjustment failed — using base routine."),
+        "generation_error": "provider timeout",
+    }
+    html = _html(mock_send, sessions=[session])
+
+    assert "LLM adjustment failed" not in html
+    notice = _text(html.split('class="notice', 1)[1].split("<!-- /notice -->", 1)[0])
+    assert "Plan failed" in notice
+    assert "The load and RPE adjustment failed to generate: this is the base routine." in notice
+    assert _rows(html, "exercises")[1] == "Deadlift 3 × 5 — log"
+
+
 def test_a_card_without_details_has_no_table(mock_send: MagicMock) -> None:
     session = {**SWIM, "details": None, "notes": None}
     html = _html(mock_send, sessions=[session])

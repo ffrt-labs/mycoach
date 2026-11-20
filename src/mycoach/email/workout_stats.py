@@ -13,6 +13,7 @@ from typing import Any
 
 from mycoach.coaching.context import PlanAdherence
 from mycoach.coaching.substitution import zone_minutes
+from mycoach.email.coach_notes import NO_VALUE
 from mycoach.models.plan import SessionIntent
 
 MINUS = "−"
@@ -20,7 +21,8 @@ MINUS = "−"
 
 @dataclass(frozen=True)
 class Tile:
-    """One stat-grid tile: "Pace 2:24 /100m · −7 s vs last"."""
+    """One stat tile: "Pace 2:24 /100m · −7 s vs last", or a recap recovery tile
+    "Sleep score / 64–81 / Low on Thu 5 Nov"."""
 
     label: str
     value: str
@@ -324,6 +326,27 @@ def stat_tiles(
     return [t for t in build() if t] if build else []
 
 
+@dataclass(frozen=True)
+class StatGrid:
+    """Tiles laid out in rows for ``components/_stat_grid.html``."""
+
+    rows: list[list[Tile | None]]
+    """Each row ``per_row`` cells; a short last row is padded with empty cells (None)."""
+    cell_width: str
+    """Each cell's share of the row, in percent: "33.33"."""
+
+
+def stat_grid(tiles: Sequence[Tile], per_row: int = 3) -> StatGrid | None:
+    """The tiles ``per_row`` to a row, or None without tiles."""
+    if not tiles:
+        return None
+    rows: list[list[Tile | None]] = [
+        list(tiles[i : i + per_row]) for i in range(0, len(tiles), per_row)
+    ]
+    rows[-1] += [None] * (per_row - len(rows[-1]))
+    return StatGrid(rows, f"{round(100 / per_row, 2):g}")
+
+
 # --- Heart rate zones -----------------------------------------------------------------
 
 
@@ -335,8 +358,8 @@ class ZoneBand:
     minutes: str
     pct: int
     """Its share of the time in zones; 0 leaves it out of the bar, not the legend."""
-    bg: str
-    fg: str
+    css: str
+    """Its colour class, ``zone-<name>`` from ``tones.ZONE_STYLES``."""
 
 
 @dataclass(frozen=True)
@@ -346,12 +369,12 @@ class ZoneBar:
     """ "Target: Z2", from the session's intent; None when the intent names no zone."""
 
 
-# The bar's bands (Z4 and Z5 share one) and their colours, from the artboard.
-_BANDS: tuple[tuple[str, tuple[int, ...], str, str], ...] = (
-    ("Z1", (1,), "#bfdbfe", "#1e3a8a"),
-    ("Z2", (2,), "#3b82f6", "#ffffff"),
-    ("Z3", (3,), "#f59e0b", "#451a03"),
-    ("Z4–5", (4, 5), "#b91c1c", "#ffffff"),
+# The bar's bands (Z4 and Z5 share one) and their colour classes (tones.ZONE_STYLES).
+_BANDS: tuple[tuple[str, tuple[int, ...], str], ...] = (
+    ("Z1", (1,), "zone-z1"),
+    ("Z2", (2,), "zone-z2"),
+    ("Z3", (3,), "zone-z3"),
+    ("Z4–5", (4, 5), "zone-z45"),
 )
 
 INTENT_ZONE_TARGET: dict[str, str] = {
@@ -389,17 +412,15 @@ def zone_bar(activity: Activity | None, intent: str | None) -> ZoneBar | None:
     if total <= 0:
         return None
     bands = []
-    for label, zones, bg, fg in _BANDS:
+    for label, zones, css in _BANDS:
         band = sum(minutes.get(z, 0.0) for z in zones)
-        bands.append(ZoneBand(label, _minutes(band), round(band / total * 100), bg, fg))
+        bands.append(ZoneBand(label, _minutes(band), round(band / total * 100), css))
     target = INTENT_ZONE_TARGET.get(intent or "")
     return ZoneBar(bands, f"Target: {target}" if target else None)
 
 
 # --- Trend ----------------------------------------------------------------------------
 
-NO_VALUE = "—"
-"""A trend-table cell the activity has no value for (tiles leave theirs out instead)."""
 
 
 @dataclass(frozen=True)

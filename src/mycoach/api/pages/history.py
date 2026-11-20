@@ -16,18 +16,11 @@ from mycoach.api.pages.insights import analysis_html
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.database import get_db
 from mycoach.models.coaching import CoachingInsight
+from mycoach.sport_display import sport_display
 
 router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
-
-SPORT_COLORS = {
-    "gym": "blue",
-    "swimming": "cyan",
-    "padel": "green",
-    "cardio": "red",
-}
-
 
 @router.get("/history", response_class=HTMLResponse)
 async def history_page(
@@ -89,7 +82,7 @@ async def history_page(
             exercises.append({"title": sets[0]["exercise_title"], "sets": sets})
 
         started = datetime.fromisoformat(a["start_time"])
-        color = SPORT_COLORS.get(a["sport"], "gray")
+        color = sport_display(a["sport"]).colour
         insight_id, analysis_md = full_analysis.get(a["external_id"], (None, None))
         activity_cards.append(
             {

@@ -18,7 +18,7 @@
     {% endif %}
     {% if week_strip %}{{ strip.week_strip(week_strip) }}{% endif %}
     {#- Life context, default schedule, routine error, Coach notes unavailable: built in
-        sender, in that order. -#}
+        plan_views, in that order. -#}
     {% for n in notices|default([]) %}
     {{ note.notice(n.label, n.text, n.tone, n.link_url, n.link_text, margin_top=16 if loop.first else 12) }}
     {% endfor %}
@@ -57,7 +57,9 @@
         </td>
       </tr>
     </table>
-    {% if session.focus %}
+    {% if session.notice %}
+    {{ note.notice(session.notice.label, session.notice.text, session.notice.tone, session.notice.link_url, session.notice.link_text, margin_top=16) }}
+    {% elif session.focus %}
     {% call ui.coach(padding=14, margin_top=16) %}{{ session.focus }}{% endcall %}
     {% endif %}
     {% if session.exercises %}

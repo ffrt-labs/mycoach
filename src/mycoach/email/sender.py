@@ -7,8 +7,7 @@ Backend is selected based on configuration: Resend API key takes precedence over
 import logging
 import smtplib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -28,15 +27,7 @@ from mycoach.coaching.email_schemas import (
     WeeklyRecapEmail,
 )
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
-from mycoach.coaching.life_context import (
-    STATUS_LABEL,
-    DayEffect,
-    Episode,
-    LifeContext,
-    excused_reasons,
-    excused_summary,
-    ramp_back_length,
-)
+from mycoach.coaching.life_context import Episode, LifeContext
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 from mycoach.email.briefing_views import (
@@ -47,36 +38,59 @@ from mycoach.email.briefing_views import (
     tonight_view,
 )
 from mycoach.email.coach_notes import (
-    NO_VALUE,
     NOTES_UNAVAILABLE,
     block_rows,
     coach_notes,
     ready_chip,
     tip_chip,
 )
-from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
-from mycoach.email.links import insight_url
-from mycoach.email.plan_views import plan_block_rows
+from mycoach.email.life_views import (
+    life_banner,
+    life_chip,
+    open_week_view,
+    week_status,
+)
+from mycoach.email.links import (
+    dashboard_url,
+    default_schedule_url,
+    insight_url,
+    life_context_url,
+    log_episode_url,
+)
+from mycoach.email.plan_views import (
+    default_schedule_notices,
+    life_context_notices,
+    notes_unavailable_notices,
+    plan_card,
+    plan_totals,
+    routine_error_notices,
+    travel_days,
+    week_strip,
+)
 from mycoach.email.recap_views import (
+    completion_hero,
+    episode_line,
+    extra_rows,
     lift_rows,
     load_rows,
+    quick_replies,
     recovery_tiles,
+    session_rows,
     setup_notices,
 )
 from mycoach.email.recap_views import (
     session_notes as recap_session_notes,
 )
-from mycoach.email.tones import (
-    JINJA_GLOBALS,
-    LIFE_CONTEXT_STYLE,
-    QUALITY_INTENTS,
-    SESSION_STATUS_CHIP,
-    Chip,
+from mycoach.email.tones import JINJA_GLOBALS
+from mycoach.email.workout_stats import (
+    session_intent,
+    stat_grid,
+    stat_tiles,
+    trend_table,
+    zone_bar,
 )
-from mycoach.email.workout_stats import session_intent, stat_tiles, trend_table, zone_bar
-from mycoach.localtime import WEEKDAY_NAMES, local_today
-from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
-from mycoach.models.plan import INTENT_LABEL
+from mycoach.localtime import local_today
+from mycoach.sport_display import sport_display
 
 logger = logging.getLogger(__name__)
 
@@ -106,117 +120,6 @@ def _render_template(template_name: str, context: dict) -> str:  # type: ignore[
     """Render a Jinja2 email template with the given context."""
     template = _jinja_env.get_template(template_name)
     return template.render(**context)
-
-
-ROUTINE_MAX_SETS = 10
-"""More working sets of one exercise than this is a routine typo, not a prescription (#187)."""
-
-ROUTINE_ERROR_PLANNED_SETS = 3
-"""What the plan email shows in place of a set count over ``ROUTINE_MAX_SETS`` (#234)."""
-
-
-def _is_routine_error(sets: object) -> bool:
-    return isinstance(sets, int) and sets > ROUTINE_MAX_SETS
-
-
-@dataclass(frozen=True)
-class ExerciseRow:
-    """One row of a gym day card's exercise table: "Squat (Barbell) | 6 × 5 | 7 | log"."""
-
-    name: str
-    sets_reps: str
-    rpe: str
-    load: str
-    routine_error: bool
-
-
-LOAD_TO_LOG = "log"
-"""The Load cell of an exercise with no target load yet: the athlete logs what they lift."""
-
-
-def _rep_range(reps: object) -> str:
-    """ "8-10" as "8–10"."""
-    return str(reps if reps is not None else "?").replace("-", "–")
-
-
-def exercise_rows(details: Mapping[str, Any] | None) -> list[ExerciseRow]:
-    """A gym session's exercises (routine + gym adjustment) as exercise-table rows.
-
-    The Load column reads "log" until the gym adjustment sets a target load. A
-    routine-error set count shows as the planned "3*", the asterisk pointing at the
-    card's footnote and the Routine error notice.
-    """
-    exercises = (details or {}).get("exercises")
-    if not isinstance(exercises, list):
-        return []
-    rows = []
-    for ex in exercises:
-        if not isinstance(ex, dict):
-            continue
-        sets = ex.get("sets", "?")
-        error = _is_routine_error(sets)
-        if error:
-            sets = f"{ROUTINE_ERROR_PLANNED_SETS}*"
-        kg = ex.get("target_weight_kg")
-        rows.append(
-            ExerciseRow(
-                name=str(ex.get("name", "Exercise")),
-                sets_reps=f"{sets} × {_rep_range(ex.get('reps'))}",
-                rpe=str(ex["rpe"]) if ex.get("rpe") is not None else NO_VALUE,
-                load=f"{kg:g} kg" if isinstance(kg, (int, float)) and kg else LOAD_TO_LOG,
-                routine_error=error,
-            )
-        )
-    return rows
-
-
-def _routine_error_footnote(details: Mapping[str, Any] | None) -> str | None:
-    """ "* Routine says 36 / 32 sets — assumed 3 until fixed.", under the exercise table."""
-    exercises = (details or {}).get("exercises")
-    if not isinstance(exercises, list):
-        return None
-    counts: list[int] = []
-    for ex in exercises:
-        sets = ex.get("sets") if isinstance(ex, dict) else None
-        if isinstance(sets, int) and _is_routine_error(sets) and sets not in counts:
-            counts.append(sets)
-    if not counts:
-        return None
-    said = " / ".join(str(n) for n in counts)
-    return f"* Routine says {said} sets — assumed {ROUTINE_ERROR_PLANNED_SETS} until fixed."
-
-
-def _plan_card(session: Mapping[str, Any]) -> dict[str, Any]:
-    """A day card's view: header, focus line, exercise or block table, foot (#243)."""
-    raw = session.get("details")
-    details: Mapping[str, Any] = raw if isinstance(raw, Mapping) else {}
-    exercises = exercise_rows(details)
-    foot = details.get("foot")
-    return {
-        **session,
-        "sport_style": _plan_sport(session.get("sport"))[0],
-        "focus": session.get("notes"),
-        "exercises": exercises,
-        "blocks": [] if exercises else plan_block_rows(details),
-        "foot": _routine_error_footnote(details)
-        if exercises
-        else (foot if isinstance(foot, str) else None),
-    }
-
-
-def _dashboard_url(settings: Settings) -> str:
-    """Build the dashboard link used for every email's CTA button."""
-    return f"{settings.app_base_url}/dashboard"
-
-
-def _life_context_url(settings: Settings) -> str:
-    """The dashboard's Life context section, where illness and travel are logged."""
-    return f"{settings.app_base_url}/#life-context"
-
-
-def _default_schedule_url(settings: Settings) -> str:
-    """Build the link straight to the standing-schedule tab of the availability page."""
-    return f"{settings.app_base_url}/availability?week=default"
 
 
 def _send_via_resend(settings: Settings, to: str, subject: str, html: str) -> None:
@@ -419,243 +322,18 @@ def send_daily_briefing(
             "last_night_view": last_night_view(hrv),
             "tonight_tips": tonight_view(notes.tonight) if notes else [],
             "steps": steps,
-            "dashboard_url": _dashboard_url(settings),
+            "dashboard_url": dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
             "body": _body_view(body, settings),
             "open_week": open_week_view(open_this_week, pick=options.pick if options else None),
             "banner": life_banner(life),
-            "life_context_url": _life_context_url(settings),
+            "life_context_url": life_context_url(settings),
             "full_analysis_url": (
                 insight_url(settings, insight_id) if notes and insight_id is not None else None
             ),
         },
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
-
-
-def _plan_duration(minutes: int) -> str:
-    """ "4 h 30 min", "2 h" or "45 min"."""
-    hours, rest = divmod(minutes, 60)
-    if not hours:
-        return f"{rest} min"
-    return f"{hours} h {rest} min" if rest else f"{hours} h"
-
-
-def _plan_totals(sessions: list[dict]) -> dict[str, str]:  # type: ignore[type-arg]
-    """The hero's count and total time, computed from the planned sessions."""
-    n = len(sessions)
-    minutes = sum(s.get("duration_minutes") or 0 for s in sessions)
-    return {
-        "count": f"{n} session{'' if n == 1 else 's'}",
-        "total": _plan_duration(minutes) if minutes else "",
-    }
-
-
-_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-
-# Sport -> (chip style, week-strip short label). Unknown sports render neutral, upper-cased.
-_PLAN_SPORT: dict[str, tuple[str, str]] = {
-    "gym": ("warm", "GYM"),
-    "strength": ("warm", "GYM"),
-    "swimming": ("info", "SWIM"),
-    "swim": ("info", "SWIM"),
-    "cycling": ("info", "BIKE"),
-    "running": ("good", "RUN"),
-    "run": ("good", "RUN"),
-    "padel": ("good", "PADEL"),
-    "rest": ("neutral", "REST"),
-}
-
-
-def _plan_sport(sport: str | None) -> tuple[str, str]:
-    key = (sport or "").lower()
-    return _PLAN_SPORT.get(key, ("neutral", key.upper()))
-
-
-def _plan_day_index(session: dict) -> int | None:  # type: ignore[type-arg]
-    """The session's weekday (0 = Monday), from ``day_of_week`` or else its ``day_name``."""
-    day = session.get("day_of_week")
-    if isinstance(day, int) and 0 <= day <= 6:
-        return day
-    name = str(session.get("day_name") or "").strip().lower()
-    return next((i for i, d in enumerate(_WEEKDAYS) if d.lower() == name), None)
-
-
-def _week_strip(
-    sessions: list[dict],  # type: ignore[type-arg]
-    travel_days: set[int],
-) -> list[dict]:  # type: ignore[type-arg]
-    """Seven cells, Monday first: each day's sessions (sport, minutes, intent label), whether
-    a quality intent is planned that day, and whether a trip covers it."""
-    days: list[dict] = [  # type: ignore[type-arg]
-        {"abbr": name[:3].upper(), "sessions": [], "quality": False, "travel": i in travel_days}
-        for i, name in enumerate(_WEEKDAYS)
-    ]
-    for s in sessions:
-        i = _plan_day_index(s)
-        if i is None:
-            continue
-        style, label = _plan_sport(s.get("sport"))
-        intent = s.get("intent")
-        days[i]["sessions"].append(
-            {
-                "sport": label,
-                "style": style,
-                "minutes": s.get("duration_minutes"),
-                "intent": INTENT_LABEL.get(intent) if intent else None,
-            }
-        )
-        if intent in QUALITY_INTENTS:
-            days[i]["quality"] = True
-    return days
-
-
-_EQUIPMENT_TEXT: dict[str, str] = {
-    Equipment.NONE: "no equipment",
-    Equipment.HOTEL_GYM: "hotel gym",
-    Equipment.FULL_GYM: "full gym",
-}
-
-
-def _trip_days(trip: Episode, week_start: date) -> list[int]:
-    """The weekdays (0 = Monday) of ``week_start``'s week the trip covers; an open trip
-    runs to the end of the week."""
-    week_end = week_start + timedelta(days=6)
-    first = max(trip.started_on, week_start)
-    last = min(trip.ended_on or week_end, week_end)
-    return [(first - week_start).days + i for i in range((last - first).days + 1)]
-
-
-def _trip_notice(trip: Episode, week_start: date) -> str:
-    """ "Trip Wed–Fri · hotel gym · 6 h ahead": what the athlete logged, nothing inferred."""
-    days = _trip_days(trip, week_start)
-    starts_in_week = trip.started_on >= week_start
-    ends_in_week = trip.ended_on is not None and trip.ended_on <= week_start + timedelta(days=6)
-    first, last = _WEEKDAYS[days[0]][:3], _WEEKDAYS[days[-1]][:3]
-    if starts_in_week and ends_in_week:
-        span = first if first == last else f"{first}–{last}"
-    elif starts_in_week:
-        span = f"from {first}"
-    elif ends_in_week:
-        span = f"until {last}"
-    else:
-        span = "all week"
-    parts = [f"Trip {span}"]
-    if trip.equipment is not None:
-        parts.append(_EQUIPMENT_TEXT[trip.equipment])
-    if trip.tz_shift_hours:
-        side = "behind" if trip.tz_shift_hours < 0 else "ahead"
-        parts.append(f"{abs(trip.tz_shift_hours):g} h {side}")
-    if trip.no_training:
-        parts.append("no training possible")
-    if trip.ended_on is None:
-        parts.append("return date not set")
-    return " · ".join(parts)
-
-
-def _illness_notice(illness: Episode) -> str:
-    """ "Ill since Fri 13 Nov · mild"."""
-    text = f"Ill since {illness.started_on.strftime('%a %-d %b')}"
-    return f"{text} · {illness.severity}" if illness.severity else text
-
-
-def _life_context_notices(life: LifeContext | None, week_start: date) -> list[dict[str, str]]:
-    """A notice per trip touching the planned week, and per open illness. Facts only: how
-    the plan handles them is the coach's to say, not the notice's."""
-    if life is None:
-        return []
-    week_end = week_start + timedelta(days=6)
-    notices = []
-    for e in life.episodes:
-        if e.kind == EpisodeKind.TRAVEL and e.started_on <= week_end:
-            if e.ended_on is None or e.ended_on >= week_start:
-                effect = DayEffect.TRAVEL_NO_TRAINING if e.no_training else DayEffect.TRAVEL
-                text = _trip_notice(e, week_start)
-            else:
-                continue
-        elif e.kind == EpisodeKind.ILLNESS and e.is_open:
-            effect = DayEffect.MILD if e.severity == IllnessSeverity.MILD else DayEffect.SICK
-            text = _illness_notice(e)
-        else:
-            continue
-        notices.append({"label": "Life context", "tone": LIFE_CONTEXT_STYLE[effect], "text": text})
-    return notices
-
-
-def _travel_days(life: LifeContext | None, week_start: date) -> set[int]:
-    if life is None:
-        return set()
-    week_end = week_start + timedelta(days=6)
-    return {
-        day
-        for e in life.episodes
-        if e.kind == EpisodeKind.TRAVEL
-        and e.started_on <= week_end
-        and (e.ended_on is None or e.ended_on >= week_start)
-        for day in _trip_days(e, week_start)
-    }
-
-
-def _default_schedule_notices(
-    availability_source: str | None, settings: Settings
-) -> list[dict[str, str]]:
-    """The week was planned against the standing schedule, not something the athlete set."""
-    if availability_source != "default":
-        return []
-    return [
-        {
-            "label": "Default schedule",
-            "tone": "neutral",
-            "text": "Planned against your standing schedule — you didn't set this week, "
-            "so it was filled in from your default.",
-            "link_url": _default_schedule_url(settings),
-            "link_text": "Change it →",
-        }
-    ]
-
-
-def _and_join(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
-
-
-def _routine_error_notices(
-    sessions: list[dict],  # type: ignore[type-arg]
-    settings: Settings,
-) -> list[dict[str, str]]:
-    """A Routine error notice per day whose routine lists more than ``ROUTINE_MAX_SETS``
-    sets of an exercise: "Friday lists Deadlift and Pull Up at 36 sets, Split Squat at
-    32. Planned as 3." It is an app problem, so it links to the routine to fix it."""
-    notices = []
-    for s in sessions:
-        details = s.get("details")
-        exercises = details.get("exercises") if isinstance(details, dict) else None
-        if not isinstance(exercises, list):
-            continue
-        by_sets: dict[int, list[str]] = {}
-        for ex in exercises:
-            if isinstance(ex, dict) and _is_routine_error(ex.get("sets")):
-                by_sets.setdefault(ex["sets"], []).append(str(ex.get("name", "Exercise")))
-        if not by_sets:
-            continue
-        groups = [f"{_and_join(names)} at {n}" for n, names in by_sets.items()]
-        groups[0] += " sets"
-        notices.append(
-            {
-                "label": "Routine error",
-                "tone": "watch",
-                "text": f"{s.get('day_name')} lists {', '.join(groups)}. "
-                f"Planned as {ROUTINE_ERROR_PLANNED_SETS}.",
-                "link_url": f"{settings.app_base_url}/routine",
-                "link_text": "Fix routine →",
-            }
-        )
-    return notices
-
-
-def _notes_unavailable_notices(unavailable: bool) -> list[dict[str, str]]:
-    if not unavailable:
-        return []
-    return [{"label": "Coach", "tone": "neutral", "text": f"{NOTES_UNAVAILABLE}."}]
 
 
 def send_weekly_plan(
@@ -695,19 +373,19 @@ def send_weekly_plan(
         {
             "summary": plan_notes.focus if plan_notes else summary,
             "guardrails": plan_notes.guardrails if plan_notes else [],
-            "totals": _plan_totals(sessions),
-            "week_strip": _week_strip(sessions, _travel_days(life, monday)),
+            "totals": plan_totals(sessions),
+            "week_strip": week_strip(sessions, travel_days(life, monday)),
             "notices": [
-                *_life_context_notices(life, monday),
-                *_default_schedule_notices(availability_source, settings),
-                *_routine_error_notices(sessions, settings),
-                *_notes_unavailable_notices(notes_unavailable and plan_notes is None),
+                *life_context_notices(life, monday),
+                *default_schedule_notices(availability_source, settings),
+                *routine_error_notices(sessions, settings),
+                *notes_unavailable_notices(notes_unavailable and plan_notes is None),
             ],
-            "sessions": [_plan_card(s) for s in sessions],
+            "sessions": [plan_card(s, settings) for s in sessions],
             "week_start": week_start,
             "availability_source": availability_source,
-            "dashboard_url": _dashboard_url(settings),
-            "default_schedule_url": _default_schedule_url(settings),
+            "dashboard_url": dashboard_url(settings),
+            "default_schedule_url": default_schedule_url(settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Plan", html, settings)
@@ -721,7 +399,7 @@ def send_no_availability(week_start: str, settings: Settings | None = None) -> b
         "no_availability.html",
         {
             "week_start": week_start,
-            "default_schedule_url": _default_schedule_url(settings),
+            "default_schedule_url": default_schedule_url(settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — No Plan Generated", html, settings)
@@ -733,7 +411,7 @@ def send_garmin_auth_failed(reason: str, settings: Settings | None = None) -> bo
         settings = get_settings()
     html = _render_template(
         "garmin_auth_failed.html",
-        {"reason": reason, "dashboard_url": _dashboard_url(settings)},
+        {"reason": reason, "dashboard_url": dashboard_url(settings)},
     )
     return send_email(settings.email_to, "MyCoach — Garmin login failed", html, settings)
 
@@ -831,7 +509,7 @@ def send_briefing_unavailable(
             "last_upload": (_format_last_upload(last_upload, settings) if last_upload else None),
             "device_name": device_name,
             "steps": steps,
-            "dashboard_url": _dashboard_url(settings),
+            "dashboard_url": dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
             "body": _body_view(body, settings),
         },
@@ -839,16 +517,12 @@ def send_briefing_unavailable(
     return send_email(settings.email_to, "MyCoach — No Briefing Today", html, settings)
 
 
-_SPORT_LABEL: Mapping[str, str] = {"swimming": "Swim", "running": "Run", "gym": "Gym"}
-
-
 def _post_workout_eyebrow(activity: Mapping[str, Any] | None, activity_title: str) -> str:
     """ "Swim · Pool swim": the activity's sport, then its title."""
     sport = (activity or {}).get("sport")
     if not sport:
         return activity_title
-    label = _SPORT_LABEL.get(sport, str(sport).replace("_", " ").capitalize())
-    return f"{label} · {activity_title}"
+    return f"{sport_display(str(sport)).label} · {activity_title}"
 
 
 def send_post_workout(
@@ -900,12 +574,12 @@ def send_post_workout(
             "blocks": block_rows(notes.next_session) if notes else [],
             "zone_chip": tip_chip(notes.zone_note) if notes and notes.zone_note else None,
             "ready_chip": ready_chip(notes.ready_in_hours) if notes else None,
-            "dashboard_url": _dashboard_url(settings),
+            "dashboard_url": dashboard_url(settings),
             "full_analysis_url": full_analysis,
             "week_status": week_status(week, activity),
             "life_chip": life_chip(life),
             "open_week": open_week_view(open_this_week),
-            "tiles": stat_tiles(activity, planned=planned, sets=sets, history=history),
+            "grid": stat_grid(stat_tiles(activity, planned=planned, sets=sets, history=history)),
             "zones": zone_bar(activity, session_intent(activity, planned, week)),
             "trend": trend_table(activity, history),
         },
@@ -915,312 +589,10 @@ def send_post_workout(
     )
 
 
-def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
-    """The week's completion as the recap email shows it: "4/5 done · 1 substituted".
-
-    Substitutions are already in the done count (#216); excused sessions (#220) are
-    out of the denominator: "2/2 done · 3 excused (ill 3 days)". Sessions adapted on
-    a trip (#221) are done too: "2/3 done · 1 adapted (travel)". None without a plan.
-    """
-    if not adherence or not (adherence.get("total_sessions") or adherence.get("excused_sessions")):
-        return None
-    line = f"{adherence['completed_sessions']}/{adherence['total_sessions']} done"
-    for key, status in (
-        ("substituted_sessions", "substituted"),
-        ("adapted_sessions", "adapted_travel"),
-    ):
-        if adherence.get(key):
-            line += f" · {adherence[key]} {STATUS_LABEL[status]}"
-    excused = excused_summary(
-        adherence.get("excused_sessions", 0), adherence.get("excused_days") or {}
-    )
-    if excused:
-        line += f" · {excused}"
-    return line
-
-
-@dataclass(frozen=True)
-class CompletionHero:
-    """The recap hero (#232): "4/5 done" large, "· 1 substituted" beside it."""
-
-    h1: str
-    rest: str | None = None
-    on_planned_day: str | None = None
-
-
-def completion_hero(adherence: Mapping[str, Any] | None) -> CompletionHero:
-    """Split the week's Completion line for the recap hero.
-
-    The H1 is the line's first segment. A week whose every session was excused
-    shows "4 excused" and the reason, never "0/0 done"; no plan, "No plan this
-    week". On planned day counts only sessions whose day is known, and is
-    informational, never a score.
-    """
-    line = completion_line(adherence)
-    if adherence is None or line is None:
-        return CompletionHero("No plan this week")
-    if not adherence.get("total_sessions"):
-        reasons = excused_reasons(adherence.get("excused_days") or {})
-        h1, rest = f"{adherence['excused_sessions']} excused", reasons or None
-    else:
-        h1, _, rest_line = line.partition(" · ")
-        rest = rest_line or None
-    known = [
-        s["on_planned_day"]
-        for s in adherence.get("sessions") or []
-        if s.get("on_planned_day") is not None
-    ]
-    return CompletionHero(
-        h1,
-        None if rest is None else f"· {rest}",
-        f"On planned day {sum(known)}/{len(known)} · informational" if known else None,
-    )
-
-
 def _short_date(iso_day: str) -> str:
     """ "2026-11-02" → "2 Nov"."""
     day = date.fromisoformat(iso_day)
     return f"{day.day} {day:%b}"
-
-
-_EXCUSED_STATUSES = frozenset({"excused_ill", "excused_travel"})
-
-
-@dataclass(frozen=True)
-class SessionRow:
-    """One planned session in the recap's Sessions list (#232), all from the Completion."""
-
-    day: str  # "MON"
-    title: str
-    meta: str  # "Gym · strength"
-    chip: Chip | None
-    detail: str | None  # "Done Wednesday", or what filled it
-    struck: bool  # excused: out of the count, no action asked
-    note: str | None = None  # the coach's session note, joined by session id (#242)
-
-
-def _weekday_index(day: str) -> int:
-    return WEEKDAY_NAMES.index(day) if day in WEEKDAY_NAMES else len(WEEKDAY_NAMES)
-
-
-def _sport_meta(sport: str, intent: str | None) -> str:
-    """ "Gym · strength": the sport, then the Session intent's label when it has one."""
-    label = INTENT_LABEL.get(intent) if intent else None
-    return sport.capitalize() + (f" · {label}" if label else "")
-
-
-def _substitute_line(sub: Mapping[str, Any]) -> str:
-    """ "← Padel Sun · 101 min · avg HR 118 · aerobic TE 2.7"; what Garmin didn't record
-    is left out."""
-    head = f"← {sub['title']}"
-    if sub.get("day"):
-        head += f" {str(sub['day'])[:3]}"
-    parts = [head]
-    if sub.get("duration_minutes") is not None:
-        parts.append(f"{sub['duration_minutes']} min")
-    if sub.get("avg_hr") is not None:
-        parts.append(f"avg HR {sub['avg_hr']}")
-    if sub.get("training_effect_aerobic") is not None:
-        parts.append(f"aerobic TE {sub['training_effect_aerobic']:.1f}")
-    return " · ".join(parts)
-
-
-def session_rows(
-    adherence: Mapping[str, Any] | None, notes: Mapping[int, str] | None = None
-) -> list[SessionRow]:
-    """The week's planned sessions in planned-day order, each with its status chip.
-
-    A session done on another day says which ("Done Wednesday"); a substituted or
-    adapted one shows what filled it; an excused one is struck through. ``notes`` are
-    the coach's session notes by session id (#242).
-    """
-    rows = []
-    for s in sorted(
-        (adherence or {}).get("sessions") or [], key=lambda s: _weekday_index(s["day"])
-    ):
-        status = s["status"]
-        detail = None
-        if s.get("substitute"):
-            detail = _substitute_line(s["substitute"])
-        elif status == "done" and s.get("on_planned_day") is False and s.get("actual_day"):
-            detail = f"Done {s['actual_day']}"
-        rows.append(
-            SessionRow(
-                day=str(s["day"])[:3].upper(),
-                title=s["title"],
-                meta=_sport_meta(s["sport"], s.get("intent")),
-                chip=SESSION_STATUS_CHIP.get(status),
-                detail=detail,
-                struck=status in _EXCUSED_STATUSES,
-                note=(notes or {}).get(s.get("id")),
-            )
-        )
-    return rows
-
-
-@dataclass(frozen=True)
-class ExtraRow:
-    """An Extra activity in the recap: training load only, never counted."""
-
-    day: str  # "SAT"
-    text: str  # "Walk · 45 min · recovery"
-
-
-def extra_rows(adherence: Mapping[str, Any] | None) -> list[ExtraRow]:
-    """The week's Extra activities in the order they were done."""
-    rows = []
-    for a in sorted((adherence or {}).get("extras") or [], key=lambda a: _weekday_index(a["day"])):
-        parts = [str(a["title"])]
-        if a.get("duration_minutes") is not None:
-            parts.append(f"{a['duration_minutes']} min")
-        if a.get("intent") and a["intent"] in INTENT_LABEL:
-            parts.append(INTENT_LABEL[a["intent"]])
-        rows.append(ExtraRow(str(a["day"])[:3].upper(), " · ".join(parts)))
-    return rows
-
-
-_EQUIPMENT_LABEL: dict[str, str] = {
-    Equipment.NONE: "no equipment",
-    Equipment.HOTEL_GYM: "hotel gym",
-    Equipment.FULL_GYM: "full gym",
-}
-"""A trip's equipment as the dashboard names it (``templates/_life_context.html``)."""
-
-
-def _day_span(first: date, last: date) -> str:
-    """ "11–15 Nov", "30 Oct–3 Nov", or "7 Nov" for one day."""
-    if first == last:
-        return f"{first.day} {first:%b}"
-    if (first.year, first.month) == (last.year, last.month):
-        return f"{first.day}–{last.day} {last:%b}"
-    return f"{first.day} {first:%b}–{last.day} {last:%b}"
-
-
-def episode_line(episode: Episode) -> str:
-    """One Life context episode touching the recap week.
-
-    "Ill 11–15 Nov · sick · ramp-back to 20 Nov", "Ill since 6 Nov · sick",
-    "Trip 9–12 Nov · hotel gym · no training possible".
-    """
-    head = "Ill" if episode.kind == EpisodeKind.ILLNESS else "Trip"
-    if episode.ended_on is None:
-        when = f"since {episode.started_on.day} {episode.started_on:%b}"
-    else:
-        when = _day_span(episode.started_on, episode.ended_on)
-    parts = [f"{head} {when}"]
-    if episode.kind == EpisodeKind.ILLNESS:
-        severity = episode.severity or IllnessSeverity.SICK
-        parts.append(severity.value)
-        if episode.ended_on is not None:
-            length = ramp_back_length(severity, (episode.ended_on - episode.started_on).days + 1)
-            ends = episode.ended_on + timedelta(days=length)
-            parts.append(f"ramp-back to {ends.day} {ends:%b}")
-    else:
-        if episode.equipment is not None:
-            parts.append(_EQUIPMENT_LABEL[episode.equipment])
-        if episode.no_training:
-            parts.append("no training possible")
-    return " · ".join(parts)
-
-
-def _prefill_url(settings: Settings, kind: str, start: date, end: date) -> str:
-    """The dashboard's Life context form, prefilled (#236). Opening it writes nothing."""
-    return (
-        f"{settings.app_base_url}/?log={kind}&from={start.isoformat()}"
-        f"&to={end.isoformat()}#life-context"
-    )
-
-
-def _log_episode_url(settings: Settings, week_start: str) -> str:
-    """The dashboard's Life context form, prefilled for the recapped week (#236)."""
-    start = date.fromisoformat(week_start)
-    return _prefill_url(settings, "illness", start, start + timedelta(days=6))
-
-
-@dataclass(frozen=True)
-class QuickReply:
-    """One cause quick-reply button: a GET that only opens a prefilled form."""
-
-    label: str
-    sub: str
-    url: str
-
-
-@dataclass(frozen=True)
-class QuickReplies:
-    """The recap's "What happened…?" block (#237)."""
-
-    question: str
-    replies: list[QuickReply]
-
-
-def _between(first: date, last: date) -> str:
-    """ "between 9 and 15 Nov", "between 30 Oct and 3 Nov", "on 12 Nov"."""
-    if first == last:
-        return f"on {first.day} {first:%b}"
-    if (first.year, first.month) == (last.year, last.month):
-        return f"between {first.day} and {last.day} {last:%b}"
-    return f"between {first.day} {first:%b} and {last.day} {last:%b}"
-
-
-# Health snapshots missing for this many days of the week point at the watch.
-_HEALTH_GAP_DAYS = 2
-
-
-def quick_replies(
-    adherence: Mapping[str, Any] | None,
-    episodes: Sequence[Episode] | None,
-    week_start: date,
-    today: date,
-    settings: Settings,
-    health_days_missing: int | None = None,
-    garmin_auth_failed: bool = False,
-) -> QuickReplies | None:
-    """Ask what happened in a week that went quiet, or None when the block stays out.
-
-    Shown when the week isn't complete, no Life context episode touches it, and
-    either nothing was done or health data is missing for two days or more.
-    Unread episodes or health data count as unknown, never as "none".
-
-    The prefill range runs from the first to the last not-done session's planned day:
-    the narrowest range that explains the gap, so accepting the default excuses
-    nothing the user didn't mean. Illness can't end later than yesterday. The
-    watch button needs the health gap, and reads "Reconnect Garmin" when the last
-    sync failed to log in.
-    """
-    if adherence is None or episodes is None or episodes:
-        return None
-    if adherence.get("completed_sessions", 0) >= adherence.get("total_sessions", 0):
-        return None
-    health_gap = health_days_missing is not None and health_days_missing >= _HEALTH_GAP_DAYS
-    if adherence.get("completed_sessions", 0) > 0 and not health_gap:
-        return None
-    not_done = sorted(
-        week_start + timedelta(days=_weekday_index(s["day"]))
-        for s in adherence.get("sessions") or []
-        if s.get("status") == "not_done" and s.get("day") in WEEKDAY_NAMES
-    )
-    if not not_done:
-        return None
-    first, last = not_done[0], not_done[-1]
-    replies = []
-    ill_to = min(last, today - timedelta(days=1))
-    if ill_to >= first:
-        replies.append(
-            QuickReply(
-                "I was ill", "log past illness", _prefill_url(settings, "illness", first, ill_to)
-            )
-        )
-    replies.append(
-        QuickReply(
-            "I was travelling", "log the trip", _prefill_url(settings, "travel", first, last)
-        )
-    )
-    if health_gap:
-        # The dashboard's Garmin sync button; the link itself never syncs or logs in.
-        label = "Reconnect Garmin" if garmin_auth_failed else "Watch didn't sync"
-        replies.append(QuickReply(label, "check sources", f"{settings.app_base_url}/"))
-    return QuickReplies(f"What happened {_between(first, last)}?", replies)
 
 
 def send_weekly_recap(
@@ -1269,7 +641,7 @@ def send_weekly_recap(
     html = _render_template(
         "weekly_recap.html",
         {
-            "full_recap_url": full_recap or _dashboard_url(settings),
+            "full_recap_url": full_recap or dashboard_url(settings),
             "notes": notes,
             "notes_unavailable": NOTES_UNAVAILABLE,
             "quick_replies": quick_replies(
@@ -1282,14 +654,14 @@ def send_weekly_recap(
                 garmin_auth_failed,
             ),
             "week_label": _short_date(week_start),
-            "dashboard_url": _dashboard_url(settings),
+            "dashboard_url": dashboard_url(settings),
             "hero": completion_hero(adherence),
             "sessions": session_rows(
                 adherence, recap_session_notes(notes.session_notes, adherence) if notes else None
             ),
             "extras": extra_rows(adherence),
             "episodes": None if episodes is None else [episode_line(e) for e in episodes],
-            "log_episode_url": _log_episode_url(settings, week_start),
+            "log_episode_url": log_episode_url(settings, week_start),
             "recovery_tiles": recovery_tiles(health_week),
             "lifts": lift_rows(gym_sets, notes.lift_notes if notes else ()),
             "loads": load_rows(health_week),

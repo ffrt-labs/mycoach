@@ -133,6 +133,17 @@ async def test_an_illness_cannot_end_before_it_starts(client: AsyncClient) -> No
     assert resp.status_code == 422
 
 
+async def test_an_illness_with_an_end_but_no_start_starts_today_so_cannot_have_ended(
+    client: AsyncClient,
+) -> None:
+    resp = await client.post(
+        "/api/life-context/illness",
+        json={"severity": "sick", "ended_on": str(_today() - timedelta(days=1))},
+    )
+
+    assert resp.status_code == 422
+
+
 async def test_an_overlapping_illness_is_refused_with_the_dates_it_hits(
     client: AsyncClient,
 ) -> None:

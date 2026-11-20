@@ -729,6 +729,7 @@ async def _weekly_plan(today: date | None = None) -> None:
                     "intent": s.intent,
                     "notes": s.notes,
                     "details": json.loads(s.details) if s.details else None,
+                    "generation_error": s.generation_error,
                 }
                 for s in sessions
             ]

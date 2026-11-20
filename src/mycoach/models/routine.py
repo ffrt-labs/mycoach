@@ -59,3 +59,23 @@ class RoutineExercise(Base):
     superset_group: Mapped[int | None] = mapped_column(default=None)
 
     routine_day: Mapped["RoutineDay"] = relationship(back_populates="exercises")
+
+
+ROUTINE_MAX_SETS = 10
+"""More working sets of one exercise than this is a routine typo, not a prescription (#187)."""
+
+ROUTINE_ERROR_PLANNED_SETS = 3
+"""What the weekly plan stores in place of a set count over ``ROUTINE_MAX_SETS`` (#234)."""
+
+
+def is_routine_error(sets: object) -> bool:
+    return isinstance(sets, int) and not isinstance(sets, bool) and sets > ROUTINE_MAX_SETS
+
+
+def planned_sets(routine_sets: int) -> dict[str, int]:
+    """A planned exercise's ``sets`` from its routine's: a routine error is planned as
+    ``ROUTINE_ERROR_PLANNED_SETS``, the routine's count kept as ``routine_sets`` so the
+    plan email's Routine error notice can name it."""
+    if is_routine_error(routine_sets):
+        return {"sets": ROUTINE_ERROR_PLANNED_SETS, "routine_sets": routine_sets}
+    return {"sets": routine_sets}

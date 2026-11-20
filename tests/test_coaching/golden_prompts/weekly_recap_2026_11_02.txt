@@ -2,7 +2,7 @@ Write the Coach notes of the weekly recap email for the past training week.
 
 ## Week: 2026-11-02 to 2026-11-08
 
-## Plan Adherence
+## Completion
 Completion: 4/5 planned sessions done (80%) — 3 as planned, 1 substituted, 1 not done
 On planned day: 3/4 (informational only — never a penalty)
 Done:
@@ -76,7 +76,7 @@ Slots:
 - headline: summary is one sentence on the week, after the Completion line; tone is good, neutral, watch or alert.
 - actions: 1-3 things to do next week, most important first. "do" starts with a verb; "why" names the signal behind it, or null.
 - guardrail: one conditional adjustment for next week ("when" a stated signal appears, "then" what changes), or null.
-- session_notes: up to 5 short notes on planned sessions worth a remark, each on the session_id shown in Plan Adherence. Leave out sessions with nothing to add.
+- session_notes: up to 5 short notes on planned sessions worth a remark, each on the session_id shown in Completion. Leave out sessions with nothing to add.
 - recovery_note: one sentence on recovery across the week (sleep, resting heart rate, HRV, stress).
 - lift_notes: up to 6 trend notes on lifts, each on an exercise_id shown in the gym sessions or history. "trend" is a short phrase ("flat 3 weeks", "up 2.5 kg"); tone is good, neutral, watch or alert. Exercises without an exercise_id get no note.
 - load_note: one sentence on the training load and its balance across sports.

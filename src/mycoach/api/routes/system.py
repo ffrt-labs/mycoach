@@ -112,16 +112,22 @@ class JobRunEntry(BaseModel):
 JOB_LOG_LIMIT = 20
 
 
-@router.get("/jobs/{job_name}/runs", response_model=list[JobRunEntry])
-async def job_log(job_name: str, session: AsyncSession = Depends(get_db)) -> list[JobRunEntry]:
-    """A scheduled job's recent runs, newest first: the job log the recap's Setup
-    notice links to when the weekly plan failed to generate (#242)."""
+async def recent_job_runs(session: AsyncSession, job_name: str) -> list[JobRun]:
+    """A scheduled job's last ``JOB_LOG_LIMIT`` runs, newest first."""
     runs = await session.scalars(
         select(JobRun)
         .where(JobRun.job_name == job_name)
         .order_by(JobRun.started_at.desc())
         .limit(JOB_LOG_LIMIT)
     )
+    return list(runs)
+
+
+@router.get("/jobs/{job_name}/runs", response_model=list[JobRunEntry])
+async def job_log(job_name: str, session: AsyncSession = Depends(get_db)) -> list[JobRunEntry]:
+    """A scheduled job's recent runs, newest first, as JSON. The job log page
+    (``/jobs/{job_name}``) shows the same runs."""
+    runs = await recent_job_runs(session, job_name)
     return [
         JobRunEntry(
             started_at=run.started_at,

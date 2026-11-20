@@ -59,6 +59,16 @@
   .c-{{ name }} { background:{{ s.light.bg }}; color:{{ s.light.fg }}; border-color:{{ s.light.border }}; }
   {%- endfor %}
 
+  {#- Tone text (a stat tile's sub-line, the trend table's improved value), and the
+      heart-rate zone bands from ZONE_STYLES. After .muted, so the tone wins. -#}
+  {%- for name in tones %}
+  .tone-{{ name }} { color:{{ chip_styles[name].light.fg }}; }
+  {%- endfor %}
+  {%- for name, s in zone_styles.items() %}
+  .zone-{{ name }} { background:{{ s.light.bg }}; color:{{ s.light.fg }}; }
+  {%- endfor %}
+  .tile { border-color:#e7e5e4; }
+
   .ws-q { border:2px solid #ea6d1f !important; }
 
   .st-tick { font:600 12px 'IBM Plex Sans',sans-serif; color:#047857; }
@@ -101,6 +111,13 @@
     {%- for name, s in chip_styles.items() %}
     .c-{{ name }} { background:{{ s.dark.bg }} !important; color:{{ s.dark.fg }} !important; border-color:{{ s.dark.border }} !important; }
     {%- endfor %}
+    {%- for name in tones %}
+    .tone-{{ name }} { color:{{ chip_styles[name].dark.fg }} !important; }
+    {%- endfor %}
+    {%- for name, s in zone_styles.items() %}
+    .zone-{{ name }} { background:{{ s.dark.bg }} !important; color:{{ s.dark.fg }} !important; }
+    {%- endfor %}
+    .tile { border-color:rgba(255,255,255,.10) !important; }
     .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }
     .st-track { background:rgba(255,255,255,.06) !important; }

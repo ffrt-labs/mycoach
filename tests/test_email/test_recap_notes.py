@@ -284,7 +284,8 @@ class TestSetup:
         section = _section(_render(plan_failed=True), "Setup")
 
         assert "Next week's plan failed to generate." in section
-        assert 'href="https://coach.example.com/api/system/jobs/weekly_plan/runs"' in section
+        assert 'href="https://coach.example.com/jobs/weekly_plan"' in section
+        assert "/api/" not in section, "the reader gets a page, not JSON"
 
     def test_the_block_suggestion_sits_in_setup(self) -> None:
         notes = NOTES | {"block_suggestion": "Start a 4-week strength block."}
@@ -323,4 +324,4 @@ class TestFullRecapLink:
         html = _render(None, insight_id=42)
 
         assert "/insights/42" not in html
-        assert 'href="https://coach.example.com/dashboard"' in html
+        assert 'href="https://coach.example.com/"' in html

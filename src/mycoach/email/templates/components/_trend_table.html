@@ -6,17 +6,17 @@
 {%- set cell = "padding:12px 0;border-bottom:1px solid #f4f4f5;text-align:right;font:400 14px 'IBM Plex Mono',monospace;" -%}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td class="muted" style="{{ head }}">Metric</td>
-    <td class="muted" style="{{ head }}text-align:right;">Today</td>
-    <td class="muted" style="{{ head }}text-align:right;">{{ table.last_label }}</td>
-    <td class="muted" style="{{ head }}text-align:right;">Best</td>
+    <td class="muted hd-b" style="{{ head }}">Metric</td>
+    <td class="muted hd-b" style="{{ head }}text-align:right;">Today</td>
+    <td class="muted hd-b" style="{{ head }}text-align:right;">{{ table.last_label }}</td>
+    <td class="muted hd-b" style="{{ head }}text-align:right;">Best</td>
   </tr>
   {% for row in table.rows %}
   <tr>
-    <td class="mlabel" style="padding:12px 0;border-bottom:1px solid #f4f4f5;font-weight:400;">{{ row.metric }}</td>
-    <td class="trend-today{{ '' if row.improved else ' strong' }}" style="{{ cell }}font-weight:600;color:{{ '#047857' if row.improved else '#18191b' }};">{{ row.today }}</td>
-    <td class="msub" style="{{ cell }}">{{ row.last }}</td>
-    <td class="msub" style="{{ cell }}">{{ row.best }}</td>
+    <td class="mlabel mrow" style="padding:12px 0;border-bottom:1px solid #f4f4f5;font-weight:400;">{{ row.metric }}</td>
+    <td class="trend-today {{ 'tone-good' if row.improved else 'strong' }} mrow" style="{{ cell }}font-weight:600;">{{ row.today }}</td>
+    <td class="msub mrow" style="{{ cell }}">{{ row.last }}</td>
+    <td class="msub mrow" style="{{ cell }}">{{ row.best }}</td>
   </tr>
   {% endfor %}
 </table>

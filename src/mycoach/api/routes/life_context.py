@@ -53,6 +53,9 @@ async def feeling_unwell(
         raise HTTPException(
             status_code=422, detail="An illness that is over ended yesterday at the latest"
         )
+    # An omitted start is today, so an end given without one is always before it.
+    if body.ended_on is not None and body.ended_on < (body.started_on or today):
+        raise HTTPException(status_code=422, detail="An illness cannot end before it starts")
     try:
         episode = await life_context.open_illness(
             session,

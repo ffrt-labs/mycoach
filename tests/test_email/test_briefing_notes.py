@@ -321,7 +321,7 @@ def test_the_tiles_never_show_the_coachs_key_metrics() -> None:
 def test_a_poor_night_is_qualified_in_the_alert_tone() -> None:
     night = _section(_render(hrv={"sleep_score": 52}), "Last night")
 
-    assert "color:#b91c1c;\">Poor</div>" in night
+    assert 'class="muted tone-alert" style="margin-top:6px;">Poor</div>' in night
     assert "Sleep" in _text(night)
 
 

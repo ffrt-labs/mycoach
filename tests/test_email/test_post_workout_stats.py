@@ -174,6 +174,15 @@ def test_a_tile_with_no_value_is_left_out_never_shown_as_a_dash() -> None:
     assert grid == "Distance 1200 m"
 
 
+def test_stat_tiles_sit_three_to_a_row_with_the_last_row_padded() -> None:
+    html = _render({**SWIM, "avg_swolf": None})  # five tiles: a row of 3, then 2 + 1 empty
+    grid = html.split('class="stat-grid"', 1)[1].split("</table>", 1)[0]
+
+    rows = grid.split("<tr>")[1:]
+    assert [len(re.findall(r"<td ", row)) for row in rows] == [3, 3]
+    assert set(re.findall(r'<td [^>]*style="width:([\d.]+)%', grid)) == {"33.33"}
+
+
 def test_an_activity_with_no_numbers_has_no_stat_grid() -> None:
     assert 'class="stat-grid"' not in _render({"external_id": "x", "sport": "swimming"})
 
@@ -185,7 +194,7 @@ def test_the_numbers_are_the_same_with_or_without_coach_notes() -> None:
     without = _render(ZONED_SWIM, content=None, **views)
 
     assert _grid(with_notes) == _grid(without)
-    for marker in ('class="zone-seg"', 'class="trend-today'):
+    for marker in ('class="zone-seg ', 'class="trend-today'):
         assert with_notes.count(marker) == without.count(marker) > 0
 
 
@@ -215,7 +224,7 @@ def test_the_zone_bar_shows_each_zones_share_and_minutes_then_the_zone_tip() -> 
 def test_the_zone_bar_widths_follow_the_minutes() -> None:
     zones = _section(_render(ZONED_SWIM), "Heart rate zones")
 
-    assert re.findall(r'class="zone-seg" style="width:(\d+)%', zones) == ["18", "56", "26"]
+    assert re.findall(r'class="zone-seg [^"]*" style="width:(\d+)%', zones) == ["18", "56", "26"]
 
 
 def test_the_target_comes_from_the_planned_sessions_intent() -> None:
@@ -290,14 +299,12 @@ def test_a_metric_the_last_swim_lacks_shows_a_dash_in_its_column() -> None:
 def test_todays_value_is_marked_good_when_it_beats_the_last_one() -> None:
     trend = _section(_render(history=[LAST_SWIM, OLDER_SWIM]), "Trend · last 3 swims")
 
-    today = re.findall(
-        r'class="trend-today[^"]*" style="[^"]*color:(#[0-9a-f]+);[^"]*">([^<]+)<', trend
-    )
+    today = re.findall(r'class="trend-today (tone-good|strong) [^"]*"[^>]*>([^<]+)<', trend)
     assert today == [
-        ("#047857", "2:24"),
-        ("#047857", "51"),
-        ("#047857", "15.1"),
-        ("#18191b", "1500"),
+        ("tone-good", "2:24"),
+        ("tone-good", "51"),
+        ("tone-good", "15.1"),
+        ("strong", "1500"),
     ]
 
 
@@ -322,3 +329,58 @@ def test_no_history_leaves_the_table_out_but_keeps_the_trend_note() -> None:
 
     assert trend.startswith("Efficiency is recovering")
     assert "Today" not in trend
+
+
+# --- Dark mode ------------------------------------------------------------------------
+
+
+def _dark(html: str) -> str:
+    from tests.test_email.test_layout import _media_block
+
+    return _media_block(html, "prefers-color-scheme: dark")
+
+
+def _dark_rule(html: str, css_class: str) -> re.Match[str]:
+    rule = re.search(r"\." + re.escape(css_class) + r"\s*\{([^}]*)\}", _dark(html))
+    assert rule, f"no dark rule for .{css_class}"
+    return rule
+
+
+def test_a_tile_sub_lines_tone_keeps_its_colour_in_dark_mode() -> None:
+    """The dark ``.muted`` override must not wipe a good/watch/alert sub-line."""
+    from mycoach.email.tones import CHIP_STYLES
+
+    html = _render(planned=SWIM_PLAN, history=[LAST_SWIM])
+    subs = re.findall(r'<div class="muted tone-(\w+)" style="([^"]*)">', html)
+
+    assert subs and {tone for tone, _ in subs} <= {"good", "watch", "alert"}
+    assert all("color:" not in style for _, style in subs), "the tone colour is a class"
+    muted = re.search(r"\.muted\s*\{", _dark(html))
+    for tone, _ in subs:
+        rule = _dark_rule(html, f"tone-{tone}")
+        assert f"color:{CHIP_STYLES[tone].dark.fg} !important" in rule.group(1)
+        assert muted and muted.start() < rule.start(), "the tone rule comes after .muted"
+
+
+def test_the_zone_bar_colours_come_from_classes_with_dark_overrides() -> None:
+    html = _render(ZONED_SWIM)
+    zones = _section(html, "Heart rate zones")
+
+    segs = re.findall(r'class="zone-seg (zone-\w+)" style="([^"]*)"', zones)
+    assert [css for css, _ in segs] == ["zone-z1", "zone-z2", "zone-z3"]
+    assert all("background:" not in s and "color:" not in s for _, s in segs)
+    for css in ("zone-z1", "zone-z2", "zone-z3", "zone-z45"):
+        rule = _dark_rule(html, css).group(1)
+        assert "background:" in rule and "!important" in rule
+
+
+def test_the_trend_tables_improved_value_keeps_its_colour_in_dark_mode() -> None:
+    from mycoach.email.tones import CHIP_STYLES
+
+    html = _render(history=[LAST_SWIM, OLDER_SWIM])
+    trend = _section(html, "Trend · last 3 swims")
+
+    assert 'class="trend-today tone-good ' in trend
+    assert "#047857" not in trend
+    rule = _dark_rule(html, "tone-good").group(1)
+    assert f"color:{CHIP_STYLES['good'].dark.fg} !important" in rule

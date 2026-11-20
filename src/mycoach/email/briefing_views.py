@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from mycoach.coaching.context import OpenSession, OpenThisWeek
 from mycoach.coaching.email_schemas import Lead, Readiness, SessionOption, Tip
 from mycoach.email.tones import Chip, tone_chip
-from mycoach.email.workout_stats import Tile
+from mycoach.email.workout_stats import StatGrid, Tile, stat_grid
 from mycoach.models.plan import INTENT_LABEL
 
 logger = logging.getLogger(__name__)
@@ -151,6 +151,10 @@ class Stage:
 class LastNightView:
     tiles: list[Tile]
     stages: list[Stage]
+
+    @property
+    def grid(self) -> StatGrid | None:
+        return stat_grid(self.tiles)
 
 
 def _sleep_score_tile(score: int) -> Tile:

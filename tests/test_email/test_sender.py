@@ -12,6 +12,7 @@ from mycoach.email.sender import (
     send_briefing_unavailable,
     send_daily_briefing,
     send_email,
+    send_garmin_auth_failed,
     send_no_availability,
     send_post_workout,
     send_weekly_plan,
@@ -262,7 +263,7 @@ def test_send_daily_briefing_wires_dashboard_url(mock_send: MagicMock) -> None:
     settings = _make_settings(app_base_url="https://coach.example.com")
     send_daily_briefing(None, settings=settings)
     html = mock_send.call_args[0][2]
-    assert "https://coach.example.com/dashboard" in html
+    assert 'href="https://coach.example.com/"' in html
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
@@ -271,7 +272,7 @@ def test_send_weekly_plan_wires_dashboard_url(mock_send: MagicMock) -> None:
     settings = _make_settings(app_base_url="https://coach.example.com")
     send_weekly_plan(summary="Good week", sessions=[], week_start="2025-03-03", settings=settings)
     html = mock_send.call_args[0][2]
-    assert "https://coach.example.com/dashboard" in html
+    assert 'href="https://coach.example.com/"' in html
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
@@ -282,7 +283,7 @@ def test_send_post_workout_wires_dashboard_url(mock_send: MagicMock) -> None:
         content={"performance_summary": "Great"}, activity_title="Leg Day", settings=settings
     )
     html = mock_send.call_args[0][2]
-    assert "https://coach.example.com/dashboard" in html
+    assert 'href="https://coach.example.com/"' in html
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
@@ -291,7 +292,17 @@ def test_send_weekly_recap_wires_dashboard_url(mock_send: MagicMock) -> None:
     settings = _make_settings(app_base_url="https://coach.example.com")
     send_weekly_recap(content={"week_summary": "Solid"}, week_start="2025-02-24", settings=settings)
     html = mock_send.call_args[0][2]
-    assert "https://coach.example.com/dashboard" in html
+    assert 'href="https://coach.example.com/"' in html
+
+
+@patch("mycoach.email.sender.send_email", return_value=True)
+def test_send_garmin_auth_failed_cta_opens_the_dashboard(mock_send: MagicMock) -> None:
+    """The dashboard is served at '/', so the CTA must not point at a dead /dashboard path."""
+    settings = _make_settings(app_base_url="https://coach.example.com")
+    send_garmin_auth_failed("token expired", settings=settings)
+    html = mock_send.call_args[0][2]
+    assert 'href="https://coach.example.com/"' in html
+    assert "/dashboard" not in html
 
 
 # --- Briefing-unavailable alert ---

@@ -24,6 +24,7 @@ from mycoach.coaching.life_context import (
 from mycoach.email.tones import LIFE_CONTEXT_STYLE, SESSION_STATUS_CHIP, Chip, intent_chip
 from mycoach.models.life_context import EpisodeKind, Equipment
 from mycoach.models.plan import INTENT_LABEL
+from mycoach.sport_display import sport_display
 
 OVERDUE_CHIP = Chip("Planned day passed", "watch")
 TODAY_CHIP = Chip("Today", "neutral")
@@ -82,7 +83,7 @@ def open_week_view(open_week: OpenThisWeek | None, pick: int | None = None) -> O
     for s in open_week["sessions"]:
         day = s["day"][:3]
         intent = s["intent"]
-        detail = [s["sport"].capitalize()]
+        detail = [sport_display(s["sport"]).name]
         if intent:
             detail.append(INTENT_LABEL.get(intent, intent))
         if s["duration_minutes"]:

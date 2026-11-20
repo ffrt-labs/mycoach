@@ -66,6 +66,15 @@ CHIP_STYLES: dict[str, ChipStyle] = {
     "intent-skill": _outlined("#ddd6fe", "#6d28d9", "#4c1d95", "#c4b5fd"),
 }
 
+ZONE_STYLES: dict[str, ChipStyle] = {
+    "z1": _filled("#bfdbfe", "#1e3a8a", "#1e3a8a", "#bfdbfe"),
+    "z2": _filled("#3b82f6", "#ffffff", "#2563eb", "#ffffff"),
+    "z3": _filled("#f59e0b", "#451a03", "#fbbf24", "#451a03"),
+    "z45": _filled("#b91c1c", "#ffffff", "#ef4444", "#0b0c0e"),
+}
+"""The heart-rate zone bar's bands (Z4 and Z5 share one); ``base.html`` makes them
+``.zone-<name>`` classes, light and dark."""
+
 
 @dataclass(frozen=True)
 class Chip:
@@ -140,6 +149,8 @@ LIFE_CONTEXT_STYLE: dict[str, str] = {
 
 JINJA_GLOBALS = {
     "chip_styles": CHIP_STYLES,
+    "tones": TONES,
+    "zone_styles": ZONE_STYLES,
     "session_status_chip": SESSION_STATUS_CHIP,
     "intent_chip": intent_chip,
     "tone_chip": tone_chip,

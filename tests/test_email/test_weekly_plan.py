@@ -228,6 +228,24 @@ def test_a_routine_set_count_over_ten_gets_a_routine_error_notice_with_a_fix_lin
     assert 'href="https://coach.example.com/routine"' in html
 
 
+def test_a_plan_stored_as_3_still_reports_the_routines_set_count(mock_send: MagicMock) -> None:
+    """The weekly plan stores a routine error as 3 sets and keeps the routine's count."""
+    stored = [
+        {"name": "Deadlift", "sets": 3, "routine_sets": 36, "reps": "5"},
+        {"name": "Leg Raise", "sets": 3, "reps": "10"},
+    ]
+    friday = _session(4, "gym", 65, "strength", details={"exercises": stored})
+
+    html = _html(mock_send, sessions=[friday])
+
+    assert _notices(html) == [
+        "Routine error Friday lists Deadlift at 36 sets. Planned as 3. Fix routine →"
+    ]
+    assert "3* × 5" in html
+    assert "3 × 10" in html
+    assert "* Routine says 36 sets — assumed 3 until fixed." in html
+
+
 def test_the_day_card_shows_the_set_count_the_notice_says_was_planned(
     mock_send: MagicMock,
 ) -> None:

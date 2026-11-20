@@ -30,7 +30,8 @@ BLOCK_PHASE_LABEL: Mapping[str, str] = {
 }
 
 NO_VALUE = "—"
-"""A table cell the block leaves empty (a tile with no value is left out instead)."""
+"""An empty table cell: a block's, an exercise's or a trend metric's (a tile with no
+value is left out instead)."""
 
 
 def coach_notes(content: Mapping[str, Any] | M | None, model: type[M]) -> M | None:

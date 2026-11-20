@@ -86,6 +86,26 @@ async def test_the_plan_email_gets_each_sessions_intent_and_weekday() -> None:
     ]
 
 
+async def test_the_plan_email_is_told_which_sessions_failed_to_generate() -> None:
+    plan_id = await _seed_plan()
+    async with db_session() as session:
+        session.add(
+            PlannedSession(
+                plan_id=plan_id,
+                day_of_week=5,
+                sport="running",
+                title="Running Session (plan generation failed)",
+                notes="LLM plan generation failed — please reschedule.",
+                generation_error="provider timeout",
+            )
+        )
+        await session.commit()
+
+    sessions = (await _run(plan_id)).call_args.kwargs["sessions"]
+
+    assert [s["generation_error"] for s in sessions] == [None, None, "provider timeout"]
+
+
 async def test_the_plan_email_gets_the_planned_weeks_life_context() -> None:
     send = await _run(await _seed_plan())
     assert send.call_args.kwargs["week_start"] == str(MONDAY)

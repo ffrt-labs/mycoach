@@ -74,6 +74,7 @@ from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, InsightType
 from mycoach.models.plan import PlannedSession, SessionIntent, Track, WeeklyPlan
 from mycoach.models.prompt_log import PromptLog
+from mycoach.models.routine import planned_sets
 from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
 from mycoach.observability.tracing import (
@@ -892,7 +893,7 @@ class CoachingEngine:
                                 "exercise_id": routine_ex.get("exercise_id"),
                                 "name": routine_ex["exercise_name"],
                                 "target_weight_kg": ex.target_weight_kg if ex else None,
-                                "sets": routine_ex["sets"],
+                                **planned_sets(routine_ex["sets"]),
                                 "reps": routine_ex["rep_range"],
                                 "rpe": ex.target_rpe if ex else None,
                                 "rest_seconds": ex.rest_seconds if ex else None,
@@ -924,7 +925,7 @@ class CoachingEngine:
                         {
                             "exercise_id": ex.get("exercise_id"),
                             "name": ex["exercise_name"],
-                            "sets": ex["sets"],
+                            **planned_sets(ex["sets"]),
                             "reps": ex["rep_range"],
                             "notes": ex.get("notes"),
                             "superset_group": ex.get("superset_group"),

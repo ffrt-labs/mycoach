@@ -1,0 +1,21 @@
+{#- The recap's cause quick replies (#237), all from ``sender.quick_replies``. Each
+    button is a plain link to the dashboard: mail scanners prefetch links, so none
+    of them may write, sync or log in on its own. -#}
+{% macro quick_replies(q) -%}
+<div class="quick-replies qr-b" style="border:1px solid #e7e5e4;border-radius:12px;padding:24px;">
+  <div class="quick-replies-q strong" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;">{{ q.question }}</div>
+  <div class="quick-replies-sub muted" style="margin-top:4px;font-size:13px;">Opens the dashboard with the dates filled in. Sick days are excused and leave the count; next week's plan reads it.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+    <tr>
+      {% for r in q.replies %}
+      <td class="quick-reply" style="width:{{ (100 / q.replies|length)|round(0, 'floor')|int }}%;vertical-align:top;padding:0 {{ '0' if loop.last else '8px' }} 0 0;">
+        <a href="{{ r.url }}" class="qr-b" style="display:block;text-align:center;border:1px solid #e7e5e4;border-radius:8px;padding:10px 4px;text-decoration:none;">
+          <span class="quick-reply-label strong" style="display:block;font:600 14px 'IBM Plex Sans',sans-serif;">{{ r.label }}</span>
+          <span class="quick-reply-sub muted" style="display:block;">{{ r.sub }}</span>
+        </a>
+      </td>
+      {% endfor %}
+    </tr>
+  </table>
+</div>
+{%- endmacro %}

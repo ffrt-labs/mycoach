@@ -159,6 +159,32 @@ def _weekly_recap(s: Settings) -> None:
     )
 
 
+def _weekly_recap_nothing_logged(s: Settings) -> None:
+    """The 05 artboard: nothing done, no health data, the cause quick replies (#237)."""
+    sessions = [
+        dict(
+            row,
+            completed=False,
+            status="not_done",
+            on_planned_day=None,
+            actual_day=None,
+            substitute=None,
+        )
+        for row in WEEK_2026_11_02_ADHERENCE["sessions"]
+    ]
+    sender.send_weekly_recap(
+        {"week_summary": "No activity, gym log or health data this week."},
+        "2026-11-02",
+        s,
+        adherence=WEEK_2026_11_02_ADHERENCE
+        | {"completed_sessions": 0, "substituted_sessions": 0, "sessions": sessions},
+        episodes=[],
+        today=date(2026, 11, 9),
+        health_days_missing=7,
+        garmin_auth_failed=True,
+    )
+
+
 def _no_availability(s: Settings) -> None:
     sender.send_no_availability("2026-11-23", s)
 
@@ -185,6 +211,7 @@ EMAILS: dict[str, Callable[[Settings], None]] = {
     "post_workout": _post_workout,
     "weekly_plan": _weekly_plan,
     "weekly_recap": _weekly_recap,
+    "weekly_recap_nothing_logged": _weekly_recap_nothing_logged,
     "no_availability": _no_availability,
     "garmin_auth_failed": _garmin_auth_failed,
     "briefing_unavailable": _briefing_unavailable,

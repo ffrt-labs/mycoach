@@ -4,6 +4,7 @@
 {% import "components/_session_status.html" as session_status %}
 {% import "components/_extras.html" as extras_list %}
 {% import "components/_life_context_list.html" as life_context %}
+{% import "components/_quick_replies.html" as qr %}
 {% block title %}Weekly Recap{% endblock %}
 {% block subtitle %}Weekly recap · {{ week_label }}{% endblock %}
 {% block content %}
@@ -12,6 +13,12 @@
 {% call ui.hero("Week of " ~ week_label ~ " · completion") %}
     {{ completion.completion(hero, recap.week_summary) }}
 {% endcall %}
+
+{% if quick_replies %}
+{% call ui.section(layout) %}
+    {{ qr.quick_replies(quick_replies) }}
+{% endcall %}
+{% endif %}
 
 {% if sessions or extras or recap.adherence_analysis %}
 {% call ui.section(layout, "Sessions") %}

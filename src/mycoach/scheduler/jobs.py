@@ -91,6 +91,7 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
         loop.close()
 
 
+GARMIN_SYNC_JOB = "garmin_sync"
 GARMIN_AUTH_ALERT_JOB = "garmin_auth_alert"
 
 
@@ -101,8 +102,10 @@ class GarminAuthError(RuntimeError):
     reason and the alert email are where a reader will look for it.
     """
 
+    PREFIX = "Garmin authentication failed:"
+
     def __init__(self, reason: str) -> None:
-        super().__init__(f"Garmin authentication failed: {reason}")
+        super().__init__(f"{self.PREFIX} {reason}")
         self.reason = reason
 
 
@@ -253,7 +256,7 @@ async def _get_user_email_pref(pref_field: str) -> bool:
 def job_garmin_sync() -> None:
     """Sync health and activity data from Garmin Connect."""
     logger.info("Scheduler: starting Garmin sync")
-    _run_recorded_job("garmin_sync", _scheduled_garmin_sync())
+    _run_recorded_job(GARMIN_SYNC_JOB, _scheduled_garmin_sync())
 
 
 async def _scheduled_garmin_sync() -> None:
@@ -671,6 +674,33 @@ def job_weekly_recap() -> None:
     _run_recorded_job("weekly_recap", _weekly_recap())
 
 
+async def _health_days_missing(week_start: date, today: date) -> int:
+    """How many of the week's days up to yesterday have no health snapshot."""
+    days = [week_start + timedelta(days=i) for i in range(7)]
+    days = [d for d in days if d < today]
+    async with async_session() as session:
+        athlete_id = await athlete_id_for(session, USER_ID)
+    snapshots = await health.list_snapshots(athlete_id, week_start, until=today)
+    synced = {date.fromisoformat(s["snapshot_date"]) for s in snapshots}
+    return sum(d not in synced for d in days)
+
+
+async def _garmin_login_failing() -> bool:
+    """Whether the last scheduled Garmin sync failed because Garmin refused the login."""
+    async with async_session() as session:
+        last = await session.scalar(
+            select(JobRun)
+            .where(JobRun.job_name == GARMIN_SYNC_JOB)
+            .order_by(JobRun.started_at.desc())
+            .limit(1)
+        )
+    return (
+        last is not None
+        and last.status == "failed"
+        and (last.error or "").startswith(GarminAuthError.PREFIX)
+    )
+
+
 async def _weekly_recap() -> None:
     engine = CoachingEngine()
     settings = get_settings()
@@ -694,6 +724,11 @@ async def _weekly_recap() -> None:
                 "life context episodes",
                 episodes_between(session, USER_ID, last_monday, last_monday + timedelta(days=6)),
             )
+            # What the cause quick replies (#237) need; best-effort, None if unread.
+            health_days_missing = await _or_none(
+                "the week's health data", _health_days_missing(last_monday, today)
+            )
+            garmin_auth_failed = await _or_none("the last Garmin sync", _garmin_login_failing())
             _deliver(
                 partial(
                     send_weekly_recap,
@@ -701,6 +736,9 @@ async def _weekly_recap() -> None:
                     week_start=str(last_monday),
                     adherence=adherence,
                     episodes=episodes,
+                    today=today,
+                    health_days_missing=health_days_missing,
+                    garmin_auth_failed=bool(garmin_auth_failed),
                 ),
                 "weekly recap",
             )

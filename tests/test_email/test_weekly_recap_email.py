@@ -401,7 +401,7 @@ class TestLifeContext:
             "No illness or travel logged this week. Something going on? Log it →"
         )
         assert (
-            'href="https://coach.example.com/dashboard?log=illness&amp;from=2026-11-02'
+            'href="https://coach.example.com/?log=illness&amp;from=2026-11-02'
             '&amp;to=2026-11-08#life-context"' in html
         )
 

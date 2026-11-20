@@ -334,6 +334,33 @@ class TestFindMatchingPlannedSession:
             result = await find_matching_planned_session(session, activity_dict, user_id)
             assert result is None
 
+    async def test_the_matched_session_carries_its_intent(self) -> None:
+        """The post-workout zone bar reads its target from it (#239)."""
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            plan = WeeklyPlan(
+                user_id=user_id, week_start=date(2024, 6, 10), status="active", summary="Plan"
+            )
+            session.add(plan)
+            await session.flush()
+            session.add(
+                PlannedSession(
+                    plan_id=plan.id,
+                    day_of_week=2,
+                    sport="swimming",
+                    title="Pool Swim",
+                    duration_minutes=45,
+                    intent="aerobic_base",
+                )
+            )
+            await session.commit()
+
+            activity_dict = {"sport": "swimming", "start_time": "2024-06-12 07:00:00"}
+            result = await find_matching_planned_session(session, activity_dict, user_id)
+
+            assert result is not None
+            assert result["intent"] == "aerobic_base"
+
     async def test_explicit_link_beats_the_day_match(self) -> None:
         """A session lifted on a different day than planned answers its own prescription.
 

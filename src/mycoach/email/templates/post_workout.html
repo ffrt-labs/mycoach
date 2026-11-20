@@ -3,6 +3,9 @@
 {% import "components/_coach_notes.html" as cn %}
 {% import "components/_notice.html" as note %}
 {% from "components/_open_this_week.html" import still_open_this_week %}
+{% from "components/_stat_grid.html" import stat_grid %}
+{% import "components/_zone_bar.html" as zb %}
+{% from "components/_trend_table.html" import trend_table %}
 {% block title %}Post-Workout Analysis{% endblock %}
 {% block subtitle %}Post-workout{% endblock %}
 {% block content %}
@@ -25,20 +28,34 @@
     {% endif %}
 {% endcall %}
 
+{% if tiles %}
+{% call ui.section(layout) %}
+    {{ stat_grid(tiles) }}
+{% endcall %}
+{% endif %}
+
 {% if notes %}
 {% call ui.section(layout) %}
     {{ cn.actions_card(ui, notes.actions, "Next time") }}
 {% endcall %}
+{% endif %}
 
-{% if notes.zone_note %}
-{% call ui.section(layout, "Heart rate zones") %}
-    {{ cn.tip(ui, zone_chip, notes.zone_note.text) }}
+{% if zones or (notes and notes.zone_note) %}
+{% call ui.section(layout) %}
+    {{ zb.zone_header("Heart rate zones", zones) }}
+    {% if zones %}{{ zb.zone_bar(zones) }}{% endif %}
+    {% if notes and notes.zone_note %}<div{% if zones %} style="margin-top:16px;"{% endif %}>{{ cn.tip(ui, zone_chip, notes.zone_note.text) }}</div>{% endif %}
 {% endcall %}
 {% endif %}
 
-{% call ui.section(layout, "Trend") %}
-    <div class="p">{{ notes.trend_note }}</div>
+{% if trend or notes %}
+{% call ui.section(layout, trend.label if trend else "Trend") %}
+    {% if trend %}{{ trend_table(trend) }}{% endif %}
+    {% if notes %}<div class="p"{% if trend %} style="margin-top:12px;"{% endif %}>{{ notes.trend_note }}</div>{% endif %}
 {% endcall %}
+{% endif %}
+
+{% if notes %}
 
 {% if blocks or notes.guardrails or notes.week_addition %}
 {% call ui.section(layout, "Next session") %}

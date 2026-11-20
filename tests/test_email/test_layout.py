@@ -17,6 +17,10 @@ from mycoach.email import sender
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 from tests.test_email.test_post_workout_notes import NOTES as POST_WORKOUT_NOTES
+from tests.test_email.test_post_workout_stats import LAST_SWIM, ZONED_SWIM
+
+# The stat grid, zone bar and trend's numbers (#239), on the fixture's own activity.
+SWIM_NUMBERS = {k: v for k, v in ZONED_SWIM.items() if k not in ("external_id", "title")}
 
 
 def _settings() -> Settings:
@@ -81,7 +85,8 @@ def _post_workout(s: Settings) -> None:
         POST_WORKOUT_NOTES,
         "Morning Swim",
         s,
-        activity={"external_id": "g-walk-1107", "title": "Morning Swim"},
+        activity={"external_id": "g-walk-1107", "title": "Morning Swim", **SWIM_NUMBERS},
+        history=[LAST_SWIM],
         week=WEEK_2026_11_02_ADHERENCE,  # type: ignore[arg-type]
         life=LifeContext(
             today=date(2026, 11, 19),

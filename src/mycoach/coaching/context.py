@@ -628,6 +628,7 @@ def _planned_session_to_dict(planned: PlannedSession) -> dict[str, Any]:
         "details": planned.details,
         "notes": planned.notes,
         "completed": planned.completed,
+        "intent": planned.intent,
     }
 
 

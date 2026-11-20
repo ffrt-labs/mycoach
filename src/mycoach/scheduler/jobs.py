@@ -24,10 +24,13 @@ from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import (
     OpenThisWeek,
     PlanAdherence,
+    find_matching_planned_session,
+    get_activity_with_details,
     get_body_summary,
     get_health_trends,
     get_open_this_week,
     get_plan_adherence_for_week,
+    get_similar_activities,
 )
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import (
@@ -367,6 +370,39 @@ async def _life_on(day: date) -> LifeContext:
         return await life_context_for(session, USER_ID, day, day, today=day)
 
 
+async def _planned_for(activity: dict[str, Any]) -> dict[str, Any] | None:
+    async with async_session() as session:
+        return await find_matching_planned_session(session, activity, USER_ID)
+
+
+async def _history_of(activity: dict[str, Any]) -> list[dict[str, Any]]:
+    async with async_session() as session:
+        return await get_similar_activities(
+            session, USER_ID, activity["sport"], activity["external_id"]
+        )
+
+
+async def _sets_of(activity: dict[str, Any]) -> list[dict[str, Any]]:
+    async with async_session() as session:
+        _, sets = await get_activity_with_details(session, activity["external_id"], USER_ID)
+        return sets
+
+
+async def _post_workout_numbers(activity: dict[str, Any] | None) -> dict[str, Any]:
+    """The post-workout email's ``planned``/``sets``/``history`` (#239): what its stat
+    grid, zone target and trend are computed from. Best-effort, like the week's."""
+    if activity is None:
+        return {"planned": None, "sets": None, "history": None}
+    external_id = activity["external_id"]
+    return {
+        "planned": await _or_none(f"{external_id}'s planned session", _planned_for(activity)),
+        "sets": await _or_none(f"{external_id}'s sets", _sets_of(activity))
+        if activity.get("sport") == "gym"
+        else None,
+        "history": await _or_none(f"{external_id}'s history", _history_of(activity)),
+    }
+
+
 async def _post_workout_week_and_life(activity: dict[str, Any] | None) -> dict[str, Any]:
     """The post-workout email's ``activity``/``week``/``life``/``open_this_week`` (#235).
 
@@ -387,6 +423,7 @@ async def _post_workout_week_and_life(activity: dict[str, Any] | None) -> dict[s
         day = _activity_day(activity, today)
         views["week"] = await _or_none(f"{day}'s week", _week_of(day, today))
         views["life"] = await _or_none(f"{day}'s life context", _life_on(day))
+    views.update(await _post_workout_numbers(activity))
     return views
 
 

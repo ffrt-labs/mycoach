@@ -24,7 +24,7 @@ AEROBIC_BASE_MIN_ZONE_SHARE = 0.60
 AEROBIC_BASE_MAX_ANAEROBIC_TE = 2.0
 
 
-def _zone_minutes(hr_zones: str | None) -> dict[int, float]:
+def zone_minutes(hr_zones: str | None) -> dict[int, float]:
     """Minutes per zone (1..5) from the stored ``hr_zones`` JSON. Empty when unusable."""
     if not hr_zones:
         return {}
@@ -60,7 +60,7 @@ def classify_activity_intent(activity: Mapping[str, Any]) -> SessionIntent | Non
     """
     if activity.get("sport") == "gym" and activity.get("has_performed_sets"):
         return SessionIntent.STRENGTH
-    minutes = _zone_minutes(activity.get("hr_zones"))
+    minutes = zone_minutes(activity.get("hr_zones"))
     total = sum(minutes.values())
     if total <= 0:
         return None
@@ -135,6 +135,7 @@ TRAVEL_RULES = SubstitutionRules(
     min_minutes={SessionIntent.STRENGTH: TRAVEL_STRENGTH_MIN_MINUTES},
 )
 """The relaxed rules for an activity done on a travel day (Adapted (travel))."""
+
 
 def can_substitute(
     activity: Mapping[str, Any],

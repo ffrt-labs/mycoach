@@ -526,6 +526,8 @@ async def _send_post_workout(
     adherence: AsyncMock,
     life: AsyncMock,
     open_week: AsyncMock,
+    planned: AsyncMock | None = None,
+    history: AsyncMock | None = None,
 ) -> MagicMock:
     with ExitStack() as stack:
         for target, value in (
@@ -535,6 +537,8 @@ async def _send_post_workout(
             ("get_plan_adherence_for_week", adherence),
             ("life_context_for", life),
             ("get_open_this_week", open_week),
+            ("find_matching_planned_session", planned or AsyncMock(return_value=None)),
+            ("get_similar_activities", history or AsyncMock(return_value=[])),
         ):
             stack.enter_context(patch(f"mycoach.scheduler.jobs.{target}", value))
         mock_send = stack.enter_context(patch("mycoach.scheduler.jobs.send_post_workout"))
@@ -606,3 +610,82 @@ async def test_post_workout_email_links_the_revision_it_renders(
     )
 
     assert mock_send.call_args.kwargs["insight_id"] == POST_WORKOUT_INSIGHT_ID
+
+
+@pytest.mark.parametrize("run", [_analysis_scan, _settled_event])
+async def test_post_workout_email_gets_the_planned_session_and_the_similar_history(
+    run: PostWorkoutRun, mock_session: AsyncMock
+) -> None:
+    """Both call sites feed the stat grid, zone target and trend (#239)."""
+    planned = {"title": "Aerobic base swim", "intent": "aerobic_base"}
+    history = [{"external_id": "swim-0", "sport": "swimming"}]
+    load_planned = AsyncMock(return_value=planned)
+    load_history = AsyncMock(return_value=history)
+
+    mock_send = await _send_post_workout(
+        run,
+        mock_session,
+        adherence=AsyncMock(return_value=None),
+        life=AsyncMock(return_value=None),
+        open_week=AsyncMock(return_value=None),
+        planned=load_planned,
+        history=load_history,
+    )
+
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["planned"] == planned
+    assert kwargs["history"] == history
+    assert kwargs["sets"] is None, "a swim has no performed sets"
+    assert load_planned.call_args.args[1] == TUESDAY_SWIM
+    assert load_history.call_args.args[2:] == ("swimming", "swim-1")
+
+
+@pytest.mark.parametrize("run", [_analysis_scan, _settled_event])
+async def test_a_planned_session_or_history_failure_does_not_cost_the_post_workout_email(
+    run: PostWorkoutRun, mock_session: AsyncMock
+) -> None:
+    def failing() -> AsyncMock:
+        return AsyncMock(side_effect=RuntimeError("db"))
+
+    mock_send = await _send_post_workout(
+        run,
+        mock_session,
+        adherence=AsyncMock(return_value=None),
+        life=AsyncMock(return_value=None),
+        open_week=AsyncMock(return_value=None),
+        planned=failing(),
+        history=failing(),
+    )
+
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["planned"] is None
+    assert kwargs["history"] is None
+
+
+async def test_a_gym_post_workout_email_gets_its_performed_sets_with_prescriptions(
+    mock_session: AsyncMock,
+) -> None:
+    gym = {**TUESDAY_SWIM, "external_id": "gym-1", "sport": "gym", "title": "Squat Day"}
+    sets = [{"exercise_title": "Squat", "set_index": 0, "prescribed_reps": 5}]
+    load_sets = AsyncMock(return_value=(gym, sets))
+
+    async def run(stack: ExitStack, session: AsyncMock) -> None:
+        stack.enter_context(
+            patch("mycoach.scheduler.jobs.athlete_id_for", AsyncMock(return_value=1))
+        )
+        stack.enter_context(
+            patch("mycoach.scheduler.jobs.health.get_activity", AsyncMock(return_value=gym))
+        )
+        stack.enter_context(patch("mycoach.scheduler.jobs.get_activity_with_details", load_sets))
+        await _notify_post_workout(MagicMock(content=json.dumps(POST_WORKOUT)), "gym-1")
+
+    mock_send = await _send_post_workout(
+        run,
+        mock_session,
+        adherence=AsyncMock(return_value=None),
+        life=AsyncMock(return_value=None),
+        open_week=AsyncMock(return_value=None),
+    )
+
+    assert mock_send.call_args.kwargs["sets"] == sets
+    assert load_sets.call_args.args[1:] == ("gym-1", USER_ID)

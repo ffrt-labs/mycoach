@@ -203,35 +203,60 @@ class TestWeeklyPlanCodeChecks:
             } == {"parse_ok": 0.0, "needed_retry": 0.0, "truncated": 0.0, "fallback_used": 1.0}
 
 
+async def _post_workout(llm: MagicMock, sink: ScoreSink) -> None:
+    async with new_session() as session:
+        user = User(email="t@example.com", name="T", fitness_level="intermediate")
+        session.add(user)
+        await session.flush()
+        activity = Activity(
+            user_id=user.id,
+            sport="running",
+            title="Easy run",
+            start_time=datetime(2024, 6, 6, 9, 0),
+            duration_minutes=40,
+            data_source="garmin",
+            external_id="run-1",
+        )
+        session.add(activity)
+        await session.commit()
+        engine = CoachingEngine(llm_client=llm, scores=sink)
+        await engine.generate_post_workout_analysis(session, user.id, activity.external_id)
+
+
 class TestOtherRuns:
     async def test_post_workout_run_is_scored_on_its_trace(self) -> None:
         sink = RecordingScoreSink()
-        async with new_session() as session:
-            user = User(email="t@example.com", name="T", fitness_level="intermediate")
-            session.add(user)
-            await session.flush()
-            activity = Activity(
-                user_id=user.id,
-                sport="running",
-                title="Easy run",
-                start_time=datetime(2024, 6, 6, 9, 0),
-                duration_minutes=40,
-                data_source="garmin",
-                external_id="run-1",
-            )
-            session.add(activity)
-            await session.commit()
-            engine = CoachingEngine(llm_client=_post_workout_llm(), scores=sink)
-            await engine.generate_post_workout_analysis(
-                session, user.id, activity.external_id
-            )
+        await _post_workout(_post_workout_llm(), sink)
 
         assert sink.values() == {
             f"{POST_WORKOUT}:parse_ok": 1.0,
             f"{POST_WORKOUT}:needed_retry": 0.0,
             f"{POST_WORKOUT}:truncated": 0.0,
+            f"{POST_WORKOUT}:notes_fallback": 0.0,
         }
         assert {s.timestamp for s in sink.scores} == {_at(2024, 6, 6)}
+
+    async def test_post_workout_without_coach_notes_scores_notes_fallback(self) -> None:
+        """Invalid twice: the email goes out on code blocks only (#238)."""
+        sink = RecordingScoreSink()
+        await _post_workout(_post_workout_llm('{"headline": "too flat"}'), sink)
+
+        # fallback_used stays scoped to gym slots (CONTEXT.md: Code check).
+        assert sink.values() == {
+            f"{POST_WORKOUT}:parse_ok": 0.0,
+            f"{POST_WORKOUT}:needed_retry": 1.0,
+            f"{POST_WORKOUT}:truncated": 0.0,
+            f"{POST_WORKOUT}:notes_fallback": 1.0,
+        }
+
+    async def test_a_provider_failure_is_no_notes_fallback(self) -> None:
+        llm = _post_workout_llm()
+        llm.call.side_effect = LLMQuotaExceeded("OpenRouter: credits exhausted")
+        sink = RecordingScoreSink()
+        with pytest.raises(RuntimeError, match="Failed to generate post-workout analysis"):
+            await _post_workout(llm, sink)
+
+        assert sink.values()[f"{POST_WORKOUT}:notes_fallback"] == 0.0
 
     async def test_weekly_recap_run_is_scored_on_its_trace(self) -> None:
         sink = RecordingScoreSink()
@@ -416,7 +441,6 @@ class TestPlanCompletionScore:
             "substituted_sessions": 1,
             "adapted_sessions": 0,
         }
-
 
     async def test_an_adapted_session_is_in_the_metadata(self) -> None:
         """#221: a hotel circuit on a trip fills a strength slot as Adapted (travel)."""

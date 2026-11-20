@@ -1,7 +1,7 @@
 """Seed Langfuse with the bundled coaching prompts (#174, #196).
 
 Creates version 1 of each ``mycoach/*`` chat prompt from the bundled prompts
-(``prompts/<BUNDLED_VERSION>``), labelled ``production``, converted to
+(``prompts/<bundled_version(operation)>``), labelled ``production``, converted to
 Langfuse's ``{{var}}`` syntax, with ``config.source = "bundled:<version>"``.
 For a prompt that already exists, the latest version (whatever its labels) is
 compared with the compiled bundled messages: when they match, the prompt is
@@ -22,7 +22,7 @@ from typing import Any
 from langfuse import Langfuse
 from langfuse.model import ChatMessageDict
 
-from mycoach.coaching.prompt_builder import BUNDLED_VERSION, Operation
+from mycoach.coaching.prompt_builder import Operation, bundled_version
 from mycoach.coaching.prompt_store import (
     LANGFUSE_PROMPT_NAMES,
     PRODUCTION_LABEL,
@@ -66,6 +66,7 @@ def seed_prompts(client: Langfuse) -> list[str]:
     published = []
     for operation, name in LANGFUSE_PROMPT_NAMES.items():
         messages = _messages(operation)
+        version = bundled_version(operation)
         # The list endpoint sees every version and label; a get by label
         # would miss a prompt with no production version.
         listed = client.api.prompts.list(name=name).data
@@ -81,7 +82,7 @@ def seed_prompts(client: Langfuse) -> list[str]:
                     "skipped, port prompts/%s into it by hand",
                     name,
                     max(versions),
-                    BUNDLED_VERSION,
+                    version,
                 )
                 continue
         client.create_prompt(
@@ -89,8 +90,8 @@ def seed_prompts(client: Langfuse) -> list[str]:
             type="chat",
             prompt=list(messages),
             labels=[PRODUCTION_LABEL],
-            config={"source": f"{SEEDED_PREFIX}{BUNDLED_VERSION}"},
-            commit_message=f"Seeded from prompts/{BUNDLED_VERSION}",
+            config={"source": f"{SEEDED_PREFIX}{version}"},
+            commit_message=f"Seeded from prompts/{version}",
         )
         logger.info("%s %s", name, "updated" if versions else "created")
         published.append(name)

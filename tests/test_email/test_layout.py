@@ -16,6 +16,7 @@ from mycoach.config import Settings
 from mycoach.email import sender
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
+from tests.test_email.test_post_workout_notes import NOTES as POST_WORKOUT_NOTES
 
 
 def _settings() -> Settings:
@@ -77,16 +78,7 @@ def _daily_briefing(s: Settings) -> None:
 
 def _post_workout(s: Settings) -> None:
     sender.send_post_workout(
-        {
-            "performance_summary": "Strong session",
-            "planned_vs_actual": "On plan",
-            "hr_analysis": "Mostly Z2",
-            "performance_trends": "Pace improving",
-            "key_highlights": ["Negative split"],
-            "areas_for_improvement": ["Longer warm-up"],
-            "next_session_recommendations": "Repeat 5x200",
-            "recovery_notes": "24 h",
-        },
+        POST_WORKOUT_NOTES,
         "Morning Swim",
         s,
         activity={"external_id": "g-walk-1107", "title": "Morning Swim"},
@@ -341,7 +333,7 @@ def test_an_included_block_right_after_the_hero_is_the_first_section() -> None:
 
 @pytest.mark.parametrize("name", ["daily_briefing", "post_workout", "weekly_recap"])
 def test_todays_content_is_laid_out_in_sections(name: str) -> None:
-    """The fixtures fill every v4 field, so each coaching email has several sections."""
+    """The fixtures fill every field, so each coaching email has several sections."""
     assert len(_tds(_render(name), "section")) >= 4
 
 

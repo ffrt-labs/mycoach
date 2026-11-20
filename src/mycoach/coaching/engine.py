@@ -36,6 +36,7 @@ from mycoach.coaching.context import (
     get_today_health,
     get_today_planned_sessions,
 )
+from mycoach.coaching.email_schemas import PostWorkoutEmail
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
     NoAvailabilityConfigured,
@@ -44,8 +45,8 @@ from mycoach.coaching.exceptions import (
 from mycoach.coaching.life_context import life_context_for, recovery_signals
 from mycoach.coaching.llm_client import LLMClient, LLMResponse, get_llm_client
 from mycoach.coaching.prompt_builder import (
-    BUNDLED_VERSION,
     Operation,
+    bundled_version,
     cardio_plan_variables,
     daily_briefing_variables,
     gym_adjustment_variables,
@@ -59,11 +60,11 @@ from mycoach.coaching.response_parser import (
     DailyBriefingResponse,
     GymAdjustmentExercise,
     GymAdjustmentResponse,
-    PostWorkoutResponse,
     WeeklyRecapResponse,
     parse_response,
 )
 from mycoach.coaching.steps import load_steps_summary
+from mycoach.coaching.strict_schema import ResponseSchema, response_schema
 from mycoach.config import get_settings
 from mycoach.localtime import local_today
 from mycoach.models.availability import WeeklyAvailability
@@ -128,6 +129,12 @@ class OperationSpec(Generic[T]):
     whether a failed generation falls back to a default (a gym slot keeps the
     routine), which is scored as ``fallback_used``. Shared with the evals
     harness, so an experiment calls the LLM exactly as production does.
+
+    ``coach_notes`` marks an operation on the structured-output contract
+    (prompt v5): its ``response_model`` holds Coach notes
+    (``coaching/email_schemas.py``), the provider is sent the model's strict
+    schema, and a generation that still fails validation after its retry
+    sends the email without Coach notes, scored as ``notes_fallback``.
     """
 
     operation: Operation
@@ -135,9 +142,16 @@ class OperationSpec(Generic[T]):
     model_tier: ModelTier = "daily"
     max_tokens: int = 4096
     falls_back: bool = False
+    coach_notes: bool = False
 
     def model(self, llm: LLMClient) -> str:
         return llm.weekly_model if self.model_tier == "weekly" else llm.daily_model
+
+    def response_schema(self) -> ResponseSchema | None:
+        """The strict schema sent to the provider; only for Coach notes."""
+        if not self.coach_notes:
+            return None
+        return response_schema(self.operation.value, self.response_model)
 
 
 DAILY_BRIEFING = OperationSpec(Operation.DAILY_BRIEFING, DailyBriefingResponse)
@@ -147,7 +161,7 @@ GYM_ADJUSTMENT = OperationSpec(
 CARDIO_PLAN = OperationSpec(
     Operation.CARDIO_PLAN, CardioPlanResponse, model_tier="weekly", max_tokens=8192
 )
-POST_WORKOUT = OperationSpec(Operation.POST_WORKOUT, PostWorkoutResponse)
+POST_WORKOUT = OperationSpec(Operation.POST_WORKOUT, PostWorkoutEmail, coach_notes=True)
 WEEKLY_RECAP = OperationSpec(Operation.WEEKLY_RECAP, WeeklyRecapResponse, max_tokens=8192)
 
 OPERATION_SPECS: Mapping[Operation, OperationSpec[Any]] = {
@@ -156,7 +170,18 @@ OPERATION_SPECS: Mapping[Operation, OperationSpec[Any]] = {
 }
 
 
-def code_checks(generation: Generation[Any], *, falls_back: bool = False) -> list[tuple[str, bool]]:
+def notes_fall_back(generation: Generation[Any]) -> bool:
+    """Whether a Coach notes generation leaves its email without Coach notes.
+
+    Only an answer that came back and failed validation (after its retry) does:
+    a provider failure has no answer at all and fails the run as before.
+    """
+    return generation.parsed is None and generation.response is not None
+
+
+def code_checks(
+    generation: Generation[Any], *, falls_back: bool = False, coach_notes: bool = False
+) -> list[tuple[str, bool]]:
     """The code-check scores of one generation, as (name, value) pairs.
 
     The checks observe values the run already computed and never steer it.
@@ -164,7 +189,8 @@ def code_checks(generation: Generation[Any], *, falls_back: bool = False) -> lis
     ``parse_ok`` and ``needed_retry`` are false (a provider failure is never
     retried) and ``truncated`` is whether the failure was a truncation (no
     provider raises one today; a truncated answer comes back as a response).
-    ``fallback_used`` is added when the operation ``falls_back``.
+    ``fallback_used`` is added when the operation ``falls_back`` (gym slots),
+    ``notes_fallback`` when it writes ``coach_notes`` (prompt v5).
     Production scores and the evals harness both come from here.
     """
     checks: list[tuple[str, bool]] = [
@@ -174,6 +200,8 @@ def code_checks(generation: Generation[Any], *, falls_back: bool = False) -> lis
     ]
     if falls_back:
         checks.append(("fallback_used", generation.parsed is None))
+    if coach_notes:
+        checks.append(("notes_fallback", notes_fall_back(generation)))
     return checks
 
 
@@ -314,11 +342,42 @@ class CoachingEngine:
         Returns the parsed answer. On failure the PromptLog row is committed
         and ``RuntimeError`` names ``what`` failed.
         """
+        parsed = await self._generate_coach_notes(
+            session, spec, run, prompt=prompt, variables=variables, now=now, what=what
+        )
+        if parsed is None:  # only a Coach notes spec returns None
+            raise RuntimeError(f"Failed to generate {what}: no Coach notes")
+        return parsed
+
+    async def _generate_coach_notes(
+        self,
+        session: AsyncSession,
+        spec: OperationSpec[T],
+        run: RunSpec,
+        *,
+        prompt: ServedPrompt,
+        variables: Mapping[str, str],
+        now: datetime,
+        what: str,
+    ) -> T | None:
+        """``_generate_insight`` for an operation that may go out without Coach notes.
+
+        When ``spec.coach_notes`` and the answer still fails validation after its
+        retry, returns ``None`` (scored ``notes_fallback``): the email is sent with
+        its code-rendered blocks only. A provider failure still raises.
+        """
         with self._tracer.run(run):
             generation = await self._generate(session, spec, prompt=prompt, variables=variables)
             self._score_code_checks(run, generation, spec, at=score_timestamp(run.about, now))
             if generation.parsed is None:
                 await session.commit()
+                if spec.coach_notes and notes_fall_back(generation):
+                    logger.warning(
+                        "%s: no valid Coach notes after the retry (%s); sending without them",
+                        what,
+                        generation.error,
+                    )
+                    return None
                 raise RuntimeError(f"Failed to generate {what}: {generation.error}")
             return generation.parsed
 
@@ -328,19 +387,23 @@ class CoachingEngine:
         user_id: int,
         insight_type: InsightType,
         insight_date: date,
-        parsed: BaseModel,
+        parsed: BaseModel | None,
         prompt: ServedPrompt,
         *,
         activity_external_id: str | None = None,
         revision: int = 1,
         source_event_id: str | None = None,
     ) -> CoachingInsight:
-        """Commit the insight a run produced, recording the prompt that made it."""
+        """Commit the insight a run produced, recording the prompt that made it.
+
+        ``parsed`` is ``None`` for a Coach notes fallback: the content is JSON
+        ``null``, so the insight exists (its email went out) without notes.
+        """
         insight = CoachingInsight(
             user_id=user_id,
             insight_date=insight_date,
             insight_type=insight_type,
-            content=parsed.model_dump_json(),
+            content=parsed.model_dump_json() if parsed is not None else "null",
             prompt_version=prompt.artifact_version,
             activity_external_id=activity_external_id,
             revision=revision,
@@ -371,7 +434,8 @@ class CoachingEngine:
         ``qualifier`` tells apart several generations on one trace.
         """
         meta = {"operation": spec.operation.value, **(metadata or {})}
-        for name, value in code_checks(generation, falls_back=spec.falls_back):
+        checks = code_checks(generation, falls_back=spec.falls_back, coach_notes=spec.coach_notes)
+        for name, value in checks:
             self._scores.emit(
                 Score.boolean(
                     run.trace_id, name, value, timestamp=at, qualifier=qualifier, metadata=meta
@@ -417,6 +481,7 @@ class CoachingEngine:
         user_message: str,
         model: str,
         max_tokens: int = 4096,
+        response_schema: ResponseSchema | None = None,
     ) -> LLMResponse:
         """Run the synchronous provider call on a worker thread.
 
@@ -431,6 +496,7 @@ class CoachingEngine:
             user_message=user_message,
             model=model,
             max_tokens=max_tokens,
+            response_schema=response_schema,
         )
 
     async def _generate(
@@ -586,6 +652,7 @@ class CoachingEngine:
                 user_message=user_message,
                 model=model,
                 max_tokens=max_tokens,
+                response_schema=spec.response_schema(),
             )
             parsed = parse_response(response.content, spec.response_model)
         except Exception as e:
@@ -713,7 +780,7 @@ class CoachingEngine:
             week_start=week_start,
             # The legacy column keeps the bare template version; the prompt
             # actually served is recorded per track (gym_prompt_version, ...).
-            prompt_version=BUNDLED_VERSION,
+            prompt_version=bundled_version(Operation.CARDIO_PLAN),
             status="active",
             availability_source=availability_source,
         )
@@ -1073,7 +1140,7 @@ class CoachingEngine:
             activity_date,
             regenerated_at=now if replaced else None,
         )
-        parsed = await self._generate_insight(
+        parsed = await self._generate_coach_notes(
             session,
             POST_WORKOUT,
             run,

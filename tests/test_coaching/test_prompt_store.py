@@ -9,9 +9,10 @@ from collections.abc import Generator
 import pytest
 from langfuse import Langfuse
 
-from mycoach.coaching.prompt_builder import Operation, compile_prompt
+from mycoach.coaching.prompt_builder import PROMPT_VARIABLES, Operation, compile_prompt
 from mycoach.coaching.prompt_store import BundledPrompts, LangfusePrompts
 from tests.fake_langfuse import FakeLangfuseAPI, langfuse_over
+from tests.test_coaching.prompt_cases import CASES
 
 NAME = "mycoach/cardio-plan"
 VARIABLES = {
@@ -257,3 +258,13 @@ def test_bundled_store_serves_the_bundled_files() -> None:
     assert served.source == "bundled"
     assert served.name == NAME
     assert served.artifact_version == "bundled:v4"
+
+
+def test_a_bundled_prompt_records_its_operations_bundled_version() -> None:
+    """Post-workout is on the structured-output contract (prompt v5, #238)."""
+    _, inputs = CASES["post_workout_swim_unplanned"]
+    variables = PROMPT_VARIABLES[Operation.POST_WORKOUT](**inputs)
+
+    served = BundledPrompts().serve(Operation.POST_WORKOUT, variables)
+
+    assert served.artifact_version == "bundled:v5"

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.email_schemas import PostWorkoutEmail
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     EXCUSED_LABEL,
@@ -20,10 +21,13 @@ from mycoach.coaching.life_context import (
     excused_summary,
     is_jet_lag,
 )
+from mycoach.coaching.strict_schema import strict_json_schema
 from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.plan import INTENT_LABEL
 
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from mycoach.coaching.context import OpenThisWeek
     from mycoach.coaching.steps import StepsSummary
 
@@ -64,8 +68,25 @@ class Operation(StrEnum):
 
 
 BUNDLED_VERSION = "v4"
-"""The bundled template set (``prompts/v4``): the default compile, the
-fallback the prompt store serves, and the seed of each Langfuse prompt."""
+"""The bundled template set (``prompts/v4``) of an operation not yet on the
+structured-output contract."""
+
+COACH_NOTES_VERSION = "v5"
+"""The bundled template set of the structured-output contract (``prompts/v5``):
+an operation whose answer is Coach notes (``coaching/email_schemas.py``)."""
+
+BUNDLED_VERSIONS: Mapping[Operation, str] = {
+    **{operation: BUNDLED_VERSION for operation in Operation},
+    Operation.POST_WORKOUT: COACH_NOTES_VERSION,
+}
+"""Each operation's bundled template set: its default compile, the fallback the
+prompt store serves, and the seed of its Langfuse prompt. An operation moves to
+``COACH_NOTES_VERSION`` with its email (#238 post-workout; #241-#243 the rest)."""
+
+
+def bundled_version(operation: Operation) -> str:
+    return BUNDLED_VERSIONS[operation]
+
 
 PRINCIPLES_VERSION = "v1"
 """The coaching principles file (``prompts/principles/v1.md``) appended to the
@@ -93,20 +114,25 @@ class CompiledPrompt(NamedTuple):
     user: str
 
 
-def operation_template(operation: Operation, version: str = BUNDLED_VERSION) -> str:
-    """An operation's bundled user-message template, uncompiled (``str.format`` syntax)."""
-    return _load_template(f"{operation.value}.txt", version)
+def operation_template(operation: Operation, version: str | None = None) -> str:
+    """An operation's bundled user-message template, uncompiled (``str.format`` syntax).
+
+    ``version`` defaults to the operation's ``bundled_version``.
+    """
+    return _load_template(f"{operation.value}.txt", version or bundled_version(operation))
 
 
 def compile_prompt(
-    operation: Operation, variables: Mapping[str, str], *, version: str = BUNDLED_VERSION
+    operation: Operation, variables: Mapping[str, str], *, version: str | None = None
 ) -> CompiledPrompt:
     """Render an operation's bundled template with its variable map.
 
     Returns the system message (shared system prompt plus coaching
-    principles) and the user message sent to the model.
+    principles) and the user message sent to the model. ``version`` defaults
+    to the operation's ``bundled_version``.
     Raises ``KeyError`` when the map lacks a placeholder the template uses.
     """
+    version = version or bundled_version(operation)
     template = operation_template(operation, version)
     return CompiledPrompt(
         system=operation_system_prompt(version), user=template.format(**variables)
@@ -847,63 +873,14 @@ def _format_planned_session(planned: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _build_post_workout_schema(sport: str, has_planned: bool) -> str:
-    """Build the JSON output schema for post-workout analysis, sport-aware."""
-    sport_rec = {
-        "swimming": "sets, distance, intensity, stroke technique focus",
-        "gym": "weights, volume, intensity adjustments",
-        "running": "distance, pace targets, interval structure",
-    }
-    rec_label = sport_rec.get(sport, "volume, intensity, technique adjustments")
+def _coach_notes_schema(model: "type[BaseModel]") -> str:
+    """A Coach notes model's strict schema as prompt text.
 
-    # Schema fields as (key, description) pairs
-    schema: list[tuple[str, str]] = [
-        ("performance_summary", "Brief overall assessment of the workout quality and effort"),
-    ]
-    if has_planned:
-        schema.append(
-            (
-                "planned_vs_actual",
-                "Comparison to planned session — adherence, deviations, and why",
-            )
-        )
-    schema.extend(
-        [
-            (
-                "performance_trends",
-                "How this session compares to recent similar workouts"
-                " — improvements, regressions, plateaus",
-            ),
-            (
-                "hr_analysis",
-                "Heart rate zone analysis and cardiovascular response (or 'No HR data available')",
-            ),
-            (
-                "training_effect_assessment",
-                "Assessment of aerobic/anaerobic training effect and what it means for adaptation",
-            ),
-            ("key_highlights", '["List of 2-4 specific positive highlights"]'),
-            ("areas_for_improvement", '["List of 1-3 areas to work on next"]'),
-            (
-                "next_session_recommendations",
-                f"Specific recommendations for next workout ({rec_label})",
-            ),
-            (
-                "recovery_notes",
-                "Post-workout recovery recommendations based on effort level and health context",
-            ),
-        ]
-    )
-    lines = []
-    for key, desc in schema:
-        if desc.startswith("["):
-            lines.append(f'  "{key}": {desc}')
-        else:
-            lines.append(f'  "{key}": "{desc}"')
-    # Single braces: this is a variable *value*, so it is never formatted.
-    # (Before #174 it kept the doubled braces of a str.format template, and
-    # the model saw them literally.)
-    return "{\n" + ",\n".join(lines) + "\n}"
+    The same schema OpenRouter is sent as ``response_format``; in the prompt it
+    reaches a provider that cannot enforce one (claude_code). A variable value,
+    so its braces are never formatted.
+    """
+    return json.dumps(strict_json_schema(model), indent=2, ensure_ascii=False)
 
 
 def post_workout_variables(
@@ -920,7 +897,6 @@ def post_workout_variables(
     The gym-details and planned-session sections are conditional, so their
     variables carry their own heading and are empty when absent.
     """
-    sport = activity.get("sport", "unknown")
     has_planned = planned_session is not None
 
     ts_val = health_context.get("training_status")
@@ -942,7 +918,7 @@ def post_workout_variables(
         "planned_comparison": (
             " Compare actual performance to the planned session." if has_planned else ""
         ),
-        "output_schema": _build_post_workout_schema(sport, has_planned),
+        "output_schema": _coach_notes_schema(PostWorkoutEmail),
         "life_context": _format_life_context(life_context),
     }
 

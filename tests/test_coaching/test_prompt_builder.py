@@ -536,7 +536,7 @@ class TestPostWorkoutConditionalSections:
             health_context={},
         )
         assert "## Planned Session" not in result
-        assert "planned_vs_actual" not in result
+        assert "Compare actual performance to the planned session." not in result
 
     def test_planned_section_when_present(self) -> None:
         result = build_post_workout_prompt(
@@ -547,7 +547,7 @@ class TestPostWorkoutConditionalSections:
             health_context={},
         )
         assert "## Planned Session" in result
-        assert "planned_vs_actual" in result
+        assert "Compare actual performance to the planned session." in result
 
     def test_glossary_present(self) -> None:
         result = build_post_workout_prompt(
@@ -562,27 +562,8 @@ class TestPostWorkoutConditionalSections:
         assert "EPOC" in result
         assert "Training Status: Productive" in result
 
-    def test_sport_aware_recommendations_swimming(self) -> None:
-        result = build_post_workout_prompt(
-            activity={"title": "Swim", "sport": "swimming"},
-            gym_details=[],
-            planned_session=None,
-            similar_activities=[],
-            health_context={},
-        )
-        assert "stroke technique focus" in result
-
-    def test_sport_aware_recommendations_gym(self) -> None:
-        result = build_post_workout_prompt(
-            activity={"title": "Push", "sport": "gym"},
-            gym_details=[],
-            planned_session=None,
-            similar_activities=[],
-            health_context={},
-        )
-        assert "weights, volume, intensity adjustments" in result
-
-    def test_sport_aware_recommendations_running(self) -> None:
+    def test_the_output_schema_is_the_post_workout_coach_notes(self) -> None:
+        """v5 (#238): one Coach notes schema for every sport, not a per-sport hint."""
         result = build_post_workout_prompt(
             activity={"title": "Run", "sport": "running"},
             gym_details=[],
@@ -590,7 +571,8 @@ class TestPostWorkoutConditionalSections:
             similar_activities=[],
             health_context={},
         )
-        assert "pace targets" in result
+        assert '"ready_in_hours"' in result
+        assert '"next_session"' in result
 
 
 class TestSwimmingActivityDetail:

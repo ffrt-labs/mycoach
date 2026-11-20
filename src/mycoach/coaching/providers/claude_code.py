@@ -16,6 +16,7 @@ from typing import Any
 
 from mycoach.coaching.exceptions import LLMAuthError, LLMProviderError, LLMQuotaExceeded
 from mycoach.coaching.llm_client import LLMClient, LLMResponse
+from mycoach.coaching.strict_schema import ResponseSchema
 from mycoach.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,11 @@ class ClaudeCodeClient(LLMClient):
         user_message: str,
         model: str | None = None,
         max_tokens: int = 4096,
+        response_schema: ResponseSchema | None = None,
     ) -> LLMResponse:
+        # ``response_schema`` is not passed on: the headless CLI has no
+        # structured-output flag, so the schema reaches the model only as the
+        # prompt's own text, and Pydantic is the gate.
         model = model or self._model_daily
         start = time.monotonic()
 

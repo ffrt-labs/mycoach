@@ -3,7 +3,8 @@
 ``PromptStore.serve(operation, variables)`` returns the compiled system and
 user messages plus where they came from. With Langfuse configured the
 ``production`` version of the operation's chat prompt is served; the bundled
-``prompts/v4`` files, compiled by ``compile_prompt``, are the fallback. The
+files (``prompts/<bundled_version(operation)>``), compiled by ``compile_prompt``,
+are the fallback. The
 fallback is never an error path: a coaching run always gets a prompt.
 
 See docs/adr/0003-langfuse-source-of-truth-for-coaching-prompts.md.
@@ -25,8 +26,8 @@ from langfuse.api import NotFoundError
 from langfuse.model import ChatPromptClient
 
 from mycoach.coaching.prompt_builder import (
-    BUNDLED_VERSION,
     Operation,
+    bundled_version,
     compile_prompt,
     operation_system_prompt,
     operation_template,
@@ -58,7 +59,8 @@ class ServedPrompt:
 
     ``version`` is the Langfuse version number (``None`` when bundled).
     ``link`` is the Langfuse prompt object a generation is linked to, or
-    ``None`` when bundled.
+    ``None`` when bundled. ``bundled_version`` is the template set a bundled
+    prompt was compiled from.
     """
 
     system: str
@@ -67,12 +69,13 @@ class ServedPrompt:
     name: str
     version: int | None = None
     link: ChatPromptClient | None = None
+    bundled_version: str | None = None
 
     @property
     def artifact_version(self) -> str:
-        """What an artifact records: ``lf:<n>`` or ``bundled:v4``."""
+        """What an artifact records: ``lf:<n>`` or ``bundled:<version>`` (``bundled:v5``)."""
         if self.version is None:
-            return f"bundled:{BUNDLED_VERSION}"
+            return f"bundled:{self.bundled_version}"
         return f"lf:{self.version}"
 
 
@@ -85,9 +88,14 @@ class PromptStore(Protocol):
 
 
 def bundled_prompt(operation: Operation, variables: Mapping[str, str]) -> ServedPrompt:
-    system, user = compile_prompt(operation, variables, version=BUNDLED_VERSION)
+    version = bundled_version(operation)
+    system, user = compile_prompt(operation, variables, version=version)
     return ServedPrompt(
-        system=system, user=user, source="bundled", name=LANGFUSE_PROMPT_NAMES[operation]
+        system=system,
+        user=user,
+        source="bundled",
+        name=LANGFUSE_PROMPT_NAMES[operation],
+        bundled_version=version,
     )
 
 
@@ -119,11 +127,12 @@ def to_langfuse_template(template: str) -> str:
 
 def langfuse_messages(operation: Operation) -> list[dict[str, str]]:
     """The bundled prompt as a Langfuse chat prompt: system, then user."""
-    template = operation_template(operation, BUNDLED_VERSION)
+    version = bundled_version(operation)
+    template = operation_template(operation, version)
     return [
         {
             "role": "system",
-            "content": to_langfuse_template(operation_system_prompt(BUNDLED_VERSION)),
+            "content": to_langfuse_template(operation_system_prompt(version)),
         },
         {"role": "user", "content": to_langfuse_template(template)},
     ]

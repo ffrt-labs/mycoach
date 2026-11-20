@@ -96,15 +96,16 @@ class TestFormatPlanAdherence:
             " — 3 as planned, 1 substituted, 1 not done\n"
             "On planned day: 3/4 (informational only — never a penalty)\n"
             "Done:\n"
-            "- Squat [gym] — done Wednesday (planned Monday)\n"
-            "- Swim 1.7 km [swimming, aerobic base] — done Tuesday (planned Tuesday)\n"
-            "- Deadlift [gym] — done Friday (planned Friday)\n"
+            "- Squat [gym] — done Wednesday (planned Monday) [session_id: 1]\n"
+            "- Swim 1.7 km [swimming, aerobic base] — done Tuesday (planned Tuesday)"
+            " [session_id: 2]\n"
+            "- Deadlift [gym] — done Friday (planned Friday) [session_id: 4]\n"
             "Substituted:\n"
             "- Long easy run [running, aerobic base] (planned Sunday)"
             " ← Padel [padel] on Sunday: 101 min, avg HR 118, aerobic TE 2.7,"
-            " delivered aerobic base\n"
+            " delivered aerobic base [session_id: 5]\n"
             "Not done:\n"
-            "- Intervals 6x3 min [running, intervals] (planned Thursday)\n"
+            "- Intervals 6x3 min [running, intervals] (planned Thursday) [session_id: 3]\n"
             "Extras (unplanned, not counted):\n"
             "- Walk [walking] on Saturday: 45 min, recovery\n"
             "Plan summary: Base block week 3: two lifts, a swim, intervals and a long run."
@@ -314,8 +315,8 @@ class TestFormatWeeklyGymDetails:
             ]
         )
 
-        assert result.count("Barbell Squat:") == 1
-        assert "Back Squat:" not in result
+        assert result.count("Barbell Squat [exercise_id: Barbell_Squat]:") == 1
+        assert "Back Squat" not in result
 
     def test_groups_by_session(self) -> None:
         details = [
@@ -537,7 +538,7 @@ class TestRecapPromptV4:
     def test_headline_is_completion(self) -> None:
         message = self._user_message()
         assert "Completion: 4/5 planned sessions done (80%)" in message
-        assert "The headline is the Completion line" in message
+        assert "The email leads with the Completion line" in message
 
     def test_nothing_outside_the_rules_names_rigid_language(self) -> None:
         rest = self._without_rules(self._user_message()).lower()

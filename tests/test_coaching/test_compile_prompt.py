@@ -15,7 +15,7 @@ from string import Formatter
 
 import pytest
 
-from mycoach.coaching.email_schemas import PostWorkoutEmail
+from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.prompt_builder import (
     PROMPT_VARIABLES,
     Operation,
@@ -74,7 +74,7 @@ def test_post_workout_is_bundled_on_v5_and_the_rest_on_v4() -> None:
         Operation.GYM_ADJUSTMENT: "v4",
         Operation.CARDIO_PLAN: "v4",
         Operation.POST_WORKOUT: "v5",
-        Operation.WEEKLY_RECAP: "v4",
+        Operation.WEEKLY_RECAP: "v5",
     }
 
 
@@ -111,3 +111,24 @@ def test_the_v5_system_message_keeps_observed_numbers_out_of_coach_notes() -> No
 def test_missing_variable_fails_to_compile() -> None:
     with pytest.raises(KeyError):
         compile_prompt(Operation.CARDIO_PLAN, {"cardio_slots": "x"})
+
+
+def test_the_v5_recap_prompt_carries_its_strict_schema() -> None:
+    _, inputs = CASES["weekly_recap_2026_11_02"]
+    variables = PROMPT_VARIABLES[Operation.WEEKLY_RECAP](**inputs)
+
+    messages = compile_prompt(Operation.WEEKLY_RECAP, variables)
+
+    assert json.loads(variables["output_schema"]) == strict_json_schema(WeeklyRecapEmail)
+    assert variables["output_schema"] in messages.user
+
+
+def test_the_v5_recap_prompt_lists_session_and_exercise_ids() -> None:
+    """Session notes join by session id and lift notes by Exercise ID (#242)."""
+    _, inputs = CASES["weekly_recap_2026_11_02"]
+    user = compile_prompt(
+        Operation.WEEKLY_RECAP, PROMPT_VARIABLES[Operation.WEEKLY_RECAP](**inputs)
+    ).user
+
+    assert "- Squat [gym] — done Wednesday (planned Monday) [session_id: 1]" in user
+    assert "Barbell Squat [exercise_id: D04AC939]: 100kg×5 RPE8" in user

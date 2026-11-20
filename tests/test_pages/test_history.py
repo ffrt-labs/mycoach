@@ -1,6 +1,7 @@
 """Tests for the history page route."""
 
-from datetime import datetime, timedelta
+import json
+from datetime import date, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -10,6 +11,7 @@ from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.user import User
 from tests.conftest import test_session
+from tests.test_email.test_recap_notes import NOTES
 
 pytestmark = pytest.mark.anyio
 
@@ -283,3 +285,25 @@ async def test_history_page_sources_badge(client: AsyncClient) -> None:
     resp = await client.get("/history")
     assert resp.status_code == 200
     assert "garmin, logger" in resp.text.lower()
+
+
+async def test_a_v5_recap_shows_its_lead_and_next_week_actions(client: AsyncClient) -> None:
+    """A recap on the v5 contract (#242) holds Coach notes, not the v4 paragraphs."""
+    await _seed_user()
+    async with test_session() as session:
+        session.add(
+            CoachingInsight(
+                user_id=1,
+                insight_date=date(2026, 11, 2),
+                insight_type="weekly_recap",
+                content=json.dumps(NOTES),
+                prompt_version="bundled:v5",
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/history?recap_week=2026-11-02")
+
+    assert resp.status_code == 200
+    assert "Both lifts and the swim are in" in resp.text
+    assert "Keep one intervals session in the week." in resp.text

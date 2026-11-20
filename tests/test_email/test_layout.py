@@ -18,6 +18,8 @@ from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 from tests.test_email.test_post_workout_notes import NOTES as POST_WORKOUT_NOTES
 from tests.test_email.test_post_workout_stats import LAST_SWIM, ZONED_SWIM
+from tests.test_email.test_recap_notes import GYM_SETS, HEALTH_WEEK, _load_focus
+from tests.test_email.test_recap_notes import NOTES as RECAP_NOTES
 
 # The stat grid, zone bar and trend's numbers (#239), on the fixture's own activity.
 SWIM_NUMBERS = {k: v for k, v in ZONED_SWIM.items() if k not in ("external_id", "title")}
@@ -165,21 +167,21 @@ def _weekly_plan(s: Settings) -> None:
 
 def _weekly_recap(s: Settings) -> None:
     sender.send_weekly_recap(
-        {
-            "week_summary": "Solid week",
-            "adherence_analysis": "Four of five",
-            "training_load_analysis": "Load steady",
-            "recovery_assessment": "Recovered",
-            "performance_highlights": ["PR on squat"],
-            "areas_of_concern": ["Sleep"],
-            "next_week_recommendations": "Hold volume",
-            "mesocycle_progress": "Week 3 of 4",
-            "coach_recommendations": ["Deload soon"],
-        },
+        RECAP_NOTES | {"block_suggestion": "Start a 4-week strength block."},
         "2026-11-09",
         s,
         adherence=WEEK_2026_11_02_ADHERENCE,
         episodes=[],
+        health_week=[
+            *HEALTH_WEEK,
+            {
+                "snapshot_date": "2026-11-08",
+                "load_focus": _load_focus(aerobic_low_target_min=300, aerobic_low_target_max=600),
+            },
+        ],
+        gym_sets=GYM_SETS,
+        has_mesocycle=False,
+        plan_failed=True,
     )
 
 

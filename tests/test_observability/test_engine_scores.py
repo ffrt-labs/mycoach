@@ -269,6 +269,7 @@ class TestOtherRuns:
             f"{RECAP}:parse_ok",
             f"{RECAP}:needed_retry",
             f"{RECAP}:truncated",
+            f"{RECAP}:notes_fallback",
         }
 
 
@@ -381,10 +382,13 @@ class TestPlanCompletionScore:
         async with new_session() as session:
             user_id = await _create_briefing_user(session)
             await _plan_with_sessions(session, user_id, MONDAY, done=0)
+            llm = _recap_llm()
+            # A provider failure: an invalid answer would go out without Coach notes (#242).
+            llm.call.side_effect = LLMQuotaExceeded("OpenRouter: credits exhausted")
             with pytest.raises(RuntimeError):
-                await CoachingEngine(
-                    llm_client=_recap_llm("not json at all"), scores=sink
-                ).generate_weekly_recap(session, user_id, MONDAY)
+                await CoachingEngine(llm_client=llm, scores=sink).generate_weekly_recap(
+                    session, user_id, MONDAY
+                )
 
         assert sink.values()[RATIO] == 0.0
 

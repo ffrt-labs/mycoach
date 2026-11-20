@@ -1,5 +1,6 @@
 """Tests for weekly recap engine method."""
 
+import json
 from datetime import date, datetime
 from unittest.mock import MagicMock
 
@@ -16,18 +17,21 @@ from mycoach.models.user import User
 from tests.conftest import test_session
 
 VALID_RECAP_RESPONSE = """{
-  "week_summary": "Strong training week with 4/5 sessions completed.",
-  "adherence_analysis": "Missed Friday padel due to weather.",
-  "performance_highlights": ["New bench press PR at 85kg", "Improved 100m swim time"],
-  "areas_of_concern": ["Elevated Resting Heart Rate mid-week"],
-  "recovery_assessment": "Sleep quality dipped mid-week.",
-  "training_load_analysis": "Good distribution across gym and swimming.",
-  "gym_coaching": [{"day_label": "Day 1 (Push)", "exercises": ["Bench press progressing well", "Squat stagnating at 120kg for 3 weeks"]}],
-  "exercise_substitutions": ["Squat → Bulgarian Split Squat because plateau at 120kg"],
-  "cardio_coaching": [{"sport": "Swimming", "analysis": "Pace steady at 2:30/100m.", "recommendation": "Add one fartlek session next week."}],
-  "coach_recommendations": ["Deload on squat", "Add fartlek swim", "Sleep earlier"],
-  "next_week_recommendations": "Reduce gym volume by 10%.",
-  "mesocycle_progress": "Week 3 of 4 in build phase."
+  "headline": {
+    "tone": "good",
+    "summary": "Both lifts and the swim are in; the bench press reached 85kg."
+  },
+  "actions": [
+    {"do": "Keep one intervals session in the week.", "why": "The only high-intensity work."},
+    {"do": "Sleep earlier before the hard days.", "why": null}
+  ],
+  "guardrail": {"when": "Resting HR up 5 bpm", "then": "Swap intervals for easy Z2"},
+  "session_notes": [{"session_id": 1, "text": "Solid squat day."}],
+  "recovery_note": "Sleep dipped mid-week and recovered by Sunday.",
+  "lift_notes": [{"exercise_id": "D04AC939", "tone": "good", "trend": "up 2.5 kg"}],
+  "load_note": "Mostly low aerobic work.",
+  "block_suggestion": null,
+  "analysis_md": "## Week\\nStrong week."
 }"""
 
 
@@ -79,7 +83,7 @@ class TestGenerateWeeklyRecap:
             assert insight.insight_type == "weekly_recap"
             assert insight.insight_date == week_start
             assert insight.user_id == user_id
-            assert "85kg" in insight.content
+            assert "85kg" in json.loads(insight.content)["headline"]["summary"]
             mock_llm.call.assert_called_once()
 
     async def test_logs_prompt(self) -> None:
@@ -167,3 +171,51 @@ class TestGenerateWeeklyRecap:
             call_args = mock_llm.call.call_args
             msg = call_args.kwargs.get("user_message", call_args[1].get("user_message", ""))
             assert "1/1" in msg
+
+
+def _response(content: str) -> LLMResponse:
+    return LLMResponse(
+        content=content,
+        model="claude-sonnet-4-5-20250929",
+        input_tokens=800,
+        output_tokens=300,
+        latency_ms=1200,
+        estimated_cost_usd=0.006,
+    )
+
+
+def _four_actions() -> str:
+    """A v5 recap answer with one action more than the slot allows."""
+    data = json.loads(VALID_RECAP_RESPONSE)
+    data["actions"] = data["actions"] * 2
+    return json.dumps(data)
+
+
+class TestRecapCoachNotes:
+    """Prompt v5 (#242): the recap's Coach notes in typed slots, one retry, then none."""
+
+    async def test_the_call_carries_the_strict_schema_of_the_recap_notes(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            mock_llm = _mock_llm_client()
+            await CoachingEngine(llm_client=mock_llm).generate_weekly_recap(
+                session, user_id, date(2024, 6, 10)
+            )
+
+        schema = mock_llm.call.call_args.kwargs["response_schema"]
+        assert schema.name == "weekly_recap"
+        assert "session_notes" in schema.schema["required"]
+
+    async def test_a_second_invalid_answer_stores_the_recap_without_coach_notes(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            mock_llm = _mock_llm_client()
+            mock_llm.call.side_effect = [_response(_four_actions()), _response(_four_actions())]
+            insight = await CoachingEngine(llm_client=mock_llm).generate_weekly_recap(
+                session, user_id, date(2024, 6, 10)
+            )
+
+            assert insight.insight_type == "weekly_recap"
+            assert json.loads(insight.content) is None
+            retry = mock_llm.call.call_args_list[1]
+            assert "at most 3 items" in retry.kwargs["user_message"]

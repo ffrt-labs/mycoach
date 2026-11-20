@@ -5,13 +5,21 @@
 {% import "components/_extras.html" as extras_list %}
 {% import "components/_life_context_list.html" as life_context %}
 {% import "components/_quick_replies.html" as qr %}
+{% import "components/_coach_notes.html" as cn %}
+{% import "components/_notice.html" as note %}
+{% import "components/_recap_blocks.html" as rb %}
 {% block title %}Weekly Recap{% endblock %}
 {% block subtitle %}Weekly recap · {{ week_label }}{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
 
+{#- Rendered from Coach notes (``notes``, prompt v5) and code only (#242). Without
+    notes (``notes_fallback``) the code blocks still go out, under a Notice. -#}
 {% call ui.hero("Week of " ~ week_label ~ " · completion") %}
-    {{ completion.completion(hero, recap.week_summary) }}
+    {{ completion.completion(hero, notes.headline.summary if notes else none) }}
+    {% if not notes %}
+    {{ note.notice("Coach", notes_unavailable ~ ".", margin_top=16) }}
+    {% endif %}
 {% endcall %}
 
 {% if quick_replies %}
@@ -20,13 +28,17 @@
 {% endcall %}
 {% endif %}
 
-{% if sessions or extras or recap.adherence_analysis %}
+{% if notes %}
+{% call ui.section(layout) %}
+    {{ cn.actions_card(ui, notes.actions, "Next week") }}
+    {% if notes.guardrail %}{{ cn.guardrail(notes.guardrail) }}{% endif %}
+{% endcall %}
+{% endif %}
+
+{% if sessions or extras %}
 {% call ui.section(layout, "Sessions") %}
     {% if sessions %}{{ session_status.session_status(sessions) }}{% endif %}
     {% if extras %}<div{% if sessions %} style="margin-top:16px;"{% endif %}>{{ extras_list.extras(extras) }}</div>{% endif %}
-    {% if recap.adherence_analysis %}
-    <div class="p"{% if sessions %} style="margin-top:16px;"{% endif %}>{{ recap.adherence_analysis }}</div>
-    {% endif %}
 {% endcall %}
 {% endif %}
 
@@ -36,47 +48,36 @@
 {% endcall %}
 {% endif %}
 
-{% if recap.training_load_analysis %}
-{% call ui.section(layout, "Training load") %}
-    <div class="p">{{ recap.training_load_analysis }}</div>
-{% endcall %}
-{% endif %}
-
-{% if recap.recovery_assessment %}
+{% if recovery_tiles or notes %}
 {% call ui.section(layout, "Recovery") %}
-    <div class="p">{{ recap.recovery_assessment }}</div>
+    {% if recovery_tiles %}{{ rb.recovery_tiles(recovery_tiles) }}{% endif %}
+    {% if notes %}<div class="p"{% if recovery_tiles %} style="margin-top:16px;"{% endif %}>{{ notes.recovery_note }}</div>{% endif %}
 {% endcall %}
 {% endif %}
 
-{% if recap.performance_highlights %}
-{% call ui.section(layout, "Highlights") %}
-    {{ ui.bullets(recap.performance_highlights) }}
+{% if lifts %}
+{% call ui.section(layout, "Strength") %}
+    {{ rb.lift_table(ui, lifts) }}
 {% endcall %}
 {% endif %}
 
-{% if recap.areas_of_concern %}
-{% call ui.section(layout, "Watch") %}
-    {{ ui.bullets(recap.areas_of_concern, "arrow") }}
+{% if loads or notes %}
+{% call ui.section(layout, "Load focus") %}
+    {% if loads %}{{ rb.load_rows(loads) }}{% endif %}
+    {% if notes %}<div class="p"{% if loads %} style="margin-top:16px;"{% endif %}>{{ notes.load_note }}</div>{% endif %}
 {% endcall %}
 {% endif %}
 
-{% if recap.next_week_recommendations %}
-{% call ui.section(layout) %}
-    {% call ui.coach("Next week") %}{{ recap.next_week_recommendations }}{% endcall %}
+{% if setup_notices or (notes and notes.block_suggestion) %}
+{% call ui.section(layout, "Setup") %}
+    {% for n in setup_notices %}
+    {{ note.notice(n.label, n.text, n.tone, n.link_url, n.link_text, margin_top=0 if loop.first else 12) }}
+    {% endfor %}
+    {% if notes and notes.block_suggestion %}
+    {% call ui.coach("Block", padding=16, margin_top=12 if setup_notices else none) %}{{ notes.block_suggestion }}{% endcall %}
+    {% endif %}
 {% endcall %}
 {% endif %}
 
-{% if recap.mesocycle_progress %}
-{% call ui.section(layout, "Mesocycle") %}
-    <div class="p">{{ recap.mesocycle_progress }}</div>
-{% endcall %}
-{% endif %}
-
-{% if recap.coach_recommendations %}
-{% call ui.section(layout, "Coach recommendations") %}
-    {{ ui.bullets(recap.coach_recommendations) }}
-{% endcall %}
-{% endif %}
-
-{{ ui.cta(dashboard_url, "See full recap →") }}
+{{ ui.cta(full_recap_url, "Full recap →") }}
 {% endblock %}

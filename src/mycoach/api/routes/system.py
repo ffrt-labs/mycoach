@@ -2,8 +2,13 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from mycoach.database import get_db
+from mycoach.models.job_run import JobRun
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -93,3 +98,38 @@ async def trigger_scheduler_job(job_id: str, request: Request) -> TriggerRespons
     job.modify(next_run_time=run_at)
 
     return TriggerResponse(job_id=job_id, scheduled_for=run_at.isoformat())
+
+
+class JobRunEntry(BaseModel):
+    started_at: datetime
+    duration_ms: int
+    status: str
+    error: str | None
+    skip_reason: str | None
+    email_delivered: bool
+
+
+JOB_LOG_LIMIT = 20
+
+
+@router.get("/jobs/{job_name}/runs", response_model=list[JobRunEntry])
+async def job_log(job_name: str, session: AsyncSession = Depends(get_db)) -> list[JobRunEntry]:
+    """A scheduled job's recent runs, newest first: the job log the recap's Setup
+    notice links to when the weekly plan failed to generate (#242)."""
+    runs = await session.scalars(
+        select(JobRun)
+        .where(JobRun.job_name == job_name)
+        .order_by(JobRun.started_at.desc())
+        .limit(JOB_LOG_LIMIT)
+    )
+    return [
+        JobRunEntry(
+            started_at=run.started_at,
+            duration_ms=run.duration_ms,
+            status=run.status,
+            error=run.error,
+            skip_reason=run.skip_reason,
+            email_delivered=run.email_delivered,
+        )
+        for run in runs
+    ]

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.email_schemas import PostWorkoutEmail
+from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     EXCUSED_LABEL,
@@ -78,6 +78,7 @@ an operation whose answer is Coach notes (``coaching/email_schemas.py``)."""
 BUNDLED_VERSIONS: Mapping[Operation, str] = {
     **{operation: BUNDLED_VERSION for operation in Operation},
     Operation.POST_WORKOUT: COACH_NOTES_VERSION,
+    Operation.WEEKLY_RECAP: COACH_NOTES_VERSION,
 }
 """Each operation's bundled template set: its default compile, the fallback the
 prompt store serves, and the seed of its Langfuse prompt. An operation moves to
@@ -1016,10 +1017,17 @@ def _format_weekly_gym_details(details: list[dict[str, Any]]) -> str:
                     part += f" RPE{rpe}"
                 if part:
                     set_strs.append(part)
-            ex_lines.append(f"{ex_name}: {', '.join(set_strs)}")
+            ex_lines.append(f"{ex_name}{_exercise_id_tag(sets[0])}: {', '.join(set_strs)}")
         parts.append("\n".join(ex_lines))
 
     return "\n\n".join(parts)
+
+
+def _exercise_id_tag(detail: Mapping[str, Any]) -> str:
+    """ " [exercise_id: D04AC939]" for a catalogue exercise, the key a recap lift note
+    joins on (#242); nothing for a custom exercise, which gets no note."""
+    exercise_id = detail.get("exercise_id")
+    return f" [exercise_id: {exercise_id}]" if exercise_id else ""
 
 
 def _format_gym_history(history: list[dict[str, Any]]) -> str:
@@ -1041,7 +1049,8 @@ def _format_gym_history(history: list[dict[str, Any]]) -> str:
     parts = []
     for exercise_key in sorted(by_exercise, key=lambda key: display_titles[key].casefold()):
         weeks_data = sorted(by_exercise[exercise_key], key=lambda r: r.get("week_start") or "")
-        lines = [f"**{display_titles[exercise_key]}**"]
+        tag = _exercise_id_tag(by_exercise[exercise_key][0])
+        lines = [f"**{display_titles[exercise_key]}**{tag}"]
         for row in weeks_data:
             w_start = row.get("week_start", "?")
             try:
@@ -1097,6 +1106,11 @@ def _activity_metrics(a: Mapping[str, Any]) -> str:
     return ", ".join(parts)
 
 
+def _session_id_tag(s: Mapping[str, Any]) -> str:
+    """ " [session_id: 3]", the key a recap session note joins on (#242)."""
+    return f" [session_id: {s['id']}]" if s.get("id") is not None else ""
+
+
 def _session_status(s: Mapping[str, Any]) -> str:
     # Pre-#216 dicts carry only ``completed``.
     return str(s.get("status") or ("done" if s["completed"] else "not_done"))
@@ -1146,7 +1160,10 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         lines.append("Done:")
         for s in by_status["done"]:
             when = f"done {s['actual_day']}" if s.get("actual_day") else "ticked off by hand"
-            lines.append(f"- {s['title']} {_session_tag(s)} — {when} (planned {s['day']})")
+            lines.append(
+                f"- {s['title']} {_session_tag(s)} — {when} (planned {s['day']})"
+                + _session_id_tag(s)
+            )
     for status, heading in (
         ("substituted", f"{_heading('substituted')}:"),
         ("adapted_travel", f"{_heading('adapted_travel')}, counted as done:"),
@@ -1169,6 +1186,7 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
                 f"- {s['title']} {_session_tag(s)} (planned {s['day']})"
                 f" ← {sub.get('title', '?')} [{sub.get('sport', '?')}]{on}"
                 + (f": {detail}" if detail else "")
+                + _session_id_tag(s)
             )
     for status, heading in (
         ("not_done", f"{_heading('not_done')}:"),
@@ -1177,12 +1195,16 @@ def _format_plan_adherence(adherence: Mapping[str, Any] | None) -> str:
         if by_status.get(status):
             lines.append(heading)
             for s in by_status[status]:
-                lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
+                lines.append(
+                    f"- {s['title']} {_session_tag(s)} (planned {s['day']})" + _session_id_tag(s)
+                )
     for status in EXCUSED_LABEL:
         if by_status.get(status):
             lines.append(f"{_heading(status)}, out of the count:")
             for s in by_status[status]:
-                lines.append(f"- {s['title']} {_session_tag(s)} (planned {s['day']})")
+                lines.append(
+                    f"- {s['title']} {_session_tag(s)} (planned {s['day']})" + _session_id_tag(s)
+                )
     extras = adherence.get("extras") or []
     if extras:
         lines.append("Extras (unplanned, not counted):")
@@ -1230,6 +1252,7 @@ def weekly_recap_variables(
         "availability": _format_availability(availability or []),
         "sport_profiles": _format_sport_profiles(sport_profiles or []),
         "life_context": _format_life_context(life_context),
+        "output_schema": _coach_notes_schema(WeeklyRecapEmail),
     }
 
 

@@ -59,6 +59,8 @@
   .c-{{ name }} { background:{{ s.light.bg }}; color:{{ s.light.fg }}; border-color:{{ s.light.border }}; }
   {%- endfor %}
 
+  .ws-q { border:2px solid #ea6d1f !important; }
+
   .st-tick { font:600 12px 'IBM Plex Sans',sans-serif; color:#047857; }
   .st-track { background:#f4f4f5; }
   .st-bar { background:#a1a1aa; border-radius:3px 3px 0 0; }
@@ -92,6 +94,7 @@
     {%- for name, s in chip_styles.items() %}
     .c-{{ name }} { background:{{ s.dark.bg }} !important; color:{{ s.dark.fg }} !important; border-color:{{ s.dark.border }} !important; }
     {%- endfor %}
+    .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }
     .st-track { background:rgba(255,255,255,.06) !important; }
     .st-bar { background:#57575c !important; }

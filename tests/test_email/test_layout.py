@@ -14,7 +14,7 @@ import pytest
 from mycoach.coaching.life_context import Episode, LifeContext
 from mycoach.config import Settings
 from mycoach.email import sender
-from mycoach.models.life_context import EpisodeKind, IllnessSeverity
+from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 
 
@@ -101,20 +101,41 @@ def _weekly_plan(s: Settings) -> None:
                 "title": "Squat Day",
                 "sport": "gym",
                 "duration_minutes": 75,
+                "intent": "strength",
                 "notes": "Heavy",
-                "details": {"exercises": [{"name": "Squat", "sets": 4, "reps": 5}]},
+                "details": {
+                    "exercises": [
+                        {"name": "Squat", "sets": 4, "reps": 5},
+                        {"name": "Deadlift", "sets": 36, "reps": 5},
+                    ]
+                },
             },
             {
                 "day_name": "Tuesday",
                 "title": "Easy swim",
                 "sport": "swimming",
                 "duration_minutes": 45,
+                "intent": "threshold",
                 "details": {"distance_km": 2},
             },
         ],
         "2026-11-16",
         availability_source="default",
         settings=s,
+        life=LifeContext(
+            today=date(2026, 11, 15),
+            episodes=[
+                Episode(
+                    id=1,
+                    kind=EpisodeKind.TRAVEL,
+                    started_on=date(2026, 11, 18),
+                    ended_on=date(2026, 11, 20),
+                    equipment=Equipment.HOTEL_GYM,
+                    tz_shift_hours=6,
+                )
+            ],
+            ramp_back=None,
+        ),
     )
 
 
@@ -245,11 +266,10 @@ def test_every_section_has_a_divider_including_the_first_after_the_hero(html: st
 
 def test_the_weekly_plan_default_schedule_notice_sits_in_the_hero() -> None:
     html = _render("weekly_plan")
-    hero = re.search(r'<td class="px hero"[^>]*>(.*?)</td>', html, re.S)
-    assert hero
-    assert "Planned against your standing schedule" in hero.group(1)
+    # The hero holds nested tables (the week strip), so locate by position, not by </td>.
+    hero_start = html.index('class="px hero"')
     starts = [m.start() for m in re.finditer(r'class="px section', html)]
-    assert html.index("Planned against your standing schedule") < starts[0]
+    assert hero_start < html.index("Planned against your standing schedule") < starts[0]
     assert starts[0] < html.index("Squat Day") < starts[1], "the first section is Monday's card"
 
 

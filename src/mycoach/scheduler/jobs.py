@@ -604,9 +604,10 @@ def job_weekly_plan() -> None:
     _run_recorded_job("weekly_plan", _weekly_plan())
 
 
-async def _weekly_plan() -> None:
+async def _weekly_plan(today: date | None = None) -> None:
     engine = CoachingEngine()
-    next_monday = plan_week_start(date.today())
+    today = today or date.today()
+    next_monday = plan_week_start(today)
 
     async with async_session() as session:
         try:
@@ -632,15 +633,25 @@ async def _weekly_plan() -> None:
             sessions = result.scalars().all()
             session_dicts = [
                 {
+                    "day_of_week": s.day_of_week,
                     "day_name": WEEKDAY_NAMES[s.day_of_week],
                     "title": s.title,
                     "sport": s.sport,
                     "duration_minutes": s.duration_minutes,
+                    "intent": s.intent,
                     "notes": s.notes,
                     "details": json.loads(s.details) if s.details else None,
                 }
                 for s in sessions
             ]
+            # The planned week's trips and illness, for the strip and its notices (#234);
+            # best-effort like the briefing's numbers.
+            life = await _or_none(
+                "life context",
+                life_context_for(
+                    session, USER_ID, next_monday, next_monday + timedelta(days=6), today=today
+                ),
+            )
             _deliver(
                 partial(
                     send_weekly_plan,
@@ -648,6 +659,7 @@ async def _weekly_plan() -> None:
                     sessions=session_dicts,
                     week_start=str(next_monday),
                     availability_source=plan.availability_source,
+                    life=life,
                 ),
                 "weekly plan",
             )

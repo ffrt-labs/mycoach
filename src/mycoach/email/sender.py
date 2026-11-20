@@ -24,6 +24,7 @@ from mycoach.coaching.context import OpenThisWeek
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
+    DayEffect,
     Episode,
     LifeContext,
     excused_reasons,
@@ -33,7 +34,13 @@ from mycoach.coaching.life_context import (
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 from mycoach.email.life_views import life_banner, open_week_view
-from mycoach.email.tones import JINJA_GLOBALS, SESSION_STATUS_CHIP, Chip
+from mycoach.email.tones import (
+    JINJA_GLOBALS,
+    LIFE_CONTEXT_STYLE,
+    QUALITY_INTENTS,
+    SESSION_STATUS_CHIP,
+    Chip,
+)
 from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from mycoach.models.plan import INTENT_LABEL
@@ -97,9 +104,27 @@ def _format_key_metrics(key_metrics: dict) -> dict[str, str]:  # type: ignore[ty
     return rows
 
 
+ROUTINE_MAX_SETS = 10
+"""More working sets of one exercise than this is a routine typo, not a prescription (#187)."""
+
+ROUTINE_ERROR_PLANNED_SETS = 3
+"""What the plan email shows in place of a set count over ``ROUTINE_MAX_SETS`` (#234)."""
+
+
+def _is_routine_error(sets: object) -> bool:
+    return isinstance(sets, int) and sets > ROUTINE_MAX_SETS
+
+
 def _format_exercise(exercise: dict) -> tuple[str, str]:  # type: ignore[type-arg]
-    """Turn one planned gym exercise into a (name, "4x8 @ 60kg - RPE 8") pair."""
-    detail = f"{exercise.get('sets', '?')}×{exercise.get('reps', '?')}"
+    """Turn one planned gym exercise into a (name, "4x8 @ 60kg - RPE 8") pair.
+
+    A routine-error set count shows as the planned "3*", the asterisk pointing at
+    the Routine error notice.
+    """
+    sets = exercise.get("sets", "?")
+    if _is_routine_error(sets):
+        sets = f"{ROUTINE_ERROR_PLANNED_SETS}*"
+    detail = f"{sets}×{exercise.get('reps', '?')}"
     if exercise.get("target_weight_kg"):
         detail += f" @ {exercise['target_weight_kg']}kg"
     if exercise.get("rpe"):
@@ -371,12 +396,232 @@ def send_daily_briefing(
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)
 
 
+def _plan_duration(minutes: int) -> str:
+    """ "4 h 30 min", "2 h" or "45 min"."""
+    hours, rest = divmod(minutes, 60)
+    if not hours:
+        return f"{rest} min"
+    return f"{hours} h {rest} min" if rest else f"{hours} h"
+
+
+def _plan_totals(sessions: list[dict]) -> dict[str, str]:  # type: ignore[type-arg]
+    """The hero's count and total time, computed from the planned sessions."""
+    n = len(sessions)
+    minutes = sum(s.get("duration_minutes") or 0 for s in sessions)
+    return {
+        "count": f"{n} session{'' if n == 1 else 's'}",
+        "total": _plan_duration(minutes) if minutes else "",
+    }
+
+
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+# Sport -> (chip style, week-strip short label). Unknown sports render neutral, upper-cased.
+_PLAN_SPORT: dict[str, tuple[str, str]] = {
+    "gym": ("warm", "GYM"),
+    "strength": ("warm", "GYM"),
+    "swimming": ("info", "SWIM"),
+    "swim": ("info", "SWIM"),
+    "cycling": ("info", "BIKE"),
+    "running": ("good", "RUN"),
+    "run": ("good", "RUN"),
+    "padel": ("good", "PADEL"),
+    "rest": ("neutral", "REST"),
+}
+
+
+def _plan_sport(sport: str | None) -> tuple[str, str]:
+    key = (sport or "").lower()
+    return _PLAN_SPORT.get(key, ("neutral", key.upper()))
+
+
+def _plan_day_index(session: dict) -> int | None:  # type: ignore[type-arg]
+    """The session's weekday (0 = Monday), from ``day_of_week`` or else its ``day_name``."""
+    day = session.get("day_of_week")
+    if isinstance(day, int) and 0 <= day <= 6:
+        return day
+    name = str(session.get("day_name") or "").strip().lower()
+    return next((i for i, d in enumerate(_WEEKDAYS) if d.lower() == name), None)
+
+
+def _week_strip(
+    sessions: list[dict],  # type: ignore[type-arg]
+    travel_days: set[int],
+) -> list[dict]:  # type: ignore[type-arg]
+    """Seven cells, Monday first: each day's sessions (sport, minutes, intent label), whether
+    a quality intent is planned that day, and whether a trip covers it."""
+    days: list[dict] = [  # type: ignore[type-arg]
+        {"abbr": name[:3].upper(), "sessions": [], "quality": False, "travel": i in travel_days}
+        for i, name in enumerate(_WEEKDAYS)
+    ]
+    for s in sessions:
+        i = _plan_day_index(s)
+        if i is None:
+            continue
+        style, label = _plan_sport(s.get("sport"))
+        intent = s.get("intent")
+        days[i]["sessions"].append(
+            {
+                "sport": label,
+                "style": style,
+                "minutes": s.get("duration_minutes"),
+                "intent": INTENT_LABEL.get(intent) if intent else None,
+            }
+        )
+        if intent in QUALITY_INTENTS:
+            days[i]["quality"] = True
+    return days
+
+
+_EQUIPMENT_TEXT: dict[str, str] = {
+    Equipment.NONE: "no equipment",
+    Equipment.HOTEL_GYM: "hotel gym",
+    Equipment.FULL_GYM: "full gym",
+}
+
+
+def _trip_days(trip: Episode, week_start: date) -> list[int]:
+    """The weekdays (0 = Monday) of ``week_start``'s week the trip covers; an open trip
+    runs to the end of the week."""
+    week_end = week_start + timedelta(days=6)
+    first = max(trip.started_on, week_start)
+    last = min(trip.ended_on or week_end, week_end)
+    return [(first - week_start).days + i for i in range((last - first).days + 1)]
+
+
+def _trip_notice(trip: Episode, week_start: date) -> str:
+    """ "Trip Wed–Fri · hotel gym · 6 h ahead": what the athlete logged, nothing inferred."""
+    days = _trip_days(trip, week_start)
+    starts_in_week = trip.started_on >= week_start
+    ends_in_week = trip.ended_on is not None and trip.ended_on <= week_start + timedelta(days=6)
+    first, last = _WEEKDAYS[days[0]][:3], _WEEKDAYS[days[-1]][:3]
+    if starts_in_week and ends_in_week:
+        span = first if first == last else f"{first}–{last}"
+    elif starts_in_week:
+        span = f"from {first}"
+    elif ends_in_week:
+        span = f"until {last}"
+    else:
+        span = "all week"
+    parts = [f"Trip {span}"]
+    if trip.equipment is not None:
+        parts.append(_EQUIPMENT_TEXT[trip.equipment])
+    if trip.tz_shift_hours:
+        side = "behind" if trip.tz_shift_hours < 0 else "ahead"
+        parts.append(f"{abs(trip.tz_shift_hours):g} h {side}")
+    if trip.no_training:
+        parts.append("no training possible")
+    if trip.ended_on is None:
+        parts.append("return date not set")
+    return " · ".join(parts)
+
+
+def _illness_notice(illness: Episode) -> str:
+    """ "Ill since Fri 13 Nov · mild"."""
+    text = f"Ill since {illness.started_on.strftime('%a %-d %b')}"
+    return f"{text} · {illness.severity}" if illness.severity else text
+
+
+def _life_context_notices(life: LifeContext | None, week_start: date) -> list[dict[str, str]]:
+    """A notice per trip touching the planned week, and per open illness. Facts only: how
+    the plan handles them is the coach's to say, not the notice's."""
+    if life is None:
+        return []
+    week_end = week_start + timedelta(days=6)
+    notices = []
+    for e in life.episodes:
+        if e.kind == EpisodeKind.TRAVEL and e.started_on <= week_end:
+            if e.ended_on is None or e.ended_on >= week_start:
+                effect = DayEffect.TRAVEL_NO_TRAINING if e.no_training else DayEffect.TRAVEL
+                text = _trip_notice(e, week_start)
+            else:
+                continue
+        elif e.kind == EpisodeKind.ILLNESS and e.is_open:
+            effect = DayEffect.MILD if e.severity == IllnessSeverity.MILD else DayEffect.SICK
+            text = _illness_notice(e)
+        else:
+            continue
+        notices.append({"label": "Life context", "tone": LIFE_CONTEXT_STYLE[effect], "text": text})
+    return notices
+
+
+def _travel_days(life: LifeContext | None, week_start: date) -> set[int]:
+    if life is None:
+        return set()
+    week_end = week_start + timedelta(days=6)
+    return {
+        day
+        for e in life.episodes
+        if e.kind == EpisodeKind.TRAVEL
+        and e.started_on <= week_end
+        and (e.ended_on is None or e.ended_on >= week_start)
+        for day in _trip_days(e, week_start)
+    }
+
+
+def _default_schedule_notices(
+    availability_source: str | None, settings: Settings
+) -> list[dict[str, str]]:
+    """The week was planned against the standing schedule, not something the athlete set."""
+    if availability_source != "default":
+        return []
+    return [
+        {
+            "label": "Default schedule",
+            "tone": "neutral",
+            "text": "Planned against your standing schedule — you didn't set this week, "
+            "so it was filled in from your default.",
+            "link_url": _default_schedule_url(settings),
+            "link_text": "Change it →",
+        }
+    ]
+
+
+def _and_join(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _routine_error_notices(
+    sessions: list[dict],  # type: ignore[type-arg]
+    settings: Settings,
+) -> list[dict[str, str]]:
+    """A Routine error notice per day whose routine lists more than ``ROUTINE_MAX_SETS``
+    sets of an exercise: "Friday lists Deadlift and Pull Up at 36 sets, Split Squat at
+    32. Planned as 3." It is an app problem, so it links to the routine to fix it."""
+    notices = []
+    for s in sessions:
+        details = s.get("details")
+        exercises = details.get("exercises") if isinstance(details, dict) else None
+        if not isinstance(exercises, list):
+            continue
+        by_sets: dict[int, list[str]] = {}
+        for ex in exercises:
+            if isinstance(ex, dict) and _is_routine_error(ex.get("sets")):
+                by_sets.setdefault(ex["sets"], []).append(str(ex.get("name", "Exercise")))
+        if not by_sets:
+            continue
+        groups = [f"{_and_join(names)} at {n}" for n, names in by_sets.items()]
+        groups[0] += " sets"
+        notices.append(
+            {
+                "label": "Routine error",
+                "tone": "watch",
+                "text": f"{s.get('day_name')} lists {', '.join(groups)}. "
+                f"Planned as {ROUTINE_ERROR_PLANNED_SETS}.",
+                "link_url": f"{settings.app_base_url}/routine",
+                "link_text": "Fix routine →",
+            }
+        )
+    return notices
+
+
 def send_weekly_plan(
     summary: str,
     sessions: list[dict],
     week_start: str,
     availability_source: str | None = None,
     settings: Settings | None = None,  # type: ignore[type-arg]
+    life: LifeContext | None = None,
 ) -> bool:
     """Send the weekly training plan email.
 
@@ -384,16 +629,32 @@ def send_weekly_plan(
     generated before the standing-schedule feature existed). When ``"default"``,
     the email tells the reader the week was planned against their default
     schedule rather than something they set.
+
+    ``life`` is the planned week's Life context: a trip touching the week marks its
+    days on the week strip, and each trip or open illness gets a factual notice.
     """
     if settings is None:
         settings = get_settings()
+    monday = date.fromisoformat(week_start)
     display_sessions = [
-        {**s, "details": _format_session_details(s.get("details"))} for s in sessions
+        {
+            **s,
+            "sport_style": _plan_sport(s.get("sport"))[0],
+            "details": _format_session_details(s.get("details")),
+        }
+        for s in sessions
     ]
     html = _render_template(
         "weekly_plan.html",
         {
             "summary": summary,
+            "totals": _plan_totals(sessions),
+            "week_strip": _week_strip(sessions, _travel_days(life, monday)),
+            "notices": [
+                *_life_context_notices(life, monday),
+                *_default_schedule_notices(availability_source, settings),
+                *_routine_error_notices(sessions, settings),
+            ],
             "sessions": display_sessions,
             "week_start": week_start,
             "availability_source": availability_source,

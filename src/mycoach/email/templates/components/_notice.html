@@ -1,0 +1,13 @@
+{#- A Notice (spec principle 5): a fact the reader should know, or an app problem with
+    a link to fix it. Never coaching. ``tone`` is a CHIP_STYLES name; ``label`` names
+    the kind ("Life context", "Default schedule", "Routine error"). -#}
+{% macro notice(label, text, tone="neutral", link_url=none, link_text=none, margin_top=12) -%}
+<div class="notice c-{{ tone }}" style="margin-top:{{ margin_top }}px;padding:14px 16px;border-radius:10px;border-width:1px;border-style:solid;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="width:128px;vertical-align:top;font:600 12px/1.6 'IBM Plex Sans',sans-serif;padding-right:12px;">{{ label }}</td>
+      <td style="vertical-align:top;font:400 14px/1.6 'IBM Plex Sans',sans-serif;">{{ text }}{% if link_url %} <a href="{{ link_url }}" style="text-decoration:underline;">{{ link_text }}</a>{% endif %}</td>
+    </tr>
+  </table>
+</div><!-- /notice -->
+{%- endmacro %}

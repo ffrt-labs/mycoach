@@ -1,21 +1,24 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% import "components/_week_strip.html" as strip %}
+{% import "components/_notice.html" as note %}
 {% block title %}Weekly Plan{% endblock %}
 {% block subtitle %}Weekly plan{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
-{% set _sportchip = {'gym': 'warm', 'strength': 'warm', 'swimming': 'info', 'swim': 'info', 'cycling': 'info', 'running': 'good', 'run': 'good', 'padel': 'good', 'rest': 'neutral'} %}
 
 {% call ui.hero("Week of " ~ week_start) %}
-    <div class="verdict">Weekly Plan</div>
+    {% if totals %}
+    <div class="verdict">{{ totals.count }}{% if totals.total %} <span class="msub" style="font-size:18px;font-weight:500;white-space:nowrap;">{{ totals.total }}</span>{% endif %}</div>
+    {% endif %}
     {% if summary %}
     <div class="lead" style="margin-top:12px;">{{ summary }}</div>
     {% endif %}
-    {% if availability_source == 'default' %}
-    {% call ui.coach(padding=16, margin_top=16) -%}
-      Planned against your standing schedule — you didn't set this week, so it was filled in from your default. <a href="{{ default_schedule_url|default('#') }}">Change it here</a> if that's wrong.
-    {%- endcall %}
-    {% endif %}
+    {% if week_strip %}{{ strip.week_strip(week_strip) }}{% endif %}
+    {#- Life context, default schedule, routine error: built in sender, in that order. -#}
+    {% for n in notices|default([]) %}
+    {{ note.notice(n.label, n.text, n.tone, n.link_url, n.link_text, margin_top=16 if loop.first else 12) }}
+    {% endfor %}
 {% endcall %}
 
 {% for session in sessions %}
@@ -27,7 +30,9 @@
           <div class="strong" style="font:600 17px 'IBM Plex Sans',sans-serif;margin-top:4px;">{{ session.title }}</div>
         </td>
         <td style="vertical-align:top;text-align:right;white-space:nowrap;">
-          <span class="chip c-{{ _sportchip.get(session.sport|lower, 'neutral') }}">{{ session.sport }}</span>
+          {%- set ic = intent_chip(session.intent) %}
+          {%- if ic %}<span class="{{ ic.css }}">{{ ic.label }}{% if session.intent in quality_intents %} · quality{% endif %}</span> {% endif -%}
+          <span class="chip c-{{ session.sport_style|default('neutral') }}">{{ session.sport }}</span>
         </td>
       </tr>
     </table>

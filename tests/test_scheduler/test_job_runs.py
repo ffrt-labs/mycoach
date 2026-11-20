@@ -579,7 +579,9 @@ def _briefing_engine() -> MagicMock:
 def _plan_engine() -> MagicMock:
     """Engine returning a plan with a real int id, so the session lookup binds."""
     engine = MagicMock()
-    engine.generate_weekly_plan = AsyncMock(return_value=MagicMock(id=1, summary="Big week"))
+    engine.generate_weekly_plan = AsyncMock(
+        return_value=MagicMock(id=1, summary="Big week", coach_notes=None)
+    )
     return engine
 
 

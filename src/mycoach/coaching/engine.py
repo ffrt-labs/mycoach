@@ -36,7 +36,12 @@ from mycoach.coaching.context import (
     get_today_health,
     get_today_planned_sessions,
 )
-from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import (
+    CardioPlanV5,
+    CardioSessionV5,
+    PostWorkoutEmail,
+    WeeklyRecapEmail,
+)
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
     NoAvailabilityConfigured,
@@ -56,7 +61,6 @@ from mycoach.coaching.prompt_builder import (
 from mycoach.coaching.prompt_store import PromptStore, ServedPrompt, get_prompt_store
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.coaching.response_parser import (
-    CardioPlanResponse,
     DailyBriefingResponse,
     GymAdjustmentExercise,
     GymAdjustmentResponse,
@@ -158,7 +162,7 @@ GYM_ADJUSTMENT = OperationSpec(
     Operation.GYM_ADJUSTMENT, GymAdjustmentResponse, max_tokens=8192, falls_back=True
 )
 CARDIO_PLAN = OperationSpec(
-    Operation.CARDIO_PLAN, CardioPlanResponse, model_tier="weekly", max_tokens=8192
+    Operation.CARDIO_PLAN, CardioPlanV5, model_tier="weekly", max_tokens=8192, coach_notes=True
 )
 POST_WORKOUT = OperationSpec(Operation.POST_WORKOUT, PostWorkoutEmail, coach_notes=True)
 WEEKLY_RECAP = OperationSpec(
@@ -204,6 +208,18 @@ def code_checks(
     if coach_notes:
         checks.append(("notes_fallback", notes_fall_back(generation)))
     return checks
+
+
+def cardio_session_details(session: CardioSessionV5) -> str:
+    """A v5 cardio session's ``PlannedSession.details``: its Blocks and foot (#243).
+
+    The Blocks replace the v4 free-text ``description``; the session's focus is
+    stored as its ``notes``.
+    """
+    return json.dumps(
+        {"blocks": [b.model_dump() for b in session.blocks], "foot": session.foot},
+        ensure_ascii=False,
+    )
 
 
 class CoachingEngine:
@@ -962,7 +978,8 @@ class CoachingEngine:
 
                 if cardio.parsed is not None:
                     cardio_plan = cardio.parsed
-                    summaries.append(cardio_plan.weekly_summary)
+                    summaries.append(cardio_plan.focus)
+                    plan.coach_notes = cardio_plan.plan_notes().model_dump_json()
                     # Match LLM sessions to slots by sport — don't trust LLM's day_of_week
                     # Group LLM sessions by sport for matching
                     llm_by_sport: dict[str, list] = {}
@@ -988,8 +1005,8 @@ class CoachingEngine:
                                 sport=sport,
                                 title=s.title,
                                 duration_minutes=s.duration_minutes,
-                                details=json.dumps(s.details) if s.details else None,
-                                notes=s.notes,
+                                details=cardio_session_details(s),
+                                notes=s.focus,
                                 track=Track.CARDIO,
                                 intent=s.intent,
                             )

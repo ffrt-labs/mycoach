@@ -15,7 +15,7 @@ from string import Formatter
 
 import pytest
 
-from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import CardioPlanV5, PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.prompt_builder import (
     PROMPT_VARIABLES,
     Operation,
@@ -72,7 +72,7 @@ def test_post_workout_is_bundled_on_v5_and_the_rest_on_v4() -> None:
     assert {op: bundled_version(op) for op in Operation} == {
         Operation.DAILY_BRIEFING: "v4",
         Operation.GYM_ADJUSTMENT: "v4",
-        Operation.CARDIO_PLAN: "v4",
+        Operation.CARDIO_PLAN: "v5",
         Operation.POST_WORKOUT: "v5",
         Operation.WEEKLY_RECAP: "v5",
     }
@@ -106,6 +106,24 @@ def test_the_v5_system_message_keeps_observed_numbers_out_of_coach_notes() -> No
         "Never write an observed or derived number, count or status that the context "
         "does not contain; never compute a completion figure." in " ".join(system.split())
     )
+
+
+def test_the_v5_cardio_plan_prompt_carries_its_strict_schema() -> None:
+    """#243: the cardio plan answers in Blocks, not a free-text description."""
+    _, inputs = CASES["cardio_plan_full"]
+    variables = PROMPT_VARIABLES[Operation.CARDIO_PLAN](**inputs)
+
+    messages = compile_prompt(Operation.CARDIO_PLAN, variables)
+
+    assert json.loads(variables["output_schema"]) == strict_json_schema(CardioPlanV5)
+    assert variables["output_schema"] in messages.user
+    assert '"description"' not in messages.user
+
+
+def test_v5_cardio_plan_adds_only_its_output_schema() -> None:
+    assert _placeholders(operation_template(Operation.CARDIO_PLAN, "v5")) == _placeholders(
+        operation_template(Operation.CARDIO_PLAN, "v4")
+    ) | {"output_schema"}
 
 
 def test_missing_variable_fails_to_compile() -> None:

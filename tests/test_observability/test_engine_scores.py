@@ -178,6 +178,7 @@ class TestWeeklyPlanCodeChecks:
             f"{PLAN}:parse_ok:cardio_plan": 1.0,
             f"{PLAN}:needed_retry:cardio_plan": 0.0,
             f"{PLAN}:truncated:cardio_plan": 0.0,
+            f"{PLAN}:notes_fallback:cardio_plan": 0.0,
         }
         fallback = sink.by_id()[f"{PLAN}:fallback_used:gym_adjustment:1"]
         assert fallback.metadata == {"operation": "gym_adjustment", "day_of_week": 2}

@@ -232,14 +232,14 @@ def test_the_day_card_shows_the_set_count_the_notice_says_was_planned(
     mock_send: MagicMock,
 ) -> None:
     html = _html(mock_send, sessions=[_gym_day(4, ("Deadlift", 36, "5"))])
-    assert "3*×5" in html
-    assert "36×5" not in html
+    assert "3* × 5" in html
+    assert "36 × 5" not in html
 
 
 def test_ten_sets_is_not_a_routine_error(mock_send: MagicMock) -> None:
     html = _html(mock_send, sessions=[_gym_day(0, ("Squat", 10, "5"))])
     assert _notices(html) == []
-    assert "10×5" in html
+    assert "10 × 5" in html
 
 
 def test_notices_run_life_context_then_default_schedule_then_routine_error(

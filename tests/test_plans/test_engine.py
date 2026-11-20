@@ -17,6 +17,11 @@ from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
 from mycoach.models.user import User
 from tests.conftest import test_session
 
+
+def _block(phase: str, set_: str, **fields: object) -> dict[str, object]:
+    return {"phase": phase, "set": set_, "cue": None, "target": None, "rest_s": None, **fields}
+
+
 # Cardio plan response (used when no routine — all slots go to cardio track)
 VALID_CARDIO_RESPONSE = json.dumps(
     {
@@ -27,20 +32,23 @@ VALID_CARDIO_RESPONSE = json.dumps(
                 "title": "Easy Recovery Run",
                 "intent": "aerobic_base",
                 "duration_minutes": 60,
-                "details": {"type": "easy", "description": "Zone 2 easy run"},
-                "notes": "Keep HR under 140.",
+                "focus": "Keep HR under 140.",
+                "blocks": [_block("warmup", "10 min"), _block("main", "45 min", target="Z2")],
+                "foot": "Flat route.",
             },
             {
                 "day_of_week": 3,
                 "sport": "swimming",
                 "title": "Endurance Swim",
                 "duration_minutes": 45,
-                "details": {"type": "endurance", "description": "Freestyle steady"},
-                "notes": "Keep heart rate in zone 2.",
+                "focus": "Keep heart rate in zone 2.",
+                "blocks": [_block("main", "5×200", rest_s=25)],
+                "foot": None,
             },
         ],
+        "focus": "Balanced cardio week: easy run + endurance swim.",
+        "guardrails": [{"when": "HRV low on Thursday", "then": "Swim easy"}],
         "goal_assessment": "On track for weekly targets.",
-        "weekly_summary": "Balanced cardio week: easy run + endurance swim.",
     }
 )
 
@@ -91,12 +99,14 @@ def _mock_llm_two_track() -> MagicMock:
                     "sport": "running",
                     "title": "Easy Recovery Run",
                     "duration_minutes": 45,
-                    "details": {"type": "easy", "description": "Zone 2 easy run"},
-                    "notes": "Keep HR under 140.",
+                    "focus": "Keep HR under 140.",
+                    "blocks": [_block("main", "45 min", target="Z2")],
+                    "foot": None,
                 },
             ],
+            "focus": "Light cardio week with a Saturday run.",
+            "guardrails": [],
             "goal_assessment": "On track for weekly targets.",
-            "weekly_summary": "Light cardio week with a Saturday run.",
         }
     )
     client.call.side_effect = [
@@ -208,7 +218,7 @@ class TestGenerateWeeklyPlan:
 
             assert plan.status == "active"
             assert plan.week_start == week_start
-            assert plan.prompt_version == "v4"
+            assert plan.prompt_version == "v5"
 
             result = await session.execute(
                 select(PlannedSession)
@@ -644,20 +654,23 @@ class TestGenerateWeeklyPlan:
                             "sport": "swimming",
                             "title": "Swim",
                             "duration_minutes": 60,
-                            "details": {},
-                            "notes": None,
+                            "focus": "Easy.",
+                            "blocks": [_block("main", "40 min")],
+                            "foot": None,
                         },
                         {
                             "day_of_week": 4,
                             "sport": "running",
                             "title": "Easy Run",
                             "duration_minutes": 60,
-                            "details": {},
-                            "notes": None,
+                            "focus": "Easy.",
+                            "blocks": [_block("main", "40 min")],
+                            "foot": None,
                         },
                     ],
+                    "focus": "Mixed cardio.",
+                    "guardrails": [],
                     "goal_assessment": "Good.",
-                    "weekly_summary": "Mixed cardio.",
                 }
             )
             client = MagicMock()
@@ -705,3 +718,62 @@ class TestGenerateWeeklyPlan:
 
             run_s = next(s for s in sessions if s.day_of_week == 4)
             assert run_s.track == "cardio"
+
+
+class TestCardioPlanOnV5:
+    """#243: the cardio plan answers in Coach notes; code stores them for the email."""
+
+    async def _sessions(self, session: object, plan_id: int) -> dict[str, PlannedSession]:
+        result = await session.execute(  # type: ignore[attr-defined]
+            select(PlannedSession).where(PlannedSession.plan_id == plan_id)
+        )
+        return {s.sport: s for s in result.scalars().all()}
+
+    async def test_a_cardio_session_stores_its_focus_blocks_and_foot(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            plan = await CoachingEngine(llm_client=_mock_llm_client()).generate_weekly_plan(
+                session, user_id, week_start
+            )
+
+            run = (await self._sessions(session, plan.id))["running"]
+            assert run.notes == "Keep HR under 140."
+            assert json.loads(run.details or "") == {
+                "blocks": [_block("warmup", "10 min"), _block("main", "45 min", target="Z2")],
+                "foot": "Flat route.",
+            }
+
+    async def test_the_plan_stores_its_focus_guardrails_and_goal_assessment(self) -> None:
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            plan = await CoachingEngine(llm_client=_mock_llm_client()).generate_weekly_plan(
+                session, user_id, week_start
+            )
+
+            assert plan.summary == "Balanced cardio week: easy run + endurance swim."
+            assert json.loads(plan.coach_notes or "") == {
+                "focus": "Balanced cardio week: easy run + endurance swim.",
+                "guardrails": [{"when": "HRV low on Thursday", "then": "Swim easy"}],
+                "goal_assessment": "On track for weekly targets.",
+            }
+
+    async def test_a_v4_shaped_answer_leaves_the_plan_without_coach_notes(self) -> None:
+        v4 = json.dumps(
+            {
+                "sessions": [{"day_of_week": 0, "sport": "running", "title": "Run"}],
+                "goal_assessment": "Fine.",
+                "weekly_summary": "One run.",
+            }
+        )
+        async with test_session() as session:
+            user_id, week_start = await _setup_user_and_availability(session)
+
+            plan = await CoachingEngine(llm_client=_mock_llm_client(v4)).generate_weekly_plan(
+                session, user_id, week_start
+            )
+
+            assert plan.coach_notes is None
+            sessions = await self._sessions(session, plan.id)
+            assert all(s.generation_error for s in sessions.values())

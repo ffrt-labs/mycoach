@@ -16,6 +16,7 @@ from mycoach.coaching.context import (
 )
 from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.email.plan_views import plan_block_rows, stored_plan_notes
 from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -99,6 +100,8 @@ async def plan_page(
                 "session": ps,
                 "done": ps.id in done_ids,
                 "details": details,
+                # A v5 cardio session's Blocks (#243); none for gym and v4 sessions.
+                "blocks": plan_block_rows(details if isinstance(details, dict) else None),
                 "day_name": WEEKDAY_NAMES[ps.day_of_week],
                 "is_today": is_current_week and ps.day_of_week == today.weekday(),
             }
@@ -155,5 +158,6 @@ async def plan_page(
             "has_availability": has_availability,
             "week_start_iso": monday.isoformat(),
             "open_this_week": open_this_week,
+            "plan_notes": stored_plan_notes(plan.coach_notes) if plan else None,
         },
     )

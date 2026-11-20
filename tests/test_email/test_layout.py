@@ -142,11 +142,28 @@ def _weekly_plan(s: Settings) -> None:
                 "sport": "swimming",
                 "duration_minutes": 45,
                 "intent": "threshold",
-                "details": {"distance_km": 2},
+                "notes": "The only hard session.",
+                "details": {
+                    "blocks": [
+                        {
+                            "phase": "main",
+                            "set": "8×100",
+                            "cue": None,
+                            "target": "RPE 6",
+                            "rest_s": 20,
+                        }
+                    ],
+                    "foot": "Total ~2000 m.",
+                },
             },
         ],
         "2026-11-16",
         availability_source="default",
+        notes={
+            "focus": "One quality day.",
+            "guardrails": [{"when": "Legs heavy", "then": "Skip the strides"}],
+            "goal_assessment": "On track.",
+        },
         settings=s,
         life=LifeContext(
             today=date(2026, 11, 15),
@@ -323,7 +340,8 @@ def test_the_weekly_plan_default_schedule_notice_sits_in_the_hero() -> None:
     hero_start = html.index('class="px hero"')
     starts = [m.start() for m in re.finditer(r'class="px section', html)]
     assert hero_start < html.index("Planned against your standing schedule") < starts[0]
-    assert starts[0] < html.index("Squat Day") < starts[1], "the first section is Monday's card"
+    assert starts[0] < html.index("Rules this week") < starts[1], "Guardrails come first (#243)"
+    assert starts[1] < html.index("Squat Day") < starts[2], "then Monday's card"
 
 
 def test_an_included_block_right_after_the_hero_is_the_first_section() -> None:

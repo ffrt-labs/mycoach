@@ -71,6 +71,20 @@
     {% if plan.summary %}
     <div class="bg-accent/[0.06] rounded-xl border border-accent/20 p-4">
         <p class="text-sm text-accent-soft leading-relaxed">{{ plan.summary }}</p>
+        {% if plan_notes and plan_notes.goal_assessment %}
+        <p class="text-sm text-zinc-400 mt-2 leading-relaxed">{{ plan_notes.goal_assessment }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if plan_notes and plan_notes.guardrails %}
+    <div class="rounded-xl border border-white/[0.07] bg-surface p-4">
+        <p class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500 mb-2">Rules this week</p>
+        <ul class="space-y-1.5 text-sm text-zinc-300">
+            {% for g in plan_notes.guardrails %}
+            <li><span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-zinc-100">IF</span> {{ g.when }} → <span class="font-semibold text-zinc-100">{{ g.then }}</span></li>
+            {% endfor %}
+        </ul>
     </div>
     {% endif %}
 
@@ -170,6 +184,26 @@
                     </div>
                     {% endfor %}
                 </div>
+            </div>
+            {% elif day.blocks %}
+            {# A v5 cardio session (#243): its Blocks, then its foot. #}
+            <div class="px-4 pb-3 border-t {% if day.is_today %}border-accent/20{% else %}border-white/[0.06]{% endif %}">
+                <table class="w-full mt-2 text-sm">
+                    {% for b in day.blocks %}
+                    <tr class="{% if not loop.last %}border-b border-white/[0.06]{% endif %} align-top">
+                        <td class="py-2 pr-3 text-[11px] uppercase tracking-[0.08em] text-zinc-500 whitespace-nowrap">{{ b.phase }}</td>
+                        <td class="py-2 pr-3">
+                            <span class="font-mono font-semibold text-zinc-100">{{ b.set }}</span>
+                            {% if b.cue %}<p class="text-xs text-zinc-500 mt-0.5">{{ b.cue }}</p>{% endif %}
+                        </td>
+                        <td class="py-2 pr-3 text-zinc-300">{{ b.target }}</td>
+                        <td class="py-2 text-right font-mono text-zinc-500">{{ b.rest }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                {% if day.details.foot %}
+                <p class="text-xs text-zinc-500 mt-2">{{ day.details.foot }}</p>
+                {% endif %}
             </div>
             {% elif day.details %}
             {# Fallback for non-exercise details (swimming, running, etc.) #}

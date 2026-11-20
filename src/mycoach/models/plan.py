@@ -57,6 +57,10 @@ class WeeklyPlan(Base):
     # materialised from the standing schedule. Null for plans generated before
     # this column existed.
     availability_source: Mapped[str | None] = mapped_column(String(20), default=None)
+    # The cardio plan's plan-level Coach notes (prompt v5, #243) as ``PlanNotes`` JSON:
+    # the email's focus sentence, its Guardrails and the goal assessment. Null when the
+    # week had no cardio slots, the notes fell back, and for older plans.
+    coach_notes: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 

@@ -1,0 +1,41 @@
+Write the Coach notes of the post-workout email for the following completed workout.
+
+## Glossary
+- SWOLF: swim efficiency = seconds + strokes per length. Lower = better.
+- EPOC: excess post-exercise oxygen consumption. Indicates training load and recovery need.
+- Training Effect: 1-2 minor, 2-3 maintaining, 3-4 improving, 4-5 highly improving.
+- Training Status: {training_status_label}
+
+## Completed Activity
+{activity_data}{gym_details_section}{planned_session_section}
+
+## Recent Similar Activities (last 5 of same sport)
+{similar_activities}
+
+## Today's Health Context
+{health_context}
+
+## Life Context
+{life_context}
+
+If the athlete was ill or is in a ramp-back on this day, a light or short session is the plan working, not a regression: never read lower pace, power or volume as lost fitness.
+If the athlete was travelling, judge the session against what the trip's equipment allowed, not against the home plan.
+
+Judge the session.{planned_comparison} Identify the trend against the recent similar workouts.
+
+The email already shows the activity's numbers from the data: distance, time, pace, heart rate, zones, the trend table and the week's status. Observed and derived numbers never come from you; your slots carry the judgment and what to do about it.
+
+Slots:
+- headline: verdict is a 2-4 word judgment ("Solid, but short"); summary is one sentence; tone is good, neutral, watch or alert.
+- actions: 1-3 things to do next time, most important first. "do" starts with a verb; "why" names the signal behind it, or null.
+- zone_note: one line on the time in heart-rate zones against the session's purpose, or null without zone data.
+- trend_note: one sentence on the trend against the recent similar workouts.
+- next_session: the next session of this sport as up to 6 blocks, in order. "set" is the prescription ("5×200", "3×6"), "target" the prescribed intensity or load ("RPE 4–5 · Z2", "85 kg"), "rest_s" the rest in seconds. Empty when there is nothing to prescribe.
+- guardrails: up to 2 conditional adjustments to that session: "when" a stated signal appears, "then" what changes.
+- week_addition: one addition to the rest of this week ("One extra easy Z2 swim, 1200–1500 m"), or null.
+- ready_in_hours: hours until the athlete is ready for the next hard session.
+- recovery: one line of recovery advice.
+- analysis_md: the full analysis in Markdown, for the dashboard.
+
+Respond with a JSON object matching this JSON schema:
+{output_schema}

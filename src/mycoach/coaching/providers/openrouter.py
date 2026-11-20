@@ -15,6 +15,7 @@ import openai
 
 from mycoach.coaching.exceptions import LLMAuthError, LLMProviderError, LLMQuotaExceeded
 from mycoach.coaching.llm_client import LLMClient, LLMResponse
+from mycoach.coaching.strict_schema import ResponseSchema
 from mycoach.config import get_settings
 
 if TYPE_CHECKING:
@@ -52,6 +53,18 @@ def _upstream_max_tokens(answer_tokens: int) -> int:
     uses, so reasoning gets a fixed floor rather than a share of the limit.
     """
     return answer_tokens + max(answer_tokens, REASONING_BUDGET_TOKENS)
+
+
+# The ``supported_parameters`` entry of a model that takes a strict JSON schema.
+STRUCTURED_OUTPUTS = "structured_outputs"
+
+
+def _response_format(schema: ResponseSchema) -> dict[str, Any]:
+    """A strict ``json_schema`` response format (spec #230, prompt v5)."""
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": schema.name, "strict": True, "schema": schema.schema},
+    }
 
 
 def _status_error(e: openai.APIStatusError) -> LLMProviderError:
@@ -122,6 +135,8 @@ class OpenRouterClient(LLMClient):
         )
         self._model_daily = settings.openrouter_model_daily
         self._model_weekly = settings.openrouter_model_weekly
+        # Model id -> its supported_parameters, read once on the first call with a schema.
+        self._model_parameters: dict[str, frozenset[str]] | None = None
 
     def call(
         self,
@@ -130,8 +145,14 @@ class OpenRouterClient(LLMClient):
         user_message: str,
         model: str | None = None,
         max_tokens: int = 4096,
+        response_schema: ResponseSchema | None = None,
     ) -> LLMResponse:
         model = model or self._model_daily
+        extra_body: dict[str, Any] = {"provider": PROVIDER_PREFERENCES, "reasoning": REASONING}
+        if response_schema is not None and self._supports_structured_outputs(model):
+            # Not ``require_parameters``: that could leave no zero-retention
+            # endpoint. One that ignores the schema is caught by Pydantic.
+            extra_body["response_format"] = _response_format(response_schema)
         start = time.monotonic()
 
         try:
@@ -142,7 +163,7 @@ class OpenRouterClient(LLMClient):
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_message},
                 ],
-                extra_body={"provider": PROVIDER_PREFERENCES, "reasoning": REASONING},
+                extra_body=extra_body,
                 extra_headers=METADATA_HEADERS,
             )
         except openai.APIStatusError as e:
@@ -196,6 +217,23 @@ class OpenRouterClient(LLMClient):
             reasoning_tokens=reasoning_tokens,
             serving_host=serving_host,
         )
+
+    def _supports_structured_outputs(self, model: str) -> bool:
+        """Whether OpenRouter lists ``structured_outputs`` for ``model``.
+
+        The model list is read once per client. A failed read is not cached and
+        sends this call without a schema: the prompt still carries it.
+        """
+        if self._model_parameters is None:
+            try:
+                listed = self._client.models.list()
+            except openai.APIError as e:
+                logger.warning("OpenRouter: model list unavailable (%s); no strict schema", e)
+                return False
+            self._model_parameters = {
+                m.id: frozenset(_extra(m, "supported_parameters") or ()) for m in listed
+            }
+        return STRUCTURED_OUTPUTS in self._model_parameters.get(model, frozenset())
 
     @property
     def daily_model(self) -> str:

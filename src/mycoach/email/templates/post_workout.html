@@ -1,60 +1,60 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% import "components/_coach_notes.html" as cn %}
+{% import "components/_notice.html" as note %}
 {% from "components/_open_this_week.html" import still_open_this_week %}
 {% block title %}Post-Workout Analysis{% endblock %}
 {% block subtitle %}Post-workout{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
 
-{% call ui.hero("Session analysis") %}
-    <div class="verdict">{{ activity_title }}{% if life_chip %} <span style="vertical-align:middle;">{{ ui.chip(life_chip) }}</span>{% endif %}</div>
+{#- Rendered from Coach notes (``notes``, prompt v5) and code only (#238). Without
+    notes (``notes_fallback``) the code blocks still go out, under a Notice. -#}
+{% call ui.hero(eyebrow) %}
+    {% if notes %}
+    <div class="verdict">{{ notes.headline.verdict }}{% if life_chip %} <span style="vertical-align:middle;">{{ ui.chip(life_chip) }}</span>{% endif %}</div>
+    <div class="lead" style="margin-top:12px;">{{ notes.headline.summary }}</div>
+    {% elif life_chip %}
+    <div>{{ ui.chip(life_chip) }}</div>
+    {% endif %}
     {% if week_status %}
     <div class="week-status mlabel" style="margin-top:16px;">{{ ui.chip(week_status.chip) }}&nbsp; {{ week_status.verb }}{% if week_status.target %} <span class="strong">{{ week_status.target }}</span>{% endif %}{% if week_status.intent %} {{ ui.chip(week_status.intent) }}{% endif %}</div>
     {% endif %}
-    {% if analysis.performance_summary %}
-    <div class="lead" style="margin-top:12px;">{{ analysis.performance_summary }}</div>
+    {% if not notes %}
+    {{ note.notice("Coach", notes_unavailable ~ ".", margin_top=16) }}
     {% endif %}
 {% endcall %}
 
-{% if analysis.planned_vs_actual %}
-{% call ui.section(layout, "Planned vs actual") %}
-    <div class="p">{{ analysis.planned_vs_actual }}</div>
-{% endcall %}
-{% endif %}
-
-{% if analysis.hr_analysis %}
-{% call ui.section(layout, "Heart rate") %}
-    <div class="p">{{ analysis.hr_analysis }}</div>
-{% endcall %}
-{% endif %}
-
-{% if analysis.performance_trends %}
-{% call ui.section(layout, "Trends") %}
-    <div class="p">{{ analysis.performance_trends }}</div>
-{% endcall %}
-{% endif %}
-
-{% if analysis.key_highlights %}
-{% call ui.section(layout, "Highlights") %}
-    {{ ui.bullets(analysis.key_highlights) }}
-{% endcall %}
-{% endif %}
-
-{% if analysis.areas_for_improvement %}
-{% call ui.section(layout, "Work on") %}
-    {{ ui.bullets(analysis.areas_for_improvement, "arrow") }}
-{% endcall %}
-{% endif %}
-
-{% if analysis.next_session_recommendations %}
+{% if notes %}
 {% call ui.section(layout) %}
-    {% call ui.coach("Next session") %}{{ analysis.next_session_recommendations }}{% endcall %}
+    {{ cn.actions_card(ui, notes.actions, "Next time") }}
+{% endcall %}
+
+{% if notes.zone_note %}
+{% call ui.section(layout, "Heart rate zones") %}
+    {{ cn.tip(ui, zone_chip, notes.zone_note.text) }}
 {% endcall %}
 {% endif %}
 
-{% if analysis.recovery_notes %}
+{% call ui.section(layout, "Trend") %}
+    <div class="p">{{ notes.trend_note }}</div>
+{% endcall %}
+
+{% if blocks or notes.guardrails or notes.week_addition %}
+{% call ui.section(layout, "Next session") %}
+    {% if blocks %}{{ cn.block_table(blocks) }}{% endif %}
+    {% for g in notes.guardrails %}{{ cn.guardrail(g) }}{% endfor %}
+    {% if notes.week_addition %}{{ cn.week_addition(notes.week_addition) }}{% endif %}
+{% endcall %}
+{% endif %}
+
 {% call ui.section(layout, "Recovery") %}
-    <div class="p">{{ analysis.recovery_notes }}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="vertical-align:top;white-space:nowrap;padding-right:12px;width:1%;">{{ ui.chip(ready_chip) }}</td>
+        <td class="p" style="vertical-align:top;">{{ notes.recovery }}</td>
+      </tr>
+    </table>
 {% endcall %}
 {% endif %}
 

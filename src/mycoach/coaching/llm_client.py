@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import ClassVar, Literal, TypedDict
 
+from mycoach.coaching.strict_schema import ResponseSchema
+
 logger = logging.getLogger(__name__)
 
 Billing = Literal["subscription", "free-tier", "paid"]
@@ -77,6 +79,7 @@ class LLMClient(ABC):
         user_message: str,
         model: str | None = None,
         max_tokens: int = 4096,
+        response_schema: ResponseSchema | None = None,
     ) -> LLMResponse:
         """Send a prompt to the LLM and return the response with usage metadata.
 
@@ -85,6 +88,9 @@ class LLMClient(ABC):
             user_message: User-facing prompt with assembled context.
             model: Model ID override. Defaults to the provider's daily model.
             max_tokens: Maximum tokens in the response.
+            response_schema: The strict schema of the expected answer (prompt v5),
+                for a provider that can enforce one. A provider that cannot ignores
+                it: the prompt carries the schema too, and Pydantic is the gate.
 
         Returns:
             LLMResponse with content and usage stats.

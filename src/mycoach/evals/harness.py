@@ -108,7 +108,9 @@ def make_task(
             "error": generation.error,
             "text": response.content if response is not None else None,
             "stop_reason": response.stop_reason if response is not None else None,
-            "code_checks": dict(code_checks(generation, falls_back=spec.falls_back)),
+            "code_checks": dict(
+                code_checks(generation, falls_back=spec.falls_back, coach_notes=spec.coach_notes)
+            ),
         }
 
     return task

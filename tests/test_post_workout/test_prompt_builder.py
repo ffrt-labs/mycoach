@@ -144,7 +144,7 @@ class TestBuildPostWorkoutPrompt:
         )
         assert "Upper Body" in result
         assert "Bench Press" in result
-        assert "performance_summary" in result
+        assert '"headline"' in result
 
     def test_swimming_post_workout_uses_swimming_formatter(self) -> None:
         result = build_post_workout_prompt(

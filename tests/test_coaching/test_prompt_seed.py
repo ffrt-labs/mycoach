@@ -46,6 +46,16 @@ def test_seed_creates_version_1_of_each_prompt_labelled_production(
         assert [m["role"] for m in version["prompt"]] == ["system", "user"]
 
 
+def test_each_prompt_records_the_bundled_version_it_was_seeded_from(
+    fake: FakeLangfuseAPI, client: Langfuse
+) -> None:
+    seed_prompts(client)
+
+    sources = {name: history[0]["config"]["source"] for name, history in fake.versions.items()}
+    assert sources["mycoach/post-workout"] == "bundled:v5"
+    assert sources["mycoach/daily-briefing"] == "bundled:v4"
+
+
 def test_seeding_twice_is_a_no_op(fake: FakeLangfuseAPI, client: Langfuse) -> None:
     seed_prompts(client)
     posts = sum(1 for r in fake.requests if r.method == "POST")

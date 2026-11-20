@@ -21,6 +21,7 @@ from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import OpenThisWeek, PlanAdherence
+from mycoach.coaching.email_schemas import PostWorkoutEmail
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
@@ -33,6 +34,13 @@ from mycoach.coaching.life_context import (
 )
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
+from mycoach.email.coach_notes import (
+    NOTES_UNAVAILABLE,
+    block_rows,
+    coach_notes,
+    ready_chip,
+    tip_chip,
+)
 from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
 from mycoach.email.tones import (
     JINJA_GLOBALS,
@@ -791,8 +799,20 @@ def send_briefing_unavailable(
     return send_email(settings.email_to, "MyCoach — No Briefing Today", html, settings)
 
 
+_SPORT_LABEL: Mapping[str, str] = {"swimming": "Swim", "running": "Run", "gym": "Gym"}
+
+
+def _post_workout_eyebrow(activity: Mapping[str, Any] | None, activity_title: str) -> str:
+    """ "Swim · Pool swim": the activity's sport, then its title."""
+    sport = (activity or {}).get("sport")
+    if not sport:
+        return activity_title
+    label = _SPORT_LABEL.get(sport, str(sport).replace("_", " ").capitalize())
+    return f"{label} · {activity_title}"
+
+
 def send_post_workout(
-    content: dict,  # type: ignore[type-arg]
+    content: Mapping[str, Any] | PostWorkoutEmail | None,
     activity_title: str,
     settings: Settings | None = None,
     *,
@@ -801,7 +821,12 @@ def send_post_workout(
     life: LifeContext | None = None,
     open_this_week: OpenThisWeek | None = None,
 ) -> bool:
-    """Send post-workout analysis email.
+    """Send the post-workout email: Coach notes in their slots, the rest from code (#238).
+
+    ``content`` is the insight's Coach notes (``PostWorkoutEmail``, prompt v5), or
+    ``None`` after a ``notes_fallback``: the email then carries its code blocks only,
+    under a "Coach notes unavailable today" Notice. Content that does not validate is
+    treated as no notes.
 
     ``activity`` is the analysed activity; ``week`` is its week's Completion, computed
     at send time: together they say what the activity did for its week (#235). Either
@@ -811,11 +836,16 @@ def send_post_workout(
     """
     if settings is None:
         settings = get_settings()
+    notes = coach_notes(content, PostWorkoutEmail)
     html = _render_template(
         "post_workout.html",
         {
-            "analysis": content,
-            "activity_title": activity_title,
+            "notes": notes,
+            "notes_unavailable": NOTES_UNAVAILABLE,
+            "eyebrow": _post_workout_eyebrow(activity, activity_title),
+            "blocks": block_rows(notes.next_session) if notes else [],
+            "zone_chip": tip_chip(notes.zone_note) if notes and notes.zone_note else None,
+            "ready_chip": ready_chip(notes.ready_in_hours) if notes else None,
             "dashboard_url": _dashboard_url(settings),
             "week_status": week_status(week, activity),
             "life_chip": life_chip(life),

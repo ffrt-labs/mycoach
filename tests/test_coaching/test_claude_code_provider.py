@@ -15,6 +15,7 @@ import pytest
 from mycoach.coaching.exceptions import LLMAuthError, LLMProviderError, LLMQuotaExceeded
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.coaching.providers.claude_code import ClaudeCodeClient
+from mycoach.coaching.strict_schema import ResponseSchema
 
 RUN = "mycoach.coaching.providers.claude_code.subprocess.run"
 
@@ -140,6 +141,17 @@ class TestInvocation:
 
         assert mock_run.call_args.kwargs["input"] == "Brief me on today."
         assert "Brief me on today." not in mock_run.call_args.args[0]
+
+    def test_a_response_schema_stays_in_the_prompt_text(self) -> None:
+        """The CLI has no structured-output flag: the v5 prompt carries the schema."""
+        schema = ResponseSchema(name="post_workout", schema={"type": "object"})
+        mock_run = self._invoke(
+            user_message='Respond with JSON matching {"type": "object"}',
+            response_schema=schema,
+        )
+
+        assert mock_run.call_args.args[0] == self._invoke().call_args.args[0]
+        assert mock_run.call_args.kwargs["input"] == 'Respond with JSON matching {"type": "object"}'
 
     def test_passes_token_and_output_budget_through_the_environment(self) -> None:
         env = self._invoke(max_tokens=8192).call_args.kwargs["env"]

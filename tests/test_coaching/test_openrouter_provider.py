@@ -16,6 +16,7 @@ import pytest
 
 from mycoach.coaching.exceptions import LLMAuthError, LLMProviderError, LLMQuotaExceeded
 from mycoach.coaching.providers.openrouter import OpenRouterClient
+from mycoach.coaching.strict_schema import ResponseSchema
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -283,3 +284,99 @@ class TestErrors:
         )
         with pytest.raises(LLMProviderError, match="OpenRouter"):
             client.call(system="S", user_message="U")
+
+
+SCHEMA = ResponseSchema(
+    name="post_workout",
+    schema={
+        "type": "object",
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+        "additionalProperties": False,
+    },
+)
+
+
+def models(*supported: tuple[str, list[str]]) -> httpx.Response:
+    """OpenRouter's model list: each model with its ``supported_parameters``."""
+    return httpx.Response(
+        200,
+        json={
+            "data": [
+                {
+                    "id": model_id,
+                    "object": "model",
+                    "created": 1_763_000_000,
+                    "owned_by": model_id.split("/")[0],
+                    "supported_parameters": params,
+                }
+                for model_id, params in supported
+            ]
+        },
+    )
+
+
+class FakeOpenRouterWithModels(FakeOpenRouter):
+    """Answers ``GET /models`` with ``catalogue``; completions as ``FakeOpenRouter``."""
+
+    def __init__(self, catalogue: httpx.Response, *responses: httpx.Response) -> None:
+        super().__init__(*responses)
+        self.catalogue = catalogue
+        self.model_lists = 0
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/models"):
+            self.model_lists += 1
+            return self.catalogue
+        return super().handler(request)
+
+
+class TestStructuredOutputs:
+    def test_a_model_that_supports_structured_outputs_gets_the_strict_schema(self) -> None:
+        fake = FakeOpenRouterWithModels(
+            models(("deepseek/deepseek-v4-pro", ["max_tokens", "structured_outputs"])), ok()
+        )
+        client_for(fake).call(system="S", user_message="U", response_schema=SCHEMA)
+
+        assert fake.bodies[0]["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {"name": "post_workout", "strict": True, "schema": SCHEMA.schema},
+        }
+
+    def test_a_model_without_structured_outputs_gets_no_response_format(self) -> None:
+        fake = FakeOpenRouterWithModels(
+            models(
+                ("deepseek/deepseek-v4-pro", ["max_tokens", "reasoning"]),
+                ("moonshotai/kimi-k3.1-pro", ["structured_outputs"]),
+            ),
+            ok(),
+        )
+        client_for(fake).call(system="S", user_message="U", response_schema=SCHEMA)
+
+        assert "response_format" not in fake.bodies[0]
+
+    def test_the_model_list_is_read_once_per_client(self) -> None:
+        fake = FakeOpenRouterWithModels(
+            models(("deepseek/deepseek-v4-pro", ["structured_outputs"])), ok(), ok()
+        )
+        client = client_for(fake)
+
+        client.call(system="S", user_message="U", response_schema=SCHEMA)
+        client.call(system="S", user_message="U", response_schema=SCHEMA)
+
+        assert fake.model_lists == 1
+        assert all("response_format" in body for body in fake.bodies)
+
+    def test_an_unreadable_model_list_sends_the_call_without_a_schema(self) -> None:
+        """Pydantic is the gate, so a failed lookup costs only the steering."""
+        fake = FakeOpenRouterWithModels(error(503), ok())
+        result = client_for(fake).call(system="S", user_message="U", response_schema=SCHEMA)
+
+        assert result.content == '{"ok": true}'
+        assert "response_format" not in fake.bodies[0]
+
+    def test_no_schema_reads_no_model_list(self) -> None:
+        fake = FakeOpenRouterWithModels(models(), ok())
+        client_for(fake).call(system="S", user_message="U")
+
+        assert fake.model_lists == 0

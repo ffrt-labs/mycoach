@@ -18,6 +18,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from mycoach.coaching.llm_client import Billing, LLMClient, LLMResponse
 from mycoach.coaching.prompt_builder import PROMPT_VARIABLES, Operation, compile_prompt
 from mycoach.coaching.prompt_store import langfuse_messages
+from mycoach.coaching.strict_schema import ResponseSchema
 from mycoach.config import Settings
 from mycoach.evals.cli import LIMIT_CAP, main
 from mycoach.evals.harness import HarnessError, operation_for_dataset
@@ -45,6 +46,7 @@ class FakeLLM(LLMClient):
         user_message: str,
         model: str | None = None,
         max_tokens: int = 4096,
+        response_schema: ResponseSchema | None = None,
     ) -> LLMResponse:
         self.calls.append(
             {"system": system, "user": user_message, "model": model, "max_tokens": max_tokens}

@@ -172,30 +172,6 @@ def test_send_weekly_plan_formats_raw_cardio_details(mock_send: MagicMock) -> No
     assert "target_pace_min_per_km" not in html
 
 
-def test_render_post_workout_template() -> None:
-    """Post-workout template renders analysis fields."""
-    html = _render_template(
-        "post_workout.html",
-        {
-            "analysis": {
-                "performance_summary": "Great session",
-                "planned_vs_actual": "On track",
-                "hr_analysis": "Zone 3 dominant",
-                "performance_trends": "Improving",
-                "key_highlights": ["PR on squat", "Good form"],
-                "areas_for_improvement": ["Rest times"],
-                "next_session_recommendations": "Increase weight",
-                "recovery_notes": "Take it easy tomorrow",
-                "training_effect_assessment": None,
-            },
-            "activity_title": "Leg Day",
-        },
-    )
-    assert "Great session" in html
-    assert "PR on squat" in html
-    assert "Leg Day" in html
-
-
 def test_render_weekly_recap_template() -> None:
     """Weekly recap template renders recap fields, including coach recommendations."""
     html = _render_template(

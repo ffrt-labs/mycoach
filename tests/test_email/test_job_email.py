@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mycoach.models.health import DailyHealthSnapshot
+from mycoach.models.job_run import JobRun
 from mycoach.models.user import User
 from mycoach.scheduler.jobs import USER_ID, _briefing_alert, _daily_briefing, _weekly_recap
 from tests.conftest import test_session as db_session
@@ -375,3 +376,92 @@ async def test_a_life_context_or_open_week_failure_does_not_cost_the_briefing_em
 
     assert mock_send.call_args.kwargs["open_this_week"] is None
     assert mock_send.call_args.kwargs["life"] is None
+
+
+# --- The recap's cause quick replies (#237) -------------------------------------------
+
+
+async def _recap_on(today: date) -> MagicMock:
+    """Run the recap job on ``today`` against the test DB; returns the mocked sender."""
+    insight = MagicMock()
+    insight.content = json.dumps({"week_summary": "Quiet"})
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+    with (
+        patch("mycoach.scheduler.jobs.local_today", return_value=today),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", db_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+    return mock_send
+
+
+async def _seed_health(*days: date) -> None:
+    async with db_session() as session:
+        session.add(User(id=USER_ID, email="a@example.com", name="A"))
+        for day in days:
+            session.add(DailyHealthSnapshot(user_id=USER_ID, snapshot_date=day, steps=8000))
+        await session.commit()
+
+
+async def _seed_sync_run(started_at: datetime, status: str, error: str | None = None) -> None:
+    async with db_session() as session:
+        session.add(
+            JobRun(
+                job_name="garmin_sync",
+                started_at=started_at,
+                duration_ms=10,
+                status=status,
+                error=error,
+            )
+        )
+        await session.commit()
+
+
+async def test_weekly_recap_email_counts_the_weeks_days_without_health_data() -> None:
+    # Week of 9 Nov: Monday to Friday synced, the weekend not.
+    await _seed_health(*(date(2026, 11, 9) + timedelta(days=i) for i in range(5)))
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["health_days_missing"] == 2
+    assert mock_send.call_args.kwargs["today"] == date(2026, 11, 16)
+
+
+async def test_weekly_recap_email_gets_an_unknown_health_gap_when_it_cannot_be_read() -> None:
+    with patch("mycoach.scheduler.jobs.health.list_snapshots", AsyncMock(side_effect=OSError)):
+        mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["health_days_missing"] is None
+
+
+async def test_weekly_recap_email_knows_the_last_garmin_sync_failed_to_log_in() -> None:
+    await _seed_sync_run(datetime(2026, 11, 14, 6), "success")
+    await _seed_sync_run(
+        datetime(2026, 11, 15, 6), "failed", "Garmin authentication failed: MFA required"
+    )
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["garmin_auth_failed"] is True
+
+
+async def test_a_garmin_login_failure_since_recovered_is_not_reported() -> None:
+    await _seed_sync_run(
+        datetime(2026, 11, 14, 6), "failed", "Garmin authentication failed: MFA required"
+    )
+    await _seed_sync_run(datetime(2026, 11, 15, 6), "success")
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["garmin_auth_failed"] is False
+
+
+async def test_a_garmin_sync_that_failed_for_another_reason_is_not_a_login_failure() -> None:
+    await _seed_sync_run(datetime(2026, 11, 15, 6), "failed", "Garmin API timed out")
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["garmin_auth_failed"] is False

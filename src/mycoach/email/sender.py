@@ -41,7 +41,7 @@ from mycoach.email.tones import (
     SESSION_STATUS_CHIP,
     Chip,
 )
-from mycoach.localtime import WEEKDAY_NAMES
+from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from mycoach.models.plan import INTENT_LABEL
 
@@ -1011,14 +1011,104 @@ def episode_line(episode: Episode) -> str:
     return " · ".join(parts)
 
 
+def _prefill_url(settings: Settings, kind: str, start: date, end: date) -> str:
+    """The dashboard's Life context form, prefilled (#236). Opening it writes nothing."""
+    return (
+        f"{settings.app_base_url}/?log={kind}&from={start.isoformat()}"
+        f"&to={end.isoformat()}#life-context"
+    )
+
+
 def _log_episode_url(settings: Settings, week_start: str) -> str:
     """The dashboard's Life context form, prefilled for the recapped week (#236)."""
     start = date.fromisoformat(week_start)
-    end = start + timedelta(days=6)
-    return (
-        f"{_dashboard_url(settings)}?log=illness&from={start.isoformat()}"
-        f"&to={end.isoformat()}#life-context"
+    return _prefill_url(settings, "illness", start, start + timedelta(days=6))
+
+
+@dataclass(frozen=True)
+class QuickReply:
+    """One cause quick-reply button: a GET that only opens a prefilled form."""
+
+    label: str
+    sub: str
+    url: str
+
+
+@dataclass(frozen=True)
+class QuickReplies:
+    """The recap's "What happened…?" block (#237)."""
+
+    question: str
+    replies: list[QuickReply]
+
+
+def _between(first: date, last: date) -> str:
+    """ "between 9 and 15 Nov", "between 30 Oct and 3 Nov", "on 12 Nov"."""
+    if first == last:
+        return f"on {first.day} {first:%b}"
+    if (first.year, first.month) == (last.year, last.month):
+        return f"between {first.day} and {last.day} {last:%b}"
+    return f"between {first.day} {first:%b} and {last.day} {last:%b}"
+
+
+# Health snapshots missing for this many days of the week point at the watch.
+_HEALTH_GAP_DAYS = 2
+
+
+def quick_replies(
+    adherence: Mapping[str, Any] | None,
+    episodes: Sequence[Episode] | None,
+    week_start: date,
+    today: date,
+    settings: Settings,
+    health_days_missing: int | None = None,
+    garmin_auth_failed: bool = False,
+) -> QuickReplies | None:
+    """Ask what happened in a week that went quiet, or None when the block stays out.
+
+    Shown when the week isn't complete, no Life context episode touches it, and
+    either nothing was done or health data is missing for two days or more.
+    Unread episodes or health data count as unknown, never as "none".
+
+    The prefill range runs from the first to the last not-done session's planned day:
+    the narrowest range that explains the gap, so accepting the default excuses
+    nothing the user didn't mean. Illness can't end later than yesterday. The
+    watch button needs the health gap, and reads "Reconnect Garmin" when the last
+    sync failed to log in.
+    """
+    if adherence is None or episodes is None or episodes:
+        return None
+    if adherence.get("completed_sessions", 0) >= adherence.get("total_sessions", 0):
+        return None
+    health_gap = health_days_missing is not None and health_days_missing >= _HEALTH_GAP_DAYS
+    if adherence.get("completed_sessions", 0) > 0 and not health_gap:
+        return None
+    not_done = sorted(
+        week_start + timedelta(days=_weekday_index(s["day"]))
+        for s in adherence.get("sessions") or []
+        if s.get("status") == "not_done" and s.get("day") in WEEKDAY_NAMES
     )
+    if not not_done:
+        return None
+    first, last = not_done[0], not_done[-1]
+    replies = []
+    ill_to = min(last, today - timedelta(days=1))
+    if ill_to >= first:
+        replies.append(
+            QuickReply(
+                "I was ill", "log past illness", _prefill_url(settings, "illness", first, ill_to)
+            )
+        )
+    replies.append(
+        QuickReply(
+            "I was travelling", "log the trip", _prefill_url(settings, "travel", first, last)
+        )
+    )
+    if health_gap:
+        # The dashboard's Garmin sync button; the link itself never syncs or logs in.
+        label = "Reconnect Garmin" if garmin_auth_failed else "Watch didn't sync"
+        replies.append(QuickReply(label, "check sources", f"{settings.app_base_url}/"))
+    return QuickReplies(f"What happened {_between(first, last)}?", replies)
 
 
 def send_weekly_recap(
@@ -1027,6 +1117,9 @@ def send_weekly_recap(
     settings: Settings | None = None,
     adherence: Mapping[str, Any] | None = None,
     episodes: Sequence[Episode] | None = None,
+    today: date | None = None,
+    health_days_missing: int | None = None,
+    garmin_auth_failed: bool = False,
 ) -> bool:
     """Send weekly recap email.
 
@@ -1034,13 +1127,27 @@ def send_weekly_recap(
     it leads the email as the hero (#232), above the coach's summary.
     ``episodes`` are the Life context episodes touching the week; None (not
     read) leaves the Life context section out rather than claim there were none.
+    ``health_days_missing`` (days of the week with no health snapshot, None if
+    unread) and ``garmin_auth_failed`` feed the cause quick replies (#237);
+    ``today`` caps their illness prefill at yesterday.
     """
     if settings is None:
         settings = get_settings()
+    if today is None:
+        today = local_today(settings.timezone)
     html = _render_template(
         "weekly_recap.html",
         {
             "recap": content,
+            "quick_replies": quick_replies(
+                adherence,
+                episodes,
+                date.fromisoformat(week_start),
+                today,
+                settings,
+                health_days_missing,
+                garmin_auth_failed,
+            ),
             "week_label": _short_date(week_start),
             "dashboard_url": _dashboard_url(settings),
             "hero": completion_hero(adherence),

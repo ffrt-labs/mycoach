@@ -1,0 +1,29 @@
+{#- The weekly plan's week strip (#234): seven cells, Monday first, built by
+    sender._week_strip. Each cell lists the day's sport, minutes and intent; a quality
+    day (threshold, intervals) is outlined orange; a trip day is marked "Travel". -#}
+{% macro week_strip(days) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;table-layout:fixed;">
+  <tr>
+    {% for day in days %}
+    {%- set first = day.sessions[0] if day.sessions else none %}
+    <td class="ws-day{% if day.quality %} ws-quality{% endif %}{% if day.travel %} ws-travel{% endif %}" style="padding:0 {{ '0' if loop.last else '4px' }} 0 0;vertical-align:top;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="{{ 'chip c-' ~ first.style if first else 'ws-rest' }}{% if day.quality %} ws-q{% endif %}" style="display:table-cell;white-space:normal;text-align:center;vertical-align:top;padding:10px 2px;border-radius:8px;border:1px solid #e7e5e4;">
+            <div class="msub" style="font-size:10px;letter-spacing:.08em;">{{ day.abbr }}</div>
+            {%- for s in day.sessions %}
+            <div style="font:700 11px 'IBM Plex Mono',monospace;margin-top:{{ '6' if loop.first else '8' }}px;">{{ s.sport }}</div>
+            {%- if s.minutes %}<div style="font:500 11px 'IBM Plex Mono',monospace;margin-top:2px;">{{ s.minutes }}′</div>{% endif %}
+            {%- if s.intent %}<div style="font:400 10px 'IBM Plex Sans',sans-serif;margin-top:2px;">{{ s.intent }}</div>{% endif %}
+            {%- else %}
+            <div class="msub" style="margin-top:6px;">—</div>
+            {%- endfor %}
+            {%- if day.travel %}<div class="chip c-info" style="font-size:10px;padding:1px 6px;margin-top:6px;">Travel</div>{% endif %}
+          </td>
+        </tr>
+      </table>
+    </td>
+    {%- endfor %}
+  </tr>
+</table>
+{%- endmacro %}

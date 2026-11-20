@@ -1,0 +1,33 @@
+{#- The heart-rate zone bar (#239): code-rendered shares and minutes
+    (``email/workout_stats.ZoneBar``). A band with no time stays out of the bar but
+    keeps its legend entry. -#}
+
+{#- The section header: its label, and the session intent's target on the right. -#}
+{% macro zone_header(label, bar) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+  <tr>
+    <td style="vertical-align:baseline;"><div class="sec">{{ label }}</div></td>
+    {% if bar and bar.target %}<td class="muted" style="vertical-align:baseline;text-align:right;white-space:nowrap;">{{ bar.target }}</td>{% endif %}
+  </tr>
+</table>
+{%- endmacro %}
+
+{% macro zone_bar(bar) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:2px 0;table-layout:fixed;">
+  <tr>
+    {% for band in bar.bands if band.pct > 0 %}
+    <td class="zone-seg" style="width:{{ band.pct }}%;height:28px;background:{{ band.bg }};color:{{ band.fg }};text-align:center;font:600 11px 'IBM Plex Mono',monospace;{% if loop.first %}border-radius:6px 0 0 6px;{% endif %}{% if loop.last %}border-radius:{{ '6px' if loop.first else '0 6px 6px 0' }};{% endif %}">{{ band.pct }}%</td>
+    {% endfor %}
+  </tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;table-layout:fixed;">
+  <tr>
+    {% for band in bar.bands %}
+    <td style="vertical-align:top;">
+      <div class="mlabel" style="font-size:12px;"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:{{ band.bg }};margin-right:6px;"></span>{{ band.label }}</div>
+      <div class="strong" style="font:600 14px 'IBM Plex Mono',monospace;margin-top:2px;">{{ band.minutes }}</div>
+    </td>
+    {% endfor %}
+  </tr>
+</table>
+{%- endmacro %}

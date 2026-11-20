@@ -50,6 +50,7 @@ from mycoach.email.tones import (
     SESSION_STATUS_CHIP,
     Chip,
 )
+from mycoach.email.workout_stats import session_intent, stat_tiles, trend_table, zone_bar
 from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from mycoach.models.plan import INTENT_LABEL
@@ -822,6 +823,9 @@ def send_post_workout(
     life: LifeContext | None = None,
     open_this_week: OpenThisWeek | None = None,
     insight_id: int | None = None,
+    planned: Mapping[str, Any] | None = None,
+    sets: Sequence[Mapping[str, Any]] | None = None,
+    history: Sequence[Mapping[str, Any]] | None = None,
 ) -> bool:
     """Send the post-workout email: Coach notes in their slots, the rest from code (#238).
 
@@ -838,6 +842,10 @@ def send_post_workout(
 
     ``insight_id`` is the Insight revision this email renders: with Coach notes, the
     CTA opens its full analysis (#240). Without either, the CTA opens the dashboard.
+
+    ``planned`` (the planned session the activity answers), ``sets`` (its performed
+    sets, with their prescriptions) and ``history`` (the similar activities, newest
+    first) feed the code-rendered stat grid, zone bar and trend (#239).
     """
     if settings is None:
         settings = get_settings()
@@ -859,6 +867,9 @@ def send_post_workout(
             "week_status": week_status(week, activity),
             "life_chip": life_chip(life),
             "open_week": open_week_view(open_this_week),
+            "tiles": stat_tiles(activity, planned=planned, sets=sets, history=history),
+            "zones": zone_bar(activity, session_intent(activity, planned, week)),
+            "trend": trend_table(activity, history),
         },
     )
     return send_email(

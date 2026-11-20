@@ -115,6 +115,8 @@ class TestSubstitution:
         assert run["substitute"]["sport"] == "padel"
         assert run["substitute"]["title"] == "Padel"
         assert run["substitute"]["intent"] == "aerobic_base"
+        # Its own day, for the recap's "← Padel Sun" row (#232).
+        assert run["substitute"]["day"] == "Sunday"
         # Key metrics, so the recap can judge the stimulus delivered (#217).
         assert run["substitute"]["duration_minutes"] == 101
         assert run["substitute"]["avg_hr"] == 118

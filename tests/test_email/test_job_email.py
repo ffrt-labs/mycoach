@@ -1,7 +1,7 @@
 """Tests for email send triggers in scheduler jobs."""
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -142,6 +142,53 @@ async def test_weekly_recap_email_gets_the_recapped_weeks_adherence(
     week_start = mock_engine.generate_weekly_recap.call_args[0][2]
     assert load.call_args[0][2] == week_start
     assert mock_send.call_args.kwargs["adherence"] == adherence
+
+
+async def test_weekly_recap_email_gets_the_episodes_touching_the_recapped_week(
+    mock_session: AsyncMock,
+) -> None:
+    """The recap's Life context section lists the week's episodes (#232)."""
+    insight = MagicMock()
+    insight.content = json.dumps({"week_summary": "Solid"})
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+    episodes = [MagicMock(name="trip")]
+    load = AsyncMock(return_value=episodes)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.get_plan_adherence_for_week", AsyncMock(return_value=None)),
+        patch("mycoach.scheduler.jobs.episodes_between", load),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+
+    week_start = mock_engine.generate_weekly_recap.call_args[0][2]
+    assert load.call_args[0][2:] == (week_start, week_start + timedelta(days=6))
+    assert mock_send.call_args.kwargs["episodes"] == episodes
+
+
+async def test_weekly_recap_email_still_goes_when_the_episodes_cannot_be_read(
+    mock_session: AsyncMock,
+) -> None:
+    insight = MagicMock()
+    insight.content = json.dumps({"week_summary": "Solid"})
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.get_plan_adherence_for_week", AsyncMock(return_value=None)),
+        patch("mycoach.scheduler.jobs.episodes_between", AsyncMock(side_effect=RuntimeError)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+
+    assert mock_send.call_args.kwargs["episodes"] is None
 
 
 # --- The code-rendered steps strip (#196) ---------------------------------------------

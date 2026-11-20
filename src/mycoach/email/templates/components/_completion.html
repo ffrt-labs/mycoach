@@ -1,0 +1,13 @@
+{#- The recap hero's Completion (#232), all from ``sender.completion_hero``: the
+    first segment of the Completion line large in mono, the rest beside it, the
+    coach's one-line summary, then On planned day as muted, informational text. -#}
+{% macro completion(hero, summary=none) -%}
+<div>
+  <span class="verdict-mono completion-h1">{{ hero.h1 }}</span>
+  {%- if hero.rest %}
+  <span class="completion-rest" style="font:400 16px 'IBM Plex Mono',ui-monospace,Menlo,monospace;color:#52525b;margin-left:8px;white-space:nowrap;">{{ hero.rest }}</span>
+  {%- endif %}
+</div>
+{% if summary %}<div class="lead" style="margin-top:16px;">{{ summary }}</div>{% endif %}
+{% if hero.on_planned_day %}<div class="muted on-planned-day" style="margin-top:12px;">{{ hero.on_planned_day }}</div>{% endif %}
+{%- endmacro %}

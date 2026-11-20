@@ -1,25 +1,31 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% import "components/_completion.html" as completion %}
+{% import "components/_session_status.html" as session_status %}
+{% import "components/_extras.html" as extras_list %}
+{% import "components/_life_context_list.html" as life_context %}
 {% block title %}Weekly Recap{% endblock %}
-{% block subtitle %}Weekly recap{% endblock %}
+{% block subtitle %}Weekly recap · {{ week_label }}{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
 
-{% call ui.hero("Week of " ~ week_start) %}
-    <div class="verdict">Weekly Recap</div>
-    {% if recap.week_summary %}
-    <div class="lead" style="margin-top:12px;">{{ recap.week_summary }}</div>
-    {% endif %}
+{% call ui.hero("Week of " ~ week_label ~ " · completion") %}
+    {{ completion.completion(hero, recap.week_summary) }}
 {% endcall %}
 
-{% if completion or recap.adherence_analysis %}
-{% call ui.section(layout, "Adherence") %}
-    {% if completion %}
-    <div class="mval" style="text-align:left;margin-bottom:12px;">{{ completion }}</div>
-    {% endif %}
+{% if sessions or extras or recap.adherence_analysis %}
+{% call ui.section(layout, "Sessions") %}
+    {% if sessions %}{{ session_status.session_status(sessions) }}{% endif %}
+    {% if extras %}<div{% if sessions %} style="margin-top:16px;"{% endif %}>{{ extras_list.extras(extras) }}</div>{% endif %}
     {% if recap.adherence_analysis %}
-    <div class="p">{{ recap.adherence_analysis }}</div>
+    <div class="p"{% if sessions %} style="margin-top:16px;"{% endif %}>{{ recap.adherence_analysis }}</div>
     {% endif %}
+{% endcall %}
+{% endif %}
+
+{% if episodes is defined and episodes is not none %}
+{% call ui.section(layout, "Life context") %}
+    {{ life_context.life_context_list(episodes, log_episode_url) }}
 {% endcall %}
 {% endif %}
 

@@ -1,0 +1,24 @@
+{#- The recap's Sessions list (#232): one row per planned session from
+    ``sender.session_rows``, in planned-day order, with its status chip from
+    SESSION_STATUS_CHIP. An excused session is struck through, no action asked. -#}
+{% import "components/_layout.html" as ui %}
+
+{% macro session_status(rows) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  {% for row in rows %}
+  <tr class="session-row">
+    <td class="mrow" style="width:52px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
+      <span class="msub" style="font-weight:600;letter-spacing:.04em;">{{ row.day }}</span>
+    </td>
+    <td class="mrow" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">
+      <div class="strong session-title" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;{% if row.struck %}text-decoration:line-through;color:#71717a;{% endif %}">{{ row.title }}</div>
+      <div class="muted" style="font-size:13px;">{{ row.meta }}</div>
+      {% if row.detail %}<div class="muted session-detail" style="font-size:13px;margin-top:2px;">{{ row.detail }}</div>{% endif %}
+    </td>
+    <td class="mrow" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
+      {{ ui.chip(row.chip) }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{%- endmacro %}

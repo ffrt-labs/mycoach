@@ -1,0 +1,8 @@
+{#- The week's Extra activities (#232), from ``sender.extra_rows``: listed apart
+    from the planned sessions and never counted in the Completion. -#}
+{% macro extras(rows) -%}
+<div class="muted extras-label" style="font-size:13px;">Extras · training load only, not counted</div>
+{% for row in rows %}
+<div class="p extra-row" style="margin-top:{{ '4' if loop.first else '2' }}px;"><span class="msub" style="font-weight:600;letter-spacing:.04em;">{{ row.day }}</span> {{ row.text }}</div>
+{% endfor %}
+{%- endmacro %}

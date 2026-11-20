@@ -6,8 +6,9 @@ Backend is selected based on configuration: Resend API key takes precedence over
 
 import logging
 import smtplib
-from collections.abc import Mapping
-from datetime import datetime
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -21,11 +22,21 @@ from jinja2.utils import Namespace
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import OpenThisWeek
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
-from mycoach.coaching.life_context import STATUS_LABEL, LifeContext, excused_summary
+from mycoach.coaching.life_context import (
+    STATUS_LABEL,
+    Episode,
+    LifeContext,
+    excused_reasons,
+    excused_summary,
+    ramp_back_length,
+)
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 from mycoach.email.life_views import life_banner, open_week_view
-from mycoach.email.tones import JINJA_GLOBALS
+from mycoach.email.tones import JINJA_GLOBALS, SESSION_STATUS_CHIP, Chip
+from mycoach.localtime import WEEKDAY_NAMES
+from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
+from mycoach.models.plan import INTENT_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -560,16 +571,208 @@ def completion_line(adherence: Mapping[str, Any] | None) -> str | None:
     return line
 
 
+@dataclass(frozen=True)
+class CompletionHero:
+    """The recap hero (#232): "4/5 done" large, "· 1 substituted" beside it."""
+
+    h1: str
+    rest: str | None = None
+    on_planned_day: str | None = None
+
+
+def completion_hero(adherence: Mapping[str, Any] | None) -> CompletionHero:
+    """Split the week's Completion line for the recap hero.
+
+    The H1 is the line's first segment. A week whose every session was excused
+    shows "4 excused" and the reason, never "0/0 done"; no plan, "No plan this
+    week". On planned day counts only sessions whose day is known, and is
+    informational, never a score.
+    """
+    line = completion_line(adherence)
+    if adherence is None or line is None:
+        return CompletionHero("No plan this week")
+    if not adherence.get("total_sessions"):
+        reasons = excused_reasons(adherence.get("excused_days") or {})
+        h1, rest = f"{adherence['excused_sessions']} excused", reasons or None
+    else:
+        h1, _, rest_line = line.partition(" · ")
+        rest = rest_line or None
+    known = [
+        s["on_planned_day"]
+        for s in adherence.get("sessions") or []
+        if s.get("on_planned_day") is not None
+    ]
+    return CompletionHero(
+        h1,
+        None if rest is None else f"· {rest}",
+        f"On planned day {sum(known)}/{len(known)} · informational" if known else None,
+    )
+
+
+def _short_date(iso_day: str) -> str:
+    """ "2026-11-02" → "2 Nov"."""
+    day = date.fromisoformat(iso_day)
+    return f"{day.day} {day:%b}"
+
+
+_EXCUSED_STATUSES = frozenset({"excused_ill", "excused_travel"})
+
+
+@dataclass(frozen=True)
+class SessionRow:
+    """One planned session in the recap's Sessions list (#232), all from the Completion."""
+
+    day: str  # "MON"
+    title: str
+    meta: str  # "Gym · strength"
+    chip: Chip | None
+    detail: str | None  # "Done Wednesday", or what filled it
+    struck: bool  # excused: out of the count, no action asked
+
+
+def _weekday_index(day: str) -> int:
+    return WEEKDAY_NAMES.index(day) if day in WEEKDAY_NAMES else len(WEEKDAY_NAMES)
+
+
+def _sport_meta(sport: str, intent: str | None) -> str:
+    """ "Gym · strength": the sport, then the Session intent's label when it has one."""
+    label = INTENT_LABEL.get(intent) if intent else None
+    return sport.capitalize() + (f" · {label}" if label else "")
+
+
+def _substitute_line(sub: Mapping[str, Any]) -> str:
+    """ "← Padel Sun · 101 min · avg HR 118 · aerobic TE 2.7"; what Garmin didn't record
+    is left out."""
+    head = f"← {sub['title']}"
+    if sub.get("day"):
+        head += f" {str(sub['day'])[:3]}"
+    parts = [head]
+    if sub.get("duration_minutes") is not None:
+        parts.append(f"{sub['duration_minutes']} min")
+    if sub.get("avg_hr") is not None:
+        parts.append(f"avg HR {sub['avg_hr']}")
+    if sub.get("training_effect_aerobic") is not None:
+        parts.append(f"aerobic TE {sub['training_effect_aerobic']:.1f}")
+    return " · ".join(parts)
+
+
+def session_rows(adherence: Mapping[str, Any] | None) -> list[SessionRow]:
+    """The week's planned sessions in planned-day order, each with its status chip.
+
+    A session done on another day says which ("Done Wednesday"); a substituted or
+    adapted one shows what filled it; an excused one is struck through.
+    """
+    rows = []
+    for s in sorted(
+        (adherence or {}).get("sessions") or [], key=lambda s: _weekday_index(s["day"])
+    ):
+        status = s["status"]
+        detail = None
+        if s.get("substitute"):
+            detail = _substitute_line(s["substitute"])
+        elif status == "done" and s.get("on_planned_day") is False and s.get("actual_day"):
+            detail = f"Done {s['actual_day']}"
+        rows.append(
+            SessionRow(
+                day=str(s["day"])[:3].upper(),
+                title=s["title"],
+                meta=_sport_meta(s["sport"], s.get("intent")),
+                chip=SESSION_STATUS_CHIP.get(status),
+                detail=detail,
+                struck=status in _EXCUSED_STATUSES,
+            )
+        )
+    return rows
+
+
+@dataclass(frozen=True)
+class ExtraRow:
+    """An Extra activity in the recap: training load only, never counted."""
+
+    day: str  # "SAT"
+    text: str  # "Walk · 45 min · recovery"
+
+
+def extra_rows(adherence: Mapping[str, Any] | None) -> list[ExtraRow]:
+    """The week's Extra activities in the order they were done."""
+    rows = []
+    for a in sorted((adherence or {}).get("extras") or [], key=lambda a: _weekday_index(a["day"])):
+        parts = [str(a["title"])]
+        if a.get("duration_minutes") is not None:
+            parts.append(f"{a['duration_minutes']} min")
+        if a.get("intent") and a["intent"] in INTENT_LABEL:
+            parts.append(INTENT_LABEL[a["intent"]])
+        rows.append(ExtraRow(str(a["day"])[:3].upper(), " · ".join(parts)))
+    return rows
+
+
+_EQUIPMENT_LABEL: dict[str, str] = {
+    Equipment.NONE: "no equipment",
+    Equipment.HOTEL_GYM: "hotel gym",
+    Equipment.FULL_GYM: "full gym",
+}
+"""A trip's equipment as the dashboard names it (``templates/_life_context.html``)."""
+
+
+def _day_span(first: date, last: date) -> str:
+    """ "11–15 Nov", "30 Oct–3 Nov", or "7 Nov" for one day."""
+    if first == last:
+        return f"{first.day} {first:%b}"
+    if (first.year, first.month) == (last.year, last.month):
+        return f"{first.day}–{last.day} {last:%b}"
+    return f"{first.day} {first:%b}–{last.day} {last:%b}"
+
+
+def episode_line(episode: Episode) -> str:
+    """One Life context episode touching the recap week.
+
+    "Ill 11–15 Nov · sick · ramp-back to 20 Nov", "Ill since 6 Nov · sick",
+    "Trip 9–12 Nov · hotel gym · no training possible".
+    """
+    head = "Ill" if episode.kind == EpisodeKind.ILLNESS else "Trip"
+    if episode.ended_on is None:
+        when = f"since {episode.started_on.day} {episode.started_on:%b}"
+    else:
+        when = _day_span(episode.started_on, episode.ended_on)
+    parts = [f"{head} {when}"]
+    if episode.kind == EpisodeKind.ILLNESS:
+        severity = episode.severity or IllnessSeverity.SICK
+        parts.append(severity.value)
+        if episode.ended_on is not None:
+            length = ramp_back_length(severity, (episode.ended_on - episode.started_on).days + 1)
+            ends = episode.ended_on + timedelta(days=length)
+            parts.append(f"ramp-back to {ends.day} {ends:%b}")
+    else:
+        if episode.equipment is not None:
+            parts.append(_EQUIPMENT_LABEL[episode.equipment])
+        if episode.no_training:
+            parts.append("no training possible")
+    return " · ".join(parts)
+
+
+def _log_episode_url(settings: Settings, week_start: str) -> str:
+    """The dashboard's Life context form, prefilled for the recapped week (#236)."""
+    start = date.fromisoformat(week_start)
+    end = start + timedelta(days=6)
+    return (
+        f"{_dashboard_url(settings)}?log=illness&from={start.isoformat()}"
+        f"&to={end.isoformat()}#life-context"
+    )
+
+
 def send_weekly_recap(
     content: dict,  # type: ignore[type-arg]
     week_start: str,
     settings: Settings | None = None,
     adherence: Mapping[str, Any] | None = None,
+    episodes: Sequence[Episode] | None = None,
 ) -> bool:
     """Send weekly recap email.
 
-    ``adherence`` is the recapped week's plan adherence, from the DB, not the
-    LLM; its Completion line tops the recap email, above the coach's analysis (#217).
+    ``adherence`` is the recapped week's Completion, from the DB, not the LLM:
+    it leads the email as the hero (#232), above the coach's summary.
+    ``episodes`` are the Life context episodes touching the week; None (not
+    read) leaves the Life context section out rather than claim there were none.
     """
     if settings is None:
         settings = get_settings()
@@ -577,9 +780,13 @@ def send_weekly_recap(
         "weekly_recap.html",
         {
             "recap": content,
-            "week_start": week_start,
+            "week_label": _short_date(week_start),
             "dashboard_url": _dashboard_url(settings),
-            "completion": completion_line(adherence),
+            "hero": completion_hero(adherence),
+            "sessions": session_rows(adherence),
+            "extras": extra_rows(adherence),
+            "episodes": None if episodes is None else [episode_line(e) for e in episodes],
+            "log_episode_url": _log_episode_url(settings, week_start),
         },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Recap", html, settings)

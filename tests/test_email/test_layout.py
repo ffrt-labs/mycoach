@@ -15,6 +15,7 @@ from mycoach.coaching.life_context import Episode, LifeContext
 from mycoach.config import Settings
 from mycoach.email import sender
 from mycoach.models.life_context import EpisodeKind, IllnessSeverity
+from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 
 
 def _settings() -> Settings:
@@ -132,7 +133,8 @@ def _weekly_recap(s: Settings) -> None:
         },
         "2026-11-09",
         s,
-        adherence={"total_sessions": 5, "completed_sessions": 4, "substituted_sessions": 1},
+        adherence=WEEK_2026_11_02_ADHERENCE,
+        episodes=[],
     )
 
 

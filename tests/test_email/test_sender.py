@@ -7,6 +7,7 @@ import pytest
 
 from mycoach.config import Settings
 from mycoach.email.sender import (
+    CompletionHero,
     EmailSendError,
     _format_key_metrics,
     _format_session_details,
@@ -211,12 +212,13 @@ def test_render_weekly_recap_template() -> None:
                 "mesocycle_progress": "Week 3 of 4",
                 "coach_recommendations": ["Add a third rest day", "Increase protein intake"],
             },
-            "week_start": "2025-02-24",
+            "week_label": "24 Feb",
+            "hero": CompletionHero("No plan this week"),
         },
     )
     assert "Solid week" in html
     assert "Squat PR" in html
-    assert "2025-02-24" in html
+    assert "Week of 24 Feb" in html
     assert "Add a third rest day" in html
     assert "Increase protein intake" in html
 
@@ -423,107 +425,6 @@ def test_send_weekly_recap_calls_send_email(mock_send: MagicMock) -> None:
         settings=settings,
     )
     assert result is True
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_weekly_recap_email_leads_adherence_with_the_completion_line(
-    mock_send: MagicMock,
-) -> None:
-    """The Adherence section carries the code-rendered "4/5 done · 1 substituted" (#217)."""
-    from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
-
-    send_weekly_recap(
-        content={"adherence_analysis": "Four of five done."},
-        week_start="2026-11-02",
-        adherence=WEEK_2026_11_02_ADHERENCE,
-        settings=_make_settings(),
-    )
-
-    html = mock_send.call_args[0][2]
-    assert "4/5 done · 1 substituted" in html
-    assert html.index("4/5 done · 1 substituted") < html.index("Four of five done.")
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_weekly_recap_email_counts_sessions_excused_by_illness(mock_send: MagicMock) -> None:
-    """Five planned, sick three days, two done (#220)."""
-    adherence = {
-        "total_sessions": 2,
-        "completed_sessions": 2,
-        "substituted_sessions": 0,
-        "excused_sessions": 3,
-        "excused_days": {"excused_ill": 3},
-    }
-
-    send_weekly_recap(
-        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
-    )
-
-    assert "2/2 done · 3 excused (ill 3 days)" in mock_send.call_args[0][2]
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_weekly_recap_email_counts_sessions_adapted_on_a_trip(mock_send: MagicMock) -> None:
-    """#221: adapted sessions are done; a no-training travel day excuses one."""
-    adherence = {
-        "total_sessions": 3,
-        "completed_sessions": 2,
-        "substituted_sessions": 0,
-        "adapted_sessions": 1,
-        "excused_sessions": 1,
-        "excused_days": {"excused_travel": 1},
-    }
-
-    send_weekly_recap(
-        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
-    )
-
-    assert (
-        "2/3 done · 1 adapted (travel) · 1 excused (no training while travelling 1 day)"
-        in mock_send.call_args[0][2]
-    )
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_a_week_excused_entirely_still_shows_its_line(mock_send: MagicMock) -> None:
-    adherence = {
-        "total_sessions": 0,
-        "completed_sessions": 0,
-        "substituted_sessions": 0,
-        "excused_sessions": 4,
-        "excused_days": {"excused_ill": 6},
-    }
-
-    send_weekly_recap(
-        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
-    )
-
-    assert "0/0 done · 4 excused (ill 6 days)" in mock_send.call_args[0][2]
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_weekly_recap_email_without_substitutions_shows_the_bare_ratio(
-    mock_send: MagicMock,
-) -> None:
-    adherence = {"total_sessions": 3, "completed_sessions": 2, "substituted_sessions": 0}
-
-    send_weekly_recap(
-        content={}, week_start="2026-11-02", adherence=adherence, settings=_make_settings()
-    )
-
-    html = mock_send.call_args[0][2]
-    assert "Adherence" in html
-    assert "2/3" in html
-    assert "substituted" not in html
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_weekly_recap_email_without_a_plan_has_no_adherence_section(mock_send: MagicMock) -> None:
-    send_weekly_recap(
-        content={}, week_start="2026-11-02", adherence=None, settings=_make_settings()
-    )
-
-    assert "Adherence" not in mock_send.call_args[0][2]
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)

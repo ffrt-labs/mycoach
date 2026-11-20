@@ -88,6 +88,7 @@ WEEK_2026_11_02_ADHERENCE: dict[str, Any] = {
                 "external_id": "g-padel-1108",
                 "sport": "padel",
                 "title": "Padel",
+                "day": "Sunday",
                 "intent": "aerobic_base",
                 "duration_minutes": 101,
                 "avg_hr": 118,

@@ -1,0 +1,11 @@
+{#- The Life context episodes touching the recap week (#232), from
+    ``sender.episode_line``; none logged offers the prefilled dashboard form. -#}
+{% macro life_context_list(episodes, log_url) -%}
+{% if episodes %}
+{% for line in episodes %}
+<div class="p episode"{% if not loop.first %} style="margin-top:12px;"{% endif %}>{{ line }}</div>
+{% endfor %}
+{% else %}
+<div class="p life-context-empty">No illness or travel logged this week. <a href="{{ log_url }}" style="text-decoration:underline;">Something going on? Log it &rarr;</a></div>
+{% endif %}
+{%- endmacro %}

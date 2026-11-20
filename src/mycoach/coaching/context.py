@@ -121,6 +121,7 @@ class SubstituteActivity(TypedDict):
     external_id: str
     sport: str
     title: str
+    day: str  # its own weekday name, for the recap's "← Padel Sun" row (#232)
     # The classified intent it delivered (a SessionIntent value); None only when a
     # relaxed rule accepted an activity the classifier can't read.
     intent: str | None
@@ -426,6 +427,7 @@ async def get_plan_adherence_for_week(
                         "external_id": sub["external_id"],
                         "sport": sub["sport"],
                         "title": sub["title"],
+                        "day": WEEKDAY_NAMES[sub["start_date"].weekday()],
                         "intent": _intent_value(sub),
                         "duration_minutes": sub["duration_minutes"],
                         "avg_hr": sub["avg_hr"],

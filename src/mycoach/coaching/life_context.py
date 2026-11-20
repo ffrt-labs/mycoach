@@ -211,14 +211,19 @@ ACTIVITY_LABEL: dict[str, str] = {
 listed apart from the plan's sessions and never counted."""
 
 
+def excused_reasons(excused_days: Mapping[str, int]) -> str:
+    """ "ill 3 days, no training while travelling 1 day" ("" when there are none)."""
+    return ", ".join(
+        f"{EXCUSED_LABEL.get(status, status)} {n} day{'s' if n != 1 else ''}"
+        for status, n in excused_days.items()
+    )
+
+
 def excused_summary(excused_sessions: int, excused_days: Mapping[str, int]) -> str | None:
     """ "3 excused (ill 3 days)", or None when nothing was excused."""
     if not excused_sessions:
         return None
-    reasons = ", ".join(
-        f"{EXCUSED_LABEL.get(status, status)} {n} day{'s' if n != 1 else ''}"
-        for status, n in excused_days.items()
-    )
+    reasons = excused_reasons(excused_days)
     return f"{excused_sessions} excused" + (f" ({reasons})" if reasons else "")
 
 

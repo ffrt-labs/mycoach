@@ -39,7 +39,12 @@ from mycoach.coaching.health_events import (
     post_workout_on_revised,
     post_workout_on_settled,
 )
-from mycoach.coaching.life_context import LifeContext, life_context_for, recovery_signals
+from mycoach.coaching.life_context import (
+    LifeContext,
+    episodes_between,
+    life_context_for,
+    recovery_signals,
+)
 from mycoach.coaching.steps import StepsSummary, load_steps_summary
 from mycoach.config import get_settings
 from mycoach.database import async_session
@@ -672,9 +677,18 @@ async def _weekly_recap() -> None:
                 "plan adherence",
                 get_plan_adherence_for_week(session, USER_ID, last_monday, today=today),
             )
+            # The Life context episodes touching the week (#232); None if unread.
+            episodes = await _or_none(
+                "life context episodes",
+                episodes_between(session, USER_ID, last_monday, last_monday + timedelta(days=6)),
+            )
             _deliver(
                 partial(
-                    send_weekly_recap, content, week_start=str(last_monday), adherence=adherence
+                    send_weekly_recap,
+                    content,
+                    week_start=str(last_monday),
+                    adherence=adherence,
+                    episodes=episodes,
                 ),
                 "weekly recap",
             )

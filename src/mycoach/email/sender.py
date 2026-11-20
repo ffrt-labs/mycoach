@@ -21,7 +21,7 @@ from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import OpenThisWeek, PlanAdherence
-from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import PlanNotes, PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
@@ -35,6 +35,7 @@ from mycoach.coaching.life_context import (
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
 from mycoach.email.coach_notes import (
+    NO_VALUE,
     NOTES_UNAVAILABLE,
     block_rows,
     coach_notes,
@@ -43,6 +44,7 @@ from mycoach.email.coach_notes import (
 )
 from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
 from mycoach.email.links import insight_url
+from mycoach.email.plan_views import plan_block_rows
 from mycoach.email.recap_views import (
     lift_rows,
     load_rows,
@@ -134,74 +136,89 @@ def _is_routine_error(sets: object) -> bool:
     return isinstance(sets, int) and sets > ROUTINE_MAX_SETS
 
 
-def _format_exercise(exercise: dict) -> tuple[str, str]:  # type: ignore[type-arg]
-    """Turn one planned gym exercise into a (name, "4x8 @ 60kg - RPE 8") pair.
+@dataclass(frozen=True)
+class ExerciseRow:
+    """One row of a gym day card's exercise table: "Squat (Barbell) | 6 × 5 | 7 | log"."""
 
-    A routine-error set count shows as the planned "3*", the asterisk pointing at
-    the Routine error notice.
+    name: str
+    sets_reps: str
+    rpe: str
+    load: str
+    routine_error: bool
+
+
+LOAD_TO_LOG = "log"
+"""The Load cell of an exercise with no target load yet: the athlete logs what they lift."""
+
+
+def _rep_range(reps: object) -> str:
+    """ "8-10" as "8–10"."""
+    return str(reps if reps is not None else "?").replace("-", "–")
+
+
+def exercise_rows(details: Mapping[str, Any] | None) -> list[ExerciseRow]:
+    """A gym session's exercises (routine + gym adjustment) as exercise-table rows.
+
+    The Load column reads "log" until the gym adjustment sets a target load. A
+    routine-error set count shows as the planned "3*", the asterisk pointing at the
+    card's footnote and the Routine error notice.
     """
-    sets = exercise.get("sets", "?")
-    if _is_routine_error(sets):
-        sets = f"{ROUTINE_ERROR_PLANNED_SETS}*"
-    detail = f"{sets}×{exercise.get('reps', '?')}"
-    if exercise.get("target_weight_kg"):
-        detail += f" @ {exercise['target_weight_kg']}kg"
-    if exercise.get("rpe"):
-        detail += f" · RPE {exercise['rpe']}"
-    return str(exercise.get("name", "Exercise")), detail
-
-
-# Label and unit suffix for cardio detail keys the planner commonly emits. Any
-# key not listed falls back to a title-cased version of itself with no unit.
-_CARDIO_DETAIL_DISPLAY: dict[str, tuple[str, str]] = {
-    "target_pace_min_per_km": ("Target Pace", "min/km"),
-    "target_pace": ("Target Pace", ""),
-    "hr_zone": ("HR Zone", ""),
-    "target_hr_zone": ("HR Zone", ""),
-    "distance_km": ("Distance", "km"),
-    "target_distance_km": ("Distance", "km"),
-    "intensity": ("Intensity", ""),
-    "rpe": ("RPE", ""),
-}
-
-
-def _format_cardio_detail(key: str, value: object) -> tuple[str, str] | None:
-    """Turn one raw cardio detail entry into a (label, display value) pair.
-
-    Returns None for entries that should not be shown in the email.
-    """
-    text = str(value).strip()
-    if not text:
-        return None
-    if isinstance(value, bool):
-        text = "Yes" if value else "No"
-
-    label, unit = _CARDIO_DETAIL_DISPLAY.get(key, (key.replace("_", " ").title(), ""))
-    return label, f"{text} {unit}" if unit else text
-
-
-def _format_session_details(details: dict | None) -> dict[str, str]:  # type: ignore[type-arg]
-    """Flatten a planned session's details JSON into label -> display value.
-
-    Gym sessions store {"exercises": [...]}; cardio sessions store flat scalars
-    such as target_pace_min_per_km. Returns {} when there is nothing to show, so
-    the template's `{% if session.details %}` guard hides the table.
-    """
-    if not isinstance(details, dict):
-        return {}
-
-    exercises = details.get("exercises")
-    if isinstance(exercises, list):
-        return dict(_format_exercise(ex) for ex in exercises if isinstance(ex, dict))
-
-    rows: dict[str, str] = {}
-    for key, value in details.items():
-        if value is None or isinstance(value, (dict, list)):
+    exercises = (details or {}).get("exercises")
+    if not isinstance(exercises, list):
+        return []
+    rows = []
+    for ex in exercises:
+        if not isinstance(ex, dict):
             continue
-        row = _format_cardio_detail(key, value)
-        if row is not None:
-            rows[row[0]] = row[1]
+        sets = ex.get("sets", "?")
+        error = _is_routine_error(sets)
+        if error:
+            sets = f"{ROUTINE_ERROR_PLANNED_SETS}*"
+        kg = ex.get("target_weight_kg")
+        rows.append(
+            ExerciseRow(
+                name=str(ex.get("name", "Exercise")),
+                sets_reps=f"{sets} × {_rep_range(ex.get('reps'))}",
+                rpe=str(ex["rpe"]) if ex.get("rpe") is not None else NO_VALUE,
+                load=f"{kg:g} kg" if isinstance(kg, (int, float)) and kg else LOAD_TO_LOG,
+                routine_error=error,
+            )
+        )
     return rows
+
+
+def _routine_error_footnote(details: Mapping[str, Any] | None) -> str | None:
+    """ "* Routine says 36 / 32 sets — assumed 3 until fixed.", under the exercise table."""
+    exercises = (details or {}).get("exercises")
+    if not isinstance(exercises, list):
+        return None
+    counts: list[int] = []
+    for ex in exercises:
+        sets = ex.get("sets") if isinstance(ex, dict) else None
+        if isinstance(sets, int) and _is_routine_error(sets) and sets not in counts:
+            counts.append(sets)
+    if not counts:
+        return None
+    said = " / ".join(str(n) for n in counts)
+    return f"* Routine says {said} sets — assumed {ROUTINE_ERROR_PLANNED_SETS} until fixed."
+
+
+def _plan_card(session: Mapping[str, Any]) -> dict[str, Any]:
+    """A day card's view: header, focus line, exercise or block table, foot (#243)."""
+    raw = session.get("details")
+    details: Mapping[str, Any] = raw if isinstance(raw, Mapping) else {}
+    exercises = exercise_rows(details)
+    foot = details.get("foot")
+    return {
+        **session,
+        "sport_style": _plan_sport(session.get("sport"))[0],
+        "focus": session.get("notes"),
+        "exercises": exercises,
+        "blocks": [] if exercises else plan_block_rows(details),
+        "foot": _routine_error_footnote(details)
+        if exercises
+        else (foot if isinstance(foot, str) else None),
+    }
 
 
 def _dashboard_url(settings: Settings) -> str:
@@ -634,6 +651,12 @@ def _routine_error_notices(
     return notices
 
 
+def _notes_unavailable_notices(unavailable: bool) -> list[dict[str, str]]:
+    if not unavailable:
+        return []
+    return [{"label": "Coach", "tone": "neutral", "text": f"{NOTES_UNAVAILABLE}."}]
+
+
 def send_weekly_plan(
     summary: str,
     sessions: list[dict],
@@ -641,6 +664,9 @@ def send_weekly_plan(
     availability_source: str | None = None,
     settings: Settings | None = None,  # type: ignore[type-arg]
     life: LifeContext | None = None,
+    *,
+    notes: Mapping[str, Any] | PlanNotes | None = None,
+    notes_unavailable: bool = False,
 ) -> bool:
     """Send the weekly training plan email.
 
@@ -651,30 +677,32 @@ def send_weekly_plan(
 
     ``life`` is the planned week's Life context: a trip touching the week marks its
     days on the week strip, and each trip or open illness gets a factual notice.
+
+    ``notes`` are the plan's Coach notes (``PlanNotes``, prompt v5, #243): their focus
+    is the lead (else ``summary``) and their Guardrails the week's rules. Each day card
+    shows its focus (the session's ``notes``), then an exercise table (gym) or the
+    block table (cardio ``details["blocks"]``), then its foot. ``notes_unavailable``
+    says the cardio plan fell back: the email carries a "Coach notes unavailable"
+    Notice.
     """
     if settings is None:
         settings = get_settings()
     monday = date.fromisoformat(week_start)
-    display_sessions = [
-        {
-            **s,
-            "sport_style": _plan_sport(s.get("sport"))[0],
-            "details": _format_session_details(s.get("details")),
-        }
-        for s in sessions
-    ]
+    plan_notes = coach_notes(notes, PlanNotes)
     html = _render_template(
         "weekly_plan.html",
         {
-            "summary": summary,
+            "summary": plan_notes.focus if plan_notes else summary,
+            "guardrails": plan_notes.guardrails if plan_notes else [],
             "totals": _plan_totals(sessions),
             "week_strip": _week_strip(sessions, _travel_days(life, monday)),
             "notices": [
                 *_life_context_notices(life, monday),
                 *_default_schedule_notices(availability_source, settings),
                 *_routine_error_notices(sessions, settings),
+                *_notes_unavailable_notices(notes_unavailable and plan_notes is None),
             ],
-            "sessions": display_sessions,
+            "sessions": [_plan_card(s) for s in sessions],
             "week_start": week_start,
             "availability_source": availability_source,
             "dashboard_url": _dashboard_url(settings),

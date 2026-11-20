@@ -22,6 +22,7 @@ VARIABLES = {
     "health_trends": "fine",
     "mesocycle_context": "week 2",
     "life_context": "well",
+    "output_schema": "{}",
 }
 TEMPLATE = [
     {"role": "system", "content": "Coach."},
@@ -155,7 +156,7 @@ class TestBundledFallback:
         assert (served.system, served.user) == bundled()
         assert served.source == "bundled"
         assert served.version is None
-        assert served.artifact_version == "bundled:v4"
+        assert served.artifact_version == "bundled:v5"
         assert served.link is None
 
     def test_cold_failure_is_not_retried_on_every_call(
@@ -257,7 +258,7 @@ def test_bundled_store_serves_the_bundled_files() -> None:
     assert (served.system, served.user) == bundled()
     assert served.source == "bundled"
     assert served.name == NAME
-    assert served.artifact_version == "bundled:v4"
+    assert served.artifact_version == "bundled:v5"
 
 
 def test_a_bundled_prompt_records_its_operations_bundled_version() -> None:

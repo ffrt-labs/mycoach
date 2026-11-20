@@ -122,7 +122,7 @@ class TestArtifactsRecordThePrompt:
             plan = await engine.generate_weekly_plan(session, user_id, MONDAY)
 
         assert plan.gym_prompt_version == "lf:4"
-        assert plan.cardio_prompt_version == "bundled:v4"
+        assert plan.cardio_prompt_version == "bundled:v5"
         gym, _, cardio = captured.generations()
         assert attr(gym, "langfuse.observation.prompt.version") == 4
         assert json_attr(cardio, "langfuse.observation.metadata.prompt_source") == "bundled"

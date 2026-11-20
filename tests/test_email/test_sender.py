@@ -9,7 +9,6 @@ from mycoach.config import Settings
 from mycoach.email.sender import (
     EmailSendError,
     _format_key_metrics,
-    _format_session_details,
     _render_template,
     send_briefing_unavailable,
     send_daily_briefing,
@@ -87,88 +86,6 @@ def test_format_key_metrics_renders_briefings_stored_before_the_hrv_rename() -> 
     """Insights saved under the old `hrv_status` name still render their number."""
     rows = _format_key_metrics({"hrv_status": 82.0})
     assert rows == {"Avg HRV": "82.0 ms"}
-
-
-def test_format_session_details_gym_exercises() -> None:
-    """Gym details flatten to one row per exercise with sets/reps/weight/RPE."""
-    rows = _format_session_details(
-        {
-            "exercises": [
-                {"name": "Bench Press", "sets": 4, "reps": 8, "target_weight_kg": 60, "rpe": 8},
-                {"name": "Pull-ups", "sets": 3, "reps": 10},
-            ]
-        }
-    )
-    assert rows == {"Bench Press": "4×8 @ 60kg · RPE 8", "Pull-ups": "3×10"}
-
-
-def test_format_session_details_cardio_humanises_keys() -> None:
-    """Cardio details get readable labels, with units where the key is known."""
-    rows = _format_session_details(
-        {"target_pace_min_per_km": 5.5, "hr_zone": 2, "warmup_minutes": 10, "notes": None}
-    )
-    assert rows == {"Target Pace": "5.5 min/km", "HR Zone": "2", "Warmup Minutes": "10"}
-
-
-def test_format_session_details_empty() -> None:
-    """Missing or malformed details produce no rows, so the template hides the table."""
-    assert _format_session_details(None) == {}
-    assert _format_session_details({}) == {}
-    assert _format_session_details({"exercises": []}) == {}
-
-
-def test_render_weekly_plan_template() -> None:
-    """Weekly plan template renders sessions and a gym exercise table."""
-    html = _render_template(
-        "weekly_plan.html",
-        {
-            "summary": "A balanced week",
-            "sessions": [
-                {
-                    "day_name": "Monday",
-                    "title": "Upper Body",
-                    "sport": "gym",
-                    "duration_minutes": 60,
-                    "notes": "Focus on bench",
-                    "details": {"Bench Press": "4×8 @ 60kg · RPE 8"},
-                }
-            ],
-            "week_start": "2025-03-03",
-        },
-    )
-    assert "A balanced week" in html
-    assert "Upper Body" in html
-    assert "gym" in html
-    assert "2025-03-03" in html
-    assert "Bench Press" in html
-    assert "4" in html and "8" in html
-    assert "60kg" in html
-    assert "RPE 8" in html
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_send_weekly_plan_formats_raw_cardio_details(mock_send: MagicMock) -> None:
-    """send_weekly_plan humanises raw detail keys before they reach the template."""
-    send_weekly_plan(
-        summary="Easy week",
-        sessions=[
-            {
-                "day_name": "Tuesday",
-                "title": "Easy Run",
-                "sport": "running",
-                "duration_minutes": 40,
-                "notes": "Keep it conversational pace",
-                "details": {"target_pace_min_per_km": 5.5, "hr_zone": 2},
-            }
-        ],
-        week_start="2025-03-03",
-        settings=_make_settings(),
-    )
-    html = mock_send.call_args[0][2]
-    assert "Keep it conversational pace" in html
-    assert "Target Pace" in html
-    assert "5.5 min/km" in html
-    assert "target_pace_min_per_km" not in html
 
 
 # --- send_email function ---

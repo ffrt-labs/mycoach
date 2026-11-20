@@ -1,4 +1,4 @@
-Design progressive cardio sessions for the upcoming week based on the sport pre-assigned to each slot, recent performance, and user profile.
+Write the Coach notes of the weekly plan: design progressive cardio sessions for the upcoming week based on the sport pre-assigned to each slot, recent performance, and user profile.
 
 ## Available Cardio Slots
 - Tuesday — Running
@@ -35,30 +35,203 @@ Nothing to report: no illness, travel or ramp-back.
 - If a trip falls in the plan week, plan its days for what the trip allows (a treadmill or an outdoor run when no pool or court is there) and keep each session's intent. Keep sessions on days with no training possible short and optional. With a time-zone shift of 3 h or more, keep the first two trip days easy.
 - If an illness is open, plan a lighter week: shorter, easy sessions (recovery or aerobic base), no intervals or threshold work. During a ramp-back, keep the sessions at the ramp-back load. Never add sessions to make up for ones lost to illness.
 - Design one session per available slot using the sport shown for that slot
-- For swimming: specify drills, distances, intervals, stroke focus, and pace targets
-- For running: specify run type (easy, tempo, intervals, long run), distance/duration, pace targets, and heart rate zones
-- For padel: specify session type (match play, drills, fitness), focus areas, and intensity
+- For swimming: prescribe drills, distances, intervals, stroke focus and pace targets in the blocks
+- For running: prescribe the run type (easy, tempo, intervals, long run), distance or duration, pace targets and heart rate zones in the blocks
+- For padel: prescribe the session type (match play, drills, fitness), focus areas and intensity in the blocks
 - Progress from last week's performance — increase volume or intensity gradually (max 10% per week)
 - Consider health trends when setting intensity: poor sleep/recovery → easier sessions
 - If this is a deload week, reduce volume by ~40% and keep intensity low
 - Give each session one intent, its training purpose: strength, aerobic_base (easy zone 2 volume), threshold (tempo or sustained hard), intervals (short hard repeats), recovery (very easy, to absorb load), or skill (technique, drills, match play)
 
-Respond with a JSON object matching this exact schema:
+The email shows the week's numbers from the data: the session count, total time, the week strip, trips and the routine. Observed and derived numbers never come from you; your slots carry the prescription and the reasoning behind it. Any reasoning about a trip or an illness goes in a focus or a guardrail.
+
+Slots:
+- sessions: one per slot.
+  - day_of_week: the slot's day, 0 = Monday.
+  - sport: the slot's sport.
+  - intent: strength, aerobic_base, threshold, intervals, recovery or skill.
+  - title: a short session title ("Threshold intervals swim").
+  - duration_minutes: the prescribed duration.
+  - focus: one sentence on what the session is for and how to run it ("Keep HR in Z2. Log 200 m splits.").
+  - blocks: the session as 1-6 blocks, in order. "phase" is warmup, drill, main, pull, kick, strides or cooldown; "set" is the prescription ("5×200", "30 min"); "cue" how to swim or run it; "target" the prescribed intensity ("RPE 4–5", "Z2 · RPE 3–4"); "rest_s" the rest in seconds, or null.
+  - foot: one closing line ("Total ~2000 m."), or null.
+- focus: one sentence on the week as a whole, the email's lead ("One quality day: Thursday's threshold swim.").
+- guardrails: up to 3 conditional adjustments for the week: "when" a stated signal appears, "then" what changes.
+- goal_assessment: the training progression against the sport profiles' goals, in a few sentences, for the dashboard.
+
+Respond with a JSON object matching this JSON schema:
 {
-  "sessions": [
-    {
-      "day_of_week": 0,
-      "sport": "swimming | running | padel",
-      "title": "Session title (e.g. 'Easy Recovery Run', 'Endurance Swim')",
-      "intent": "strength | aerobic_base | threshold | intervals | recovery | skill",
-      "duration_minutes": 45,
-      "details": {
-        "type": "Session type (e.g. 'easy', 'tempo', 'intervals', 'drills')",
-        "description": "Detailed session breakdown"
+  "additionalProperties": false,
+  "properties": {
+    "sessions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "day_of_week": {
+            "maximum": 6,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sport": {
+            "type": "string"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strength",
+                  "aerobic_base",
+                  "threshold",
+                  "intervals",
+                  "recovery",
+                  "skill"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "integer"
+          },
+          "focus": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "blocks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "phase": {
+                  "enum": [
+                    "warmup",
+                    "drill",
+                    "main",
+                    "pull",
+                    "kick",
+                    "strides",
+                    "cooldown"
+                  ],
+                  "type": "string"
+                },
+                "set": {
+                  "maxLength": 24,
+                  "type": "string"
+                },
+                "cue": {
+                  "anyOf": [
+                    {
+                      "maxLength": 48,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "maxLength": 24,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rest_s": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "phase",
+                "set",
+                "cue",
+                "target",
+                "rest_s"
+              ],
+              "type": "object"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "type": "array"
+          },
+          "foot": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "day_of_week",
+          "sport",
+          "intent",
+          "title",
+          "duration_minutes",
+          "focus",
+          "blocks",
+          "foot"
+        ],
+        "type": "object"
       },
-      "notes": "Session-level coaching notes"
+      "minItems": 1,
+      "type": "array"
+    },
+    "focus": {
+      "maxLength": 120,
+      "type": "string"
+    },
+    "guardrails": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "when": {
+            "maxLength": 60,
+            "type": "string"
+          },
+          "then": {
+            "maxLength": 60,
+            "type": "string"
+          }
+        },
+        "required": [
+          "when",
+          "then"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "type": "array"
+    },
+    "goal_assessment": {
+      "type": "string"
     }
+  },
+  "required": [
+    "sessions",
+    "focus",
+    "guardrails",
+    "goal_assessment"
   ],
-  "goal_assessment": "Assessment of training progression based on recent performance and sport profiles",
-  "weekly_summary": "Brief overview of the cardio plan for the week"
+  "type": "object"
 }

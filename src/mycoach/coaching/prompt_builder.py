@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import CardioPlanV5, PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     EXCUSED_LABEL,
@@ -79,6 +79,7 @@ BUNDLED_VERSIONS: Mapping[Operation, str] = {
     **{operation: BUNDLED_VERSION for operation in Operation},
     Operation.POST_WORKOUT: COACH_NOTES_VERSION,
     Operation.WEEKLY_RECAP: COACH_NOTES_VERSION,
+    Operation.CARDIO_PLAN: COACH_NOTES_VERSION,
 }
 """Each operation's bundled template set: its default compile, the fallback the
 prompt store serves, and the seed of its Langfuse prompt. An operation moves to
@@ -1570,6 +1571,7 @@ def cardio_plan_variables(
         or "No mesocycle configured. Use general progressive programming.",
         "sport_profiles": _format_sport_profiles(sport_profiles or []),
         "life_context": _format_life_context(life_context),
+        "output_schema": _coach_notes_schema(CardioPlanV5),
     }
 
 

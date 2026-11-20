@@ -1,0 +1,23 @@
+{#- A gym day card's exercise table (#243): code-rendered from the routine and the gym
+    adjustment (``sender.exercise_rows``). Load reads "log" until a target exists; a
+    routine-error set count ("3*") is drawn in the accent colour. -#}
+{% macro exercise_table(rows) -%}
+{%- set cell = "vertical-align:top;padding:10px 0;border-bottom:1px solid #f4f4f5;" -%}
+{%- set head = "padding-bottom:8px;border-bottom:1px solid #e7e5e4;" -%}
+<table data-table="exercises" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td class="msub" style="{{ head }}">Exercise</td>
+    <td class="msub" style="{{ head }}text-align:right;padding-right:16px;">Sets × reps</td>
+    <td class="msub" style="{{ head }}text-align:right;padding-right:16px;">RPE</td>
+    <td class="msub" style="{{ head }}text-align:right;">Load</td>
+  </tr>
+  {% for row in rows %}
+  <tr>
+    <td class="p" style="{{ cell }}padding-right:12px;">{{ row.name }}</td>
+    <td class="strong" style="{{ cell }}text-align:right;padding-right:16px;white-space:nowrap;font:600 14px 'IBM Plex Mono',monospace;{% if row.routine_error %}color:#c2410c;{% endif %}">{{ row.sets_reps }}</td>
+    <td class="mlabel" style="{{ cell }}text-align:right;padding-right:16px;">{{ row.rpe }}</td>
+    <td class="msub" style="{{ cell }}text-align:right;white-space:nowrap;">{{ row.load }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{%- endmacro %}

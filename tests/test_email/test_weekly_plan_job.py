@@ -1,5 +1,6 @@
 """The weekly-plan job hands the email each session's intent and the week's Life context (#234)."""
 
+import json
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -53,10 +54,18 @@ async def _seed_plan() -> int:
         return plan.id
 
 
-async def _run(plan_id: int) -> MagicMock:
+async def _run(
+    plan_id: int, coach_notes: str | None = None, cardio_prompt_version: str | None = None
+) -> MagicMock:
     engine = MagicMock()
     engine.generate_weekly_plan = AsyncMock(
-        return_value=MagicMock(id=plan_id, summary="Easy week", availability_source="declared")
+        return_value=MagicMock(
+            id=plan_id,
+            summary="Easy week",
+            availability_source="declared",
+            coach_notes=coach_notes,
+            cardio_prompt_version=cardio_prompt_version,
+        )
     )
     with (
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=engine),
@@ -94,3 +103,28 @@ async def test_a_life_context_lookup_failure_does_not_cost_the_plan_email() -> N
         send = await _run(plan_id)
     assert send.call_args.kwargs["life"] is None
     assert len(send.call_args.kwargs["sessions"]) == 2
+
+
+NOTES = {
+    "focus": "One quality day.",
+    "guardrails": [{"when": "Legs heavy", "then": "Skip the strides"}],
+    "goal_assessment": "On track.",
+}
+
+
+async def test_the_plan_email_gets_the_plans_coach_notes() -> None:
+    """#243: the focus and Guardrails stored on the plan reach the email."""
+    send = await _run(await _seed_plan(), json.dumps(NOTES), "bundled:v5")
+    assert send.call_args.kwargs["notes"] == NOTES
+    assert send.call_args.kwargs["notes_unavailable"] is False
+
+
+async def test_a_cardio_plan_without_coach_notes_says_they_are_unavailable() -> None:
+    send = await _run(await _seed_plan(), None, "bundled:v5")
+    assert send.call_args.kwargs["notes"] is None
+    assert send.call_args.kwargs["notes_unavailable"] is True
+
+
+async def test_a_gym_only_week_expects_no_coach_notes() -> None:
+    send = await _run(await _seed_plan(), None, None)
+    assert send.call_args.kwargs["notes_unavailable"] is False

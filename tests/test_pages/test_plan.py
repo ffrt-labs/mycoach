@@ -398,3 +398,71 @@ async def test_an_illness_told_after_the_fact_excuses_that_weeks_sessions(
 
     assert told.status_code == 201
     assert "1/1 done" in (await client.get(week)).text
+
+
+def _page_text(html: str) -> str:
+    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+
+
+async def test_a_v5_cardio_session_shows_its_focus_blocks_and_foot(client: AsyncClient) -> None:
+    """#243: a cardio session's Blocks replace the free-text description."""
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    block = {"cue": None, "target": None, "rest_s": None}
+    details = {
+        "blocks": [
+            {**block, "phase": "warmup", "set": "300 + 4×50", "target": "RPE 3", "rest_s": 15},
+            {**block, "phase": "main", "set": "8×100", "cue": "Even splits", "rest_s": 20},
+        ],
+        "foot": "Total ~2000 m.",
+    }
+    await _plan_for(
+        today - timedelta(days=today.weekday()),
+        [
+            PlannedSession(
+                day_of_week=3,
+                sport="swimming",
+                title="Threshold intervals swim",
+                notes="The only hard session.",
+                details=json.dumps(details),
+            )
+        ],
+    )
+
+    resp = await client.get("/plan")
+
+    text = _page_text(resp.text)
+    assert "The only hard session." in text
+    assert "Warm-up 300 + 4×50 RPE 3 15s" in text
+    assert "Main 8×100 Even splits — 20s" in text
+    assert "Total ~2000 m." in text
+    assert "rest_s" not in resp.text
+
+
+async def test_the_plan_shows_its_guardrails_and_goal_assessment(client: AsyncClient) -> None:
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    async with test_session() as session:
+        session.add(
+            WeeklyPlan(
+                user_id=1,
+                week_start=today - timedelta(days=today.weekday()),
+                status="active",
+                prompt_version="v5",
+                summary="One quality day.",
+                coach_notes=json.dumps(
+                    {
+                        "focus": "One quality day.",
+                        "guardrails": [{"when": "Legs heavy", "then": "Skip the strides"}],
+                        "goal_assessment": "On track for the 1500 m.",
+                    }
+                ),
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/plan")
+
+    text = _page_text(resp.text)
+    assert "IF Legs heavy → Skip the strides" in text
+    assert "On track for the 1500 m." in text

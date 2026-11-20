@@ -743,6 +743,10 @@ async def _weekly_plan(today: date | None = None) -> None:
                     week_start=str(next_monday),
                     availability_source=plan.availability_source,
                     life=life,
+                    # The cardio plan's Coach notes (#243). A cardio prompt was served
+                    # but left no notes: the notes fell back.
+                    notes=json.loads(plan.coach_notes) if plan.coach_notes else None,
+                    notes_unavailable=bool(plan.cardio_prompt_version and not plan.coach_notes),
                 ),
                 "weekly plan",
             )

@@ -34,7 +34,7 @@
 {#- A session's ``Block``s (``block_rows``): phase, set over its cue, target, rest. -#}
 {% macro block_table(rows) -%}
 {%- set cell = "vertical-align:top;padding:12px 0;border-bottom:1px solid #f4f4f5;" -%}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<table data-table="blocks" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
     <td class="msub" style="padding-bottom:8px;border-bottom:1px solid #e7e5e4;">Phase</td>
     <td class="msub" style="padding-bottom:8px;border-bottom:1px solid #e7e5e4;">Set</td>

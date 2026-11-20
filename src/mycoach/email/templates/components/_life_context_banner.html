@@ -1,0 +1,29 @@
+{#- The Life context banner (#233): ``email.life_views.Banner``, coloured from its
+    tone in CHIP_STYLES. ``url`` is the dashboard's life-context section. -#}
+{% macro life_context_banner(banner, url) -%}
+{% if banner %}
+<div class="banner c-{{ banner.style }}" style="padding:16px 20px;border-radius:12px;border:1px solid;margin-bottom:24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="font:700 11px 'IBM Plex Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;vertical-align:middle;">{{ banner.kicker }}</td>
+      {% if banner.link_label %}
+      <td style="text-align:right;vertical-align:middle;white-space:nowrap;"><a href="{{ url }}" style="font:600 13px 'IBM Plex Sans',sans-serif;text-decoration:underline;">{{ banner.link_label }}</a></td>
+      {% endif %}
+    </tr>
+  </table>
+  <div style="margin-top:8px;font:600 16px/1.4 'IBM Plex Sans',sans-serif;">{{ banner.title }}</div>
+  {% if banner.body %}
+  <div style="margin-top:4px;font:400 14px/1.5 'IBM Plex Sans',sans-serif;">{{ banner.body }}</div>
+  {% endif %}
+  {% if banner.segments %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
+    <tr>
+      {% for on in banner.segments %}
+      <td style="padding:0 {{ '0' if loop.last else '4px' }} 0 0;"><div class="{{ 'rb-on' if on else 'rb-off' }}" style="height:6px;border-radius:3px;background:{{ '#10b981' if on else '#d1fae5' }};font-size:0;line-height:0;">&nbsp;</div></td>
+      {% endfor %}
+    </tr>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+{%- endmacro %}

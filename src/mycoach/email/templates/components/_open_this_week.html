@@ -1,0 +1,34 @@
+{#- Open this week (#233): the week's planned sessions not yet done, from
+    ``email.life_views.open_week_view``. Expects ``ui`` (the layout macros) imported
+    by the caller. -#}
+{% macro open_this_week(ui, layout, view) -%}
+{% if view %}
+{% call ui.section(layout) %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+      <tr>
+        <td class="sec" style="vertical-align:bottom;">Open this week</td>
+        <td class="msub" style="text-align:right;vertical-align:bottom;white-space:nowrap;">{{ view.summary }}</td>
+      </tr>
+    </table>
+    {% if view.rows %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {% for row in view.rows %}
+      <tr>
+        <td class="st-day" style="width:48px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">{{ row.day|upper }}</td>
+        <td style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 8px {{ '0' if loop.last else '12px' }} 0;{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">
+          <div class="mlabel">{{ row.title }}</div>
+          <div class="msub" style="margin-top:2px;">{{ row.detail }}</div>
+        </td>
+        <td style="text-align:right;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">{{ ui.chip(row.chip) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% if view.overloaded %}
+    <div class="c-watch" style="margin-top:16px;padding:12px 16px;border-radius:10px;border:1px solid;font:400 14px/1.5 'IBM Plex Sans',sans-serif;">More sessions open than days left.</div>
+    {% endif %}
+    {% else %}
+    <div class="c-good" style="padding:12px 16px;border-radius:10px;border:1px solid;font:600 14px 'IBM Plex Sans',sans-serif;">Every planned session is done.</div>
+    {% endif %}
+{% endcall %}
+{% endif %}
+{%- endmacro %}

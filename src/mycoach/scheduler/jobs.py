@@ -21,7 +21,13 @@ from sqlalchemy import select
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.context import get_body_summary, get_plan_adherence_for_week
+from mycoach.coaching.context import (
+    OpenThisWeek,
+    get_body_summary,
+    get_health_trends,
+    get_open_this_week,
+    get_plan_adherence_for_week,
+)
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
@@ -33,6 +39,7 @@ from mycoach.coaching.health_events import (
     post_workout_on_revised,
     post_workout_on_settled,
 )
+from mycoach.coaching.life_context import LifeContext, life_context_for, recovery_signals
 from mycoach.coaching.steps import StepsSummary, load_steps_summary
 from mycoach.config import get_settings
 from mycoach.database import async_session
@@ -447,7 +454,8 @@ async def _daily_briefing(today: date | None = None) -> None:
         if await _get_user_email_pref("email_daily_briefing"):
             content = json.loads(insight.content)
             numbers = await _code_rendered_numbers(today)
-            _deliver(partial(send_daily_briefing, content, **numbers), "daily briefing")
+            views = await _briefing_week_and_life(today, numbers["hrv"])
+            _deliver(partial(send_daily_briefing, content, **numbers, **views), "daily briefing")
 
 
 async def _todays_health(day: date) -> dict[str, Any]:
@@ -488,6 +496,37 @@ async def _code_rendered_numbers(day: date) -> dict[str, Any]:
         "steps": await _or_none("steps", _steps_summary(day)),
         "hrv": await _or_none(f"{day}'s health", _todays_health(day)),
         "body": await _or_none("the body summary", _body_summary()),
+    }
+
+
+async def _open_this_week(day: date) -> OpenThisWeek | None:
+    async with async_session() as session:
+        return await get_open_this_week(session, USER_ID, day)
+
+
+async def _life_today(day: date, health_today: dict[str, Any] | None) -> LifeContext:
+    """``day``'s Life context, as the briefing reads it: recovery data (``day``'s
+    snapshot against recent days) may only extend a ramp-back, never shorten it."""
+    async with async_session() as session:
+        trends = await get_health_trends(session, USER_ID, days=3, today=day)
+        return await life_context_for(
+            session,
+            USER_ID,
+            day,
+            day,
+            today=day,
+            recovery=recovery_signals(health_today or {}, trends),
+        )
+
+
+async def _briefing_week_and_life(day: date, health_today: dict[str, Any] | None) -> dict[str, Any]:
+    """The daily briefing's ``open_this_week`` and ``life`` keywords (#233).
+
+    Best-effort like the numbers: a failed read leaves its block out of the email.
+    """
+    return {
+        "open_this_week": await _or_none("open this week", _open_this_week(day)),
+        "life": await _or_none(f"{day}'s life context", _life_today(day, health_today)),
     }
 
 

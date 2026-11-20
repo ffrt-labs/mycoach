@@ -98,6 +98,8 @@
     .st-bar-y { background:#fb923c !important; }
     .st-day { color:#8b8b93 !important; }
     .st-day-y { color:#fafafa !important; }
+    .rb-on { background:#34d399 !important; }
+    .rb-off { background:rgba(52,211,153,.18) !important; }
     .cta { background:#fb923c !important; color:#0a0b0d !important; }
     .ft-t, .ft-t a { color:#8b8b93 !important; }
   }
@@ -127,6 +129,7 @@
           <!-- Footer -->
           <tr>
             <td class="ft px" style="padding-top:20px;padding-bottom:28px;{{ ui.side_padding }}{{ ui.divider }}">
+              {% block footer_note %}{% endblock %}
               <div class="ft-t">MyCoach &mdash; AI-powered personal fitness coaching.</div>
             </td>
           </tr>

@@ -91,3 +91,19 @@ async def test_no_plan_this_week_is_none() -> None:
         await session.flush()
 
         assert await get_open_this_week(session, user.id, WEDNESDAY) is None
+
+
+async def test_an_open_session_carries_its_intent() -> None:
+    async with test_session() as session:
+        user_id = await _week(
+            session,
+            [
+                PlannedSession(day_of_week=3, sport="swimming", title="CSS", intent="threshold"),
+                PlannedSession(day_of_week=4, sport="gym", title="Pull Day", track="gym"),
+            ],
+        )
+
+        open_week = await get_open_this_week(session, user_id, WEDNESDAY)
+
+    assert open_week is not None
+    assert [s["intent"] for s in open_week["sessions"]] == ["threshold", None]

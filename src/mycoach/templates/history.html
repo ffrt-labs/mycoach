@@ -307,6 +307,12 @@
                     <div id="analysis-{{ card.activity.external_id }}" class="analysis-panel hidden border-t border-purple-500/20 bg-purple-500/[0.05] px-4 py-4">
                         {% set ad = card.analysis_data %}
 
+                        <!-- v5 Coach notes: the full analysis, opened on its insight page -->
+                        {% if card.full_analysis %}
+                        <div class="text-zinc-300 text-sm leading-relaxed [&_h1]:font-semibold [&_h1]:text-zinc-50 [&_h2]:font-semibold [&_h2]:text-zinc-50 [&_h3]:font-semibold [&_p]:mb-2 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_strong]:text-zinc-100">{{ card.full_analysis }}</div>
+                        <a href="/insights/{{ card.insight_id }}" class="mt-2 inline-block text-xs text-purple-300 hover:underline">Full analysis →</a>
+                        {% endif %}
+
                         <!-- Performance Summary -->
                         {% if ad.performance_summary %}
                         <p class="text-zinc-200 text-sm mb-4 leading-relaxed">{{ ad.performance_summary|md_bold }}</p>

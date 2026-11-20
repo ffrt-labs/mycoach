@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Full analysis — MyCoach{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-2xl">
+    <div class="flex items-center gap-3">
+        <a href="/history" class="text-accent-soft hover:underline text-sm">&larr; History</a>
+        <h1 class="text-2xl font-bold text-zinc-50">Full analysis</h1>
+    </div>
+    <p class="text-xs text-zinc-500 font-mono">
+        {{ insight.insight_date.strftime('%a %-d %b %Y') }} · revision {{ insight.revision }}
+    </p>
+
+    {% if newer %}
+    <a href="/insights/{{ newer.id }}" class="block rounded-lg border border-accent/30 bg-accent/10 px-4 py-2 text-sm text-accent-soft hover:underline">A newer analysis exists →</a>
+    {% endif %}
+
+    <article class="bg-surface rounded-xl border border-white/[0.07] p-6 text-sm leading-relaxed text-zinc-300
+        [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:text-zinc-50 [&_h1]:mt-4 [&_h1]:mb-2
+        [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-zinc-50 [&_h2]:mt-4 [&_h2]:mb-2
+        [&_h3]:font-semibold [&_h3]:text-zinc-100 [&_h3]:mt-3 [&_h3]:mb-1
+        [&_p]:mb-3 [&_strong]:text-zinc-100 [&_a]:text-accent-soft [&_a]:underline
+        [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:mb-3 [&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:mb-3
+        [&_li]:mb-1 [&_code]:font-mono [&_code]:text-zinc-100">
+        {% if analysis %}
+        {{ analysis }}
+        {% else %}
+        <p class="text-zinc-500">No full analysis for this revision.</p>
+        {% endif %}
+    </article>
+</div>
+{% endblock %}

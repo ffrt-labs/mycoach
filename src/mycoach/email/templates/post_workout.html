@@ -60,5 +60,9 @@
 
 {{ still_open_this_week(ui, layout, open_week) }}
 
+{% if full_analysis_url %}
+{{ ui.cta(full_analysis_url, "Full analysis →") }}
+{% else %}
 {{ ui.cta(dashboard_url, "View full report →") }}
+{% endif %}
 {% endblock %}

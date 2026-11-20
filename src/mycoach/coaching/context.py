@@ -478,6 +478,25 @@ async def week_completion_of(
     return adherence if adherence is not None and adherence["plan_id"] == plan.id else None
 
 
+async def sessions_excused_ill_between(
+    session: AsyncSession, user_id: int, start: date, end: date, *, today: date
+) -> int:
+    """How many planned sessions Completion counts excused (ill) in the weeks
+    touching ``start``..``end`` (#236: "Logged ill 9–15 Nov · 3 sessions excused").
+
+    Computed on read, like every Completion, so it already counts an illness
+    just told; a sick day may excuse a session elsewhere in its week.
+    """
+    count = 0
+    monday = start - timedelta(days=start.weekday())
+    while monday <= end:
+        adherence = await get_plan_adherence_for_week(session, user_id, monday, today=today)
+        if adherence is not None:
+            count += sum(1 for s in adherence["sessions"] if s["status"] == "excused_ill")
+        monday += timedelta(days=7)
+    return count
+
+
 def done_session_ids(
     adherence: PlanAdherence | None, planned: Sequence[PlannedSession]
 ) -> set[int]:

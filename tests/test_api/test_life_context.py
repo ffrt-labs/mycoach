@@ -95,6 +95,93 @@ async def test_an_unknown_episode_is_404(client: AsyncClient) -> None:
     assert patched.status_code == 404
 
 
+# --- Backdated illness (#236) ------------------------------------------------------
+
+
+async def _ill(client: AsyncClient, start: object, end: object = None):  # type: ignore[no-untyped-def]
+    body: dict[str, object] = {"severity": "sick", "started_on": str(start)}
+    if end is not None:
+        body["ended_on"] = str(end)
+    return await client.post("/api/life-context/illness", json=body)
+
+
+async def test_an_illness_can_be_told_after_the_fact(client: AsyncClient) -> None:
+    start, end = _today() - timedelta(days=10), _today() - timedelta(days=4)
+
+    resp = await _ill(client, start, end)
+
+    assert resp.status_code == 201
+    assert (resp.json()["started_on"], resp.json()["ended_on"]) == (str(start), str(end))
+
+
+@pytest.mark.parametrize("end_offset", [0, 1])
+async def test_an_illness_that_is_over_ended_yesterday_at_the_latest(
+    client: AsyncClient, end_offset: int
+) -> None:
+    resp = await _ill(client, _today() - timedelta(days=3), _today() + timedelta(days=end_offset))
+
+    assert resp.status_code == 422
+
+
+async def test_an_illness_cannot_start_after_today(client: AsyncClient) -> None:
+    assert (await _ill(client, _today() + timedelta(days=1))).status_code == 422
+
+
+async def test_an_illness_cannot_end_before_it_starts(client: AsyncClient) -> None:
+    resp = await _ill(client, _today() - timedelta(days=3), _today() - timedelta(days=5))
+
+    assert resp.status_code == 422
+
+
+async def test_an_overlapping_illness_is_refused_with_the_dates_it_hits(
+    client: AsyncClient,
+) -> None:
+    await _ill(client, "2000-11-09", "2000-11-15")
+
+    resp = await _ill(client, "2000-11-14", "2000-11-20")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "An illness already covers 9–15 Nov"
+
+
+async def test_illnesses_that_only_touch_are_both_kept(client: AsyncClient) -> None:
+    await _ill(client, "2000-11-09", "2000-11-12")
+
+    resp = await _ill(client, "2000-11-13", "2000-11-15")
+
+    assert resp.status_code == 201
+    assert (resp.json()["started_on"], resp.json()["ended_on"]) == ("2000-11-13", "2000-11-15")
+
+
+async def test_a_past_illness_may_overlap_a_trip(client: AsyncClient) -> None:
+    await client.post(
+        "/api/life-context/travel",
+        json={"started_on": "2000-11-10", "ended_on": "2000-11-14", "equipment": "none"},
+    )
+
+    assert (await _ill(client, "2000-11-09", "2000-11-12")).status_code == 201
+
+
+async def test_ill_since_a_past_day_is_an_open_illness(client: AsyncClient) -> None:
+    since = _today() - timedelta(days=2)
+
+    resp = await _ill(client, since)
+
+    assert resp.status_code == 201
+    assert (resp.json()["started_on"], resp.json()["ended_on"]) == (str(since), None)
+    second = await _ill(client, _today() - timedelta(days=20))
+    assert second.status_code == 409
+
+
+async def test_an_open_illness_overlapping_a_past_one_is_refused(client: AsyncClient) -> None:
+    await _ill(client, _today() - timedelta(days=6), _today() - timedelta(days=2))
+
+    resp = await _ill(client, _today() - timedelta(days=3))
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"].startswith("An illness already covers")
+
+
 # --- Travel (#221) ------------------------------------------------------------------
 
 

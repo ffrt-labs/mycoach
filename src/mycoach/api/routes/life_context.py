@@ -39,15 +39,31 @@ async def _episode(session: AsyncSession, episode_id: int) -> LifeContextEpisode
 async def feeling_unwell(
     body: IllnessCreate, session: AsyncSession = Depends(get_db)
 ) -> LifeContextEpisode:
+    """An illness from today, or told after the fact (#236).
+
+    A backdated illness excuses that week's sessions at once on the plan page,
+    dashboard and Logger: Completion is computed on read. Known limit: the week's
+    Langfuse completion score was sent at recap time and is not updated, and the
+    recap already sent is not regenerated.
+    """
+    today = _today()
+    if body.started_on is not None and body.started_on > today:
+        raise HTTPException(status_code=422, detail="An illness cannot start after today")
+    if body.ended_on is not None and body.ended_on >= today:
+        raise HTTPException(
+            status_code=422, detail="An illness that is over ended yesterday at the latest"
+        )
     try:
         episode = await life_context.open_illness(
             session,
             DEFAULT_USER_ID,
             severity=body.severity,
             note=_clean(body.note),
-            today=_today(),
+            today=today,
+            started_on=body.started_on,
+            ended_on=body.ended_on,
         )
-    except life_context.EpisodeAlreadyOpenError as exc:
+    except (life_context.EpisodeAlreadyOpenError, life_context.IllnessOverlapError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await session.commit()
     return episode

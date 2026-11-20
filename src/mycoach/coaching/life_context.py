@@ -330,6 +330,19 @@ async def open_episodes(
     return list((await session.execute(stmt.order_by(LifeContextEpisode.id))).scalars().all())
 
 
+class IllnessOverlapError(Exception):
+    """Another illness already covers some of these days: illnesses don't overlap."""
+
+
+def format_days(start: date, end: date) -> str:
+    """ "9–15 Nov", "28 Oct–3 Nov", "12 Nov": a day range as the dashboard shows it."""
+    if start == end:
+        return f"{start.day} {start:%b}"
+    if (start.year, start.month) == (end.year, end.month):
+        return f"{start.day}–{end.day} {end:%b}"
+    return f"{start.day} {start:%b}–{end.day} {end:%b}"
+
+
 async def open_illness(
     session: AsyncSession,
     user_id: int,
@@ -337,14 +350,31 @@ async def open_illness(
     severity: IllnessSeverity,
     note: str | None,
     today: date,
+    started_on: date | None = None,
+    ended_on: date | None = None,
 ) -> LifeContextEpisode:
-    """ "Feeling unwell": an illness episode from today, open until "Feeling better"."""
-    if await open_episodes(session, user_id, EpisodeKind.ILLNESS):
+    """ "Feeling unwell": an illness from ``started_on`` (default today).
+
+    With no ``ended_on`` it stays open until "Feeling better" (one open illness at a
+    time); a past ``started_on`` is "ill since Thursday". With ``ended_on`` it is an
+    illness told after the fact (#236): ``ended_on`` = yesterday stores what "Feeling
+    better" would have. An illness may not overlap another illness, so "Ill since"
+    stays unambiguous; illnesses that only touch are allowed and not merged. Overlap
+    with travel is allowed (sick wins).
+    """
+    start = today if started_on is None else started_on
+    if ended_on is None and await open_episodes(session, user_id, EpisodeKind.ILLNESS):
         raise EpisodeAlreadyOpenError("An illness is already open")
+    last = today if ended_on is None else ended_on
+    for other in await episodes_between(session, user_id, start, last):
+        if other.kind == EpisodeKind.ILLNESS:
+            dates = format_days(other.started_on, other.last_day(today))
+            raise IllnessOverlapError(f"An illness already covers {dates}")
     episode = LifeContextEpisode(
         user_id=user_id,
         kind=EpisodeKind.ILLNESS,
-        started_on=today,
+        started_on=start,
+        ended_on=ended_on,
         severity=severity,
         note=note,
     )

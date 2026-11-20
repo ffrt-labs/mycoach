@@ -354,3 +354,47 @@ async def test_plan_page_for_another_week_has_no_open_list(client: AsyncClient) 
 
     assert resp.status_code == 200
     assert "Open this week" not in resp.text
+
+
+async def test_an_illness_told_after_the_fact_excuses_that_weeks_sessions(
+    client: AsyncClient,
+) -> None:
+    """#236: Completion is computed on read, so a backdated illness counts at once."""
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    await _plan_for(
+        last_monday,
+        [
+            PlannedSession(day_of_week=0, sport="gym", title="Upper A", track="gym"),
+            PlannedSession(day_of_week=1, sport="running", title="Easy Run"),
+            PlannedSession(day_of_week=4, sport="running", title="Long Run"),
+        ],
+    )
+    async with test_session() as session:
+        friday = last_monday + timedelta(days=4)
+        session.add(
+            Activity(
+                user_id=1,
+                title="Run",
+                sport="running",
+                start_time=datetime(friday.year, friday.month, friday.day, 7, 0),
+                duration_minutes=60,
+                data_source="garmin",
+            )
+        )
+        await session.commit()
+    week = f"/plan?week={last_monday.isoformat()}"
+    assert "1/3 done" in (await client.get(week)).text
+
+    told = await client.post(
+        "/api/life-context/illness",
+        json={
+            "severity": "sick",
+            "started_on": last_monday.isoformat(),
+            "ended_on": (last_monday + timedelta(days=2)).isoformat(),
+        },
+    )
+
+    assert told.status_code == 201
+    assert "1/1 done" in (await client.get(week)).text

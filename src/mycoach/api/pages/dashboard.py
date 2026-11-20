@@ -1,10 +1,10 @@
 """Dashboard page — today's readiness, health metrics, planned workout."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mycoach import health
 from mycoach.coaching import life_context
 from mycoach.coaching.athlete import athlete_id_for
-from mycoach.coaching.context import get_open_this_week, get_today_health
+from mycoach.coaching.context import (
+    get_open_this_week,
+    get_today_health,
+    sessions_excused_ill_between,
+)
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.config import get_settings
 from mycoach.database import get_db
@@ -51,12 +55,59 @@ def _compute_7day_averages(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
     return avgs
 
 
+_PREFILL_FORMS = ("illness", "travel")
+
+
+def _day_or_none(value: str | None) -> date | None:
+    try:
+        return date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
+def _prefill(log: str | None, start: str | None, end: str | None) -> dict[str, Any] | None:
+    """A check-in link (#236, ``?log=illness&from&to``): which form opens, with its dates.
+
+    It only fills the form in; nothing is saved until "Tell the coach". A malformed
+    date is dropped rather than refusing the page.
+    """
+    if log not in _PREFILL_FORMS:
+        return None
+    return {"log": log, "from": _day_or_none(start), "to": _day_or_none(end)}
+
+
+async def _logged_line(session: AsyncSession, episode_id: int | None, today: date) -> str | None:
+    """The one-line confirmation after "Tell the coach" on an illness (#236)."""
+    if episode_id is None:
+        return None
+    row = await life_context.get_episode(session, USER_ID, episode_id)
+    if row is None or row.kind != EpisodeKind.ILLNESS:
+        return None
+    episode = life_context.Episode.from_row(row)
+    last = episode.last_day(today)
+    excused = await sessions_excused_ill_between(
+        session, USER_ID, episode.started_on, last, today=today
+    )
+    noun = "session" if excused == 1 else "sessions"
+    days = life_context.format_days(episode.started_on, last)
+    return f"Logged ill {days} · {excused} {noun} excused"
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
     session: AsyncSession = Depends(get_db),
+    log: str | None = None,
+    from_: str | None = Query(default=None, alias="from"),
+    to: str | None = None,
+    logged: int | None = None,
 ) -> HTMLResponse:
-    """Render the dashboard page with today's data."""
+    """Render the dashboard page with today's data.
+
+    ``?log=illness|travel&from&to`` opens that life context form with the dates
+    filled in (#236), as the recap's quick replies link to it. ``?logged=<id>``
+    confirms an illness just saved.
+    """
     # One today: the athlete's local day, as the check-in API and the briefing use.
     today = local_today(get_settings().timezone)
     weekday_num = today.weekday()
@@ -182,6 +233,8 @@ async def dashboard(
                 (today - open_illness.started_on).days + 1 if open_illness is not None else None
             ),
             "ramp_back": life.ramp_back,
+            "prefill": _prefill(log, from_, to),
+            "logged_line": await _logged_line(session, logged, today),
             "current_trip": current_trip,
             "current_trip_day": (
                 (today - current_trip.started_on).days + 1 if current_trip is not None else None

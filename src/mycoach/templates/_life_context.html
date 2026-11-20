@@ -4,7 +4,15 @@
 {% macro tz_text(shift) -%}
 {%- if shift %} · {{ '%g' % (shift|abs) }} h {{ 'behind' if shift < 0 else 'ahead of' }} home{% endif -%}
 {%- endmacro %}
-<div id="life-context" class="mt-6">
+{% set illness_prefill = prefill if prefill and prefill.log == 'illness' else none %}
+{% set travel_prefill = prefill if prefill and prefill.log == 'travel' else none %}
+{% macro day_value(prefilled, key) -%}
+{%- if prefilled and prefilled[key] %} value="{{ prefilled[key].isoformat() }}"{% endif -%}
+{%- endmacro %}
+<div id="life-context" class="mt-6"{% if prefill %} data-prefill="{{ prefill.log }}"{% endif %}>
+    {% if logged_line %}
+    <div id="life-context-logged" class="mb-3 p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/25 text-emerald-300 text-sm">{{ logged_line }}</div>
+    {% endif %}
     {% if open_illness %}
     <div class="p-4 rounded-lg bg-amber-500/[0.08] border border-amber-500/25 text-sm">
         <div class="flex flex-wrap items-center gap-3">
@@ -27,12 +35,19 @@
         Returning from illness · day {{ ramp_back.day }}/{{ ramp_back.length }} · about {{ ramp_back.load_pct }}% of normal load
     </div>
     {% endif %}
-    <details class="mt-3 text-sm">
+    <details id="feeling-unwell" class="mt-3 text-sm"{% if illness_prefill %} open{% endif %}>
         <summary class="cursor-pointer font-semibold text-zinc-500 hover:text-accent-soft">Feeling unwell</summary>
         <form onsubmit="feelingUnwell(event)" class="mt-3 flex flex-wrap items-end gap-3">
             <label class="flex items-center gap-2 text-zinc-400"><input type="radio" name="severity" value="mild" checked> Mild — above the neck</label>
             <label class="flex items-center gap-2 text-zinc-400"><input type="radio" name="severity" value="sick"> Sick — fever, chest, aches, GI</label>
             <input type="text" name="note" maxlength="500" placeholder="Note (optional)" class="rounded-lg text-sm px-3 py-2">
+            <details id="illness-earlier" class="basis-full"{% if illness_prefill and (illness_prefill['from'] or illness_prefill['to']) %} open{% endif %}>
+                <summary class="cursor-pointer text-zinc-500 hover:text-accent-soft">It was earlier</summary>
+                <div class="mt-2 flex flex-wrap items-end gap-3">
+                    <label class="flex flex-col gap-1 text-zinc-400">Ill from <input type="date" name="started_on"{{ day_value(illness_prefill, 'from') }} class="rounded-lg text-sm px-3 py-2"></label>
+                    <label class="flex flex-col gap-1 text-zinc-400">Last ill day (empty if still ill) <input type="date" name="ended_on"{{ day_value(illness_prefill, 'to') }} class="rounded-lg text-sm px-3 py-2"></label>
+                </div>
+            </details>
             <button type="submit" class="font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg">Tell the coach</button>
         </form>
     </details>
@@ -63,11 +78,11 @@
     </div>
     {% endfor %}
     {% if not current_trip %}
-    <details class="mt-3 text-sm">
+    <details id="travelling" class="mt-3 text-sm"{% if travel_prefill %} open{% endif %}>
         <summary class="cursor-pointer font-semibold text-zinc-500 hover:text-accent-soft">Travelling</summary>
         <form onsubmit="travelling(event)" class="mt-3 flex flex-wrap items-end gap-3">
-            <label class="flex flex-col gap-1 text-zinc-400">From <input type="date" name="started_on" class="rounded-lg text-sm px-3 py-2"></label>
-            <label class="flex flex-col gap-1 text-zinc-400">Back (optional) <input type="date" name="ended_on" class="rounded-lg text-sm px-3 py-2"></label>
+            <label class="flex flex-col gap-1 text-zinc-400">From <input type="date" name="started_on"{{ day_value(travel_prefill, 'from') }} class="rounded-lg text-sm px-3 py-2"></label>
+            <label class="flex flex-col gap-1 text-zinc-400">Back (optional) <input type="date" name="ended_on"{{ day_value(travel_prefill, 'to') }} class="rounded-lg text-sm px-3 py-2"></label>
             <label class="flex flex-col gap-1 text-zinc-400">Equipment
                 <select name="equipment" class="rounded-lg text-sm px-2 py-2">
                     {% for value, label in equipment_options %}
@@ -78,6 +93,13 @@
             <label class="flex flex-col gap-1 text-zinc-400">Time zone vs home (h) <input type="number" name="tz_shift_hours" step="0.5" min="-14" max="14" placeholder="0" class="w-24 rounded-lg text-sm px-3 py-2"></label>
             <label class="flex items-center gap-2 text-zinc-400"><input type="checkbox" name="no_training"> No training possible</label>
             <input type="text" name="note" maxlength="500" placeholder="Note (optional)" class="rounded-lg text-sm px-3 py-2">
+            <details id="illness-earlier" class="basis-full"{% if illness_prefill and (illness_prefill['from'] or illness_prefill['to']) %} open{% endif %}>
+                <summary class="cursor-pointer text-zinc-500 hover:text-accent-soft">It was earlier</summary>
+                <div class="mt-2 flex flex-wrap items-end gap-3">
+                    <label class="flex flex-col gap-1 text-zinc-400">Ill from <input type="date" name="started_on"{{ day_value(illness_prefill, 'from') }} class="rounded-lg text-sm px-3 py-2"></label>
+                    <label class="flex flex-col gap-1 text-zinc-400">Last ill day (empty if still ill) <input type="date" name="ended_on"{{ day_value(illness_prefill, 'to') }} class="rounded-lg text-sm px-3 py-2"></label>
+                </div>
+            </details>
             <button type="submit" class="font-semibold text-[13px] text-ink bg-accent hover:bg-accent-soft transition-colors px-4 py-2 rounded-lg">Tell the coach</button>
         </form>
     </details>
@@ -85,11 +107,12 @@
     <div id="life-context-status"></div>
 </div>
 <script>
-function _lifeContext(url, method, body) {
+function _lifeContext(url, method, body, onSaved) {
     var status = document.getElementById('life-context-status');
     var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
     if (body) { opts.body = JSON.stringify(body); }
     fetch(url, opts).then(function(resp) {
+        if (resp.ok && onSaved) { return resp.json().then(onSaved); }
         if (resp.ok) { location.reload(); return; }
         return resp.json().then(function(d) {
             status.innerHTML = '<div class="mt-3 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/25 text-red-300 text-sm">Error: ' + (typeof d.detail === 'string' ? d.detail : 'Request failed') + '</div>';
@@ -101,9 +124,20 @@ function feelingUnwell(e) {
     var f = e.target;
     _lifeContext('/api/life-context/illness', 'POST', {
         severity: f.querySelector('input[name=severity]:checked').value,
-        note: f.note.value || null
+        note: f.note.value || null,
+        started_on: f.started_on.value || null,
+        ended_on: f.ended_on.value || null
+    }, function(episode) {
+        // Drop any ?log= prefill and confirm from the recomputed Completion.
+        location.href = '/?logged=' + episode.id + '#life-context';
     });
 }
+(function() {
+    // A check-in link (?log=illness|travel) fills a form in and brings it into view;
+    // nothing is saved until "Tell the coach".
+    var box = document.getElementById('life-context');
+    if (box && box.dataset.prefill) { box.scrollIntoView({ block: 'start' }); }
+})();
 function setSeverity(id, severity) {
     _lifeContext('/api/life-context/episodes/' + id, 'PATCH', { severity: severity });
 }

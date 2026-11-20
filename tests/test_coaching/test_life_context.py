@@ -13,6 +13,7 @@ from mycoach.coaching.life_context import (
     effect_on,
     excusing_days,
     life_context_for,
+    open_illness,
     ramp_back_length,
     ramp_back_on,
     recovery_signals,
@@ -281,3 +282,20 @@ async def test_the_context_reads_trips_entered_in_advance() -> None:
     assert [(e.kind, e.started_on, e.equipment) for e in ctx.episodes] == [
         ("travel", date(2026, 11, 11), "none")
     ]
+
+
+async def test_an_illness_told_after_the_fact_ending_yesterday_ramps_back_from_today() -> None:
+    """#236: ended yesterday is what "Feeling better" stores, so today is day 1."""
+    today = date(2026, 11, 19)
+    async with test_session() as session:
+        session.add(User(id=1, email="a@example.com", name="A"))
+        await session.flush()
+        await open_illness(
+            session, 1, severity=IllnessSeverity.SICK, note=None, today=today,
+            started_on=date(2026, 11, 14), ended_on=date(2026, 11, 18),
+        )  # fmt: skip
+
+        ctx = await life_context_for(session, 1, today, today, today=today)
+
+    assert ctx.ramp_back is not None
+    assert (ctx.ramp_back.day, ctx.ramp_back.length) == (1, 5)

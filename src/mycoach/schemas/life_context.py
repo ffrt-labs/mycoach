@@ -6,10 +6,27 @@ from mycoach.models.life_context import Equipment, IllnessSeverity
 
 
 class IllnessCreate(BaseModel):
-    """The dashboard's "Feeling unwell" check-in."""
+    """The dashboard's "Feeling unwell" check-in, possibly told after the fact (#236).
+
+    ``started_on`` defaults to today and may not be later. ``ended_on`` is the last
+    ill day of an illness that is over, so at most yesterday; omit it while still ill.
+    The today-relative bounds are checked by the route, which knows the local day.
+    """
 
     severity: IllnessSeverity
     note: str | None = Field(default=None, max_length=500)
+    started_on: date | None = None
+    ended_on: date | None = None
+
+    @model_validator(mode="after")
+    def _ends_after_starting(self) -> "IllnessCreate":
+        if (
+            self.started_on is not None
+            and self.ended_on is not None
+            and self.ended_on < self.started_on
+        ):
+            raise ValueError("An illness cannot end before it starts")
+        return self
 
 
 class TravelCreate(BaseModel):

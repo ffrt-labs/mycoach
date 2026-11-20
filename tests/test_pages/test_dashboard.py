@@ -1,17 +1,19 @@
 """Tests for the dashboard page route."""
 
 import json
+import re
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from mycoach.config import get_settings
+from mycoach.localtime import local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.health import DailyHealthSnapshot
-from mycoach.localtime import local_today
 from mycoach.models.job_run import JobRun
 from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -581,3 +583,105 @@ async def test_a_trip_entered_in_advance_shows_as_planned_and_cancellable(
     assert f"Trip planned from {start.strftime('%A %d %B')}" in resp.text
     assert "no training possible" in resp.text
     assert f"cancelTrip({trip_id})" in resp.text
+
+
+# --- Backdated illness (#236): prefilled check-in links and the confirmation -------
+
+
+def _opened(html: str, details_id: str) -> bool:
+    tag = re.search(rf'<details[^>]*id="{details_id}"[^>]*>', html)
+    assert tag is not None, details_id
+    return re.search(r"\bopen\b", tag.group(0)) is not None
+
+
+async def _episode_count() -> int:
+    async with test_session() as session:
+        return len((await session.execute(select(LifeContextEpisode))).scalars().all())
+
+
+async def test_the_check_in_is_closed_without_a_prefill_link(client: AsyncClient) -> None:
+    await _seed_user()
+
+    resp = await client.get("/")
+
+    assert not _opened(resp.text, "feeling-unwell")
+    assert not _opened(resp.text, "illness-earlier")
+    assert not _opened(resp.text, "travelling")
+
+
+async def test_an_illness_link_opens_the_check_in_with_its_dates_and_changes_nothing(
+    client: AsyncClient,
+) -> None:
+    await _seed_user()
+
+    resp = await client.get("/?log=illness&from=2026-11-09&to=2026-11-15")
+
+    assert resp.status_code == 200
+    assert _opened(resp.text, "feeling-unwell")
+    assert _opened(resp.text, "illness-earlier")
+    assert 'name="started_on" value="2026-11-09"' in resp.text
+    assert 'name="ended_on" value="2026-11-15"' in resp.text
+    assert 'data-prefill="illness"' in resp.text
+    assert await _episode_count() == 0
+
+
+async def test_a_travel_link_opens_the_travelling_form_with_its_dates(
+    client: AsyncClient,
+) -> None:
+    await _seed_user()
+
+    resp = await client.get("/?log=travel&from=2026-11-09&to=2026-11-12")
+
+    assert _opened(resp.text, "travelling")
+    assert not _opened(resp.text, "feeling-unwell")
+    assert 'name="started_on" value="2026-11-09"' in resp.text
+    assert 'name="ended_on" value="2026-11-12"' in resp.text
+    assert await _episode_count() == 0
+
+
+async def test_a_malformed_prefill_link_still_renders_the_dashboard(client: AsyncClient) -> None:
+    await _seed_user()
+
+    resp = await client.get("/?log=illness&from=soon&to=")
+
+    assert resp.status_code == 200
+    assert _opened(resp.text, "feeling-unwell")
+    assert not _opened(resp.text, "illness-earlier")
+
+
+async def test_after_saving_an_illness_the_dashboard_confirms_what_it_excused(
+    client: AsyncClient,
+) -> None:
+    await _seed_user()
+    async with test_session() as session:
+        plan = WeeklyPlan(
+            user_id=1, week_start=date(2000, 11, 6), status="active", prompt_version="v3"
+        )
+        session.add(plan)
+        await session.flush()
+        session.add_all(
+            [
+                PlannedSession(plan_id=plan.id, day_of_week=0, sport="gym", title="Upper A"),
+                PlannedSession(plan_id=plan.id, day_of_week=1, sport="running", title="Easy"),
+                PlannedSession(plan_id=plan.id, day_of_week=4, sport="running", title="Long"),
+            ]
+        )
+        await session.commit()
+    told = await client.post(
+        "/api/life-context/illness",
+        json={"severity": "sick", "started_on": "2000-11-06", "ended_on": "2000-11-08"},
+    )
+
+    resp = await client.get(f"/?logged={told.json()['id']}")
+
+    # Mon and Tue excuse their own sessions; Wednesday finds no earlier one left.
+    assert "Logged ill 6–8 Nov · 2 sessions excused" in resp.text
+
+
+async def test_no_confirmation_for_an_unknown_episode(client: AsyncClient) -> None:
+    await _seed_user()
+
+    resp = await client.get("/?logged=999")
+
+    assert resp.status_code == 200
+    assert "Logged ill" not in resp.text

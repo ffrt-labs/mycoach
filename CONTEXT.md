@@ -101,7 +101,7 @@ An activity in the plan's week that completed no Planned session, by sport or by
 _Avoid_: Bonus session, unplanned workout, missed match
 
 **Life context episode**:
-A stretch of the athlete's life that every Coaching run reads around, told to MyCoach rather than measured, so a Coaching artifact and never an Observed health fact. It has a `kind` (`illness`, `travel`), a start day, an end day (its last affected day; none while open), a note, and kind-specific fields (an illness's severity: `mild` above the neck, `sick` below it). Episodes may overlap, except two illnesses: an illness may only touch another one, so "ill since" always names one episode. On each day the most restrictive effect wins. An illness may be told after the fact, with past start and end days.
+A stretch of the athlete's life that every Coaching run reads around, told to MyCoach rather than measured, so a Coaching artifact and never an Observed health fact. It has a `kind` (`illness`, `travel`), a start day, an end day (its last affected day; none while open), a note, and kind-specific fields (an illness's severity: `mild` above the neck, `sick` below it). Episodes may overlap, except two illnesses: an illness may only touch another one (the two stay separate episodes, never merged), so "ill since" always names one episode. On each day the most restrictive effect wins. An illness may be told after the fact, with past start and end days.
 _Avoid_: Event, status, absence
 
 **Excused session**:
@@ -109,7 +109,7 @@ A Planned session left not done that a Life context episode excuses: each `sick`
 _Avoid_: Skipped, missed, cancelled session
 
 **Ramp-back**:
-The days after an illness ends when training builds back: 3 after a `mild` illness, else the illness's length clamped to 3-7. Guidance starts near 50% of normal load on day 1 and rises linearly to about 90% on the last day. Recovery data (HRV below baseline, resting HR elevated) on the last day may only extend it, never shorten it.
+The days after an illness ends when training builds back: 3 after a `mild` illness, else the illness's length clamped to 3-7. Guidance starts near 50% of normal load on day 1 and rises linearly to about 90% on the last day. Recovery data (HRV below baseline, resting HR elevated) on the last day may only extend it, never shorten it. It counts from the illness's end day however late the illness was told: one told after the fact that ended yesterday starts it today, one that ended long ago yields none.
 _Avoid_: Recovery period, comeback, return-to-play
 
 **Travel**:

@@ -1,4 +1,4 @@
-Generate a daily coaching briefing based on the following data.
+Write the Coach notes of today's daily briefing email from the following data.
 
 ## Today's Health Data
 - Resting Heart Rate: 58
@@ -17,7 +17,7 @@ No planned workout for today.
 No plan this week.
 
 Open-session rules:
-- The planned day is the default suggestion, not a constraint. If today's recovery data argues against the session planned for today, recommend the open session that fits today better (for example, after poor sleep do the easy swim and push the heavy squat), name it and say why.
+- The planned day is the default suggestion, not a constraint. If today's recovery data argues against the session planned for today, recommend the open session that fits today better (for example, after poor sleep do the easy swim and push the heavy squat), and say why.
 - A session whose planned day has passed is still owed this week and can be done today.
 - When more sessions are open than days are left, say so now, not on Sunday, and suggest which to combine or drop.
 
@@ -26,7 +26,7 @@ Open-session rules:
 - Illness, mild (above the neck): since Thursday 2024-06-13, still unwell today (day 1)
 
 Life-context rules:
-- While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or skip. Recommend no open session at intensity, and do not ask for sessions to be made up later.
+- While the athlete is ill, today is rest or light movement only: "sick" (below the neck) means rest; "mild" (above the neck) means light and short at most, or rest. Recommend no open session at intensity, and do not ask for sessions to be made up later.
 - During a ramp-back, keep today's session at or under the load given, and name the ramp-back day. Extend the ramp-back only when the section says recovery has not come back; never shorten it.
 - While travelling, adapt the open sessions to the trip's equipment: substitute exercises that are there (bodyweight with none; dumbbells, machines or a treadmill in a hotel gym) and keep each session's intent. On a day with no training possible, recommend rest and ask for nothing to be made up. Ill on a trip: the illness rule wins; mild means one light, short session the trip allows.
 - When the trip is 3 h or more off the home clock, add jet-lag advice from the principles for today.
@@ -58,20 +58,252 @@ Body rules (the numbers above are computed; interpret them, never recompute them
 - Unbalanced above the range together with elevated resting HR or a recent heavy block means possible overreaching.
 - Never compare HRV to other people or population norms. If no range is listed, Garmin is still building the baseline: say so and don't infer from HRV.
 
-Respond with a JSON object matching this exact schema:
+The email already shows from the data: the readiness verdict's wording, last night's sleep score, duration, stages and resting HR, the HRV line, the steps and body blocks, and each open session's title, sport, intent, minutes and planned day. Observed and derived numbers never come from you; your slots carry the judgment and what to do about it.
+
+Slots:
+- readiness: go_hard, moderate, active_recovery or rest. The email turns it into the verdict.
+- headline: summary is one sentence on why today is that verdict; tone is good, neutral, watch or alert.
+- options: 1-2 ways to train today, the better one first. To offer an open session, set open_session_id to its id from "Open This Week" and leave title null: the email names the session itself. Otherwise (rest, a walk, mobility) leave open_session_id null and give a short title. steps are 1-3 short instructions; why is one line on why it fits today. Mark at most one option recommended. Two options are alternatives, never both.
+- guardrail: one condition for tomorrow: "when" a stated signal appears, "then" what changes. Or null.
+- sleep_note: one line on last night's sleep, with no numbers the email already shows.
+- tonight: up to 3 tips for tonight (bedtime, screens off, fuel, or a principle the data triggered, such as jet lag).
+- key_metrics: today's values from the health data, or null where missing. Kept for the log; the email renders its numbers from the data.
+- analysis_md: the full briefing in Markdown, for the dashboard.
+
+Respond with a JSON object matching this JSON schema:
 {
-  "sleep_assessment": "Brief assessment of last night's sleep quality and recovery impact",
-  "recovery_status": "Assessment of current recovery state based on Body Battery, HRV, stress",
-  "readiness_verdict": "go_hard | moderate | active_recovery | rest",
-  "readiness_explanation": "Why this verdict, referencing specific metrics",
-  "workout_adjustments": "Specific adjustments to today's planned workout (or 'No adjustments needed')",
-  "sleep_recommendation": "Recommended bedtime and sleep hygiene tips for tonight",
-  "key_metrics": {
-    "body_battery": <number or null>,
-    "hrv_last_night_avg": <last night's average HRV in ms, a number, or null>,
-    "hrv_status_text": <the HRV status word as a string, e.g. "BALANCED", or null>,
-    "sleep_score": <number or null>,
-    "training_readiness": <number or null>,
-    "resting_hr": <number or null>
-  }
+  "additionalProperties": false,
+  "properties": {
+    "readiness": {
+      "enum": [
+        "go_hard",
+        "moderate",
+        "active_recovery",
+        "rest"
+      ],
+      "type": "string"
+    },
+    "headline": {
+      "additionalProperties": false,
+      "properties": {
+        "tone": {
+          "enum": [
+            "good",
+            "neutral",
+            "watch",
+            "alert"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 140,
+          "type": "string"
+        }
+      },
+      "required": [
+        "tone",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "options": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "open_session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "type": "array"
+          },
+          "why": {
+            "maxLength": 70,
+            "type": "string"
+          },
+          "recommended": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "open_session_id",
+          "title",
+          "steps",
+          "why",
+          "recommended"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "type": "array"
+    },
+    "guardrail": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "when": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "then": {
+              "maxLength": 60,
+              "type": "string"
+            }
+          },
+          "required": [
+            "when",
+            "then"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sleep_note": {
+      "maxLength": 60,
+      "type": "string"
+    },
+    "tonight": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "tone": {
+            "enum": [
+              "good",
+              "neutral",
+              "watch",
+              "alert"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 90,
+            "type": "string"
+          }
+        },
+        "required": [
+          "tone",
+          "text"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "type": "array"
+    },
+    "key_metrics": {
+      "properties": {
+        "body_battery": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hrv_last_night_avg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hrv_status_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_readiness": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resting_hr": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object",
+      "required": [
+        "body_battery",
+        "hrv_last_night_avg",
+        "hrv_status_text",
+        "sleep_score",
+        "training_readiness",
+        "resting_hr"
+      ],
+      "additionalProperties": false
+    },
+    "analysis_md": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "readiness",
+    "headline",
+    "options",
+    "guardrail",
+    "sleep_note",
+    "tonight",
+    "key_metrics",
+    "analysis_md"
+  ],
+  "type": "object"
 }

@@ -1,6 +1,6 @@
 {#- The stat grid (#239): code-rendered tiles (``email/workout_stats.Tile``), three
     to a row. Tables, not CSS grid, so every mail client lays them out. -#}
-{% set sub_colour = {"good": "#047857", "watch": "#b45309"} %}
+{% set sub_colour = {"good": "#047857", "watch": "#b45309", "alert": "#b91c1c"} %}
 
 {% macro stat_grid(tiles, per_row=3) -%}
 <table role="presentation" class="stat-grid" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:8px;">

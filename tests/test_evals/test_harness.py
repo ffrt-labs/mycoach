@@ -144,7 +144,7 @@ class TestRun:
     ) -> None:
         llm = FakeLLM(
             reply(VALID_LLM_RESPONSE),
-            reply('{"sleep_assessment": "Good', stop_reason="max_tokens"),
+            reply('{"readiness": "go_h', stop_reason="max_tokens"),
             reply(VALID_LLM_RESPONSE),
         )
 
@@ -155,8 +155,8 @@ class TestRun:
         assert code == 0
         scores = sorted(scores_by_item(langfuse), key=lambda s: s["needed_retry"])
         assert scores == [
-            {"parse_ok": 1.0, "needed_retry": 0.0, "truncated": 0.0},
-            {"parse_ok": 1.0, "needed_retry": 1.0, "truncated": 1.0},
+            {"parse_ok": 1.0, "needed_retry": 0.0, "truncated": 0.0, "notes_fallback": 0.0},
+            {"parse_ok": 1.0, "needed_retry": 1.0, "truncated": 1.0, "notes_fallback": 0.0},
         ]
         assert {c["data_type"] for c in langfuse.score_calls} == {"BOOLEAN"}
 

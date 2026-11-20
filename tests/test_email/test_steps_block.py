@@ -77,7 +77,7 @@ def _chips(html: str) -> list[str]:
 
 @patch("mycoach.email.sender.send_email", return_value=True)
 def _briefing_html(steps: StepsSummary | None, mock_send: MagicMock) -> str:
-    send_daily_briefing({"readiness_verdict": "moderate"}, steps=steps, settings=_settings())
+    send_daily_briefing(None, steps=steps, settings=_settings())
     return str(mock_send.call_args[0][2])
 
 

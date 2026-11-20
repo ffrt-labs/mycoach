@@ -21,7 +21,12 @@ from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import OpenThisWeek, PlanAdherence
-from mycoach.coaching.email_schemas import PlanNotes, PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import (
+    DailyBriefingEmail,
+    PlanNotes,
+    PostWorkoutEmail,
+    WeeklyRecapEmail,
+)
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
@@ -34,6 +39,13 @@ from mycoach.coaching.life_context import (
 )
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
+from mycoach.email.briefing_views import (
+    RECOMMENDED_CHIP,
+    headline_view,
+    last_night_view,
+    options_view,
+    tonight_view,
+)
 from mycoach.email.coach_notes import (
     NO_VALUE,
     NOTES_UNAVAILABLE,
@@ -94,35 +106,6 @@ def _render_template(template_name: str, context: dict) -> str:  # type: ignore[
     """Render a Jinja2 email template with the given context."""
     template = _jinja_env.get_template(template_name)
     return template.render(**context)
-
-
-# Display label/unit for each DailyBriefingKeyMetrics field, in the order
-# emails should show them. Keys absent or None are skipped.
-_KEY_METRICS_DISPLAY: dict[str, tuple[str, str]] = {
-    "body_battery": ("Body Battery", ""),
-    "hrv_last_night_avg": ("Avg HRV", "ms"),
-    # Briefings stored before the hrv_status rename keep the number under the
-    # old key; both never appear together, so they can share a label.
-    "hrv_status": ("Avg HRV", "ms"),
-    "hrv_status_text": ("HRV Status", ""),
-    "sleep_score": ("Sleep Score", ""),
-    "training_readiness": ("Training Readiness", ""),
-    "resting_hr": ("Resting HR", "bpm"),
-}
-
-
-def _format_key_metrics(key_metrics: dict) -> dict[str, str]:  # type: ignore[type-arg]
-    """Turn the raw DailyBriefingKeyMetrics fields into label -> display value.
-
-    Insertion order follows _KEY_METRICS_DISPLAY, which is the order emails show.
-    """
-    rows: dict[str, str] = {}
-    for key, (label, unit) in _KEY_METRICS_DISPLAY.items():
-        value = key_metrics.get(key)
-        if value is None:
-            continue
-        rows[label] = f"{value} {unit}" if unit else str(value)
-    return rows
 
 
 ROUTINE_MAX_SETS = 10
@@ -393,7 +376,7 @@ def _body_view(body: BodySummary | None, settings: Settings) -> dict[str, Any] |
 
 
 def send_daily_briefing(
-    content: dict,  # type: ignore[type-arg]
+    content: Mapping[str, Any] | DailyBriefingEmail | None,
     settings: Settings | None = None,
     *,
     steps: StepsSummary | None = None,
@@ -401,32 +384,50 @@ def send_daily_briefing(
     body: BodySummary | None = None,
     open_this_week: OpenThisWeek | None = None,
     life: LifeContext | None = None,
+    insight_id: int | None = None,
 ) -> bool:
-    """Send the daily coaching briefing email.
+    """Send the daily briefing: Coach notes in their slots, the rest from code (#241).
+
+    ``content`` is the insight's Coach notes (``DailyBriefingEmail``, prompt v5), or
+    ``None`` after a ``notes_fallback``: the email then carries its code blocks only,
+    under a "Coach notes unavailable today" Notice. Content that does not validate is
+    treated as no notes.
 
     ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
-    ``hrv`` is today's health snapshot; its HRV line is rendered by code, not the LLM.
+    ``hrv`` is today's health snapshot: the HRV line (#197) and last night's tiles are
+    rendered from it by code.
     ``body`` is the code-rendered Body block (#198); None leaves it out.
-    ``open_this_week`` is the week's work still owed (#233); None leaves it out.
+    ``open_this_week`` is the week's work still owed (#233); None leaves it out. The
+    options link to its sessions by id.
     ``life`` is today's Life context: its banner tops the email (#233). None, or an
     ordinary day, leaves it out.
+    ``insight_id`` is the Insight this email renders: with Coach notes, the footer
+    links its full analysis (#240).
     """
     if settings is None:
         settings = get_settings()
-    briefing = dict(content)
-    if briefing.get("key_metrics"):
-        briefing["key_metrics"] = _format_key_metrics(briefing["key_metrics"])
+    notes = coach_notes(content, DailyBriefingEmail)
+    options = options_view(notes.options, open_this_week) if notes else None
     html = _render_template(
         "daily_briefing.html",
         {
-            "briefing": briefing,
+            "notes": notes,
+            "notes_unavailable": NOTES_UNAVAILABLE,
+            "headline": headline_view(notes.readiness, notes.headline) if notes else None,
+            "options_view": options,
+            "recommended_chip": RECOMMENDED_CHIP,
+            "last_night_view": last_night_view(hrv),
+            "tonight_tips": tonight_view(notes.tonight) if notes else [],
             "steps": steps,
             "dashboard_url": _dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
             "body": _body_view(body, settings),
-            "open_week": open_week_view(open_this_week),
+            "open_week": open_week_view(open_this_week, pick=options.pick if options else None),
             "banner": life_banner(life),
             "life_context_url": _life_context_url(settings),
+            "full_analysis_url": (
+                insight_url(settings, insight_id) if notes and insight_id is not None else None
+            ),
         },
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)

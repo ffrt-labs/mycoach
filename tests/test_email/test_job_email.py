@@ -88,6 +88,29 @@ async def test_daily_briefing_email_gets_todays_health_for_the_hrv_line(
     assert mock_send.call_args.kwargs["hrv"] == today_health
 
 
+async def test_daily_briefing_email_links_the_insight_it_rendered(
+    mock_session: AsyncMock, mock_insight: MagicMock
+) -> None:
+    """Its "Full analysis →" opens that exact insight (#241)."""
+    mock_insight.id = 42
+    mock_engine = MagicMock()
+    mock_engine.generate_daily_briefing = AsyncMock(return_value=mock_insight)
+
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(empty_health_days=[])),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _daily_briefing(date(2026, 11, 14))
+
+    assert mock_send.call_args.kwargs["insight_id"] == 42
+
+
 async def test_daily_briefing_skips_email_when_disabled(
     mock_session: AsyncMock, mock_insight: MagicMock
 ) -> None:

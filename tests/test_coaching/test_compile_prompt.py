@@ -15,7 +15,12 @@ from string import Formatter
 
 import pytest
 
-from mycoach.coaching.email_schemas import CardioPlanV5, PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import (
+    CardioPlanV5,
+    DailyBriefingEmail,
+    PostWorkoutEmail,
+    WeeklyRecapEmail,
+)
 from mycoach.coaching.prompt_builder import (
     PROMPT_VARIABLES,
     Operation,
@@ -70,7 +75,7 @@ def test_published_v3_keeps_its_variable_set(operation: Operation) -> None:
 
 def test_post_workout_is_bundled_on_v5_and_the_rest_on_v4() -> None:
     assert {op: bundled_version(op) for op in Operation} == {
-        Operation.DAILY_BRIEFING: "v4",
+        Operation.DAILY_BRIEFING: "v5",
         Operation.GYM_ADJUSTMENT: "v4",
         Operation.CARDIO_PLAN: "v5",
         Operation.POST_WORKOUT: "v5",
@@ -150,3 +155,35 @@ def test_the_v5_recap_prompt_lists_session_and_exercise_ids() -> None:
 
     assert "- Squat [gym] — done Wednesday (planned Monday) [session_id: 1]" in user
     assert "Barbell Squat [exercise_id: D04AC939]: 100kg×5 RPE8" in user
+
+
+# --- Daily briefing on v5 (#241) -------------------------------------------------------
+
+
+def test_the_v5_briefing_prompt_carries_its_strict_schema() -> None:
+    _, inputs = CASES["daily_briefing_full"]
+    variables = PROMPT_VARIABLES[Operation.DAILY_BRIEFING](**inputs)
+
+    messages = compile_prompt(Operation.DAILY_BRIEFING, variables)
+
+    assert json.loads(variables["output_schema"]) == strict_json_schema(DailyBriefingEmail)
+    assert variables["output_schema"] in messages.user
+
+
+def test_the_briefing_prompt_names_each_open_session_by_its_id() -> None:
+    """An option links to an open session by id; the email renders the rest from it."""
+    _, inputs = CASES["daily_briefing_full"]
+    variables = PROMPT_VARIABLES[Operation.DAILY_BRIEFING](**inputs)
+
+    assert "- id 1 · Monday: Squat Day [gym] (60 min), planned day passed" in (
+        variables["open_this_week"]
+    )
+    assert "- id 3 · Wednesday: Pull Day [gym] (60 min), planned for today" in (
+        variables["open_this_week"]
+    )
+
+
+def test_the_v5_briefing_keeps_the_v4_variables_and_adds_its_schema() -> None:
+    assert _placeholders(operation_template(Operation.DAILY_BRIEFING, "v5")) == _placeholders(
+        operation_template(Operation.DAILY_BRIEFING, "v4")
+    ) | {"output_schema"}

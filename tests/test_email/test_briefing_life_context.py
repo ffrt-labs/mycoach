@@ -12,7 +12,7 @@ from mycoach.config import Settings
 from mycoach.email.sender import send_daily_briefing
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 
-BRIEFING = {"readiness_verdict": "moderate", "recovery_status": "OK"}
+BRIEFING = None  # no Coach notes: these blocks are code-rendered either way (#241)
 THURSDAY = date(2026, 11, 19)
 
 

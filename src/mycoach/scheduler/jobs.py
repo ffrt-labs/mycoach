@@ -548,7 +548,12 @@ async def _daily_briefing(today: date | None = None) -> None:
             content = json.loads(insight.content)
             numbers = await _code_rendered_numbers(today)
             views = await _briefing_week_and_life(today, numbers["hrv"])
-            _deliver(partial(send_daily_briefing, content, **numbers, **views), "daily briefing")
+            _deliver(
+                partial(
+                    send_daily_briefing, content, **numbers, **views, insight_id=insight.id
+                ),
+                "daily briefing",
+            )
 
 
 async def _todays_health(day: date) -> dict[str, Any]:

@@ -1,0 +1,32 @@
+{#- Do today · pick one (#241): the briefing's options, from
+    ``email.briefing_views.options_view``. The coach wrote the steps and why; a
+    session's title, minutes and "Open since Mon · gym · strength" come from Open this
+    week. Expects ``ui`` (the layout macros) imported by the caller. -#}
+{% macro options(ui, layout, view, recommended_chip) -%}
+{% if view %}
+{% call ui.section(layout) %}
+<div class="coach" style="padding:24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+    <tr>
+      <td style="vertical-align:bottom;"><div class="coach-k">Do today · pick one</div></td>
+      {% if view.from_open_sessions %}<td class="mk-arrow" style="text-align:right;vertical-align:bottom;white-space:nowrap;font-weight:400;font-size:12px;">from your open sessions</td>{% endif %}
+    </tr>
+  </table>
+  {% for option in view.options %}
+  <div class="option" style="padding:16px 20px;{% if not loop.first %}margin-top:12px;{% endif %}">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="vertical-align:top;"><span class="strong" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;">{{ option.title }}</span>{% if option.recommended %} <span style="vertical-align:middle;">{{ ui.chip(recommended_chip) }}</span>{% endif %}</td>
+        {% if option.minutes %}<td class="msub" style="text-align:right;vertical-align:top;white-space:nowrap;padding-left:12px;font-size:13px;">{{ option.minutes }}</td>{% endif %}
+      </tr>
+    </table>
+    {% if option.context %}<div class="muted" style="margin-top:4px;font:400 13px 'IBM Plex Sans',sans-serif;">{{ option.context }}</div>{% endif %}
+    <div style="margin-top:12px;">{{ ui.bullets(option.steps, marker="arrow") }}</div>
+    <div class="option-why" style="margin-top:12px;">{{ option.why }}</div>
+  </div>
+  {% endfor %}
+  {% if view.stack_note %}<div class="coach-t" style="margin-top:16px;">{{ view.stack_note }}</div>{% endif %}
+</div>
+{% endcall %}
+{% endif %}
+{%- endmacro %}

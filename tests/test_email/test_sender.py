@@ -8,7 +8,6 @@ import pytest
 from mycoach.config import Settings
 from mycoach.email.sender import (
     EmailSendError,
-    _format_key_metrics,
     _render_template,
     send_briefing_unavailable,
     send_daily_briefing,
@@ -37,55 +36,22 @@ def _make_settings(**overrides: object) -> Settings:
 
 
 def test_render_daily_briefing_template() -> None:
-    """Daily briefing template renders readiness verdict and formatted metrics."""
+    """Daily briefing template renders the code's verdict and the coach's lead."""
     html = _render_template(
         "daily_briefing.html",
         {
-            "briefing": {
-                "readiness_verdict": "go_hard",
-                "recovery_status": "Fully recovered",
-                "readiness_explanation": "HRV and sleep both trended up this week",
-                "sleep_assessment": "Good sleep",
-                "workout_adjustments": None,
-                "key_metrics": {"Resting HR": "52 bpm"},
-                "sleep_recommendation": "Sleep by 10pm",
+            "headline": {
+                "verdict": "Go hard",
+                "chip": None,
+                "summary": "Fully recovered",
             }
         },
     )
-    assert "Go Hard" in html
+    assert "Go hard" in html
     assert "Fully recovered" in html
-    assert "Resting HR" in html
-    assert "52" in html
-    assert "bpm" in html
     assert "MyCoach" in html
 
 
-def test_format_key_metrics_maps_labels_and_skips_none() -> None:
-    """_format_key_metrics turns raw field names into display rows, dropping absent values."""
-    rows = _format_key_metrics(
-        {
-            "body_battery": 65,
-            "hrv_last_night_avg": None,
-            "sleep_score": 78,
-            "training_readiness": None,
-            "resting_hr": 52,
-        }
-    )
-    assert rows == {"Body Battery": "65", "Sleep Score": "78", "Resting HR": "52 bpm"}
-    # Display order is the order emails show, so it must survive the mapping.
-    assert list(rows) == ["Body Battery", "Sleep Score", "Resting HR"]
-
-
-def test_format_key_metrics_shows_both_hrv_fields() -> None:
-    """The HRV number and the HRV status word are separate rows, separately labelled."""
-    rows = _format_key_metrics({"hrv_last_night_avg": 82.0, "hrv_status_text": "BALANCED"})
-    assert rows == {"Avg HRV": "82.0 ms", "HRV Status": "BALANCED"}
-
-
-def test_format_key_metrics_renders_briefings_stored_before_the_hrv_rename() -> None:
-    """Insights saved under the old `hrv_status` name still render their number."""
-    rows = _format_key_metrics({"hrv_status": 82.0})
-    assert rows == {"Avg HRV": "82.0 ms"}
 
 
 # --- send_email function ---
@@ -187,7 +153,7 @@ def test_send_daily_briefing_calls_send_email(mock_send: MagicMock) -> None:
     """send_daily_briefing renders template and calls send_email."""
     settings = _make_settings()
     result = send_daily_briefing(
-        {"readiness_verdict": "moderate", "recovery_status": "OK", "sleep_assessment": "Fine"},
+        None,
         settings=settings,
     )
     assert result is True
@@ -294,27 +260,9 @@ def test_send_weekly_recap_calls_send_email(mock_send: MagicMock) -> None:
 def test_send_daily_briefing_wires_dashboard_url(mock_send: MagicMock) -> None:
     """send_daily_briefing's CTA points at settings.app_base_url, not a dead '#' link."""
     settings = _make_settings(app_base_url="https://coach.example.com")
-    send_daily_briefing({"readiness_verdict": "moderate"}, settings=settings)
+    send_daily_briefing(None, settings=settings)
     html = mock_send.call_args[0][2]
     assert "https://coach.example.com/dashboard" in html
-
-
-@patch("mycoach.email.sender.send_email", return_value=True)
-def test_send_daily_briefing_formats_raw_key_metrics(mock_send: MagicMock) -> None:
-    """send_daily_briefing formats the raw Pydantic-shaped key_metrics before rendering."""
-    settings = _make_settings()
-    send_daily_briefing(
-        {
-            "readiness_verdict": "moderate",
-            "key_metrics": {"resting_hr": 52, "hrv_last_night_avg": None},
-        },
-        settings=settings,
-    )
-    html = mock_send.call_args[0][2]
-    assert "Resting HR" in html
-    assert "52" in html
-    assert "bpm" in html
-    assert "Avg HRV" not in html  # None values are skipped
 
 
 @patch("mycoach.email.sender.send_email", return_value=True)
@@ -505,7 +453,7 @@ _HRV_WITH_BAND = {
 @patch("mycoach.email.sender.send_email", return_value=True)
 def test_daily_briefing_shows_the_hrv_7_day_avg_against_the_band(mock_send: MagicMock) -> None:
     send_daily_briefing(
-        {"readiness_verdict": "moderate"}, settings=_make_settings(), hrv=_HRV_WITH_BAND
+        None, settings=_make_settings(), hrv=_HRV_WITH_BAND
     )
     html = mock_send.call_args[0][2]
     assert "HRV 52 ms 7-day avg · your range 47–58 · Balanced · last night 48 ms" in html
@@ -516,7 +464,7 @@ def test_daily_briefing_says_building_baseline_before_garmin_has_a_band(
     mock_send: MagicMock,
 ) -> None:
     send_daily_briefing(
-        {"readiness_verdict": "moderate"},
+        None,
         settings=_make_settings(),
         hrv={"hrv_status": 48.0, "hrv_7day_avg": 52.0},
     )
@@ -527,7 +475,7 @@ def test_daily_briefing_says_building_baseline_before_garmin_has_a_band(
 
 @patch("mycoach.email.sender.send_email", return_value=True)
 def test_daily_briefing_has_no_hrv_line_without_hrv_data(mock_send: MagicMock) -> None:
-    send_daily_briefing({"readiness_verdict": "moderate"}, settings=_make_settings(), hrv={})
+    send_daily_briefing(None, settings=_make_settings(), hrv={})
     html = mock_send.call_args[0][2]
     assert "7-day avg" not in html
     assert "Building baseline" not in html

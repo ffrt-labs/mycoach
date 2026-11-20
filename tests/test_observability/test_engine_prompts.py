@@ -102,7 +102,7 @@ class TestGenerationsShowThePrompt:
         [gen] = captured.generations()
         assert attr(gen, "langfuse.observation.prompt.name") is None
         assert json_attr(gen, "langfuse.observation.metadata.prompt_source") == "bundled"
-        assert insight.prompt_version == "bundled:v4"
+        assert insight.prompt_version == "bundled:v5"
 
 
 class TestArtifactsRecordThePrompt:
@@ -175,4 +175,4 @@ async def test_engine_serves_bundled_prompts_when_langfuse_is_off() -> None:
             session, user_id, MONDAY
         )
 
-    assert insight.prompt_version == "bundled:v4"
+    assert insight.prompt_version == "bundled:v5"

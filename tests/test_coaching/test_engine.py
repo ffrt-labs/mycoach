@@ -1,5 +1,6 @@
 """Tests for coaching engine with mocked LLM client."""
 
+import json
 import threading
 from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
@@ -17,21 +18,32 @@ from mycoach.models.user import User
 from tests.conftest import test_session
 
 VALID_LLM_RESPONSE = """{
-  "sleep_assessment": "Good sleep, 7.5h duration with adequate deep sleep.",
-  "recovery_status": "Well recovered. Body Battery at 80, HRV above baseline.",
-  "readiness_verdict": "go_hard",
-  "readiness_explanation": "HRV 45ms above 7-day avg, Body Battery 80, training readiness 75.",
-  "workout_adjustments": "No adjustments needed.",
-  "sleep_recommendation": "Target 10:30 PM bedtime for 7.5h sleep.",
+  "readiness": "go_hard",
+  "headline": {
+    "tone": "good",
+    "summary": "Nothing planned for today and you're fresh: a good day for Squat Day."
+  },
+  "options": [
+    {
+      "open_session_id": 1,
+      "title": null,
+      "steps": ["Last working weights, RPE 7-8", "Log every load"],
+      "why": "Fresh legs today, and Thursday keeps its swim.",
+      "recommended": true
+    }
+  ],
+  "guardrail": {"when": "HRV 7-day avg below range", "then": "Easy swim instead"},
+  "sleep_note": "Best REM in 3 days.",
+  "tonight": [{"tone": "neutral", "text": "Bed 22:00-22:30"}],
   "key_metrics": {
     "body_battery": 80,
     "hrv_status": 45.0,
     "sleep_score": 82,
     "training_readiness": 75,
     "resting_hr": 55
-  }
+  },
+  "analysis_md": "## Today. Well recovered."
 }"""
-
 
 def _mock_llm_client(content: str = VALID_LLM_RESPONSE) -> MagicMock:
     client = MagicMock()
@@ -136,11 +148,10 @@ class TestGenerateDailyBriefing:
             plan = WeeklyPlan(user_id=user_id, week_start=date(2024, 6, 10), status="active")
             session.add(plan)
             await session.flush()
-            session.add(
-                PlannedSession(
-                    plan_id=plan.id, day_of_week=0, sport="gym", title="Squat Day", track="gym"
-                )
+            squat = PlannedSession(
+                plan_id=plan.id, day_of_week=0, sport="gym", title="Squat Day", track="gym"
             )
+            session.add(squat)
             await session.commit()
 
             mock_llm = _mock_llm_client()
@@ -151,7 +162,7 @@ class TestGenerateDailyBriefing:
             user_message = mock_llm.call.call_args.kwargs["user_message"]
             assert (
                 "## Open This Week\n1 session open, 5 days left including today:\n"
-                "- Monday: Squat Day [gym], planned day passed\n"
+                f"- id {squat.id} · Monday: Squat Day [gym], planned day passed\n"
             ) in user_message
 
     async def test_prompt_carries_the_steps_up_to_yesterday(self) -> None:
@@ -392,7 +403,7 @@ class TestGenerateDailyBriefing:
             mock_llm = _mock_llm_client()
             mock_llm.call.side_effect = [
                 LLMResponse(
-                    content='{"sleep_assessment": "Good sl',
+                    content='{"readiness": "go_h',
                     model="claude-sonnet-4-5-20250929",
                     input_tokens=500,
                     output_tokens=4096,
@@ -426,11 +437,17 @@ class TestGenerateDailyBriefing:
     ) -> None:
         """``finish_reason: length`` from OpenRouter triggers the same retry, and
         each attempt keeps its reasoning headroom on top of the answer budget."""
-        from tests.test_coaching.test_openrouter_provider import FakeOpenRouter, client_for, ok
+        from tests.test_coaching.test_openrouter_provider import (
+            FakeOpenRouter,
+            client_for,
+            models,
+            ok,
+        )
 
         monkeypatch.setenv("MYCOACH_OPENROUTER_API_KEY", "sk-or-test")
         fake = FakeOpenRouter(
-            ok(content='{"sleep_assessment": "Good sl', finish_reason="length"),
+            models(),  # the briefing asks once whether the model takes a strict schema
+            ok(content='{"readiness": "go_h', finish_reason="length"),
             ok(content=VALID_LLM_RESPONSE),
         )
         async with test_session() as session:
@@ -444,11 +461,13 @@ class TestGenerateDailyBriefing:
             assert "go_hard" in insight.content
             # 4096 of answer + 8192 to think, then 8192 of answer + 8192 to think:
             # the retry's answer budget doubles, its headroom never shrinks.
-            assert [body["max_tokens"] for body in fake.bodies] == [12288, 16384]
-            retry_message = fake.bodies[1]["messages"][1]["content"]
+            bodies = [json.loads(r.content) for r in fake.requests[1:]]
+            assert [body["max_tokens"] for body in bodies] == [12288, 16384]
+            retry_message = bodies[1]["messages"][1]["content"]
             assert "Your previous response had this error:" in retry_message
 
-    async def test_retry_that_also_fails_raises_and_logs_one_failure(self) -> None:
+    async def test_retry_that_also_fails_stores_the_briefing_without_coach_notes(self) -> None:
+        """Prompt v5 (#241): the email still goes out, with its code blocks only."""
         async with test_session() as session:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
@@ -457,9 +476,10 @@ class TestGenerateDailyBriefing:
             mock_llm = _mock_llm_client(content="not valid json")
             engine = CoachingEngine(llm_client=mock_llm)
 
-            with pytest.raises(RuntimeError, match="Retry also failed"):
-                await engine.generate_daily_briefing(session, user_id, today)
+            insight = await engine.generate_daily_briefing(session, user_id, today)
 
+            assert insight.insight_type == "daily_briefing"
+            assert json.loads(insight.content) is None
             assert mock_llm.call.call_count == 2
             retry = mock_llm.call.call_args_list[1]
             assert retry.kwargs["max_tokens"] == 4096
@@ -467,3 +487,19 @@ class TestGenerateDailyBriefing:
             assert log.success is False
             assert log.prompt_type == "daily_briefing"
             assert "Retry also failed" in (log.error or "")
+
+    async def test_the_call_carries_the_strict_schema_of_the_briefing_notes(self) -> None:
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            today = date(2024, 6, 10)
+            await _add_recovery_snapshot(session, user_id, today)
+            mock_llm = _mock_llm_client()
+
+            await CoachingEngine(llm_client=mock_llm).generate_daily_briefing(
+                session, user_id, today
+            )
+
+        schema = mock_llm.call.call_args.kwargs["response_schema"]
+        assert schema.name == "daily_briefing"
+        assert schema.schema["additionalProperties"] is False
+        assert "options" in schema.schema["required"]

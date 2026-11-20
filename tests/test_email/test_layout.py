@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mycoach.coaching.life_context import Episode, LifeContext
+from mycoach.coaching.life_context import Episode, LifeContext, RampBack
 from mycoach.config import Settings
 from mycoach.email import sender
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
@@ -89,6 +89,33 @@ def _post_workout(s: Settings) -> None:
         },
         "Morning Swim",
         s,
+        activity={"external_id": "g-walk-1107", "title": "Morning Swim"},
+        week=WEEK_2026_11_02_ADHERENCE,  # type: ignore[arg-type]
+        life=LifeContext(
+            today=date(2026, 11, 19),
+            episodes=[],
+            ramp_back=RampBack(
+                episode_id=1, day=2, length=5, load_pct=60, ends_on=date(2026, 11, 22)
+            ),
+        ),
+        open_this_week={
+            "sessions": [
+                {
+                    "id": 1,
+                    "day": "Monday",
+                    "day_of_week": 0,
+                    "status": "overdue",
+                    "sport": "gym",
+                    "track": "gym",
+                    "title": "Squat Day",
+                    "intent": "strength",
+                    "duration_minutes": 75,
+                    "details": None,
+                    "notes": None,
+                }
+            ],
+            "days_remaining": 4,
+        },
     )
 
 

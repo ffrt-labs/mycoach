@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% from "components/_open_this_week.html" import still_open_this_week %}
 {% block title %}Post-Workout Analysis{% endblock %}
 {% block subtitle %}Post-workout{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
 
 {% call ui.hero("Session analysis") %}
-    <div class="verdict">{{ activity_title }}</div>
+    <div class="verdict">{{ activity_title }}{% if life_chip %} <span style="vertical-align:middle;">{{ ui.chip(life_chip) }}</span>{% endif %}</div>
+    {% if week_status %}
+    <div class="week-status mlabel" style="margin-top:16px;">{{ ui.chip(week_status.chip) }}&nbsp; {{ week_status.verb }}{% if week_status.target %} <span class="strong">{{ week_status.target }}</span>{% endif %}{% if week_status.intent %} {{ ui.chip(week_status.intent) }}{% endif %}</div>
+    {% endif %}
     {% if analysis.performance_summary %}
     <div class="lead" style="margin-top:12px;">{{ analysis.performance_summary }}</div>
     {% endif %}
@@ -53,6 +57,8 @@
     <div class="p">{{ analysis.recovery_notes }}</div>
 {% endcall %}
 {% endif %}
+
+{{ still_open_this_week(ui, layout, open_week) }}
 
 {{ ui.cta(dashboard_url, "View full report →") }}
 {% endblock %}

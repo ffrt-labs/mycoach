@@ -332,6 +332,40 @@ class TestGetPlanAdherenceForWeek:
         assert by_title["Wed"]["completed"] is False
         assert by_title["Wed"]["on_planned_day"] is None
 
+    async def test_each_done_session_names_the_activity_that_completed_it(self) -> None:
+        """A post-workout email asks which session its activity did (#235)."""
+        async with test_session() as session:
+            user_id, plan_id = await _plan(session)
+            linked = await _gym(session, user_id, sets=1, day=10)
+            linked.external_id = "linked-mon"
+            matched = await _gym(session, user_id, sets=1, day=12)
+            matched.external_id = "unlinked-wed"
+            session.add_all(
+                [
+                    PlannedSession(
+                        plan_id=plan_id,
+                        day_of_week=0,
+                        sport="gym",
+                        title="Mon",
+                        activity_external_id="linked-mon",
+                    ),
+                    PlannedSession(plan_id=plan_id, day_of_week=2, sport="gym", title="Wed"),
+                    PlannedSession(
+                        plan_id=plan_id, day_of_week=4, sport="gym", title="Fri", completed=True
+                    ),
+                    PlannedSession(plan_id=plan_id, day_of_week=5, sport="gym", title="Sat"),
+                ]
+            )
+            await session.commit()
+
+            result = await get_plan_adherence_for_week(
+                session, user_id, WEEK, today=WEEK + timedelta(days=7)
+            )
+
+        assert result is not None
+        done_by = {s["title"]: s["done_by"] for s in result["sessions"]}
+        assert done_by == {"Mon": "linked-mon", "Wed": "unlinked-wed", "Fri": None, "Sat": None}
+
     async def test_no_plan_returns_none(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)

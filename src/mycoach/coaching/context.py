@@ -154,7 +154,10 @@ class SessionAdherence(TypedDict):
     completed it and ``on_planned_day`` says whether that was the planned day;
     both are ``None`` when no activity completed it (not done, or ticked by hand).
     On planned day is informational, never a penalty. ``substitute`` is set
-    only when ``status`` is "substituted" or "adapted_travel".
+    only when ``status`` is "substituted" or "adapted_travel". ``done_by`` is the
+    external id of the activity that completed it (its substitute's included), so a
+    post-workout email can say which session its activity did (#235); None when no
+    activity completed it.
     """
 
     id: int
@@ -167,6 +170,7 @@ class SessionAdherence(TypedDict):
     on_planned_day: bool | None
     actual_day: str | None
     substitute: SubstituteActivity | None
+    done_by: str | None
 
 
 class PlanAdherence(TypedDict):
@@ -268,6 +272,7 @@ async def get_plan_adherence_for_week(
     done: set[int] = set()
     consumed: set[str] = set()
     done_on: dict[int, date] = {}  # session id -> day of the activity that completed it
+    done_by: dict[int, str] = {}  # session id -> external id of that activity
     for s in sessions:
         if s.activity_external_id is None:
             continue
@@ -280,6 +285,7 @@ async def get_plan_adherence_for_week(
             done.add(s.id)
             consumed.add(s.activity_external_id)
             done_on[s.id] = fact["start_date"]
+            done_by[s.id] = s.activity_external_id
 
     # Manual completes: no linked activity, nothing consumed.
     for s in sessions:
@@ -324,6 +330,7 @@ async def get_plan_adherence_for_week(
                     pool.remove(match)
                     done.add(s.id)
                     done_on[s.id] = match["start_date"]
+                    done_by[s.id] = match["external_id"]
                     filled[s.id] = match
         return filled
 
@@ -434,6 +441,7 @@ async def get_plan_adherence_for_week(
                         "training_effect_aerobic": sub["training_effect_aerobic"],
                     }
                 ),
+                "done_by": done_by.get(s.id),
             }
         )
 

@@ -1,6 +1,8 @@
 """Tests for email send triggers in scheduler jobs."""
 
 import json
+from collections.abc import Awaitable, Callable
+from contextlib import ExitStack
 from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,7 +11,14 @@ import pytest
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.job_run import JobRun
 from mycoach.models.user import User
-from mycoach.scheduler.jobs import USER_ID, _briefing_alert, _daily_briefing, _weekly_recap
+from mycoach.scheduler.jobs import (
+    USER_ID,
+    _briefing_alert,
+    _daily_briefing,
+    _notify_post_workout,
+    _post_workout_analysis,
+    _weekly_recap,
+)
 from tests.conftest import test_session as db_session
 
 
@@ -465,3 +474,117 @@ async def test_a_garmin_sync_that_failed_for_another_reason_is_not_a_login_failu
     mock_send = await _recap_on(date(2026, 11, 16))
 
     assert mock_send.call_args.kwargs["garmin_auth_failed"] is False
+
+
+# --- Post-workout week status and Still open this week (#235) -------------------------
+
+THURSDAY = date(2026, 11, 19)
+TUESDAY_SWIM = {
+    "external_id": "swim-1",
+    "title": "Pool swim",
+    "sport": "swimming",
+    "start_time": "2026-11-17 07:00:00",
+}
+POST_WORKOUT = {"performance_summary": "Steady"}
+
+PostWorkoutRun = Callable[[ExitStack, AsyncMock], Awaitable[None]]
+
+
+async def _analysis_scan(stack: ExitStack, session: AsyncMock) -> None:
+    """The catch-up scan's call site."""
+    insight = MagicMock(content=json.dumps(POST_WORKOUT))
+    engine = MagicMock()
+    engine.generate_post_workout_analysis = AsyncMock(return_value=insight)
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []  # no insight exists yet
+    session.execute = AsyncMock(return_value=result)
+    stack.enter_context(patch("mycoach.scheduler.jobs.CoachingEngine", return_value=engine))
+    stack.enter_context(
+        patch(
+            "mycoach.scheduler.jobs.health.list_settled_activities_since",
+            AsyncMock(return_value=[TUESDAY_SWIM]),
+        )
+    )
+    await _post_workout_analysis()
+
+
+async def _settled_event(stack: ExitStack, session: AsyncMock) -> None:
+    """The health-event call site."""
+    stack.enter_context(patch("mycoach.scheduler.jobs.athlete_id_for", AsyncMock(return_value=1)))
+    stack.enter_context(
+        patch("mycoach.scheduler.jobs.health.get_activity", AsyncMock(return_value=TUESDAY_SWIM))
+    )
+    await _notify_post_workout(MagicMock(content=json.dumps(POST_WORKOUT)), "swim-1")
+
+
+async def _send_post_workout(
+    run: PostWorkoutRun,
+    session: AsyncMock,
+    *,
+    adherence: AsyncMock,
+    life: AsyncMock,
+    open_week: AsyncMock,
+) -> MagicMock:
+    with ExitStack() as stack:
+        for target, value in (
+            ("async_session", MagicMock(return_value=session)),
+            ("_get_user_email_pref", AsyncMock(return_value=True)),
+            ("local_today", MagicMock(return_value=THURSDAY)),
+            ("get_plan_adherence_for_week", adherence),
+            ("life_context_for", life),
+            ("get_open_this_week", open_week),
+        ):
+            stack.enter_context(patch(f"mycoach.scheduler.jobs.{target}", value))
+        mock_send = stack.enter_context(patch("mycoach.scheduler.jobs.send_post_workout"))
+        await run(stack, session)
+    return mock_send
+
+
+@pytest.mark.parametrize("run", [_analysis_scan, _settled_event])
+async def test_post_workout_email_gets_the_activitys_week_its_day_and_open_this_week(
+    run: PostWorkoutRun, mock_session: AsyncMock
+) -> None:
+    """Both call sites: the activity's week Completion and its day's Life context,
+    and what is still open as of the send."""
+    adherence = {"plan_id": 1, "sessions": [], "extras": []}
+    life = MagicMock(name="life context")
+    open_week = {"sessions": [], "days_remaining": 4}
+    load_adherence = AsyncMock(return_value=adherence)
+    load_life = AsyncMock(return_value=life)
+    load_open = AsyncMock(return_value=open_week)
+
+    mock_send = await _send_post_workout(
+        run, mock_session, adherence=load_adherence, life=load_life, open_week=load_open
+    )
+
+    mock_send.assert_called_once()
+    assert mock_send.call_args.args[:2] == (POST_WORKOUT, "Pool swim")
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["activity"] == TUESDAY_SWIM
+    assert kwargs["week"] == adherence
+    assert kwargs["life"] is life
+    assert kwargs["open_this_week"] == open_week
+    # The activity's week (Mon 16 Nov), measured as of today.
+    assert load_adherence.call_args.args[2] == date(2026, 11, 16)
+    assert load_adherence.call_args.kwargs["today"] == THURSDAY
+    # The activity's own day: Tuesday's ramp-back or trip.
+    assert load_life.call_args.args[2:] == (date(2026, 11, 17), date(2026, 11, 17))
+    assert load_life.call_args.kwargs["today"] == date(2026, 11, 17)
+    assert load_open.call_args.args[2] == THURSDAY
+
+
+@pytest.mark.parametrize("run", [_analysis_scan, _settled_event])
+async def test_a_week_or_life_context_failure_does_not_cost_the_post_workout_email(
+    run: PostWorkoutRun, mock_session: AsyncMock
+) -> None:
+    def failing() -> AsyncMock:
+        return AsyncMock(side_effect=RuntimeError("db"))
+
+    mock_send = await _send_post_workout(
+        run, mock_session, adherence=failing(), life=failing(), open_week=failing()
+    )
+
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["week"] is None
+    assert kwargs["life"] is None
+    assert kwargs["open_this_week"] is None

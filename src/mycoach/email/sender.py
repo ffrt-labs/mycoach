@@ -20,7 +20,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.context import OpenThisWeek
+from mycoach.coaching.context import OpenThisWeek, PlanAdherence
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
@@ -33,7 +33,7 @@ from mycoach.coaching.life_context import (
 )
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
-from mycoach.email.life_views import life_banner, open_week_view
+from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
 from mycoach.email.tones import (
     JINJA_GLOBALS,
     LIFE_CONTEXT_STYLE,
@@ -791,8 +791,24 @@ def send_briefing_unavailable(
     return send_email(settings.email_to, "MyCoach — No Briefing Today", html, settings)
 
 
-def send_post_workout(content: dict, activity_title: str, settings: Settings | None = None) -> bool:  # type: ignore[type-arg]
-    """Send post-workout analysis email."""
+def send_post_workout(
+    content: dict,  # type: ignore[type-arg]
+    activity_title: str,
+    settings: Settings | None = None,
+    *,
+    activity: Mapping[str, Any] | None = None,
+    week: PlanAdherence | None = None,
+    life: LifeContext | None = None,
+    open_this_week: OpenThisWeek | None = None,
+) -> bool:
+    """Send post-workout analysis email.
+
+    ``activity`` is the analysed activity; ``week`` is its week's Completion, computed
+    at send time: together they say what the activity did for its week (#235). Either
+    None leaves that line out. ``life`` is the Life context of the activity's day: a
+    ramp-back or travel day chips the verdict. ``open_this_week`` closes the email as
+    a compact list; None (no plan this week) leaves it out.
+    """
     if settings is None:
         settings = get_settings()
     html = _render_template(
@@ -801,6 +817,9 @@ def send_post_workout(content: dict, activity_title: str, settings: Settings | N
             "analysis": content,
             "activity_title": activity_title,
             "dashboard_url": _dashboard_url(settings),
+            "week_status": week_status(week, activity),
+            "life_chip": life_chip(life),
+            "open_week": open_week_view(open_this_week),
         },
     )
     return send_email(

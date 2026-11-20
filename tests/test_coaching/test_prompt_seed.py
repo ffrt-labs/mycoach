@@ -53,7 +53,7 @@ def test_each_prompt_records_the_bundled_version_it_was_seeded_from(
 
     sources = {name: history[0]["config"]["source"] for name, history in fake.versions.items()}
     assert sources["mycoach/post-workout"] == "bundled:v5"
-    assert sources["mycoach/daily-briefing"] == "bundled:v4"
+    assert sources["mycoach/daily-briefing"] == "bundled:v5"
 
 
 def test_seeding_twice_is_a_no_op(fake: FakeLangfuseAPI, client: Langfuse) -> None:
@@ -84,7 +84,7 @@ def test_seed_publishes_a_new_production_version_over_an_older_seeded_one(
     assert [v["version"] for v in history] == [1, 2, 3]
     assert history[-1]["labels"] == ["production"]
     assert history[-1]["prompt"] == history[0]["prompt"]
-    assert history[-1]["config"] == {"source": "bundled:v4"}
+    assert history[-1]["config"] == {"source": "bundled:v5"}
 
 
 def test_seed_never_publishes_over_a_version_edited_in_the_langfuse_ui(

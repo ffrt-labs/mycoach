@@ -197,6 +197,56 @@ async def test_dashboard_with_briefing(client: AsyncClient) -> None:
     assert "7.5 hours tonight" in resp.text
 
 
+async def _store_briefing(content: str) -> None:
+    async with test_session() as session:
+        session.add(
+            CoachingInsight(
+                user_id=1,
+                insight_date=_local_today(),
+                insight_type="daily_briefing",
+                content=content,
+                prompt_version="bundled:v5",
+            )
+        )
+        await session.commit()
+
+
+async def test_dashboard_reads_a_v5_briefing(client: AsyncClient) -> None:
+    """Coach notes (#241): the verdict, the Lead and tonight's tips, until #244."""
+    await _seed_user()
+    await _store_briefing(
+        json.dumps(
+            {
+                "readiness": "active_recovery",
+                "headline": {"tone": "watch", "summary": "Short night; keep it easy."},
+                "options": [],
+                "guardrail": None,
+                "sleep_note": "Restless.",
+                "tonight": [{"tone": "neutral", "text": "Bed by 22:00"}],
+                "key_metrics": {},
+                "analysis_md": "",
+            }
+        )
+    )
+
+    resp = await client.get("/")
+
+    assert resp.status_code == 200
+    assert "active recovery" in resp.text
+    assert "Short night; keep it easy." in resp.text
+    assert "Bed by 22:00" in resp.text
+
+
+async def test_dashboard_survives_a_briefing_without_coach_notes(client: AsyncClient) -> None:
+    await _seed_user()
+    await _store_briefing("null")
+
+    resp = await client.get("/")
+
+    assert resp.status_code == 200
+    assert "Regenerate briefing" in resp.text
+
+
 async def test_dashboard_with_plan(client: AsyncClient) -> None:
     """Dashboard shows today's planned workout."""
     await _seed_user()

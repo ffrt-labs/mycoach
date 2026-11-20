@@ -27,7 +27,7 @@ class Tile:
     unit: str = ""
     sub: str | None = None
     tone: str | None = None
-    """``good`` or ``watch`` colours ``sub``; None leaves it muted."""
+    """``good``, ``watch`` or ``alert`` colours ``sub``; None leaves it muted."""
 
 
 Activity = Mapping[str, Any]

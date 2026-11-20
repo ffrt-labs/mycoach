@@ -16,7 +16,7 @@ from mycoach.config import Settings
 from mycoach.email.sender import send_briefing_unavailable, send_daily_briefing
 
 NOW = datetime(2026, 11, 14, 9, 30, tzinfo=UTC)
-BRIEFING = {"readiness_verdict": "moderate", "recovery_status": "OK"}
+BRIEFING = None  # no Coach notes: these blocks are code-rendered either way (#241)
 
 
 def _settings() -> Settings:

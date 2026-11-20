@@ -39,6 +39,7 @@ from mycoach.coaching.context import (
 from mycoach.coaching.email_schemas import (
     CardioPlanV5,
     CardioSessionV5,
+    DailyBriefingEmail,
     PostWorkoutEmail,
     WeeklyRecapEmail,
 )
@@ -61,7 +62,6 @@ from mycoach.coaching.prompt_builder import (
 from mycoach.coaching.prompt_store import PromptStore, ServedPrompt, get_prompt_store
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.coaching.response_parser import (
-    DailyBriefingResponse,
     GymAdjustmentExercise,
     GymAdjustmentResponse,
     parse_response,
@@ -157,7 +157,7 @@ class OperationSpec(Generic[T]):
         return response_schema(self.operation.value, self.response_model)
 
 
-DAILY_BRIEFING = OperationSpec(Operation.DAILY_BRIEFING, DailyBriefingResponse)
+DAILY_BRIEFING = OperationSpec(Operation.DAILY_BRIEFING, DailyBriefingEmail, coach_notes=True)
 GYM_ADJUSTMENT = OperationSpec(
     Operation.GYM_ADJUSTMENT, GymAdjustmentResponse, max_tokens=8192, falls_back=True
 )
@@ -329,7 +329,9 @@ class CoachingEngine:
 
         now = self._clock()
         run = daily_briefing_run(user_id, today, regenerated_at=now if replaced else None)
-        parsed = await self._generate_insight(
+        # No valid Coach notes after the retry: stored as ``null``, the email
+        # still goes out with its code blocks (#241).
+        parsed = await self._generate_coach_notes(
             session,
             DAILY_BRIEFING,
             run,

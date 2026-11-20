@@ -93,6 +93,27 @@ async def _logged_line(session: AsyncSession, episode_id: int | None, today: dat
     return f"Logged ill {days} · {excused} {noun} excused"
 
 
+def _briefing_read(content: Any) -> dict[str, Any] | None:
+    """Today's briefing in the shape the hero and "The read" print.
+
+    A v5 briefing (Coach notes, #241) is mapped onto the v4 fields: the verdict from
+    ``readiness``, the Lead as the recovery status, tonight's tips as the read. A
+    briefing stored without Coach notes (``null``) has none. #244 replaces this.
+    """
+    if not isinstance(content, dict):
+        return None
+    if "readiness" not in content:
+        return content  # v4
+    headline = content.get("headline") or {}
+    tips = [t.get("text") for t in content.get("tonight") or [] if isinstance(t, dict)]
+    return {
+        "readiness_verdict": content.get("readiness"),
+        "recovery_status": headline.get("summary"),
+        "workout_adjustments": None,
+        "sleep_recommendation": " · ".join(t for t in tips if t) or None,
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
@@ -138,7 +159,7 @@ async def dashboard(
     briefing_data = None
     if briefing and briefing.content:
         try:
-            briefing_data = json.loads(briefing.content)
+            briefing_data = _briefing_read(json.loads(briefing.content))
         except (json.JSONDecodeError, TypeError):
             briefing_data = None
 

@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mycoach.coaching.body import BodySummary
-from mycoach.coaching.email_schemas import CardioPlanV5, PostWorkoutEmail, WeeklyRecapEmail
+from mycoach.coaching.email_schemas import (
+    CardioPlanV5,
+    DailyBriefingEmail,
+    PostWorkoutEmail,
+    WeeklyRecapEmail,
+)
 from mycoach.coaching.hrv import format_ms, hrv_band, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     EXCUSED_LABEL,
@@ -80,6 +85,7 @@ BUNDLED_VERSIONS: Mapping[Operation, str] = {
     Operation.POST_WORKOUT: COACH_NOTES_VERSION,
     Operation.WEEKLY_RECAP: COACH_NOTES_VERSION,
     Operation.CARDIO_PLAN: COACH_NOTES_VERSION,
+    Operation.DAILY_BRIEFING: COACH_NOTES_VERSION,
 }
 """Each operation's bundled template set: its default compile, the fallback the
 prompt store serves, and the seed of its Langfuse prompt. An operation moves to
@@ -561,7 +567,10 @@ _OPEN_STATUS_NOTE = {"overdue": ", planned day passed", "today": ", planned for 
 
 
 def _format_open_this_week(open_week: "OpenThisWeek | None") -> str:
-    """The week's open sessions for the briefing, earliest planned day first (#218)."""
+    """The week's open sessions for the briefing, earliest planned day first (#218).
+
+    Each line leads with the session's id, which a v5 option links to (#241).
+    """
     if open_week is None:
         return "No plan this week."
     sessions = open_week["sessions"]
@@ -574,7 +583,8 @@ def _format_open_this_week(open_week: "OpenThisWeek | None") -> str:
     for s in sessions:
         dur = f" ({s['duration_minutes']} min)" if s["duration_minutes"] else ""
         note = _OPEN_STATUS_NOTE.get(s["status"], "")
-        lines.append(f"- {s['day']}: {s['title']} [{s['sport']}]{dur}{note}")
+        tag = " · ".join(t for t in (s["sport"], _intent_label(s.get("intent"))) if t)
+        lines.append(f"- id {s['id']} · {s['day']}: {s['title']} [{tag}]{dur}{note}")
     if len(sessions) > days:
         lines.append("Warning: more sessions open than days left.")
     return "\n".join(lines)
@@ -605,6 +615,7 @@ def daily_briefing_variables(
         "steps_summary": _format_steps(steps),
         "body_summary": _format_body(body),
         "life_context": _format_life_context(life_context),
+        "output_schema": _coach_notes_schema(DailyBriefingEmail),
     }
 
 

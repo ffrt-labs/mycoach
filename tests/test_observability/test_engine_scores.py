@@ -46,7 +46,7 @@ def _at(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> date
 
 def _truncated() -> LLMResponse:
     return LLMResponse(
-        content='{"sleep_assessment": "Good',
+        content='{"readiness": "go_h',
         model="sonnet",
         input_tokens=500,
         output_tokens=4096,
@@ -77,6 +77,7 @@ class TestDailyBriefingCodeChecks:
             f"{BRIEFING}:parse_ok": 1.0,
             f"{BRIEFING}:needed_retry": 0.0,
             f"{BRIEFING}:truncated": 0.0,
+            f"{BRIEFING}:notes_fallback": 0.0,
         }
         for score in sink.scores:
             assert score.trace_id == BRIEFING
@@ -95,17 +96,18 @@ class TestDailyBriefingCodeChecks:
             f"{BRIEFING}:parse_ok": 1.0,
             f"{BRIEFING}:needed_retry": 1.0,
             f"{BRIEFING}:truncated": 1.0,
+            f"{BRIEFING}:notes_fallback": 0.0,
         }
 
-    async def test_failed_retry_scores_parse_ok_false(self) -> None:
+    async def test_failed_retry_scores_the_coach_notes_fallback(self) -> None:
         sink = RecordingScoreSink()
-        with pytest.raises(RuntimeError, match="Failed to generate daily briefing"):
-            await _briefing(_briefing_llm("not json at all"), sink)
+        await _briefing(_briefing_llm("not json at all"), sink)
 
         assert sink.values() == {
             f"{BRIEFING}:parse_ok": 0.0,
             f"{BRIEFING}:needed_retry": 1.0,
             f"{BRIEFING}:truncated": 0.0,
+            f"{BRIEFING}:notes_fallback": 1.0,
         }
 
     async def test_provider_error_still_emits_every_code_check(self) -> None:
@@ -115,22 +117,26 @@ class TestDailyBriefingCodeChecks:
         with pytest.raises(RuntimeError):
             await _briefing(llm, sink)
 
-        # No answer parsed, a provider failure is never retried, nothing was cut off.
+        # No answer parsed, a provider failure is never retried, nothing was cut off,
+        # and with no answer there is nothing to fall back from.
         assert sink.values() == {
             f"{BRIEFING}:parse_ok": 0.0,
             f"{BRIEFING}:needed_retry": 0.0,
             f"{BRIEFING}:truncated": 0.0,
+            f"{BRIEFING}:notes_fallback": 0.0,
         }
 
     async def test_a_retried_run_on_a_later_day_overwrites_its_scores(self) -> None:
         """Same trace, same IDs and the same timestamp day, so Langfuse overwrites."""
         failed, retried = RecordingScoreSink(), RecordingScoreSink()
+        provider_down = _briefing_llm()
+        provider_down.call.side_effect = LLMQuotaExceeded("Claude Code: usage limit reached")
         async with new_session() as session:
             user_id = await _create_briefing_user(session)
             await _add_recovery_snapshot(session, user_id, MONDAY)
             with pytest.raises(RuntimeError):
                 await CoachingEngine(
-                    llm_client=_briefing_llm("not json at all"),
+                    llm_client=provider_down,
                     scores=failed,
                     clock=lambda: _at(2024, 6, 10, 7, 15),
                 ).generate_daily_briefing(session, user_id, MONDAY)
@@ -524,7 +530,7 @@ class TestSinkFailure:
                 insight = await engine.generate_daily_briefing(session, user_id, MONDAY)
 
         # The sink was really called (so the run did try to score) ...
-        assert failing.calls == 3
+        assert failing.calls == 4  # notes_fallback too
         # ... and the run produced its insight regardless.
         assert insight.id is not None
         assert "go_hard" in insight.content
@@ -544,6 +550,7 @@ class TestLangfuseOn:
         assert {c["trace_id"] for c in calls} == {trace_hex(root)}
         assert sorted(c["score_id"] for c in calls) == [
             f"{BRIEFING}:needed_retry",
+            f"{BRIEFING}:notes_fallback",
             f"{BRIEFING}:parse_ok",
             f"{BRIEFING}:truncated",
         ]

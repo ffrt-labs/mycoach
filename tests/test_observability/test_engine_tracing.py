@@ -30,7 +30,7 @@ from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import VALID_LLM_RESPONSE, _add_recovery_snapshot
 from tests.test_coaching.test_engine import _create_user as _create_briefing_user
 from tests.test_coaching.test_engine import _mock_llm_client as _briefing_llm
-from tests.test_coaching.test_openrouter_provider import FakeOpenRouter
+from tests.test_coaching.test_openrouter_provider import FakeOpenRouter, models
 from tests.test_coaching.test_openrouter_provider import client_for as openrouter_client
 from tests.test_coaching.test_openrouter_provider import ok as openrouter_ok
 from tests.test_observability.conftest import (
@@ -89,6 +89,7 @@ class TestDailyBriefingTrace:
             "life_context",
             "steps_summary",
             "body_summary",
+            "output_schema",
         }
 
     async def test_forced_regeneration_gets_a_regen_trace_that_supersedes(
@@ -290,7 +291,7 @@ class TestErrorLevelGenerations:
     async def test_truncated_response_is_an_error_generation(self, captured: Captured) -> None:
         llm = _briefing_llm()
         truncated = LLMResponse(
-            content='{"sleep_assessment": "Good',
+            content='{"readiness": "go_h',
             model="sonnet",
             input_tokens=500,
             output_tokens=4096,
@@ -394,6 +395,7 @@ class TestOpenRouterGeneration:
         self, captured: Captured
     ) -> None:
         fake = FakeOpenRouter(
+            models(),  # the briefing asks once whether the model takes a strict schema
             openrouter_ok(
                 content=VALID_LLM_RESPONSE,
                 prompt_tokens=1200,

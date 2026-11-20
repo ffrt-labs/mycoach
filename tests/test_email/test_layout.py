@@ -16,6 +16,7 @@ from mycoach.config import Settings
 from mycoach.email import sender
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
+from tests.test_email.test_briefing_notes import NOTES as BRIEFING_NOTES
 from tests.test_email.test_post_workout_notes import NOTES as POST_WORKOUT_NOTES
 from tests.test_email.test_post_workout_stats import LAST_SWIM, ZONED_SWIM
 from tests.test_email.test_recap_notes import GYM_SETS, HEALTH_WEEK, _load_focus
@@ -38,16 +39,19 @@ def _settings() -> Settings:
 
 def _daily_briefing(s: Settings) -> None:
     sender.send_daily_briefing(
-        {
-            "readiness_verdict": "go_hard",
-            "recovery_status": "Fully recovered",
-            "sleep_assessment": "Good sleep",
-            "workout_adjustments": "Keep it easy",
-            "key_metrics": {"resting_hr": 52, "sleep_score": 84},
-            "sleep_recommendation": "Sleep by 10pm",
-        },
+        BRIEFING_NOTES,
         s,
-        hrv={"hrv_7day_avg": 52, "hrv_status": 48},
+        hrv={
+            "hrv_7day_avg": 52,
+            "hrv_status": 48,
+            "sleep_score": 84,
+            "sleep_duration_minutes": 470,
+            "sleep_deep_minutes": 90,
+            "sleep_rem_minutes": 110,
+            "sleep_light_minutes": 260,
+            "sleep_awake_minutes": 10,
+            "resting_hr": 52,
+        },
         life=LifeContext(
             today=date(2026, 11, 19),
             episodes=[
@@ -64,7 +68,7 @@ def _daily_briefing(s: Settings) -> None:
         open_this_week={
             "sessions": [
                 {
-                    "id": 1,
+                    "id": 11,  # the open session BRIEFING_NOTES recommends
                     "day": "Monday",
                     "day_of_week": 0,
                     "status": "overdue",
@@ -345,11 +349,9 @@ def test_the_weekly_plan_default_schedule_notice_sits_in_the_hero() -> None:
 
 
 def test_an_included_block_right_after_the_hero_is_the_first_section() -> None:
-    """With no key metrics, the code-rendered HRV block is what follows the hero."""
+    """Without Coach notes, the code-rendered Last night block is what follows the hero."""
     with patch("mycoach.email.sender.send_email", return_value=True) as mock_send:
-        sender.send_daily_briefing(
-            {"readiness_verdict": "rest"}, _settings(), hrv={"hrv_7day_avg": 52}
-        )
+        sender.send_daily_briefing(None, _settings(), hrv={"hrv_7day_avg": 52})
     html = str(mock_send.call_args[0][2])
     sections = _tds(html, "section")
     assert sections[0]["padding-top"] == "0px"

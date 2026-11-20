@@ -14,6 +14,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mycoach.coaching.response_parser import DailyBriefingKeyMetrics
 from mycoach.models.plan import SessionIntent
 
 logger = logging.getLogger(__name__)
@@ -165,3 +166,32 @@ class CardioPlanV5(Slot):
         return PlanNotes(
             focus=self.focus, guardrails=self.guardrails, goal_assessment=self.goal_assessment
         )
+
+
+# --- Daily briefing ---------------------------------------------------------------
+
+Readiness = Literal["go_hard", "moderate", "active_recovery", "rest"]
+"""The briefing's readiness; code maps it to the verdict the email shows."""
+
+
+class SessionOption(Slot):
+    """One way to train today. Linked to an open session by id, code renders its
+    title, sport, intent, minutes and planned day; otherwise ``title`` names it."""
+
+    open_session_id: int | None = None
+    title: str | None = Field(None, max_length=32)
+    steps: list[Short] = Field(min_length=1, max_length=3)
+    why: str = Field(max_length=70)
+    recommended: bool
+
+
+class DailyBriefingEmail(Slot):
+    readiness: Readiness
+    headline: Lead
+    options: list[SessionOption] = Field(min_length=1, max_length=2)
+    guardrail: Guardrail | None = None
+    sleep_note: str = Field(max_length=60)
+    tonight: list[Tip] = Field(max_length=3)
+    key_metrics: DailyBriefingKeyMetrics
+    """Kept for the prompt log; the email renders its numbers from the DB."""
+    analysis_md: str

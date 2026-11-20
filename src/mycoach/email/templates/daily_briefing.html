@@ -1,60 +1,47 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% import "components/_coach_notes.html" as cn %}
+{% import "components/_notice.html" as note %}
 {% from "components/_open_this_week.html" import open_this_week %}
+{% from "components/_options.html" import options %}
+{% from "components/_last_night.html" import last_night, tonight %}
 {% from "components/_life_context_banner.html" import life_context_banner %}
 {% block title %}Daily Briefing{% endblock %}
 {% block subtitle %}Daily briefing{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
-{% set _vmap = {'go_hard': 'Go Hard', 'moderate': 'Moderate', 'active_recovery': 'Active Recovery', 'rest': 'Rest'} %}
 
+{#- Rendered from Coach notes (``notes``, prompt v5) and code only (#241). Without
+    notes (``notes_fallback``) the code blocks still go out, under a Notice. -#}
 {% call ui.hero() %}
     {{ life_context_banner(banner, life_context_url) }}
     <div class="sec" style="margin-bottom:12px;">Today's readiness</div>
-    <div class="verdict">{{ _vmap.get(briefing.readiness_verdict, 'Moderate') }}</div>
-    {% if briefing.recovery_status %}
-    <div class="lead" style="margin-top:12px;">{{ briefing.recovery_status }}</div>
+    {% if headline %}
+    <div class="verdict">{{ headline.verdict }} <span style="vertical-align:middle;">{{ ui.chip(headline.chip) }}</span></div>
+    <div class="lead" style="margin-top:12px;">{{ headline.summary }}</div>
+    {% else %}
+    {{ note.notice("Coach", notes_unavailable ~ ".", margin_top=0) }}
     {% endif %}
 {% endcall %}
 
+{{ options(ui, layout, options_view, recommended_chip) }}
+
 {{ open_this_week(ui, layout, open_week) }}
 
-{% if briefing.key_metrics %}
-{% call ui.section(layout) %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      {% for key, value in briefing.key_metrics.items() %}
-      <tr>
-        <td class="mrow mlabel" style="padding:12px 0;">{{ key }}</td>
-        <td class="mrow mval" style="padding:12px 0;">{{ value }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+{% if notes and notes.guardrail %}
+{% call ui.section(layout, "Guardrail · tomorrow", label_gap=4) %}
+    {{ cn.guardrail(notes.guardrail) }}
 {% endcall %}
 {% endif %}
+
+{{ last_night(ui, layout, last_night_view, hrv_line, notes.sleep_note if notes else none) }}
+
+{{ tonight(ui, layout, tonight_tips) }}
 
 {% include "_steps_block.html" %}
-{% include "_hrv.html" %}
-
-{% if briefing.sleep_assessment %}
-{% call ui.section(layout, "Sleep assessment") %}
-    <div class="p">{{ briefing.sleep_assessment }}</div>
-{% endcall %}
-{% endif %}
-
-{% if briefing.workout_adjustments %}
-{% call ui.section(layout) %}
-    {% call ui.coach("Coach adjustment") %}{{ briefing.workout_adjustments }}{% endcall %}
-{% endcall %}
-{% endif %}
-
-{% if briefing.sleep_recommendation %}
-{% call ui.section(layout, "Tonight") %}
-    <div class="p">{{ briefing.sleep_recommendation }}</div>
-{% endcall %}
-{% endif %}
 
 {% include "_body_block.html" %}
 
 {{ ui.cta(dashboard_url, "Open dashboard →") }}
 {% endblock %}
-{% block footer_note %}<div class="ft-t" style="margin-bottom:8px;"><a href="{{ life_context_url }}" style="text-decoration:underline;">Feeling unwell or travelling? Tell the coach →</a></div>{% endblock %}
+{% block footer_note %}<div class="ft-t" style="margin-bottom:8px;"><a href="{{ life_context_url }}" style="text-decoration:underline;">Feeling unwell or travelling? Tell the coach →</a>{% if full_analysis_url %} &nbsp;·&nbsp; <a href="{{ full_analysis_url }}" style="text-decoration:underline;">Full analysis →</a>{% endif %}</div>{% endblock %}

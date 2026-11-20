@@ -27,6 +27,8 @@ from mycoach.models.plan import INTENT_LABEL
 
 OVERDUE_CHIP = Chip("Planned day passed", "watch")
 TODAY_CHIP = Chip("Today", "neutral")
+TODAYS_PICK_CHIP = Chip("Today's pick", "accent")
+"""The briefing's recommended open session (#241)."""
 
 
 @dataclass(frozen=True)
@@ -69,8 +71,11 @@ class OpenWeekView:
         return len(self.rows) > self.days_remaining
 
 
-def open_week_view(open_week: OpenThisWeek | None) -> OpenWeekView | None:
-    """Open this week as rows, or None (no plan this week: the block is left out)."""
+def open_week_view(open_week: OpenThisWeek | None, pick: int | None = None) -> OpenWeekView | None:
+    """Open this week as rows, or None (no plan this week: the block is left out).
+
+    ``pick`` is the open session the briefing recommends (#241): chipped "Today's pick".
+    """
     if open_week is None:
         return None
     rows = []
@@ -83,6 +88,8 @@ def open_week_view(open_week: OpenThisWeek | None) -> OpenWeekView | None:
         if s["duration_minutes"]:
             detail.append(f"{s['duration_minutes']} min")
         chip = {"overdue": OVERDUE_CHIP, "today": TODAY_CHIP}.get(s["status"], Chip(day, "neutral"))
+        if pick is not None and s["id"] == pick:
+            chip = TODAYS_PICK_CHIP
         rows.append(
             OpenRow(
                 day=day,

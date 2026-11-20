@@ -1,4 +1,4 @@
-You are reviewing the past week as a personal trainer. Act on the data below with full coaching authority.
+Write the Coach notes of the weekly recap email for the past training week.
 
 ## Week: 2026-11-02 to 2026-11-08
 
@@ -6,19 +6,19 @@ You are reviewing the past week as a personal trainer. Act on the data below wit
 Completion: 4/5 planned sessions done (80%) — 3 as planned, 1 substituted, 1 not done
 On planned day: 3/4 (informational only — never a penalty)
 Done:
-- Squat [gym] — done Wednesday (planned Monday)
-- Swim 1.7 km [swimming, aerobic base] — done Tuesday (planned Tuesday)
-- Deadlift [gym] — done Friday (planned Friday)
+- Squat [gym] — done Wednesday (planned Monday) [session_id: 1]
+- Swim 1.7 km [swimming, aerobic base] — done Tuesday (planned Tuesday) [session_id: 2]
+- Deadlift [gym] — done Friday (planned Friday) [session_id: 4]
 Substituted:
-- Long easy run [running, aerobic base] (planned Sunday) ← Padel [padel] on Sunday: 101 min, avg HR 118, aerobic TE 2.7, delivered aerobic base
+- Long easy run [running, aerobic base] (planned Sunday) ← Padel [padel] on Sunday: 101 min, avg HR 118, aerobic TE 2.7, delivered aerobic base [session_id: 5]
 Not done:
-- Intervals 6x3 min [running, intervals] (planned Thursday)
+- Intervals 6x3 min [running, intervals] (planned Thursday) [session_id: 3]
 Extras (unplanned, not counted):
 - Walk [walking] on Saturday: 45 min, recovery
 Plan summary: Base block week 3: two lifts, a swim, intervals and a long run.
 
 ## Completion Rules
-- The headline is the Completion line: planned sessions done anywhere in the week, substitutions included. Quote no other completion figure, and never contrast it with a stricter count.
+- The email leads with the Completion line, rendered from the data. Quote no completion figure of your own, and never contrast it with a stricter count.
 - A session done on another day than planned is done. Do not call it moved, shifted or missed, and do not advise fewer or firmer slots, fixed days or any other schedule rigidity. On planned day is informational only.
 - Mention timing only when it caused a real problem: back-to-back heavy sessions, a hard session after poor sleep, or the week's work crammed into the weekend.
 - Judge a substitution on the stimulus it delivered (intent, duration, heart rate, training effect), not on whether the substitution matched the planned sport.
@@ -39,10 +39,10 @@ Low volume or easy sessions during an illness or a ramp-back are recovery, not a
 
 ## This Week's Gym Sessions (Detailed)
 **Wednesday 2026-11-04 — Squat**
-Barbell Squat: 100kg×5 RPE8
+Barbell Squat [exercise_id: D04AC939]: 100kg×5 RPE8
 
 **Friday 2026-11-06 — Deadlift**
-Barbell Deadlift: 140kg×5 RPE8
+Barbell Deadlift [exercise_id: C6272009]: 140kg×5 RPE8
 
 ## Gym Performance History (Last 3 Weeks)
 No gym history data (first week or no prior logged gym sessions).
@@ -70,35 +70,186 @@ No active workout routine.
 ## Weekly Availability
 No availability slots set.
 
-As their personal trainer, analyze the week and provide:
-1. STRENGTH ANALYSIS: For each exercise, assess progress vs last weeks. Flag failed reps, regression, or plateau (same weight/RPE for 3+ weeks). For stagnant exercises, propose a concrete alternative or technique change.
-2. CARDIO ANALYSIS: Assess pace/HR trends vs goals. If not progressing, suggest specific drill sessions (e.g., fartlek, tempo run, drill sets for swimming).
-3. PLAN ADJUSTMENTS: Recommend any changes to volume, intensity, or structure based on recovery data and on the sessions not done, following the Completion Rules.
-4. PRIORITY ACTION: Identify the single most important thing to fix or focus on next week.
+The email already shows the week from the data: the Completion line, each planned session with its status, the extras, the Life context episodes, the sleep and resting heart rate ranges, the top set of each lift and the training load values. Observed and derived numbers never come from you; your slots carry the judgment and what to do about it.
 
-Respond with a JSON object matching this exact schema:
+Slots:
+- headline: summary is one sentence on the week, after the Completion line; tone is good, neutral, watch or alert.
+- actions: 1-3 things to do next week, most important first. "do" starts with a verb; "why" names the signal behind it, or null.
+- guardrail: one conditional adjustment for next week ("when" a stated signal appears, "then" what changes), or null.
+- session_notes: up to 5 short notes on planned sessions worth a remark, each on the session_id shown in Plan Adherence. Leave out sessions with nothing to add.
+- recovery_note: one sentence on recovery across the week (sleep, resting heart rate, HRV, stress).
+- lift_notes: up to 6 trend notes on lifts, each on an exercise_id shown in the gym sessions or history. "trend" is a short phrase ("flat 3 weeks", "up 2.5 kg"); tone is good, neutral, watch or alert. Exercises without an exercise_id get no note.
+- load_note: one sentence on the training load and its balance across sports.
+- block_suggestion: one suggestion for the training block (mesocycle) or a phase change, or null.
+- analysis_md: the full analysis in Markdown, for the dashboard: strength progress per exercise, cardio trends, plan adjustments and the week's priority.
+
+Respond with a JSON object matching this JSON schema:
 {
-  "week_summary": "High-level summary of the training week (volume, intensity, adherence)",
-  "adherence_analysis": "Completion first (e.g. 4/5 done, 1 substituted), then what was not done and why it matters for training",
-  "performance_highlights": ["List of 2-4 notable performances or achievements this week"],
-  "areas_of_concern": ["List of 1-3 concerns or areas that need attention"],
-  "recovery_assessment": "Assessment of recovery status based on health trends (sleep, HRV, stress, Body Battery)",
-  "training_load_analysis": "Analysis of training load distribution and balance across sports",
-  "gym_coaching": [
-    {
-      "day_label": "Day 1 (Session Name)",
-      "exercises": ["Exercise Name: Progression/plateau/regression analysis with data"]
+  "additionalProperties": false,
+  "properties": {
+    "headline": {
+      "additionalProperties": false,
+      "properties": {
+        "tone": {
+          "enum": [
+            "good",
+            "neutral",
+            "watch",
+            "alert"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 140,
+          "type": "string"
+        }
+      },
+      "required": [
+        "tone",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "actions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "do": {
+            "maxLength": 70,
+            "type": "string"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "maxLength": 90,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "do",
+          "why"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "type": "array"
+    },
+    "guardrail": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "when": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "then": {
+              "maxLength": 60,
+              "type": "string"
+            }
+          },
+          "required": [
+            "when",
+            "then"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "session_notes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 80,
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "type": "array"
+    },
+    "recovery_note": {
+      "maxLength": 100,
+      "type": "string"
+    },
+    "lift_notes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "exercise_id": {
+            "type": "string"
+          },
+          "tone": {
+            "enum": [
+              "good",
+              "neutral",
+              "watch",
+              "alert"
+            ],
+            "type": "string"
+          },
+          "trend": {
+            "maxLength": 24,
+            "type": "string"
+          }
+        },
+        "required": [
+          "exercise_id",
+          "tone",
+          "trend"
+        ],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "type": "array"
+    },
+    "load_note": {
+      "maxLength": 100,
+      "type": "string"
+    },
+    "block_suggestion": {
+      "anyOf": [
+        {
+          "maxLength": 110,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "analysis_md": {
+      "type": "string"
     }
+  },
+  "required": [
+    "headline",
+    "actions",
+    "guardrail",
+    "session_notes",
+    "recovery_note",
+    "lift_notes",
+    "load_note",
+    "block_suggestion",
+    "analysis_md"
   ],
-  "exercise_substitutions": ["For each stagnant or regressing exercise: '<Exercise> → <Alternative> because <reason>'"],
-  "cardio_coaching": [
-    {
-      "sport": "Swimming",
-      "analysis": "Pace/HR/efficiency analysis with specific data points",
-      "recommendation": "Specific drill or session recommendation"
-    }
-  ],
-  "coach_recommendations": ["3-5 specific, prioritized actions for next week — most important first"],
-  "next_week_recommendations": "Overall next-week training focus and structure",
-  "mesocycle_progress": "Progress within the current mesocycle block and any phase transition suggestions"
+  "type": "object"
 }

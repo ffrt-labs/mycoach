@@ -7,7 +7,6 @@ import pytest
 
 from mycoach.config import Settings
 from mycoach.email.sender import (
-    CompletionHero,
     EmailSendError,
     _format_key_metrics,
     _format_session_details,
@@ -172,33 +171,6 @@ def test_send_weekly_plan_formats_raw_cardio_details(mock_send: MagicMock) -> No
     assert "target_pace_min_per_km" not in html
 
 
-def test_render_weekly_recap_template() -> None:
-    """Weekly recap template renders recap fields, including coach recommendations."""
-    html = _render_template(
-        "weekly_recap.html",
-        {
-            "recap": {
-                "week_summary": "Solid week",
-                "adherence_analysis": "80% adherence",
-                "performance_highlights": ["Squat PR", "Consistent cardio"],
-                "areas_of_concern": ["Missed Friday"],
-                "recovery_assessment": "Well recovered",
-                "training_load_analysis": "Moderate load",
-                "next_week_recommendations": "Push harder",
-                "mesocycle_progress": "Week 3 of 4",
-                "coach_recommendations": ["Add a third rest day", "Increase protein intake"],
-            },
-            "week_label": "24 Feb",
-            "hero": CompletionHero("No plan this week"),
-        },
-    )
-    assert "Solid week" in html
-    assert "Squat PR" in html
-    assert "Week of 24 Feb" in html
-    assert "Add a third rest day" in html
-    assert "Increase protein intake" in html
-
-
 # --- send_email function ---
 
 
@@ -356,9 +328,7 @@ def test_send_weekly_plan_omits_default_line_when_declared(mock_send: MagicMock)
 def test_send_weekly_plan_omits_default_line_when_source_unknown(mock_send: MagicMock) -> None:
     """Plans generated before availability_source existed (None) don't show the line."""
     settings = _make_settings()
-    send_weekly_plan(
-        summary="Good week", sessions=[], week_start="2025-03-03", settings=settings
-    )
+    send_weekly_plan(summary="Good week", sessions=[], week_start="2025-03-03", settings=settings)
     html = mock_send.call_args[0][2]
     assert "standing schedule" not in html
 

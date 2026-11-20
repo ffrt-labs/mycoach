@@ -36,6 +36,21 @@
                 </button>
             </div>
             {% if recap_data %}
+            {#- A v5 recap (#242) holds Coach notes: its lead and Next week actions here,
+                the full analysis waits for /insights/{id} (#240). -#}
+            {% if recap_data.headline %}
+            <p class="text-zinc-200 text-sm mb-4 leading-relaxed">{{ recap_data.headline.summary }}</p>
+            {% if recap_data.actions %}
+            <div class="border-t border-white/[0.06] pt-4 mb-4">
+                <h3 class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em] mb-2">Next week</h3>
+                <ol class="space-y-1 list-decimal list-inside">
+                    {% for action in recap_data.actions %}
+                    <li class="text-zinc-300 text-xs leading-relaxed">{{ action.do }}{% if action.why %} <span class="text-zinc-500">{{ action.why }}</span>{% endif %}</li>
+                    {% endfor %}
+                </ol>
+            </div>
+            {% endif %}
+            {% endif %}
             <!-- Week Summary -->
             {% if recap_data.week_summary %}
             <p class="text-zinc-200 text-sm mb-4 leading-relaxed">{{ recap_data.week_summary|md_bold }}</p>

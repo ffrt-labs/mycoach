@@ -36,7 +36,7 @@ from mycoach.coaching.context import (
     get_today_health,
     get_today_planned_sessions,
 )
-from mycoach.coaching.email_schemas import PostWorkoutEmail
+from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.exceptions import (
     InsufficientHealthData,
     NoAvailabilityConfigured,
@@ -60,7 +60,6 @@ from mycoach.coaching.response_parser import (
     DailyBriefingResponse,
     GymAdjustmentExercise,
     GymAdjustmentResponse,
-    WeeklyRecapResponse,
     parse_response,
 )
 from mycoach.coaching.steps import load_steps_summary
@@ -162,7 +161,9 @@ CARDIO_PLAN = OperationSpec(
     Operation.CARDIO_PLAN, CardioPlanResponse, model_tier="weekly", max_tokens=8192
 )
 POST_WORKOUT = OperationSpec(Operation.POST_WORKOUT, PostWorkoutEmail, coach_notes=True)
-WEEKLY_RECAP = OperationSpec(Operation.WEEKLY_RECAP, WeeklyRecapResponse, max_tokens=8192)
+WEEKLY_RECAP = OperationSpec(
+    Operation.WEEKLY_RECAP, WeeklyRecapEmail, max_tokens=8192, coach_notes=True
+)
 
 OPERATION_SPECS: Mapping[Operation, OperationSpec[Any]] = {
     spec.operation: spec
@@ -1184,6 +1185,8 @@ class CoachingEngine:
 
         Gathers plan adherence, activities, health trends, and mesocycle context,
         calls the LLM, validates the response, stores as CoachingInsight, and logs the prompt.
+        The answer is the recap's Coach notes (prompt v5, #242); an answer that still fails
+        validation after its retry stores the insight with no notes (``notes_fallback``).
 
         Returns the saved CoachingInsight.
         """
@@ -1252,7 +1255,7 @@ class CoachingEngine:
         # Midnight of the recapped Monday, so a regenerated recap overwrites the ratio.
         self._score_plan_completion(plan_adherence, at=score_timestamp(week_start, now))
         run = weekly_recap_run(user_id, week_start, regenerated_at=now if replaced else None)
-        parsed = await self._generate_insight(
+        parsed = await self._generate_coach_notes(
             session,
             WEEKLY_RECAP,
             run,

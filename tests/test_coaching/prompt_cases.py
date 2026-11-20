@@ -551,6 +551,7 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 {
                     "session_date": "2026-11-04",
                     "session_title": "Squat",
+                    "exercise_id": "D04AC939",
                     "exercise_title": "Barbell Squat",
                     "set_index": 1,
                     "set_type": "normal",
@@ -561,6 +562,7 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 {
                     "session_date": "2026-11-06",
                     "session_title": "Deadlift",
+                    "exercise_id": "C6272009",
                     "exercise_title": "Barbell Deadlift",
                     "set_index": 1,
                     "set_type": "normal",

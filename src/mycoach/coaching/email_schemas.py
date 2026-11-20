@@ -84,3 +84,33 @@ class PostWorkoutEmail(Slot):
     ready_in_hours: int = Field(ge=0, le=96)
     recovery: str = Field(max_length=70)
     analysis_md: str
+
+
+# --- Weekly recap ---------------------------------------------------------------
+
+
+class SessionNote(Slot):
+    """A note on one planned session, joined to its row by ``session_id``."""
+
+    session_id: int
+    text: str = Field(max_length=80)
+
+
+class LiftNote(Slot):
+    """A trend note on one catalogue exercise, joined by its Exercise ID."""
+
+    exercise_id: str
+    tone: Tone
+    trend: str = Field(max_length=24)
+
+
+class WeeklyRecapEmail(Slot):
+    headline: Lead
+    actions: list[Action] = Field(min_length=1, max_length=3)
+    guardrail: Guardrail | None = None
+    session_notes: list[SessionNote] = Field(max_length=5)
+    recovery_note: str = Field(max_length=100)
+    lift_notes: list[LiftNote] = Field(max_length=6)
+    load_note: str = Field(max_length=100)
+    block_suggestion: str | None = Field(None, max_length=110)
+    analysis_md: str

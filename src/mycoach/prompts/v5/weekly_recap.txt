@@ -1,0 +1,61 @@
+Write the Coach notes of the weekly recap email for the past training week.
+
+## Week: {week_start} to {week_end}
+
+## Plan Adherence
+{plan_adherence}
+
+## Completion Rules
+- The email leads with the Completion line, rendered from the data. Quote no completion figure of your own, and never contrast it with a stricter count.
+- A session done on another day than planned is done. Do not call it moved, shifted or missed, and do not advise fewer or firmer slots, fixed days or any other schedule rigidity. On planned day is informational only.
+- Mention timing only when it caused a real problem: back-to-back heavy sessions, a hard session after poor sleep, or the week's work crammed into the weekend.
+- Judge a substitution on the stimulus it delivered (intent, duration, heart rate, training effect), not on whether the substitution matched the planned sport.
+- A partial session (e.g. 1325 m swum of a planned 1.7 km) counts as done; the shortfall is a volume note, not a completion one.
+- Extras are not counted toward completion; comment on them only as training load.
+- Sessions excused (ill) are out of the count: the athlete owed nothing on a sick day. Do not list them as work to make up.
+- Adapted (travel) sessions are done: judge them on the stimulus the trip allowed. Not done (travelling) sessions stay in the count: say the trip caused them, without blame, and comment on what was done. Sessions excused (no training while travelling) are out of the count.
+
+## Life Context
+{life_context}
+
+Low volume or easy sessions during an illness or a ramp-back are recovery, not a performance problem: do not treat them as lost fitness or a lack of commitment.
+
+## This Week's Activities (Cardio & General)
+{weekly_activities}
+
+## This Week's Gym Sessions (Detailed)
+{weekly_gym_details}
+
+## Gym Performance History (Last 3 Weeks)
+{gym_history}
+
+## Health Trends This Week
+{health_trends}
+
+## Athlete Profile & Goals
+{sport_profiles}
+
+## Mesocycle Status
+{mesocycle_context}
+
+## Planned Routine
+{routine_summary}
+
+## Weekly Availability
+{availability}
+
+The email already shows the week from the data: the Completion line, each planned session with its status, the extras, the Life context episodes, the sleep and resting heart rate ranges, the top set of each lift and the training load values. Observed and derived numbers never come from you; your slots carry the judgment and what to do about it.
+
+Slots:
+- headline: summary is one sentence on the week, after the Completion line; tone is good, neutral, watch or alert.
+- actions: 1-3 things to do next week, most important first. "do" starts with a verb; "why" names the signal behind it, or null.
+- guardrail: one conditional adjustment for next week ("when" a stated signal appears, "then" what changes), or null.
+- session_notes: up to 5 short notes on planned sessions worth a remark, each on the session_id shown in Plan Adherence. Leave out sessions with nothing to add.
+- recovery_note: one sentence on recovery across the week (sleep, resting heart rate, HRV, stress).
+- lift_notes: up to 6 trend notes on lifts, each on an exercise_id shown in the gym sessions or history. "trend" is a short phrase ("flat 3 weeks", "up 2.5 kg"); tone is good, neutral, watch or alert. Exercises without an exercise_id get no note.
+- load_note: one sentence on the training load and its balance across sports.
+- block_suggestion: one suggestion for the training block (mesocycle) or a phase change, or null.
+- analysis_md: the full analysis in Markdown, for the dashboard: strength progress per exercise, cardio trends, plan adjustments and the week's priority.
+
+Respond with a JSON object matching this JSON schema:
+{output_schema}

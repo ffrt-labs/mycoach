@@ -1006,3 +1006,31 @@ class TestLastDeviceUpload:
 
         assert upload is not None
         assert upload.device_name is None
+
+
+def test_load_focus_keeps_garmins_target_ranges() -> None:
+    """The recap draws a load bar only against a target range (#242)."""
+    import json
+
+    balance = SAMPLE_TRAINING_STATUS["mostRecentTrainingLoadBalance"][
+        "metricsTrainingLoadBalanceDTOMap"
+    ]["device1"] | {
+        "monthlyLoadAerobicLowTargetMin": 200,
+        "monthlyLoadAerobicLowTargetMax": 450,
+        "monthlyLoadAerobicHighTargetMin": 150,
+        "monthlyLoadAerobicHighTargetMax": 380,
+        "monthlyLoadAnaerobicTargetMin": 40,
+        "monthlyLoadAnaerobicTargetMax": 160,
+    }
+    status = SAMPLE_TRAINING_STATUS | {
+        "mostRecentTrainingLoadBalance": {"metricsTrainingLoadBalanceDTOMap": {"d": balance}}
+    }
+
+    snapshot = map_health_snapshot(
+        user_id=1, snapshot_date=date(2024, 6, 10), stats=SAMPLE_STATS, training_status=status
+    )
+
+    lf = json.loads(snapshot.load_focus or "{}")
+    assert (lf["aerobic_low_target_min"], lf["aerobic_low_target_max"]) == (200, 450)
+    assert (lf["aerobic_high_target_min"], lf["aerobic_high_target_max"]) == (150, 380)
+    assert (lf["anaerobic_target_min"], lf["anaerobic_target_max"]) == (40, 160)

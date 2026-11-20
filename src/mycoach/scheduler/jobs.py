@@ -17,6 +17,7 @@ from functools import partial
 from typing import Any, TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
 from mycoach.coaching.athlete import athlete_id_for
@@ -27,7 +28,9 @@ from mycoach.coaching.context import (
     find_matching_planned_session,
     get_activity_with_details,
     get_body_summary,
+    get_gym_details_for_week,
     get_health_trends,
+    get_mesocycle_context,
     get_open_this_week,
     get_plan_adherence_for_week,
     get_similar_activities,
@@ -135,9 +138,7 @@ class _Delivery:
 # threading the fact back through both its return value and its exceptions. That
 # matters for the post-workout batch, which can deliver one email and still fail
 # the run on another — the exception would otherwise lose the delivery.
-_current_delivery: ContextVar[_Delivery | None] = ContextVar(
-    "job_email_delivery", default=None
-)
+_current_delivery: ContextVar[_Delivery | None] = ContextVar("job_email_delivery", default=None)
 
 
 def _deliver(send: Callable[[], bool], email_label: str) -> None:
@@ -521,9 +522,7 @@ async def _daily_briefing(today: date | None = None) -> None:
         # account the whole loop depends on staying unthrottled. Recovering
         # older late uploads is the 06:00 sync's job; this one only needs the
         # day it is briefing about and the night either side of it.
-        sync_result = await _garmin_sync(
-            days=get_settings().scheduler_briefing_sync_lookback_days
-        )
+        sync_result = await _garmin_sync(days=get_settings().scheduler_briefing_sync_lookback_days)
         sync_errors = list(sync_result.errors or [])
     except Exception as e:  # recorded, and the briefing may still be viable
         # This wraps the health seam and event dispatch too, so keep the traceback: a bug
@@ -652,9 +651,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
     relevant to a validation error nor worth the round trip.
     """
     if not await _get_user_email_pref("email_daily_briefing"):
-        raise PipelineSkip(
-            "daily briefing email is switched off — no alert to send"
-        )
+        raise PipelineSkip("daily briefing email is switched off — no alert to send")
 
     upload = None if window.is_broken else await _last_device_upload()
     numbers = await _code_rendered_numbers(window.day)
@@ -665,9 +662,7 @@ async def _briefing_alert(window: BriefingWindow) -> None:
             day=window.day.strftime("%A, %B %-d"),
             failures=window.failed_attempts,
             is_broken=window.is_broken,
-            can_still_retry=(
-                window.now.time() < GENERATE_CUTOFF and not window.budget_exhausted
-            ),
+            can_still_retry=(window.now.time() < GENERATE_CUTOFF and not window.budget_exhausted),
             detail=window.last_detail,
             last_upload=upload.uploaded_at if upload else None,
             device_name=upload.device_name if upload else None,
@@ -684,7 +679,6 @@ async def _last_device_upload() -> DeviceUpload | None:
         logger.warning("Scheduler: Garmin auth failed during briefing alert: %s", source.auth_error)
         return None
     return source.get_last_device_upload()
-
 
 
 def job_weekly_plan() -> None:
@@ -787,6 +781,30 @@ async def _garmin_login_failing() -> bool:
     )
 
 
+async def _week_health(week_start: date) -> list[dict[str, Any]]:
+    """The recapped week's health snapshots, for its recovery tiles and load (#242)."""
+    async with async_session() as session:
+        athlete_id = await athlete_id_for(session, USER_ID)
+    return await health.list_snapshots(athlete_id, week_start, until=week_start + timedelta(days=7))
+
+
+async def _has_mesocycle(session: AsyncSession) -> bool:
+    """Whether a mesocycle is set up; without one the recap's Setup links to it."""
+    return await get_mesocycle_context(session, USER_ID) is not None
+
+
+async def _plan_generation_failing() -> bool:
+    """Whether the last weekly-plan run failed: the recap's Setup links to the job log."""
+    async with async_session() as session:
+        last = await session.scalar(
+            select(JobRun)
+            .where(JobRun.job_name == "weekly_plan")
+            .order_by(JobRun.started_at.desc())
+            .limit(1)
+        )
+    return last is not None and last.status == "failed"
+
+
 async def _weekly_recap() -> None:
     engine = CoachingEngine()
     settings = get_settings()
@@ -815,6 +833,13 @@ async def _weekly_recap() -> None:
                 "the week's health data", _health_days_missing(last_monday, today)
             )
             garmin_auth_failed = await _or_none("the last Garmin sync", _garmin_login_failing())
+            # The code-rendered blocks of the v5 recap (#242); best-effort, None if unread.
+            health_week = await _or_none("the week's health snapshots", _week_health(last_monday))
+            gym_sets = await _or_none(
+                "the week's gym log", get_gym_details_for_week(session, USER_ID, last_monday)
+            )
+            has_mesocycle = await _or_none("the mesocycle", _has_mesocycle(session))
+            plan_failed = await _or_none("the last weekly plan run", _plan_generation_failing())
             _deliver(
                 partial(
                     send_weekly_recap,
@@ -825,6 +850,11 @@ async def _weekly_recap() -> None:
                     today=today,
                     health_days_missing=health_days_missing,
                     garmin_auth_failed=bool(garmin_auth_failed),
+                    health_week=health_week,
+                    gym_sets=gym_sets,
+                    has_mesocycle=has_mesocycle,
+                    plan_failed=bool(plan_failed),
+                    insight_id=insight.id,
                 ),
                 "weekly recap",
             )
@@ -885,9 +915,7 @@ async def _post_workout_analysis() -> None:
             # Per-activity resilience: one activity's skip or failure must not
             # abort the batch. A whole-batch skip (no activities) is raised above.
             try:
-                insight = await engine.generate_post_workout_analysis(
-                    session, USER_ID, external_id
-                )
+                insight = await engine.generate_post_workout_analysis(session, USER_ID, external_id)
                 logger.info(
                     "Scheduler: post-workout analysis generated for activity %s (%s)",
                     external_id,
@@ -949,9 +977,7 @@ def _raise_post_workout_outcome(analysed: int, skipped: int, failures: list[str]
         # A partial failure is still a failure: the run is the only durable
         # signal, so a nightly batch quietly losing one activity must not be
         # filed as a success.
-        raise RuntimeError(
-            f"{len(failures)} of {total} activities failed — " + "; ".join(failures)
-        )
+        raise RuntimeError(f"{len(failures)} of {total} activities failed — " + "; ".join(failures))
     if analysed == 0:
         # Everything already had an insight — deliberate no-op, not work done.
         raise PipelineSkip(f"all {skipped} activities already analysed")

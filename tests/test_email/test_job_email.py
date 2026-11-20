@@ -109,7 +109,6 @@ async def test_daily_briefing_skips_email_when_disabled(
         mock_send.assert_not_called()
 
 
-
 async def test_weekly_recap_sends_email(
     mock_session: AsyncMock,
 ) -> None:
@@ -313,9 +312,7 @@ async def test_a_body_lookup_failure_does_not_cost_the_briefing_email(
         patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
         patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
         patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
-        patch(
-            "mycoach.scheduler.jobs.get_body_summary", AsyncMock(side_effect=RuntimeError("db"))
-        ),
+        patch("mycoach.scheduler.jobs.get_body_summary", AsyncMock(side_effect=RuntimeError("db"))),
         patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
     ):
         await _daily_briefing()
@@ -376,9 +373,7 @@ async def test_a_life_context_or_open_week_failure_does_not_cost_the_briefing_em
         patch(
             "mycoach.scheduler.jobs.get_open_this_week", AsyncMock(side_effect=RuntimeError("db"))
         ),
-        patch(
-            "mycoach.scheduler.jobs.life_context_for", AsyncMock(side_effect=RuntimeError("db"))
-        ),
+        patch("mycoach.scheduler.jobs.life_context_for", AsyncMock(side_effect=RuntimeError("db"))),
         patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
     ):
         await _daily_briefing(date(2026, 11, 19))
@@ -689,3 +684,103 @@ async def test_a_gym_post_workout_email_gets_its_performed_sets_with_prescriptio
 
     assert mock_send.call_args.kwargs["sets"] == sets
     assert load_sets.call_args.args[1:] == ("gym-1", USER_ID)
+
+
+# --- The recap's code-rendered blocks on v5 (#242) ------------------------------------
+
+
+async def _seed_week_health() -> None:
+    """Week of 9 Nov: two nights inside the week, one the Sunday before it."""
+    async with db_session() as session:
+        session.add(User(id=USER_ID, email="a@example.com", name="A"))
+        for day, score in (
+            (date(2026, 11, 8), 90),
+            (date(2026, 11, 10), 70),
+            (date(2026, 11, 15), 80),
+        ):
+            session.add(DailyHealthSnapshot(user_id=USER_ID, snapshot_date=day, sleep_score=score))
+        await session.commit()
+
+
+async def test_weekly_recap_email_gets_the_recapped_weeks_health_snapshots() -> None:
+    await _seed_week_health()
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    week = mock_send.call_args.kwargs["health_week"]
+    assert sorted(s["snapshot_date"] for s in week) == ["2026-11-10", "2026-11-15"]
+
+
+async def test_weekly_recap_email_gets_the_recapped_weeks_gym_sets() -> None:
+    sets = [{"exercise_id": "D04AC939", "weight_kg": 100.0, "reps": 5}]
+    load = AsyncMock(return_value=sets)
+    with patch("mycoach.scheduler.jobs.get_gym_details_for_week", load):
+        mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert load.call_args[0][2] == date(2026, 11, 9)
+    assert mock_send.call_args.kwargs["gym_sets"] == sets
+
+
+async def test_weekly_recap_email_knows_there_is_no_mesocycle() -> None:
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["has_mesocycle"] is False
+
+
+async def _seed_plan_run(started_at: datetime, status: str) -> None:
+    async with db_session() as session:
+        session.add(
+            JobRun(job_name="weekly_plan", started_at=started_at, duration_ms=10, status=status)
+        )
+        await session.commit()
+
+
+async def test_weekly_recap_email_knows_the_last_plan_generation_failed() -> None:
+    await _seed_plan_run(datetime(2026, 11, 8, 18), "success")
+    await _seed_plan_run(datetime(2026, 11, 15, 18), "failed")
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["plan_failed"] is True
+
+
+async def test_a_plan_generation_that_failed_and_then_ran_is_not_reported() -> None:
+    await _seed_plan_run(datetime(2026, 11, 15, 18), "failed")
+    await _seed_plan_run(datetime(2026, 11, 15, 19), "success")
+
+    mock_send = await _recap_on(date(2026, 11, 16))
+
+    assert mock_send.call_args.kwargs["plan_failed"] is False
+
+
+async def test_weekly_recap_email_without_coach_notes_still_goes() -> None:
+    """A notes_fallback insight holds JSON null: the email carries its code blocks only."""
+    insight = MagicMock(content="null")
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+    with (
+        patch("mycoach.scheduler.jobs.local_today", return_value=date(2026, 11, 16)),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", db_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+
+    assert mock_send.call_args[0][0] is None
+
+
+async def test_weekly_recap_email_links_the_insight_it_renders(mock_session: AsyncMock) -> None:
+    """The "Full recap →" CTA opens this recap's insight page (#242 on #240)."""
+    insight = MagicMock(id=91, content="null")
+    mock_engine = MagicMock()
+    mock_engine.generate_weekly_recap = AsyncMock(return_value=insight)
+    with (
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.send_weekly_recap") as mock_send,
+    ):
+        await _weekly_recap()
+
+    assert mock_send.call_args.kwargs["insight_id"] == 91

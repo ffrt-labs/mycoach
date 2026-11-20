@@ -177,6 +177,14 @@ def map_health_snapshot(
                         "aerobic_high": balance.get("monthlyLoadAerobicHigh"),
                         "anaerobic": balance.get("monthlyLoadAnaerobic"),
                         "feedback": balance.get("trainingBalanceFeedbackPhrase"),
+                        # Garmin's target ranges: the recap draws a load bar only
+                        # against one (#242).
+                        "aerobic_low_target_min": balance.get("monthlyLoadAerobicLowTargetMin"),
+                        "aerobic_low_target_max": balance.get("monthlyLoadAerobicLowTargetMax"),
+                        "aerobic_high_target_min": balance.get("monthlyLoadAerobicHighTargetMin"),
+                        "aerobic_high_target_max": balance.get("monthlyLoadAerobicHighTargetMax"),
+                        "anaerobic_target_min": balance.get("monthlyLoadAnaerobicTargetMin"),
+                        "anaerobic_target_max": balance.get("monthlyLoadAnaerobicTargetMax"),
                     })
                     break
         # Extract recovery time from mostRecentTrainingStatus

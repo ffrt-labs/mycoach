@@ -79,8 +79,22 @@ def text(html: str, cls: str) -> str:
     return found[0]
 
 
+_NOTES: dict[str, Any] = {
+    "headline": {"tone": "good", "summary": "Both lifts and the swim are in."},
+    "actions": [{"do": "Keep one intervals session in the week.", "why": None}],
+    "guardrail": None,
+    "session_notes": [],
+    "recovery_note": "Sleep held up.",
+    "lift_notes": [],
+    "load_note": "Mostly low aerobic work.",
+    "block_suggestion": None,
+    "analysis_md": "## Week",
+}
+"""The recap's Coach notes (prompt v5, #242), as little as the hero needs."""
+
+
 def _render(adherence: Any = WEEK_2026_11_02_ADHERENCE, **kwargs: Any) -> str:
-    content = kwargs.pop("content", {"week_summary": "Both lifts and the swim are in."})
+    content = kwargs.pop("content", _NOTES)
     with patch("mycoach.email.sender.send_email", return_value=True) as mock_send:
         send_weekly_recap(
             content,

@@ -21,7 +21,7 @@ from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import OpenThisWeek, PlanAdherence
-from mycoach.coaching.email_schemas import PostWorkoutEmail
+from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
 from mycoach.coaching.life_context import (
     STATUS_LABEL,
@@ -43,6 +43,15 @@ from mycoach.email.coach_notes import (
 )
 from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
 from mycoach.email.links import insight_url
+from mycoach.email.recap_views import (
+    lift_rows,
+    load_rows,
+    recovery_tiles,
+    setup_notices,
+)
+from mycoach.email.recap_views import (
+    session_notes as recap_session_notes,
+)
 from mycoach.email.tones import (
     JINJA_GLOBALS,
     LIFE_CONTEXT_STYLE,
@@ -958,6 +967,7 @@ class SessionRow:
     chip: Chip | None
     detail: str | None  # "Done Wednesday", or what filled it
     struck: bool  # excused: out of the count, no action asked
+    note: str | None = None  # the coach's session note, joined by session id (#242)
 
 
 def _weekday_index(day: str) -> int:
@@ -986,11 +996,14 @@ def _substitute_line(sub: Mapping[str, Any]) -> str:
     return " · ".join(parts)
 
 
-def session_rows(adherence: Mapping[str, Any] | None) -> list[SessionRow]:
+def session_rows(
+    adherence: Mapping[str, Any] | None, notes: Mapping[int, str] | None = None
+) -> list[SessionRow]:
     """The week's planned sessions in planned-day order, each with its status chip.
 
     A session done on another day says which ("Done Wednesday"); a substituted or
-    adapted one shows what filled it; an excused one is struck through.
+    adapted one shows what filled it; an excused one is struck through. ``notes`` are
+    the coach's session notes by session id (#242).
     """
     rows = []
     for s in sorted(
@@ -1010,6 +1023,7 @@ def session_rows(adherence: Mapping[str, Any] | None) -> list[SessionRow]:
                 chip=SESSION_STATUS_CHIP.get(status),
                 detail=detail,
                 struck=status in _EXCUSED_STATUSES,
+                note=(notes or {}).get(s.get("id")),
             )
         )
     return rows
@@ -1181,7 +1195,7 @@ def quick_replies(
 
 
 def send_weekly_recap(
-    content: dict,  # type: ignore[type-arg]
+    content: Mapping[str, Any] | WeeklyRecapEmail | None,
     week_start: str,
     settings: Settings | None = None,
     adherence: Mapping[str, Any] | None = None,
@@ -1189,8 +1203,18 @@ def send_weekly_recap(
     today: date | None = None,
     health_days_missing: int | None = None,
     garmin_auth_failed: bool = False,
+    *,
+    health_week: Sequence[Mapping[str, Any]] | None = None,
+    gym_sets: Sequence[Mapping[str, Any]] | None = None,
+    has_mesocycle: bool | None = None,
+    plan_failed: bool = False,
+    insight_id: int | None = None,
 ) -> bool:
-    """Send weekly recap email.
+    """Send the weekly recap: Coach notes in their slots, every number from code (#242).
+
+    ``content`` is the insight's Coach notes (``WeeklyRecapEmail``, prompt v5), or
+    ``None`` after a ``notes_fallback``: the code blocks then go out under a "Coach
+    notes unavailable today" Notice. Content that does not validate counts as none.
 
     ``adherence`` is the recapped week's Completion, from the DB, not the LLM:
     it leads the email as the hero (#232), above the coach's summary.
@@ -1199,15 +1223,26 @@ def send_weekly_recap(
     ``health_days_missing`` (days of the week with no health snapshot, None if
     unread) and ``garmin_auth_failed`` feed the cause quick replies (#237);
     ``today`` caps their illness prefill at yesterday.
+    ``health_week`` (the week's health snapshots) gives the recovery tiles and load
+    values, ``gym_sets`` (its gym log) the top sets; ``has_mesocycle`` (None if unread)
+    and ``plan_failed`` (the last weekly-plan run failed) the setup notices.
+    ``insight_id`` is the recap Insight this email renders: with Coach notes, "Full
+    recap →" opens its full analysis (#240); otherwise the dashboard.
     """
     if settings is None:
         settings = get_settings()
     if today is None:
         today = local_today(settings.timezone)
+    notes = coach_notes(content, WeeklyRecapEmail)
+    full_recap = (
+        insight_url(settings, insight_id) if notes is not None and insight_id is not None else None
+    )
     html = _render_template(
         "weekly_recap.html",
         {
-            "recap": content,
+            "full_recap_url": full_recap or _dashboard_url(settings),
+            "notes": notes,
+            "notes_unavailable": NOTES_UNAVAILABLE,
             "quick_replies": quick_replies(
                 adherence,
                 episodes,
@@ -1220,10 +1255,18 @@ def send_weekly_recap(
             "week_label": _short_date(week_start),
             "dashboard_url": _dashboard_url(settings),
             "hero": completion_hero(adherence),
-            "sessions": session_rows(adherence),
+            "sessions": session_rows(
+                adherence, recap_session_notes(notes.session_notes, adherence) if notes else None
+            ),
             "extras": extra_rows(adherence),
             "episodes": None if episodes is None else [episode_line(e) for e in episodes],
             "log_episode_url": _log_episode_url(settings, week_start),
+            "recovery_tiles": recovery_tiles(health_week),
+            "lifts": lift_rows(gym_sets, notes.lift_notes if notes else ()),
+            "loads": load_rows(health_week),
+            "setup_notices": setup_notices(
+                settings.app_base_url, has_mesocycle=has_mesocycle, plan_failed=plan_failed
+            ),
         },
     )
     return send_email(settings.email_to, "MyCoach — Weekly Recap", html, settings)

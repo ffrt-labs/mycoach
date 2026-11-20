@@ -910,7 +910,8 @@ async def test_post_workout_analysis_sends_email(
     ):
         await _post_workout_analysis()
 
-    mock_send.assert_called_once_with({"performance_summary": "Great workout"}, "Morning Swim")
+    mock_send.assert_called_once()
+    assert mock_send.call_args.args == ({"performance_summary": "Great workout"}, "Morning Swim")
 
 
 class TestDailyBriefingPoll:

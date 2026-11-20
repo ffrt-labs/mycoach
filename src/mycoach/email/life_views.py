@@ -5,10 +5,12 @@ links are decided here, never by the LLM and never re-typed in a template. The
 briefing uses both; the post-workout email (#235) reuses Open this week.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
-from mycoach.coaching.context import OpenThisWeek
+from mycoach.coaching.context import OpenThisWeek, PlanAdherence
 from mycoach.coaching.life_context import (
     DayEffect,
     Episode,
@@ -19,7 +21,7 @@ from mycoach.coaching.life_context import (
     is_jet_lag,
     travel_on,
 )
-from mycoach.email.tones import LIFE_CONTEXT_STYLE, Chip
+from mycoach.email.tones import LIFE_CONTEXT_STYLE, SESSION_STATUS_CHIP, Chip, intent_chip
 from mycoach.models.life_context import EpisodeKind, Equipment
 from mycoach.models.plan import INTENT_LABEL
 
@@ -36,6 +38,14 @@ class OpenRow:
     """ "Gym · strength · 75 min": whichever of the three the session has."""
     chip: Chip
 
+    @property
+    def compact(self) -> Chip:
+        """The row as one chip, for the post-workout's compact list (#235): "Squat Day ·
+        planned day passed" in the watch tone when overdue, else the bare title."""
+        if self.chip == OVERDUE_CHIP:
+            return Chip(f"{self.title} · {OVERDUE_CHIP.label.lower()}", OVERDUE_CHIP.style)
+        return Chip(self.title, "neutral")
+
 
 @dataclass(frozen=True)
 class OpenWeekView:
@@ -46,6 +56,12 @@ class OpenWeekView:
     def summary(self) -> str:
         days = self.days_remaining
         return f"{len(self.rows)} left · {days} day{'s' if days != 1 else ''} remaining"
+
+    @property
+    def short_summary(self) -> str:
+        """ "4 left · 5 days", the compact list's count."""
+        days = self.days_remaining
+        return f"{len(self.rows)} left · {days} day{'s' if days != 1 else ''}"
 
     @property
     def overloaded(self) -> bool:
@@ -76,6 +92,52 @@ def open_week_view(open_week: OpenThisWeek | None) -> OpenWeekView | None:
             )
         )
     return OpenWeekView(rows=rows, days_remaining=open_week["days_remaining"])
+
+
+# --- Post-workout week status (#235) ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WeekStatus:
+    """What one activity did for its week, as the post-workout email states it:
+    "[Done] Completes Tue · Aerobic base swim + technique [aerobic base]"."""
+
+    chip: Chip
+    verb: str
+    """ "Completes" or "Substitutes"; an Extra activity's whole line."""
+    target: str | None = None
+    """ "Tue · Aerobic base swim + technique": the planned session it counted for."""
+    intent: Chip | None = None
+
+
+EXTRA_STATUS = WeekStatus(SESSION_STATUS_CHIP["extra"], "Training load only, not counted")
+
+_STATUS_VERB: dict[str, str] = {
+    "done": "Completes",
+    "substituted": "Substitutes",
+    "adapted_travel": "Substitutes",
+}
+
+
+def week_status(
+    week: PlanAdherence | None, activity: Mapping[str, Any] | None
+) -> WeekStatus | None:
+    """The activity's place in its week's Completion, or None (no plan that week, or
+    the Completion doesn't name the activity)."""
+    if week is None or activity is None:
+        return None
+    external_id = activity.get("external_id")
+    for s in week["sessions"]:
+        if s.get("done_by") == external_id and s["status"] in _STATUS_VERB:
+            return WeekStatus(
+                chip=SESSION_STATUS_CHIP[s["status"]],
+                verb=_STATUS_VERB[s["status"]],
+                target=f"{s['day'][:3]} · {s['title']}",
+                intent=intent_chip(s["intent"]),
+            )
+    if any(a["external_id"] == external_id for a in week["extras"]):
+        return EXTRA_STATUS
+    return None
 
 
 # --- Life context banner --------------------------------------------------------------
@@ -183,6 +245,26 @@ def _travel_banner(trip: Episode) -> Banner:
         + ("; jet-lag principle applies today." if jet_lag else "."),
         link_label="Edit trip →",
     )
+
+
+def life_chip(life: LifeContext | None) -> Chip | None:
+    """The chip beside the post-workout verdict on a ramp-back or travel day (#235):
+    "Ramp-back day 2/5", "Travelling · hotel gym". None on any other day.
+
+    ``life.today`` is the activity's day. A ramp-back outranks a trip, as in the banner.
+    """
+    if life is None:
+        return None
+    if life.ramp_back is not None:
+        ramp = life.ramp_back
+        return Chip(f"Ramp-back day {ramp.day}/{ramp.length}", LIFE_CONTEXT_STYLE["ramp_back"])
+    trip = travel_on(life.episodes, life.today, today=life.today)
+    if trip is None:
+        return None
+    label = "Travelling"
+    if trip.equipment:
+        label += f" · {EQUIPMENT_LABEL[trip.equipment].lower()}"
+    return Chip(label, LIFE_CONTEXT_STYLE[DayEffect.TRAVEL])
 
 
 def life_banner(life: LifeContext | None) -> Banner | None:

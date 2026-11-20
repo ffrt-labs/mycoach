@@ -23,6 +23,7 @@ from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.body import BodySummary
 from mycoach.coaching.context import (
     OpenThisWeek,
+    PlanAdherence,
     get_body_summary,
     get_health_trends,
     get_open_this_week,
@@ -335,10 +336,52 @@ async def _notify_post_workout(insight: CoachingInsight, activity_external_id: s
         athlete_id = await athlete_id_for(session, USER_ID)
     activity = await health.get_activity(athlete_id, activity_external_id)
     title = activity["title"] if activity else activity_external_id
+    views = await _post_workout_week_and_life(activity)
     _deliver(
-        partial(send_post_workout, json.loads(insight.content), title),
+        partial(send_post_workout, json.loads(insight.content), title, **views),
         f"post-workout activity {activity_external_id}",
     )
+
+
+def _activity_day(activity: dict[str, Any], today: date) -> date:
+    """The day the activity started (as Completion places it), else ``today``."""
+    start = activity.get("start_time")
+    return datetime.fromisoformat(str(start)).date() if start else today
+
+
+async def _week_of(day: date, today: date) -> PlanAdherence | None:
+    async with async_session() as session:
+        return await get_plan_adherence_for_week(
+            session, USER_ID, day - timedelta(days=day.weekday()), today=today
+        )
+
+
+async def _life_on(day: date) -> LifeContext:
+    async with async_session() as session:
+        return await life_context_for(session, USER_ID, day, day, today=day)
+
+
+async def _post_workout_week_and_life(activity: dict[str, Any] | None) -> dict[str, Any]:
+    """The post-workout email's ``activity``/``week``/``life``/``open_this_week`` (#235).
+
+    ``week`` is the activity's week Completion and ``life`` its day's Life context, so
+    a catch-up email about Sunday's run still speaks of Sunday's week; ``open_this_week``
+    is what is open as of the send. Best-effort like the briefing's: a failed read
+    leaves its block out of the email.
+    """
+    settings = get_settings()
+    today = local_today(settings.scheduler_timezone or settings.timezone)
+    views: dict[str, Any] = {
+        "activity": activity,
+        "week": None,
+        "life": None,
+        "open_this_week": await _or_none("open this week", _open_this_week(today)),
+    }
+    if activity is not None:
+        day = _activity_day(activity, today)
+        views["week"] = await _or_none(f"{day}'s week", _week_of(day, today))
+        views["life"] = await _or_none(f"{day}'s life context", _life_on(day))
+    return views
 
 
 async def _dispatch_health_events(events: list[HealthEvent]) -> None:
@@ -810,11 +853,12 @@ async def _post_workout_analysis() -> None:
 
                 if send_email:
                     content = json.loads(insight.content)
+                    views = await _post_workout_week_and_life(activity)
                     # A rejected send lands in ``failures`` below, like any other
                     # per-activity failure, so one undelivered email neither
                     # aborts the batch nor passes as delivered.
                     _deliver(
-                        partial(send_post_workout, content, activity["title"]),
+                        partial(send_post_workout, content, activity["title"], **views),
                         f"post-workout activity {external_id}",
                     )
                 # Tallied last so an activity counts exactly once: a failure

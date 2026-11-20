@@ -486,13 +486,14 @@ TUESDAY_SWIM = {
     "start_time": "2026-11-17 07:00:00",
 }
 POST_WORKOUT = {"performance_summary": "Steady"}
+POST_WORKOUT_INSIGHT_ID = 77
 
 PostWorkoutRun = Callable[[ExitStack, AsyncMock], Awaitable[None]]
 
 
 async def _analysis_scan(stack: ExitStack, session: AsyncMock) -> None:
     """The catch-up scan's call site."""
-    insight = MagicMock(content=json.dumps(POST_WORKOUT))
+    insight = MagicMock(id=POST_WORKOUT_INSIGHT_ID, content=json.dumps(POST_WORKOUT))
     engine = MagicMock()
     engine.generate_post_workout_analysis = AsyncMock(return_value=insight)
     result = MagicMock()
@@ -514,7 +515,8 @@ async def _settled_event(stack: ExitStack, session: AsyncMock) -> None:
     stack.enter_context(
         patch("mycoach.scheduler.jobs.health.get_activity", AsyncMock(return_value=TUESDAY_SWIM))
     )
-    await _notify_post_workout(MagicMock(content=json.dumps(POST_WORKOUT)), "swim-1")
+    insight = MagicMock(id=POST_WORKOUT_INSIGHT_ID, content=json.dumps(POST_WORKOUT))
+    await _notify_post_workout(insight, "swim-1")
 
 
 async def _send_post_workout(
@@ -588,3 +590,19 @@ async def test_a_week_or_life_context_failure_does_not_cost_the_post_workout_ema
     assert kwargs["week"] is None
     assert kwargs["life"] is None
     assert kwargs["open_this_week"] is None
+
+
+@pytest.mark.parametrize("run", [_analysis_scan, _settled_event])
+async def test_post_workout_email_links_the_revision_it_renders(
+    run: PostWorkoutRun, mock_session: AsyncMock
+) -> None:
+    """Both call sites pass the insight's id, so "Full analysis →" opens that revision."""
+    mock_send = await _send_post_workout(
+        run,
+        mock_session,
+        adherence=AsyncMock(return_value=None),
+        life=AsyncMock(return_value=None),
+        open_week=AsyncMock(return_value=None),
+    )
+
+    assert mock_send.call_args.kwargs["insight_id"] == POST_WORKOUT_INSIGHT_ID

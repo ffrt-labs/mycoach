@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.coaching import CoachingInsight
@@ -183,6 +184,36 @@ async def test_history_page_analysis_badge(client: AsyncClient) -> None:
     resp = await client.get("/history")
     assert resp.status_code == 200
     assert "Analyzed" in resp.text
+
+
+async def test_history_page_shows_a_v5_analysis_and_links_its_insight_page(
+    client: AsyncClient,
+) -> None:
+    """A v5 post-workout insight's panel is its full analysis, not an empty v4 panel."""
+    from tests.test_pages.test_insight import _notes
+
+    await _seed_user()
+    activity = await _seed_activity(title="Pool swim", sport="swimming")
+    async with test_session() as session:
+        for revision, take in ((1, "First take."), (2, "Held **Z2** throughout.")):
+            session.add(
+                CoachingInsight(
+                    user_id=1,
+                    insight_type="post_workout",
+                    insight_date=activity.start_time.date(),
+                    content=_notes(take),
+                    activity_external_id=activity.external_id,
+                    revision=revision,
+                )
+            )
+        await session.commit()
+        latest = (await session.execute(select(func.max(CoachingInsight.id)))).scalar_one()
+
+    resp = await client.get("/history")
+
+    assert "Held <strong>Z2</strong> throughout." in resp.text
+    assert "First take." not in resp.text
+    assert f'href="/insights/{latest}"' in resp.text
 
 
 async def test_history_page_sport_filter_chips(client: AsyncClient) -> None:

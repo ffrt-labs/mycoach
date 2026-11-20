@@ -338,7 +338,13 @@ async def _notify_post_workout(insight: CoachingInsight, activity_external_id: s
     title = activity["title"] if activity else activity_external_id
     views = await _post_workout_week_and_life(activity)
     _deliver(
-        partial(send_post_workout, json.loads(insight.content), title, **views),
+        partial(
+            send_post_workout,
+            json.loads(insight.content),
+            title,
+            insight_id=insight.id,
+            **views,
+        ),
         f"post-workout activity {activity_external_id}",
     )
 
@@ -858,7 +864,13 @@ async def _post_workout_analysis() -> None:
                     # per-activity failure, so one undelivered email neither
                     # aborts the batch nor passes as delivered.
                     _deliver(
-                        partial(send_post_workout, content, activity["title"], **views),
+                        partial(
+                            send_post_workout,
+                            content,
+                            activity["title"],
+                            insight_id=insight.id,
+                            **views,
+                        ),
                         f"post-workout activity {external_id}",
                     )
                 # Tallied last so an activity counts exactly once: a failure

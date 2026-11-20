@@ -42,6 +42,7 @@ from mycoach.email.coach_notes import (
     tip_chip,
 )
 from mycoach.email.life_views import life_banner, life_chip, open_week_view, week_status
+from mycoach.email.links import insight_url
 from mycoach.email.tones import (
     JINJA_GLOBALS,
     LIFE_CONTEXT_STYLE,
@@ -820,6 +821,7 @@ def send_post_workout(
     week: PlanAdherence | None = None,
     life: LifeContext | None = None,
     open_this_week: OpenThisWeek | None = None,
+    insight_id: int | None = None,
 ) -> bool:
     """Send the post-workout email: Coach notes in their slots, the rest from code (#238).
 
@@ -833,10 +835,16 @@ def send_post_workout(
     None leaves that line out. ``life`` is the Life context of the activity's day: a
     ramp-back or travel day chips the verdict. ``open_this_week`` closes the email as
     a compact list; None (no plan this week) leaves it out.
+
+    ``insight_id`` is the Insight revision this email renders: with Coach notes, the
+    CTA opens its full analysis (#240). Without either, the CTA opens the dashboard.
     """
     if settings is None:
         settings = get_settings()
     notes = coach_notes(content, PostWorkoutEmail)
+    full_analysis = (
+        insight_url(settings, insight_id) if notes is not None and insight_id is not None else None
+    )
     html = _render_template(
         "post_workout.html",
         {
@@ -847,6 +855,7 @@ def send_post_workout(
             "zone_chip": tip_chip(notes.zone_note) if notes and notes.zone_note else None,
             "ready_chip": ready_chip(notes.ready_in_hours) if notes else None,
             "dashboard_url": _dashboard_url(settings),
+            "full_analysis_url": full_analysis,
             "week_status": week_status(week, activity),
             "life_chip": life_chip(life),
             "open_week": open_week_view(open_this_week),

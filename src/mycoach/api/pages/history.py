@@ -7,10 +7,12 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
+from mycoach.api.pages.insights import analysis_html
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.database import get_db
 from mycoach.models.coaching import CoachingInsight
@@ -52,6 +54,7 @@ async def history_page(
     external_ids = [a["external_id"] for a in activities]
     analyzed_ids: set[str] = set()
     analysis_data: dict[str, dict] = {}
+    full_analysis: dict[str, tuple[int, Markup | None]] = {}
     if external_ids:
         analysis_result = await session.execute(
             select(CoachingInsight)
@@ -64,6 +67,11 @@ async def history_page(
         for insight in analysis_result.scalars().all():
             if insight.activity_external_id is not None:
                 analyzed_ids.add(insight.activity_external_id)
+                # v5 Coach notes: the panel shows the full analysis and opens its page.
+                full_analysis[insight.activity_external_id] = (
+                    insight.id,
+                    analysis_html(insight.content),
+                )
                 if insight.content:
                     with contextlib.suppress(json.JSONDecodeError, TypeError):
                         analysis_data[insight.activity_external_id] = json.loads(insight.content)
@@ -82,12 +90,15 @@ async def history_page(
 
         started = datetime.fromisoformat(a["start_time"])
         color = SPORT_COLORS.get(a["sport"], "gray")
+        insight_id, analysis_md = full_analysis.get(a["external_id"], (None, None))
         activity_cards.append(
             {
                 "activity": a,
                 "exercises": exercises,
                 "has_analysis": a["external_id"] in analyzed_ids,
                 "analysis_data": analysis_data.get(a["external_id"]),
+                "full_analysis": analysis_md,
+                "insight_id": insight_id,
                 "color": color,
                 "date_str": started.strftime("%b %d, %Y"),
                 "time_str": started.strftime("%H:%M"),

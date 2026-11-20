@@ -1,17 +1,23 @@
 {% extends "base.html" %}
 {% import "components/_layout.html" as ui %}
+{% from "components/_open_this_week.html" import open_this_week %}
+{% from "components/_life_context_banner.html" import life_context_banner %}
 {% block title %}Daily Briefing{% endblock %}
 {% block subtitle %}Daily briefing{% endblock %}
 {% block content %}
 {% set layout = ui_layout() %}
 {% set _vmap = {'go_hard': 'Go Hard', 'moderate': 'Moderate', 'active_recovery': 'Active Recovery', 'rest': 'Rest'} %}
 
-{% call ui.hero("Today's readiness") %}
+{% call ui.hero() %}
+    {{ life_context_banner(banner, life_context_url) }}
+    <div class="sec" style="margin-bottom:12px;">Today's readiness</div>
     <div class="verdict">{{ _vmap.get(briefing.readiness_verdict, 'Moderate') }}</div>
     {% if briefing.recovery_status %}
     <div class="lead" style="margin-top:12px;">{{ briefing.recovery_status }}</div>
     {% endif %}
 {% endcall %}
+
+{{ open_this_week(ui, layout, open_week) }}
 
 {% if briefing.key_metrics %}
 {% call ui.section(layout) %}
@@ -51,3 +57,4 @@
 
 {{ ui.cta(dashboard_url, "Open dashboard →") }}
 {% endblock %}
+{% block footer_note %}<div class="ft-t" style="margin-bottom:8px;"><a href="{{ life_context_url }}" style="text-decoration:underline;">Feeling unwell or travelling? Tell the coach →</a></div>{% endblock %}

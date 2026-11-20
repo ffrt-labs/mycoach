@@ -6,13 +6,15 @@ Every email is rendered through its public ``send_*`` function with today's
 
 import re
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import patch
 
 import pytest
 
+from mycoach.coaching.life_context import Episode, LifeContext
 from mycoach.config import Settings
 from mycoach.email import sender
+from mycoach.models.life_context import EpisodeKind, IllnessSeverity
 
 
 def _settings() -> Settings:
@@ -38,6 +40,37 @@ def _daily_briefing(s: Settings) -> None:
         },
         s,
         hrv={"hrv_7day_avg": 52, "hrv_status": 48},
+        life=LifeContext(
+            today=date(2026, 11, 19),
+            episodes=[
+                Episode(
+                    id=1,
+                    kind=EpisodeKind.ILLNESS,
+                    started_on=date(2026, 11, 19),
+                    ended_on=None,
+                    severity=IllnessSeverity.MILD,
+                )
+            ],
+            ramp_back=None,
+        ),
+        open_this_week={
+            "sessions": [
+                {
+                    "id": 1,
+                    "day": "Monday",
+                    "day_of_week": 0,
+                    "status": "overdue",
+                    "sport": "gym",
+                    "track": "gym",
+                    "title": "Squat Day",
+                    "intent": "strength",
+                    "duration_minutes": 75,
+                    "details": None,
+                    "notes": None,
+                }
+            ],
+            "days_remaining": 4,
+        },
     )
 
 

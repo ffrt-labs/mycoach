@@ -521,6 +521,7 @@ class OpenSession(TypedDict):
     sport: str
     track: str | None
     title: str
+    intent: str | None
     duration_minutes: int | None
     details: str | None
     notes: str | None
@@ -579,6 +580,7 @@ async def get_open_this_week(
                 "sport": ps.sport,
                 "track": ps.track,
                 "title": ps.title,
+                "intent": ps.intent,
                 "duration_minutes": ps.duration_minutes,
                 "details": ps.details,
                 "notes": ps.notes,

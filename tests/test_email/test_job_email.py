@@ -264,3 +264,67 @@ async def test_a_body_lookup_failure_does_not_cost_the_briefing_email(
         await _daily_briefing()
 
     assert mock_send.call_args.kwargs["body"] is None
+
+
+# --- Life context banner and Open this week (#233) ------------------------------------
+
+
+async def test_daily_briefing_email_carries_open_this_week_and_life_context(
+    mock_session: AsyncMock, mock_insight: MagicMock
+) -> None:
+    mock_engine = MagicMock()
+    mock_engine.generate_daily_briefing = AsyncMock(return_value=mock_insight)
+    open_week = {"sessions": [], "days_remaining": 3}
+    life = MagicMock(name="life context")
+    load_life = AsyncMock(return_value=life)
+
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(errors=[])),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch("mycoach.scheduler.jobs.get_open_this_week", AsyncMock(return_value=open_week)),
+        patch("mycoach.scheduler.jobs._todays_health", AsyncMock(return_value={})),
+        patch("mycoach.scheduler.jobs.get_health_trends", AsyncMock(return_value=[])),
+        # recovery_signals reads the briefed day's snapshot (shared with the HRV line)
+        patch("mycoach.scheduler.jobs.life_context_for", load_life),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _daily_briefing(date(2026, 11, 19))
+
+    assert mock_send.call_args.kwargs["open_this_week"] == open_week
+    assert mock_send.call_args.kwargs["life"] is life
+    # Today only, read for the briefed day.
+    assert load_life.call_args.args[2:] == (date(2026, 11, 19), date(2026, 11, 19))
+    assert load_life.call_args.kwargs["today"] == date(2026, 11, 19)
+
+
+async def test_a_life_context_or_open_week_failure_does_not_cost_the_briefing_email(
+    mock_session: AsyncMock, mock_insight: MagicMock
+) -> None:
+    mock_engine = MagicMock()
+    mock_engine.generate_daily_briefing = AsyncMock(return_value=mock_insight)
+
+    with (
+        patch(
+            "mycoach.scheduler.jobs._garmin_sync",
+            AsyncMock(return_value=MagicMock(errors=[])),
+        ),
+        patch("mycoach.scheduler.jobs.CoachingEngine", return_value=mock_engine),
+        patch("mycoach.scheduler.jobs.async_session", return_value=mock_session),
+        patch("mycoach.scheduler.jobs._get_user_email_pref", AsyncMock(return_value=True)),
+        patch(
+            "mycoach.scheduler.jobs.get_open_this_week", AsyncMock(side_effect=RuntimeError("db"))
+        ),
+        patch(
+            "mycoach.scheduler.jobs.life_context_for", AsyncMock(side_effect=RuntimeError("db"))
+        ),
+        patch("mycoach.scheduler.jobs.send_daily_briefing") as mock_send,
+    ):
+        await _daily_briefing(date(2026, 11, 19))
+
+    assert mock_send.call_args.kwargs["open_this_week"] is None
+    assert mock_send.call_args.kwargs["life"] is None

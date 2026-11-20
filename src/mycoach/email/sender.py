@@ -19,10 +19,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.utils import Namespace
 
 from mycoach.coaching.body import BodySummary
+from mycoach.coaching.context import OpenThisWeek
 from mycoach.coaching.hrv import format_ms, hrv_band_text, hrv_status_word
-from mycoach.coaching.life_context import STATUS_LABEL, excused_summary
+from mycoach.coaching.life_context import STATUS_LABEL, LifeContext, excused_summary
 from mycoach.coaching.steps import StepsSummary
 from mycoach.config import Settings, get_settings
+from mycoach.email.life_views import life_banner, open_week_view
 from mycoach.email.tones import JINJA_GLOBALS
 
 logger = logging.getLogger(__name__)
@@ -150,6 +152,11 @@ def _format_session_details(details: dict | None) -> dict[str, str]:  # type: ig
 def _dashboard_url(settings: Settings) -> str:
     """Build the dashboard link used for every email's CTA button."""
     return f"{settings.app_base_url}/dashboard"
+
+
+def _life_context_url(settings: Settings) -> str:
+    """The dashboard's Life context section, where illness and travel are logged."""
+    return f"{settings.app_base_url}/#life-context"
 
 
 def _default_schedule_url(settings: Settings) -> str:
@@ -320,12 +327,17 @@ def send_daily_briefing(
     steps: StepsSummary | None = None,
     hrv: dict | None = None,  # type: ignore[type-arg]
     body: BodySummary | None = None,
+    open_this_week: OpenThisWeek | None = None,
+    life: LifeContext | None = None,
 ) -> bool:
     """Send the daily coaching briefing email.
 
     ``steps`` is the code-rendered 7-day steps strip (#196), from the DB, not the LLM.
     ``hrv`` is today's health snapshot; its HRV line is rendered by code, not the LLM.
     ``body`` is the code-rendered Body block (#198); None leaves it out.
+    ``open_this_week`` is the week's work still owed (#233); None leaves it out.
+    ``life`` is today's Life context: its banner tops the email (#233). None, or an
+    ordinary day, leaves it out.
     """
     if settings is None:
         settings = get_settings()
@@ -340,6 +352,9 @@ def send_daily_briefing(
             "dashboard_url": _dashboard_url(settings),
             "hrv_line": _format_hrv_line(hrv),
             "body": _body_view(body, settings),
+            "open_week": open_week_view(open_this_week),
+            "banner": life_banner(life),
+            "life_context_url": _life_context_url(settings),
         },
     )
     return send_email(settings.email_to, "MyCoach — Daily Briefing", html, settings)

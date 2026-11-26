@@ -176,4 +176,4 @@ _None currently._
 | 4 | SQLite → PostgreSQL via SQLAlchemy | SQLite sufficient for single-user; SQLAlchemy ORM makes migration a config change, not a rewrite | 2026-02-13 |
 | 5 | APScheduler over Celery | No need for Redis/RabbitMQ broker for a few daily jobs in a single-user app | 2026-02-13 |
 | 6 | Dual LLM model strategy | Sonnet for routine daily tasks (cost), Opus for weekly plan generation (quality) | 2026-02-13 |
-| 7 | Prompt versioning via filesystem | Templates in v1/, v2/ dirs — easy to edit, diff, track in git. PromptLog records version used. | 2026-02-13 |
+| 7 | Prompt versioning via filesystem | Templates in v1/, v2/ dirs — easy to edit, diff, track in git. PromptLog records version used (retired in #180: Langfuse traces and the `prompt_version` columns now record it). | 2026-02-13 |

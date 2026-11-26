@@ -5,14 +5,12 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
 from mycoach.models.plan import PlannedSession, WeeklyPlan
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.user import User
 from tests.conftest import test_session
 
@@ -86,21 +84,6 @@ class TestGenerateWeeklyRecap:
             assert "85kg" in json.loads(insight.content)["headline"]["summary"]
             mock_llm.call.assert_called_once()
 
-    async def test_logs_prompt(self) -> None:
-        async with test_session() as session:
-            user_id = await _create_user(session)
-            week_start = date(2024, 6, 10)
-
-            mock_llm = _mock_llm_client()
-            engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_weekly_recap(session, user_id, week_start)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.prompt_type == "weekly_recap"
-            assert log.model == "claude-sonnet-4-5-20250929"
-            assert log.success is True
-
     async def test_duplicate_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
@@ -123,7 +106,7 @@ class TestGenerateWeeklyRecap:
             with pytest.raises(ValueError, match="must be a Monday"):
                 await engine.generate_weekly_recap(session, user_id, date(2024, 6, 12))
 
-    async def test_llm_failure_raises_and_logs(self) -> None:
+    async def test_llm_failure_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
             week_start = date(2024, 6, 10)
@@ -134,11 +117,6 @@ class TestGenerateWeeklyRecap:
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
                 await engine.generate_weekly_recap(session, user_id, week_start)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.success is False
-            assert "API timeout" in (log.error or "")
 
     async def test_with_plan_adherence(self) -> None:
         """Engine should include plan adherence data in prompt when plan exists."""

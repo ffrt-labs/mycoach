@@ -38,7 +38,7 @@ class LLMProviderError(Exception):
     """Raised when an LLM provider fails to produce a response.
 
     Covers timeouts, crashes, non-zero exits and malformed output. The message
-    is what lands in ``PromptLog.error`` / ``JobRun.error``, so it names the
+    is what lands in ``JobRun.error`` and the trace, so it names the
     provider and, where there is one, the remedy.
     """
 

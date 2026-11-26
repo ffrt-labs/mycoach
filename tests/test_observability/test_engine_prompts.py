@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 from langfuse.api import ChatMessage, Prompt_Chat
 from langfuse.model import ChatPromptClient
-from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.prompt_builder import Operation
@@ -17,7 +16,6 @@ from mycoach.coaching.prompt_store import (
     bundled_prompt,
 )
 from mycoach.models.activity import Activity
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.user import User
 from tests.conftest import test_session as new_session
 from tests.test_coaching.test_engine import _add_recovery_snapshot
@@ -81,14 +79,12 @@ class TestGenerationsShowThePrompt:
                 llm_client=_briefing_llm(), tracer=captured.tracer, prompts=prompts
             )
             insight = await engine.generate_daily_briefing(session, user_id, MONDAY)
-            [log] = (await session.execute(select(PromptLog))).scalars()
 
         [gen] = captured.generations()
         assert attr(gen, "langfuse.observation.prompt.name") == "mycoach/daily-briefing"
         assert attr(gen, "langfuse.observation.prompt.version") == 3
         assert json_attr(gen, "langfuse.observation.metadata.prompt_source") == "langfuse"
         assert insight.prompt_version == "lf:3"
-        assert log.prompt_version == "lf:3"
 
     async def test_bundled_prompt_is_marked_and_not_linked(self, captured: Captured) -> None:
         async with new_session() as session:

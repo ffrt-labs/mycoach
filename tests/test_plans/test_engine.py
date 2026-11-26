@@ -12,7 +12,6 @@ from mycoach.coaching.exceptions import NoAvailabilityConfigured, PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.plan import PlannedSession
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -270,19 +269,6 @@ class TestGenerateWeeklyPlan:
             # Two LLM calls: gym adjustment + cardio plan (no schedule distribution)
             assert mock_llm.call.call_count == 2
 
-    async def test_logs_prompts(self) -> None:
-        async with test_session() as session:
-            user_id, week_start = await _setup_user_and_availability(session)
-
-            mock_llm = _mock_llm_client()
-            engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_weekly_plan(session, user_id, week_start)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.prompt_type == "cardio_plan"
-            assert log.success is True
-
     async def test_duplicate_raises(self) -> None:
         async with test_session() as session:
             user_id, week_start = await _setup_user_and_availability(session)
@@ -431,11 +417,6 @@ class TestGenerateWeeklyPlan:
             # Fallback sessions should be created
             assert len(sessions) == 2
             assert all("failed" in (s.notes or "").lower() for s in sessions)
-
-            # Prompt log should record failure
-            log_result = await session.execute(select(PromptLog))
-            log = log_result.scalar_one()
-            assert log.success is False
 
     async def test_failed_cardio_generation_persists_its_error(self) -> None:
         """The reason a cardio plan failed is kept on the placeholder, not just logged."""

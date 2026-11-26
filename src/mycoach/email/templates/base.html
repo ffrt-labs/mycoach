@@ -93,6 +93,9 @@
 
   @media only screen and (max-width:480px) {
     .px { padding-left:20px !important; padding-right:20px !important; }
+    {#- Equal tile columns (#248) leave ~85px for a value at 390px: "2:24/100m" fits. -#}
+    .tile { padding:12px !important; }
+    .tile-v { font-size:20px !important; }
   }
 
   @media (prefers-color-scheme: dark) {

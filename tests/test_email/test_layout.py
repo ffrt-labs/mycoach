@@ -451,3 +451,82 @@ def test_the_week_strip_day_cells_share_one_width_and_one_height() -> None:
     boxes = [{k: v for k, v in s.items() if k != "border"} for s in cells]
     assert all(b == boxes[0] for b in boxes), boxes
     assert len(re.findall(r'<td class="ws-gap"[^>]*width="4"', strip)) == 6
+
+
+# --- Tiles in a row (#248): flush with the content edge, equal widths, an 8px gap ----
+
+
+def _style(decls: str) -> dict[str, str]:
+    return {k.strip(): v.strip() for k, _, v in (d.partition(":") for d in decls.split(";"))}
+
+
+def _px(value: str) -> float:
+    assert value.endswith("px"), value
+    return float(value[:-2])
+
+
+def _tile_table(html: str, cls: str) -> tuple[str, list[list[dict[str, str]]]]:
+    """The first table of class ``cls``: its opening tag, and each row's cell styles."""
+    start = html.index(f'class="{cls}"')
+    tag = html[html.rindex("<table", 0, start) : html.index(">", start) + 1]
+    body = html[start : html.index("</table>", start)]
+    rows = [
+        [_style(s) for s in re.findall(r'<td\b[^>]*style="([^"]*)"', row)]
+        for row in body.split("<tr>")[1:]
+    ]
+    return tag, rows
+
+
+def _assert_flush_equal_tiles(html: str, cls: str) -> None:
+    table, rows = _tile_table(html, cls)
+    assert "border-spacing:8px" not in table, "cellspacing insets the tiles"
+    assert "table-layout:fixed" in table, "content must not widen a column"
+    assert rows
+    for cells in rows:
+        widths = {c["width"] for c in cells}
+        assert len(widths) == 1, f"uneven columns: {widths}"
+        assert len(cells) * float(widths.pop().rstrip("%")) <= 100.01
+        left = [_px(c["padding-left"]) for c in cells]
+        right = [_px(c["padding-right"]) for c in cells]
+        assert left[0] == 0 and right[-1] == 0, "the row is flush with the content edge"
+        lost = {round(lft + rgt, 1) for lft, rgt in zip(left, right, strict=True)}
+        assert len(lost) == 1, "every tile gives the same width to the gaps"
+        for i in range(len(cells) - 1):
+            assert round(right[i] + left[i + 1], 1) == 8, "an 8px gap between tiles"
+
+
+@pytest.mark.parametrize("name", ["post_workout", "daily_briefing"])
+def test_the_stat_grid_is_flush_with_equal_columns_and_8px_gaps(name: str) -> None:
+    _assert_flush_equal_tiles(_render(name), "stat-grid")
+
+
+def test_the_stat_grid_rows_are_8px_apart() -> None:
+    _, rows = _tile_table(_render("post_workout"), "stat-grid")
+    assert len(rows) > 1, "the fixture fills two rows"
+    for cells in rows[:-1]:
+        assert {c["padding-bottom"] for c in cells} == {"8px"}
+    assert {c.get("padding-bottom", "0px") for c in rows[-1]} == {"0px"}
+
+
+def test_the_tonight_tips_are_flush_with_equal_columns_and_8px_gaps() -> None:
+    _assert_flush_equal_tiles(_render("daily_briefing"), "tonight")
+
+
+def test_the_recommended_chip_sits_8px_after_the_option_title() -> None:
+    html = _render("daily_briefing")
+    chip = re.search(r'<span style="([^"]*)"><span class="chip [^"]*">Recommended<', html)
+    assert chip, "the chip is wrapped"
+    assert "margin-left:8px" in chip.group(1)
+    assert html[: chip.start()].endswith("</span>"), "no stray space before it"
+
+
+@pytest.mark.parametrize("name", ["post_workout", "weekly_recap"])  # the briefing has none
+def test_the_action_numbers_are_centred_in_their_circles(name: str) -> None:
+    markers = re.findall(r'<span style="([^"]*)">(\d)</span>', _render(name))
+    assert [n for _, n in markers][:2] == ["1", "2"]
+    for decls, _ in markers:
+        style = _style(decls)
+        # The line box fills the circle: no font shorthand resetting it to "normal" after.
+        order = [k for k in style if k in ("line-height", "font")]
+        assert order[-1] == "line-height" or "/" + style["height"] in style["font"], decls
+        assert style.get("line-height", style["height"]) == style["height"], decls

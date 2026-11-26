@@ -16,7 +16,7 @@
   <div class="option" style="padding:16px 20px;{% if not loop.first %}margin-top:12px;{% endif %}">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td style="vertical-align:top;"><span class="strong" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;">{{ option.title }}</span>{% if option.recommended %} <span style="vertical-align:middle;">{{ ui.chip(recommended_chip) }}</span>{% endif %}</td>
+        <td style="vertical-align:top;"><span class="strong" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;">{{ option.title }}</span>{% if option.recommended %}<span style="display:inline-block;margin-left:8px;vertical-align:middle;">{{ ui.chip(recommended_chip) }}</span>{% endif %}</td>
         {% if option.minutes %}<td class="msub" style="text-align:right;vertical-align:top;white-space:nowrap;padding-left:12px;font-size:13px;">{{ option.minutes }}</td>{% endif %}
       </tr>
     </table>

@@ -1,13 +1,8 @@
 {#- The stat grid (#239): code-rendered tiles laid out in rows by
-    ``email/workout_stats.stat_grid``, which also gives each cell's width. Tables, not
-    CSS grid, so every mail client lays them out. -#}
-
-{#- The side padding of cell ``i`` of ``n`` in a row of tiles (#248): the gaps come out
-    of the cells, so the row is flush with the content edge and, with equal cell widths
-    and a fixed table layout, every tile is the same width. -#}
-{% macro gutter(i, n, gap=8) -%}
-padding-left:{{ '%g'|format((gap * i / n)|round(2)) }}px;padding-right:{{ '%g'|format((gap * (n - 1 - i) / n)|round(2)) }}px;
-{%- endmacro %}
+    ``email/workout_stats.stat_grid``, which also gives each cell's width and side
+    padding (#248): the gaps come out of the cells, so the row is flush with the
+    content edge, and the fixed layout keeps the columns equal. Tables, not CSS grid,
+    so every mail client lays them out. -#}
 
 {% macro stat_grid(grid) -%}
 <table role="presentation" class="stat-grid" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;table-layout:fixed;">
@@ -15,11 +10,11 @@ padding-left:{{ '%g'|format((gap * i / n)|round(2)) }}px;padding-right:{{ '%g'|f
   {% set last_row = loop.last %}
   <tr>
     {% for tile in row %}
-    <td style="width:{{ grid.cell_width }}%;vertical-align:top;{{ gutter(loop.index0, row|length) }}padding-bottom:{{ '0' if last_row else '8' }}px;">
+    <td style="width:{{ grid.cell_width }}%;vertical-align:top;{{ grid.gutters[loop.index0] }}padding-bottom:{{ '0' if last_row else '8' }}px;">
       {% if tile %}
       <div class="tile" style="border:1px solid #e7e5e4;border-radius:10px;padding:16px;">
         <div class="muted">{{ tile.label }}</div>
-        <div class="strong tile-v" style="font:600 22px/1.2 'IBM Plex Mono',ui-monospace,Menlo,monospace;margin-top:6px;"><span style="white-space:nowrap;">{{ tile.value }}</span>{% if tile.unit %}<span class="munit" style="font-weight:400;white-space:nowrap;">{{ tile.unit }}</span>{% endif %}</div>
+        <div class="strong tile-v" style="font:600 22px/1.2 'IBM Plex Mono',ui-monospace,Menlo,monospace;margin-top:6px;white-space:nowrap;">{{ tile.value }}{% if tile.unit %}<span class="munit" style="font-weight:400;">{{ tile.unit }}</span>{% endif %}</div>
         {% if tile.sub %}<div class="muted{% if tile.tone %} tone-{{ tile.tone }}{% endif %}" style="margin-top:6px;">{{ tile.sub }}</div>{% endif %}
       </div>
       {% endif %}

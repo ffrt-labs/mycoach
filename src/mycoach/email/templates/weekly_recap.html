@@ -22,14 +22,15 @@
     {% endif %}
 {% endcall %}
 
+{#- The quick replies and Next week both belong to the hero (04 and 05 artboards). -#}
 {% if quick_replies %}
-{% call ui.section(layout) %}
+{% call ui.section(layout, in_hero=true) %}
     {{ qr.quick_replies(quick_replies) }}
 {% endcall %}
 {% endif %}
 
 {% if notes %}
-{% call ui.section(layout) %}
+{% call ui.section(layout, in_hero=true) %}
     {{ cn.actions_card(ui, notes.actions, "Next week") }}
     {% if notes.guardrail %}{{ cn.guardrail(notes.guardrail) }}{% endif %}
 {% endcall %}

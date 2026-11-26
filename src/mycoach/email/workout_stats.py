@@ -326,6 +326,26 @@ def stat_tiles(
     return [t for t in build() if t] if build else []
 
 
+def cell_width(n: int) -> str:
+    """Each of ``n`` equal cells' share of a row, in percent: "33.33"."""
+    return f"{round(100 / n, 2):g}"
+
+
+def gutters(n: int, gap: int = 8) -> list[str]:
+    """The side padding of each of ``n`` cells in a row of tiles (#248).
+
+    The gaps come out of the cells, so the row is flush with the content edge, and
+    every gap is ``gap`` px. In whole pixels, which every client renders alike
+    (Outlook rounds fractions its own way): for thirds, 0/5, 3/3, 5/0, so the tiles'
+    widths differ by 1 px at most.
+    """
+    left = [round(gap * i / n) for i in range(n)]
+    right = [gap - left[i + 1] for i in range(n - 1)] + [0]
+    return [
+        f"padding-left:{lft}px;padding-right:{rgt}px;" for lft, rgt in zip(left, right, strict=True)
+    ]
+
+
 @dataclass(frozen=True)
 class StatGrid:
     """Tiles laid out in rows for ``components/_stat_grid.html``."""
@@ -334,6 +354,8 @@ class StatGrid:
     """Each row ``per_row`` cells; a short last row is padded with empty cells (None)."""
     cell_width: str
     """Each cell's share of the row, in percent: "33.33"."""
+    gutters: list[str]
+    """Each column's side padding (``gutters``), the same in every row."""
 
 
 def stat_grid(tiles: Sequence[Tile], per_row: int = 3) -> StatGrid | None:
@@ -344,7 +366,7 @@ def stat_grid(tiles: Sequence[Tile], per_row: int = 3) -> StatGrid | None:
         list(tiles[i : i + per_row]) for i in range(0, len(tiles), per_row)
     ]
     rows[-1] += [None] * (per_row - len(rows[-1]))
-    return StatGrid(rows, f"{round(100 / per_row, 2):g}")
+    return StatGrid(rows, cell_width(per_row), gutters(per_row))
 
 
 # --- Heart rate zones -----------------------------------------------------------------
@@ -420,7 +442,6 @@ def zone_bar(activity: Activity | None, intent: str | None) -> ZoneBar | None:
 
 
 # --- Trend ----------------------------------------------------------------------------
-
 
 
 @dataclass(frozen=True)

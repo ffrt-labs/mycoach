@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from mycoach.coaching.context import OpenSession, OpenThisWeek
 from mycoach.coaching.email_schemas import Lead, Readiness, SessionOption, Tip
 from mycoach.email.tones import Chip, tone_chip
-from mycoach.email.workout_stats import StatGrid, Tile, stat_grid
+from mycoach.email.workout_stats import StatGrid, Tile, cell_width, gutters, stat_grid
 from mycoach.models.plan import INTENT_LABEL
 
 logger = logging.getLogger(__name__)
@@ -230,10 +230,22 @@ class TipView:
     text: str
     chip: Chip | None
     """The tip's tone as a chip; a neutral tip has none."""
+    width: str
+    """Its cell's share of the row, in percent: "33.33"."""
+    gutter: str
+    """Its cell's side padding: the tips sit in a row like the stat grid's tiles."""
 
 
 def tonight_view(tips: Sequence[Tip]) -> list[TipView]:
+    if not tips:
+        return []
+    width, sides = cell_width(len(tips)), gutters(len(tips))
     return [
-        TipView(t.text, None if t.tone == "neutral" else tone_chip(t.tone, t.tone.capitalize()))
-        for t in tips
+        TipView(
+            t.text,
+            None if t.tone == "neutral" else tone_chip(t.tone, t.tone.capitalize()),
+            width,
+            side,
+        )
+        for t, side in zip(tips, sides, strict=True)
     ]

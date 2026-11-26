@@ -9,34 +9,36 @@
       {% call ui.section(layout, "Heart rate") %} … {% endcall %}
       {{ ui.cta(url, "Open dashboard →") }}
 
-    ``layout`` tracks whether a section is the first one after the hero: that one
-    belongs to the hero (the artboards' Do today, Next week, stat grid), so it sits
-    0 / 32 px under it with no divider; every later one is 32 / 32 px under a divider.
-    Sections inside optional blocks can't know their position, so the namespace
-    decides at render time. A hero that holds all its own blocks (the weekly plan's
-    strip and notices) takes ``layout`` and closes it: it ends 32 px down and the
-    first section after it is a regular one. -#}
+    A hero block belongs to the hero (the artboards' Do today, Next week, stat grid):
+    it sits 0 / 32 px under it with no divider and carries the ``hero-block`` class.
+    Every other section is 32 / 32 px under a divider. By default the first section
+    after the hero is its hero block: ``layout`` tracks that, since sections inside
+    optional blocks can't know their position. A section can also say so itself
+    (``in_hero=true``), wherever it falls: the recap's quick replies and Next week.
+    A hero that holds all its own blocks (the weekly plan's strip and notices) takes
+    ``closes_layout``: it ends 32 px down and the first section after it is a
+    regular one. -#}
 
 {#- The 40 px side padding, inline on every row; the ``px`` class in base.html drops
     it to 20 px at ≤ 480 px. -#}
 {% set side_padding = "padding-left:40px;padding-right:40px;" %}
 {% set divider = "border-top:1px solid #e7e5e4;" %}
 
-{% macro hero(eyebrow=none, layout=none) -%}
-{%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
+{% macro hero(eyebrow=none, closes_layout=none) -%}
+{%- if closes_layout is not none %}{% set closes_layout.after_hero = false %}{% endif -%}
 <tr>
-  <td class="px hero" style="padding-top:32px;padding-bottom:{{ '24px' if layout is none else '32px' }};{{ side_padding }}">
+  <td class="px hero" style="padding-top:32px;padding-bottom:{{ '24px' if closes_layout is none else '32px' }};{{ side_padding }}">
     {% if eyebrow %}<div class="sec" style="margin-bottom:12px;">{{ eyebrow }}</div>{% endif %}
     {{ caller() }}
   </td>
 </tr>
 {%- endmacro %}
 
-{% macro section(layout, label=none, label_gap=16) -%}
-{%- set first = layout is not none and layout.after_hero -%}
+{% macro section(layout, label=none, label_gap=16, in_hero=false) -%}
+{%- set in_hero = in_hero or (layout is not none and layout.after_hero) -%}
 {%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
 <tr>
-  <td class="px section block-b" style="padding-top:{{ '0px' if first else '32px' }};padding-bottom:32px;{{ side_padding }}{{ '' if first else divider }}">
+  <td class="px section block-b{{ ' hero-block' if in_hero }}" style="padding-top:{{ '0px' if in_hero else '32px' }};padding-bottom:32px;{{ side_padding }}{{ '' if in_hero else divider }}">
     {% if label %}<div class="sec" style="margin-bottom:{{ label_gap }}px;">{{ label }}</div>{% endif %}
     {{ caller() }}
   </td>

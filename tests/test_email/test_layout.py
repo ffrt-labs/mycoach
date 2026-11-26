@@ -39,7 +39,9 @@ def _settings() -> Settings:
 
 def _daily_briefing(s: Settings) -> None:
     sender.send_daily_briefing(
-        BRIEFING_NOTES,
+        # Three tips, the most there can be: thirds of the row are the uneven case.
+        BRIEFING_NOTES
+        | {"tonight": [*BRIEFING_NOTES["tonight"], {"tone": "good", "text": "Magnesium"}]},
         s,
         hrv={
             "hrv_7day_avg": 52,
@@ -232,6 +234,25 @@ def _weekly_recap_nothing_logged(s: Settings) -> None:
     )
 
 
+def _weekly_recap_quick_replies(s: Settings) -> None:
+    """The 05 artboard: a quiet week with Coach notes, so both the cause quick replies
+    and Next week follow the hero."""
+    sessions = [
+        dict(row, completed=False, status="not_done", on_planned_day=None, actual_day=None)
+        for row in WEEK_2026_11_02_ADHERENCE["sessions"]
+    ]
+    sender.send_weekly_recap(
+        RECAP_NOTES,
+        "2026-11-02",
+        s,
+        adherence=WEEK_2026_11_02_ADHERENCE
+        | {"completed_sessions": 0, "substituted_sessions": 0, "sessions": sessions},
+        episodes=[],
+        today=date(2026, 11, 9),
+        health_days_missing=7,
+    )
+
+
 def _no_availability(s: Settings) -> None:
     sender.send_no_availability("2026-11-23", s)
 
@@ -259,6 +280,7 @@ EMAILS: dict[str, Callable[[Settings], None]] = {
     "weekly_plan": _weekly_plan,
     "weekly_recap": _weekly_recap,
     "weekly_recap_nothing_logged": _weekly_recap_nothing_logged,
+    "weekly_recap_quick_replies": _weekly_recap_quick_replies,
     "no_availability": _no_availability,
     "garmin_auth_failed": _garmin_auth_failed,
     "briefing_unavailable": _briefing_unavailable,
@@ -290,11 +312,17 @@ def _tds(html: str, cls: str) -> list[dict[str, str]]:
         if not classes or cls not in classes.group(1).split():
             continue
         style = re.search(r'style="([^"]*)"', tag)
-        decls = (style.group(1) if style else "").split(";")
-        cells.append(
-            {k.strip(): v.strip() for k, _, v in (d.partition(":") for d in decls) if k.strip()}
-        )
+        cells.append(_style(style.group(1) if style else ""))
     return cells
+
+
+def _style(decls: str) -> dict[str, str]:
+    """An inline style's declarations as {property: value}."""
+    return {
+        k.strip(): v.strip()
+        for k, _, v in (d.partition(":") for d in decls.split(";"))
+        if k.strip()
+    }
 
 
 def _media_block(html: str, query: str) -> str:
@@ -319,35 +347,48 @@ def test_side_padding_is_40px_inline(html: str) -> None:
 DIVIDER = "1px solid #e7e5e4"
 
 
-# The weekly plan's hero holds everything that belongs to it (strip, notices), so its
-# first section ("Rules this week") is a regular one, under a divider (03 artboard).
-CLOSED_HERO = {"weekly_plan"}
-
-
-@pytest.fixture(params=sorted(EMAILS))
-def named_html(request: pytest.FixtureRequest) -> tuple[str, str]:
-    return request.param, _render(request.param)
+def _closes_layout(hero: dict[str, str]) -> bool:
+    """A hero that holds all its own blocks (the weekly plan's strip and notices, 03
+    artboard) ends 32 px down; the first section after it is a regular one."""
+    return hero["padding-bottom"] == "32px"
 
 
 def test_the_hero_opens_with_32px_and_the_first_section_after_it_sits_inside_it(
-    named_html: tuple[str, str],
+    html: str,
 ) -> None:
     """In the artboards the block after the hero (Do today, Next week, the stat grid)
     belongs to the hero: 0 / 32 px and no divider above it."""
-    name, html = named_html
     (hero,) = _tds(html, "hero")
     assert hero["padding-top"] == "32px"
     sections = _tds(html, "section")
-    if sections and name not in CLOSED_HERO:
-        first = sections[0]
-        assert (first["padding-top"], first["padding-bottom"]) == ("0px", "32px")
-        assert "border-top" not in first, first
+    if sections and not _closes_layout(hero):
+        assert sections[0] in _tds(html, "hero-block"), sections[0]
 
 
-def test_every_later_section_has_32_32_padding_under_a_divider(html: str) -> None:
-    for style in _tds(html, "section")[1:]:
+def test_a_hero_block_hugs_the_hero_with_no_divider(html: str) -> None:
+    for style in _tds(html, "hero-block"):
+        assert (style["padding-top"], style["padding-bottom"]) == ("0px", "32px"), style
+        assert "border-top" not in style, style
+
+
+def test_every_other_section_has_32_32_padding_under_a_divider(html: str) -> None:
+    in_hero = _tds(html, "hero-block")
+    for style in _tds(html, "section"):
+        if style in in_hero:
+            continue
         assert (style["padding-top"], style["padding-bottom"]) == ("32px", "32px"), style
         assert style.get("border-top") == DIVIDER, style
+
+
+def test_the_recap_quick_replies_and_next_week_both_sit_in_the_hero() -> None:
+    """The 05 artboard: the cause quick replies, then Next week, both 0 / 32 px under
+    the hero with no divider; Sessions is the first regular section."""
+    html = _render("weekly_recap_quick_replies")
+    assert html.index("I was ill") < html.index("Next week") < html.index("Sessions")
+    sections = _tds(html, "section")
+    assert len(_tds(html, "hero-block")) == 2
+    assert sections[:2] == _tds(html, "hero-block")
+    assert (sections[2]["padding-top"], sections[2].get("border-top")) == ("32px", DIVIDER)
 
 
 def test_the_weekly_plan_rules_sit_under_a_divider_with_32px_above() -> None:
@@ -456,13 +497,10 @@ def test_the_week_strip_day_cells_share_one_width_and_one_height() -> None:
 # --- Tiles in a row (#248): flush with the content edge, equal widths, an 8px gap ----
 
 
-def _style(decls: str) -> dict[str, str]:
-    return {k.strip(): v.strip() for k, _, v in (d.partition(":") for d in decls.split(";"))}
-
-
-def _px(value: str) -> float:
-    assert value.endswith("px"), value
-    return float(value[:-2])
+def _px(value: str) -> int:
+    """A whole-pixel length: fractional px round differently across clients (Outlook)."""
+    assert re.fullmatch(r"\d+px", value), value
+    return int(value[:-2])
 
 
 def _tile_table(html: str, cls: str) -> tuple[str, list[list[dict[str, str]]]]:
@@ -489,10 +527,10 @@ def _assert_flush_equal_tiles(html: str, cls: str) -> None:
         left = [_px(c["padding-left"]) for c in cells]
         right = [_px(c["padding-right"]) for c in cells]
         assert left[0] == 0 and right[-1] == 0, "the row is flush with the content edge"
-        lost = {round(lft + rgt, 1) for lft, rgt in zip(left, right, strict=True)}
-        assert len(lost) == 1, "every tile gives the same width to the gaps"
+        lost = [lft + rgt for lft, rgt in zip(left, right, strict=True)]
+        assert max(lost) - min(lost) <= 1, "every tile gives the gaps the same width, ±1px"
         for i in range(len(cells) - 1):
-            assert round(right[i] + left[i + 1], 1) == 8, "an 8px gap between tiles"
+            assert right[i] + left[i + 1] == 8, "an 8px gap between tiles"
 
 
 @pytest.mark.parametrize("name", ["post_workout", "daily_briefing"])
@@ -518,6 +556,14 @@ def test_the_recommended_chip_sits_8px_after_the_option_title() -> None:
     assert chip, "the chip is wrapped"
     assert "margin-left:8px" in chip.group(1)
     assert html[: chip.start()].endswith("</span>"), "no stray space before it"
+
+
+@pytest.mark.parametrize("name", ["post_workout", "daily_briefing"])
+def test_a_stat_value_and_its_unit_never_wrap(name: str) -> None:
+    values = re.findall(r'<div class="strong tile-v" style="([^"]*)">', _render(name))
+    assert values
+    for decls in values:
+        assert _style(decls).get("white-space") == "nowrap", decls
 
 
 @pytest.mark.parametrize("name", ["post_workout", "weekly_recap"])  # the briefing has none

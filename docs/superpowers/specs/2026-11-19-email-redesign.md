@@ -69,7 +69,7 @@ PR #223 also added things the emails don't show yet: Completion per week, Sessio
 | Email width | `max-width:420px`, `width="420"` | `width="600"` table, `max-width:600px; width:100%` |
 | Side padding | 24 px | 40 px; 20 px at ≤ 480 px (media query) |
 | Section padding | 20 / 2 px (top / bottom) | 32 / 32 px; first section after the hero: 0 / 32 |
-| Section divider | some sections | `border-top:1px solid #e7e5e4` on every section |
+| Section divider | some sections | `border-top:1px solid #e7e5e4` on every section except the block inside the hero (the first after it, e.g. Do today, or one marked so: the recap's quick replies and Next week), which has none |
 | Section label → content | 8–10 px | 16 px (12 px when the content is a table header) |
 | List / table row | 5 + 5 px | 12 px between rows, 1 px `#f4f4f5` rule |
 | Tile grid gap | — | 8 px |

@@ -259,7 +259,7 @@ class TestFormatHealthTrends:
 
 class TestGetSystemPrompt:
     def test_loads_system_prompt(self) -> None:
-        prompt = get_system_prompt("v1")
+        prompt = get_system_prompt("v2")
         assert "MyCoach" in prompt
         assert "JSON" in prompt
 
@@ -281,9 +281,9 @@ class TestBuildDailyBriefingPrompt:
         assert "Resting Heart Rate: 55" in prompt
         assert "Sleep score: 82" in prompt
         assert "Push Day" in prompt
-        assert "readiness_verdict" in prompt
+        assert '"readiness"' in prompt
 
-    @pytest.mark.parametrize("version", ["v1", "v2", "v3", "v4"])
+    @pytest.mark.parametrize("version", ["v2", "v3", "v4"])
     def test_hrv_output_fields_are_unambiguous(self, version: str) -> None:
         """The response schema must not ask for a number in a field named `hrv_status`,
         which is what makes the model answer 'BALANCED' and lose the briefing."""

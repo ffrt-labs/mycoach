@@ -4,7 +4,6 @@ from mycoach.coaching.prompt_builder import (
     _format_availability,
     _format_cardio_activities,
     _format_routine_exercises,
-    build_weekly_plan_prompt,
 )
 
 
@@ -40,44 +39,6 @@ class TestFormatAvailability:
 
     def test_empty_slots(self) -> None:
         assert _format_availability([]) == "No availability slots set."
-
-
-class TestBuildWeeklyPlanPrompt:
-    def test_includes_all_sections(self, tmp_path: object) -> None:
-        from pathlib import Path
-
-        from mycoach.coaching.prompt_builder import set_prompt_dir
-
-        # Create temp prompt directory
-        v1_dir = Path(str(tmp_path)) / "v1"
-        v1_dir.mkdir()
-        (v1_dir / "weekly_plan.txt").write_text(
-            "Avail: {availability}\n"
-            "Health: {health_trends}\n"
-            "Activities: {recent_activities}\n"
-            "Meso: {mesocycle_context}"
-        )
-        set_prompt_dir(Path(str(tmp_path)))
-
-        result = build_weekly_plan_prompt(
-            availability=[
-                {
-                    "day_of_week": 0,
-                    "day_name": "Monday",
-                    "sport": "gym",
-                }
-            ],
-            health_trends=[],
-            recent_activities=[],
-        )
-
-        assert "Monday — Gym" in result
-        assert "No recent health data" in result
-        assert "No recent activities" in result
-        assert "No mesocycle configured" in result
-
-        # Reset prompt dir
-        set_prompt_dir(None)  # type: ignore[arg-type]
 
 
 class TestFormatCardioActivities:

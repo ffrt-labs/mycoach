@@ -1,6 +1,6 @@
 """Trace-coverage check (#179): is every scheduled coaching run traced in Langfuse?
 
-The evidence for the gate that retires ``prompt_logs``. For the last N days of
+It was the evidence for the #180 retirement gate. For the last N days of
 ``job_runs`` it takes every successful run of a job that calls the LLM, rebuilds
 the run's seeded trace ID, looks the trace up through the Langfuse API, and
 reports each run with no trace. Run it where the app's ``.env`` is loaded:

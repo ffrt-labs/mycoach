@@ -319,23 +319,45 @@ def test_side_padding_is_40px_inline(html: str) -> None:
 DIVIDER = "1px solid #e7e5e4"
 
 
-def test_the_hero_opens_with_32px_and_the_first_section_after_it_hugs_it(html: str) -> None:
+# The weekly plan's hero holds everything that belongs to it (strip, notices), so its
+# first section ("Rules this week") is a regular one, under a divider (03 artboard).
+CLOSED_HERO = {"weekly_plan"}
+
+
+@pytest.fixture(params=sorted(EMAILS))
+def named_html(request: pytest.FixtureRequest) -> tuple[str, str]:
+    return request.param, _render(request.param)
+
+
+def test_the_hero_opens_with_32px_and_the_first_section_after_it_sits_inside_it(
+    named_html: tuple[str, str],
+) -> None:
+    """In the artboards the block after the hero (Do today, Next week, the stat grid)
+    belongs to the hero: 0 / 32 px and no divider above it."""
+    name, html = named_html
     (hero,) = _tds(html, "hero")
     assert hero["padding-top"] == "32px"
     sections = _tds(html, "section")
-    if sections:
+    if sections and name not in CLOSED_HERO:
         first = sections[0]
         assert (first["padding-top"], first["padding-bottom"]) == ("0px", "32px")
+        assert "border-top" not in first, first
 
 
-def test_every_later_section_has_32_32_padding(html: str) -> None:
+def test_every_later_section_has_32_32_padding_under_a_divider(html: str) -> None:
     for style in _tds(html, "section")[1:]:
         assert (style["padding-top"], style["padding-bottom"]) == ("32px", "32px"), style
-
-
-def test_every_section_has_a_divider_including_the_first_after_the_hero(html: str) -> None:
-    for style in _tds(html, "section"):
         assert style.get("border-top") == DIVIDER, style
+
+
+def test_the_weekly_plan_rules_sit_under_a_divider_with_32px_above() -> None:
+    """The 03 artboard: "Rules this week" is a regular section, its label off the line."""
+    html = _render("weekly_plan")
+    (hero,) = _tds(html, "hero")
+    assert hero["padding-bottom"] == "32px"
+    rules = _tds(html, "section")[0]
+    assert (rules["padding-top"], rules["padding-bottom"]) == ("32px", "32px")
+    assert rules.get("border-top") == DIVIDER
 
 
 def test_the_weekly_plan_default_schedule_notice_sits_in_the_hero() -> None:
@@ -404,3 +426,28 @@ def test_side_padding_drops_to_20px_at_480px_and_below(html: str) -> None:
     assert rule
     assert re.search(r"padding-left:\s*20px\s*!important", rule.group(1))
     assert re.search(r"padding-right:\s*20px\s*!important", rule.group(1))
+
+
+def test_the_weekly_plan_eyebrow_dates_the_week_like_the_artboard() -> None:
+    html = _render("weekly_plan")
+    assert '<div class="sec" style="margin-bottom:12px;">Week of 16 Nov</div>' in html
+    assert "2026-11-16" not in html
+
+
+def test_the_week_strip_day_cells_share_one_width_and_one_height() -> None:
+    """Seven same-styled boxes in one table row: a row's cells share its height, and the
+    fixed layout splits the width left by the gaps equally among them (03 artboard)."""
+    html = _render("weekly_plan")
+    start = html.rindex("<td", 0, html.index('class="ws-day'))
+    strip = html[start : html.index("</table>", start)]
+    cells = _tds(strip, "ws-day")
+    assert len(cells) == 7
+    # The box (border, radius, padding) is the row cell itself, not a table nested in it.
+    assert "<table" not in strip
+    for style in cells:
+        assert style["border-radius"] == "8px"
+        assert "width" not in style
+    # Every day cell has the same box; the 4 px gaps are spacer cells between them.
+    boxes = [{k: v for k, v in s.items() if k != "border"} for s in cells]
+    assert all(b == boxes[0] for b in boxes), boxes
+    assert len(re.findall(r'<td class="ws-gap"[^>]*width="4"', strip)) == 6

@@ -382,7 +382,7 @@ def send_weekly_plan(
                 *notes_unavailable_notices(notes_unavailable and plan_notes is None),
             ],
             "sessions": [plan_card(s, settings) for s in sessions],
-            "week_start": week_start,
+            "week_label": _short_date(week_start),
             "availability_source": availability_source,
             "dashboard_url": dashboard_url(settings),
             "default_schedule_url": default_schedule_url(settings),

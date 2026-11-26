@@ -10,18 +10,22 @@
       {{ ui.cta(url, "Open dashboard →") }}
 
     ``layout`` tracks whether a section is the first one after the hero: that one
-    sits 0 / 32 px under the hero; every later one is 32 / 32 px. Every section
-    carries the divider. Sections inside optional blocks can't know their position,
-    so the namespace decides at render time. -#}
+    belongs to the hero (the artboards' Do today, Next week, stat grid), so it sits
+    0 / 32 px under it with no divider; every later one is 32 / 32 px under a divider.
+    Sections inside optional blocks can't know their position, so the namespace
+    decides at render time. A hero that holds all its own blocks (the weekly plan's
+    strip and notices) takes ``layout`` and closes it: it ends 32 px down and the
+    first section after it is a regular one. -#}
 
 {#- The 40 px side padding, inline on every row; the ``px`` class in base.html drops
     it to 20 px at ≤ 480 px. -#}
 {% set side_padding = "padding-left:40px;padding-right:40px;" %}
 {% set divider = "border-top:1px solid #e7e5e4;" %}
 
-{% macro hero(eyebrow=none) -%}
+{% macro hero(eyebrow=none, layout=none) -%}
+{%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
 <tr>
-  <td class="px hero" style="padding-top:32px;padding-bottom:24px;{{ side_padding }}">
+  <td class="px hero" style="padding-top:32px;padding-bottom:{{ '24px' if layout is none else '32px' }};{{ side_padding }}">
     {% if eyebrow %}<div class="sec" style="margin-bottom:12px;">{{ eyebrow }}</div>{% endif %}
     {{ caller() }}
   </td>
@@ -32,7 +36,7 @@
 {%- set first = layout is not none and layout.after_hero -%}
 {%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
 <tr>
-  <td class="px section block-b" style="padding-top:{{ '0px' if first else '32px' }};padding-bottom:32px;{{ side_padding }}{{ divider }}">
+  <td class="px section block-b" style="padding-top:{{ '0px' if first else '32px' }};padding-bottom:32px;{{ side_padding }}{{ '' if first else divider }}">
     {% if label %}<div class="sec" style="margin-bottom:{{ label_gap }}px;">{{ label }}</div>{% endif %}
     {{ caller() }}
   </td>

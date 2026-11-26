@@ -9,7 +9,7 @@
 {% block content %}
 {% set layout = ui_layout() %}
 
-{% call ui.hero("Week of " ~ week_start) %}
+{% call ui.hero("Week of " ~ week_label, layout) %}
     {% if totals %}
     <div class="verdict">{{ totals.count }}{% if totals.total %} <span class="msub" style="font-size:18px;font-weight:500;white-space:nowrap;">{{ totals.total }}</span>{% endif %}</div>
     {% endif %}

@@ -924,7 +924,6 @@ def build_post_workout_prompt(
     planned_session: dict[str, Any] | None,
     similar_activities: list[dict[str, Any]],
     health_context: dict[str, Any],
-    version: str | None = None,
 ) -> str:
     """Build the user message for a post-workout analysis LLM call."""
     variables = post_workout_variables(
@@ -934,7 +933,7 @@ def build_post_workout_prompt(
         similar_activities=similar_activities,
         health_context=health_context,
     )
-    return compile_prompt(Operation.POST_WORKOUT, variables, version=version).user
+    return compile_prompt(Operation.POST_WORKOUT, variables).user
 
 
 def _fmt_kg(w: float | None) -> str:

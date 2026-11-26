@@ -6,10 +6,12 @@ from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import InsufficientHealthData, PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
+from mycoach.models.coaching import CoachingInsight
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
@@ -333,6 +335,24 @@ class TestGenerateDailyBriefing:
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
                 await engine.generate_daily_briefing(session, user_id, today)
+
+    async def test_a_forced_regenerate_that_fails_keeps_the_previous_briefing(self) -> None:
+        """#180: the failed run no longer commits, so the forced delete rolls back."""
+        today = date(2024, 6, 10)
+        mock_llm = _mock_llm_client()
+        engine = CoachingEngine(llm_client=mock_llm)
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            await _add_recovery_snapshot(session, user_id, today)
+            previous = await engine.generate_daily_briefing(session, user_id, today)
+
+            mock_llm.call.side_effect = Exception("API timeout")
+            with pytest.raises(RuntimeError, match="Failed to generate"):
+                await engine.generate_daily_briefing(session, user_id, today, force=True)
+
+        async with test_session() as session:
+            kept = (await session.execute(select(CoachingInsight))).scalars().all()
+        assert [(i.id, i.content) for i in kept] == [(previous.id, previous.content)]
 
     async def test_invalid_llm_json_retries(self) -> None:
         async with test_session() as session:

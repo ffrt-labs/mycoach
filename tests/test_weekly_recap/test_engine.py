@@ -5,11 +5,13 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity
+from mycoach.models.coaching import CoachingInsight
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.user import User
 from tests.conftest import test_session
@@ -117,6 +119,23 @@ class TestGenerateWeeklyRecap:
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
                 await engine.generate_weekly_recap(session, user_id, week_start)
+
+    async def test_a_forced_regenerate_that_fails_keeps_the_previous_recap(self) -> None:
+        """#180: the failed run no longer commits, so the forced delete rolls back."""
+        week_start = date(2024, 6, 10)
+        mock_llm = _mock_llm_client()
+        engine = CoachingEngine(llm_client=mock_llm)
+        async with test_session() as session:
+            user_id = await _create_user(session)
+            previous = await engine.generate_weekly_recap(session, user_id, week_start)
+
+            mock_llm.call.side_effect = Exception("API timeout")
+            with pytest.raises(RuntimeError, match="Failed to generate"):
+                await engine.generate_weekly_recap(session, user_id, week_start, force=True)
+
+        async with test_session() as session:
+            kept = (await session.execute(select(CoachingInsight))).scalars().all()
+        assert [(i.id, i.content) for i in kept] == [(previous.id, previous.content)]
 
     async def test_with_plan_adherence(self) -> None:
         """Engine should include plan adherence data in prompt when plan exists."""

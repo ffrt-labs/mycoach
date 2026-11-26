@@ -193,5 +193,5 @@ class DailyBriefingEmail(Slot):
     sleep_note: str = Field(max_length=60)
     tonight: list[Tip] = Field(max_length=3)
     key_metrics: DailyBriefingKeyMetrics
-    """Kept for the prompt log; the email renders its numbers from the DB."""
+    """Kept for the trace; the email renders its numbers from the DB."""
     analysis_md: str

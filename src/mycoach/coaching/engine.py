@@ -73,7 +73,6 @@ from mycoach.localtime import local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.coaching import CoachingInsight, InsightType
 from mycoach.models.plan import PlannedSession, SessionIntent, Track, WeeklyPlan
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.routine import planned_sets
 from mycoach.observability.scores import Score, ScoreSink, score_sink_for, score_timestamp
 from mycoach.observability.trace_ids import trace_id, weekly_plan_seed
@@ -333,7 +332,6 @@ class CoachingEngine:
         # No valid Coach notes after the retry: stored as ``null``, the email
         # still goes out with its code blocks (#241).
         parsed = await self._generate_coach_notes(
-            session,
             DAILY_BRIEFING,
             run,
             prompt=prompt,
@@ -348,7 +346,6 @@ class CoachingEngine:
 
     async def _generate_insight(
         self,
-        session: AsyncSession,
         spec: OperationSpec[T],
         run: RunSpec,
         *,
@@ -359,11 +356,10 @@ class CoachingEngine:
     ) -> T:
         """An insight run's one generation, traced and scored on ``run``'s trace.
 
-        Returns the parsed answer. On failure the PromptLog row is committed
-        and ``RuntimeError`` names ``what`` failed.
+        Returns the parsed answer. On failure ``RuntimeError`` names ``what`` failed.
         """
         parsed = await self._generate_coach_notes(
-            session, spec, run, prompt=prompt, variables=variables, now=now, what=what
+            spec, run, prompt=prompt, variables=variables, now=now, what=what
         )
         if parsed is None:  # only a Coach notes spec returns None
             raise RuntimeError(f"Failed to generate {what}: no Coach notes")
@@ -371,7 +367,6 @@ class CoachingEngine:
 
     async def _generate_coach_notes(
         self,
-        session: AsyncSession,
         spec: OperationSpec[T],
         run: RunSpec,
         *,
@@ -387,10 +382,9 @@ class CoachingEngine:
         its code-rendered blocks only. A provider failure still raises.
         """
         with self._tracer.run(run):
-            generation = await self._generate(session, spec, prompt=prompt, variables=variables)
+            generation = await self.generate(spec, prompt=prompt, variables=variables)
             self._score_code_checks(run, generation, spec, at=score_timestamp(run.about, now))
             if generation.parsed is None:
-                await session.commit()
                 if spec.coach_notes and notes_fall_back(generation):
                     logger.warning(
                         "%s: no valid Coach notes after the retry (%s); sending without them",
@@ -518,39 +512,6 @@ class CoachingEngine:
             max_tokens=max_tokens,
             response_schema=response_schema,
         )
-
-    async def _generate(
-        self,
-        session: AsyncSession,
-        spec: OperationSpec[T],
-        *,
-        prompt: ServedPrompt,
-        variables: Mapping[str, str],
-        metadata: Mapping[str, object] | None = None,
-    ) -> Generation[T]:
-        """The one generation seam every coaching operation goes through.
-
-        Runs ``generate`` and writes the single ``PromptLog`` row for the
-        operation (its ``prompt_type`` is the operation's name).
-        """
-        result = await self.generate(spec, prompt=prompt, variables=variables, metadata=metadata)
-        response = result.response
-        session.add(
-            PromptLog(
-                prompt_type=spec.operation.value,
-                prompt_version=prompt.artifact_version,
-                model=response.model if response else spec.model(self._llm),
-                input_tokens=response.input_tokens if response else None,
-                output_tokens=response.output_tokens if response else None,
-                latency_ms=response.latency_ms if response else None,
-                estimated_cost_usd=response.estimated_cost_usd if response else None,
-                prompt_text=prompt.user,
-                response_text=response.content if response else None,
-                success=result.parsed is not None,
-                error=result.error,
-            )
-        )
-        return result
 
     async def generate(
         self,
@@ -842,8 +803,7 @@ class CoachingEngine:
                 # The slot's qualifier ties its generations (the retry
                 # included) to its code-check and adherence scores.
                 qualifier = f"gym_adjustment:{i}"
-                gym = await self._generate(
-                    session,
+                gym = await self.generate(
                     GYM_ADJUSTMENT,
                     prompt=prompt,
                     variables=variables,
@@ -964,8 +924,7 @@ class CoachingEngine:
                 prompt = await self._serve(Operation.CARDIO_PLAN, variables)
                 plan.cardio_prompt_version = prompt.artifact_version
 
-                cardio = await self._generate(
-                    session,
+                cardio = await self.generate(
                     CARDIO_PLAN,
                     prompt=prompt,
                     variables=variables,
@@ -1162,7 +1121,6 @@ class CoachingEngine:
             regenerated_at=now if replaced else None,
         )
         parsed = await self._generate_coach_notes(
-            session,
             POST_WORKOUT,
             run,
             prompt=prompt,
@@ -1276,7 +1234,6 @@ class CoachingEngine:
         self._score_plan_completion(plan_adherence, at=score_timestamp(week_start, now))
         run = weekly_recap_run(user_id, week_start, regenerated_at=now if replaced else None)
         parsed = await self._generate_coach_notes(
-            session,
             WEEKLY_RECAP,
             run,
             prompt=prompt,

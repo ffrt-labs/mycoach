@@ -62,7 +62,6 @@ COACHING_SIDE_PREFIXES = (
     "mycoach.models.availability",
     "mycoach.models.sport_profile",
     "mycoach.models.job_run",
-    "mycoach.models.prompt_log",
 )
 
 

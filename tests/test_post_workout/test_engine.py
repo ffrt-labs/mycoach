@@ -5,14 +5,12 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.user import User
 from tests.conftest import test_session
 
@@ -111,21 +109,6 @@ class TestGeneratePostWorkoutAnalysis:
             assert json.loads(insight.content)["headline"]["verdict"] == "Solid push day"
             mock_llm.call.assert_called_once()
 
-    async def test_logs_prompt(self) -> None:
-        async with test_session() as session:
-            user_id = await _create_user(session)
-            activity_id = await _create_activity(session, user_id)
-
-            mock_llm = _mock_llm_client()
-            engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_post_workout_analysis(session, user_id, activity_id)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.prompt_type == "post_workout"
-            assert log.success is True
-            assert log.input_tokens == 800
-
     async def test_duplicate_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
@@ -147,7 +130,7 @@ class TestGeneratePostWorkoutAnalysis:
             with pytest.raises(ValueError, match="not found"):
                 await engine.generate_post_workout_analysis(session, user_id, 999)
 
-    async def test_llm_failure_raises_and_logs(self) -> None:
+    async def test_llm_failure_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
             activity_id = await _create_activity(session, user_id)
@@ -158,10 +141,6 @@ class TestGeneratePostWorkoutAnalysis:
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
                 await engine.generate_post_workout_analysis(session, user_id, activity_id)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.success is False
 
     async def test_invalid_json_retries_with_the_parse_error(self) -> None:
         async with test_session() as session:
@@ -194,9 +173,6 @@ class TestGeneratePostWorkoutAnalysis:
             first, retry = mock_llm.call.call_args_list
             assert retry.kwargs["max_tokens"] == first.kwargs["max_tokens"] == 4096
             assert "Your previous response had this error:" in retry.kwargs["user_message"]
-            log = (await session.execute(select(PromptLog))).scalar_one()
-            assert log.success is True
-            assert log.input_tokens == 850
 
     async def test_truncated_response_retries_with_doubled_budget(self) -> None:
         async with test_session() as session:
@@ -228,9 +204,6 @@ class TestGeneratePostWorkoutAnalysis:
 
             assert json.loads(insight.content) is None  # Coach notes fallback
             assert mock_llm.call.call_args_list[1].kwargs["max_tokens"] == 8192
-            log = (await session.execute(select(PromptLog))).scalar_one()
-            assert log.success is False
-            assert log.prompt_type == "post_workout"
 
     async def test_links_to_planned_session(self) -> None:
         async with test_session() as session:
@@ -408,8 +381,6 @@ class TestCoachNotesContract:
             assert insight.insight_type == "post_workout"
             assert insight.activity_external_id == activity_id
             assert json.loads(insight.content) is None
-            log = (await session.execute(select(PromptLog))).scalar_one()
-            assert log.success is False
 
     async def test_a_fallback_still_links_the_planned_session(self) -> None:
         async with test_session() as session:

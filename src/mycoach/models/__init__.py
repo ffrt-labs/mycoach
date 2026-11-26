@@ -10,7 +10,6 @@ from mycoach.models.job_run import JobRun
 from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
 from mycoach.models.prescription import PrescriptionFulfillment
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.routine import RoutineDay, RoutineExercise, WorkoutRoutine
 from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
 from mycoach.models.sport_profile import SportProfile
@@ -32,7 +31,6 @@ __all__ = [
     "MesocycleConfig",
     "PlannedSession",
     "PrescriptionFulfillment",
-    "PromptLog",
     "RoutineDay",
     "RoutineExercise",
     "SourceRecord",

@@ -6,14 +6,12 @@ from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import select
 
 from mycoach.coaching.engine import CoachingEngine
 from mycoach.coaching.exceptions import InsufficientHealthData, PipelineSkip
 from mycoach.coaching.llm_client import LLMResponse
 from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.plan import PlannedSession, WeeklyPlan
-from mycoach.models.prompt_log import PromptLog
 from mycoach.models.user import User
 from tests.conftest import test_session
 
@@ -44,6 +42,7 @@ VALID_LLM_RESPONSE = """{
   },
   "analysis_md": "## Today. Well recovered."
 }"""
+
 
 def _mock_llm_client(content: str = VALID_LLM_RESPONSE) -> MagicMock:
     client = MagicMock()
@@ -227,24 +226,6 @@ class TestGenerateDailyBriefing:
             assert call_threads
             assert loop_thread not in call_threads
 
-    async def test_logs_prompt(self) -> None:
-        async with test_session() as session:
-            user_id = await _create_user(session)
-            today = date(2024, 6, 10)
-            await _add_recovery_snapshot(session, user_id, today)
-
-            mock_llm = _mock_llm_client()
-            engine = CoachingEngine(llm_client=mock_llm)
-            await engine.generate_daily_briefing(session, user_id, today)
-
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.prompt_type == "daily_briefing"
-            assert log.model == "claude-sonnet-4-5-20250929"
-            assert log.input_tokens == 500
-            assert log.output_tokens == 200
-            assert log.success is True
-
     async def test_duplicate_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
@@ -312,15 +293,11 @@ class TestGenerateDailyBriefing:
         async with test_session() as session:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
-            session.add(
-                DailyHealthSnapshot(user_id=user_id, snapshot_date=today, resting_hr=58)
-            )
+            session.add(DailyHealthSnapshot(user_id=user_id, snapshot_date=today, resting_hr=58))
             await session.commit()
 
             engine = CoachingEngine(llm_client=_mock_llm_client())
-            insight = await engine.generate_daily_briefing(
-                session, user_id, today, force=True
-            )
+            insight = await engine.generate_daily_briefing(session, user_id, today, force=True)
 
         assert insight.insight_type == "daily_briefing"
 
@@ -330,9 +307,7 @@ class TestGenerateDailyBriefing:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
             session.add(
-                DailyHealthSnapshot(
-                    user_id=user_id, snapshot_date=today, body_battery_morning=64
-                )
+                DailyHealthSnapshot(user_id=user_id, snapshot_date=today, body_battery_morning=64)
             )
             await session.commit()
 
@@ -341,7 +316,7 @@ class TestGenerateDailyBriefing:
 
         assert insight.insight_type == "daily_briefing"
 
-    async def test_llm_failure_raises_and_logs(self) -> None:
+    async def test_llm_failure_raises(self) -> None:
         async with test_session() as session:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
@@ -353,12 +328,6 @@ class TestGenerateDailyBriefing:
 
             with pytest.raises(RuntimeError, match="Failed to generate"):
                 await engine.generate_daily_briefing(session, user_id, today)
-
-            # Should still log the failure
-            result = await session.execute(select(PromptLog))
-            log = result.scalar_one()
-            assert log.success is False
-            assert "API timeout" in (log.error or "")
 
     async def test_invalid_llm_json_retries(self) -> None:
         async with test_session() as session:
@@ -428,10 +397,6 @@ class TestGenerateDailyBriefing:
             assert retry.kwargs["max_tokens"] == 8192
             assert "Your previous response had this error:" in retry.kwargs["user_message"]
 
-            log = (await session.execute(select(PromptLog))).scalar_one()
-            assert log.success is True
-            assert log.input_tokens == 550
-
     async def test_openrouter_truncation_retries_with_doubled_answer_budget(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -483,10 +448,6 @@ class TestGenerateDailyBriefing:
             assert mock_llm.call.call_count == 2
             retry = mock_llm.call.call_args_list[1]
             assert retry.kwargs["max_tokens"] == 4096
-            log = (await session.execute(select(PromptLog))).scalar_one()
-            assert log.success is False
-            assert log.prompt_type == "daily_briefing"
-            assert "Retry also failed" in (log.error or "")
 
     async def test_the_call_carries_the_strict_schema_of_the_briefing_notes(self) -> None:
         async with test_session() as session:

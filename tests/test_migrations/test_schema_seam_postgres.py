@@ -236,7 +236,7 @@ def migrated(pg_db: str, monkeypatch: pytest.MonkeyPatch) -> str:
 
 COACHING_TABLES = {
     "users", "workout_routines", "routine_days", "routine_exercises", "weekly_plans",
-    "planned_sessions", "coaching_insights", "mesocycle_configs", "prompt_logs",
+    "planned_sessions", "coaching_insights", "mesocycle_configs",
     "sport_profiles", "weekly_availabilities", "default_availability", "job_runs",
     "prescription_fulfillments", "life_context_episodes",
 }  # fmt: skip

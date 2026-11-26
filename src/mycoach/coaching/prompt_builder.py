@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 _PROMPT_DIR: Path | None = None
 
 
-def _get_prompt_dir(version: str = "v1") -> Path:
+def _get_prompt_dir(version: str) -> Path:
     global _PROMPT_DIR
     if _PROMPT_DIR is not None:
         return _PROMPT_DIR / version
@@ -53,12 +53,12 @@ def set_prompt_dir(path: Path) -> None:
     _PROMPT_DIR = path
 
 
-def _load_template(name: str, version: str = "v1") -> str:
+def _load_template(name: str, version: str) -> str:
     path = _get_prompt_dir(version) / name
     return path.read_text()
 
 
-def get_system_prompt(version: str = "v1") -> str:
+def get_system_prompt(version: str) -> str:
     return _load_template("system.txt", version)
 
 
@@ -626,7 +626,7 @@ def build_daily_briefing_prompt(
     recent_activities: list[dict[str, Any]],
     planned_workout: str | list[dict[str, Any]] | None = None,
     body: BodySummary | None = None,
-    version: str = "v1",
+    version: str | None = None,
 ) -> str:
     """Build the user message for a daily briefing LLM call."""
     variables = daily_briefing_variables(
@@ -649,25 +649,6 @@ def _format_availability(slots: list[dict[str, Any]]) -> str:
         sport_str = f" — {sport.capitalize()}" if sport else ""
         lines.append(f"- {day}{sport_str}")
     return "\n".join(lines)
-
-
-def build_weekly_plan_prompt(
-    *,
-    availability: list[dict[str, Any]],
-    health_trends: list[dict[str, Any]],
-    recent_activities: list[dict[str, Any]],
-    mesocycle_context: str | None = None,
-    version: str = "v1",
-) -> str:
-    """Build the user message for a weekly plan LLM call."""
-    template = _load_template("weekly_plan.txt", version)
-    return template.format(
-        availability=_format_availability(availability),
-        health_trends=_format_health_trends(health_trends),
-        recent_activities=_format_activities(recent_activities),
-        mesocycle_context=mesocycle_context
-        or "No mesocycle configured. Use general progressive programming.",
-    )
 
 
 def _format_hr_zones(hr_zones_json: str) -> str:
@@ -943,7 +924,7 @@ def build_post_workout_prompt(
     planned_session: dict[str, Any] | None,
     similar_activities: list[dict[str, Any]],
     health_context: dict[str, Any],
-    version: str = "v1",
+    version: str | None = None,
 ) -> str:
     """Build the user message for a post-workout analysis LLM call."""
     variables = post_workout_variables(
@@ -1280,7 +1261,7 @@ def build_weekly_recap_prompt(
     weekly_gym_details: list[dict[str, Any]] | None = None,
     gym_history: list[dict[str, Any]] | None = None,
     sport_profiles: list[dict[str, Any]] | None = None,
-    version: str = "v1",
+    version: str | None = None,
 ) -> str:
     """Build the user message for a weekly recap LLM call."""
     variables = weekly_recap_variables(

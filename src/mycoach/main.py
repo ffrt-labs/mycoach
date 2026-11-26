@@ -27,7 +27,6 @@ from mycoach.api.pages.job_log import router as job_log_page_router
 from mycoach.api.pages.logger import router as logger_page_router
 from mycoach.api.pages.mesocycles import router as mesocycles_page_router
 from mycoach.api.pages.plan import router as plan_router
-from mycoach.api.pages.prompt_logs import router as prompt_logs_page_router
 from mycoach.api.pages.routine import router as routine_page_router
 from mycoach.api.pages.sport_profiles import router as sport_profiles_page_router
 from mycoach.api.routes.activities import router as activities_router
@@ -200,7 +199,6 @@ def create_app() -> FastAPI:
     app.include_router(logger_page_router)
     app.include_router(plan_router)
     app.include_router(routine_page_router)
-    app.include_router(prompt_logs_page_router)
     app.include_router(mesocycles_page_router)
     app.include_router(sport_profiles_page_router)
 

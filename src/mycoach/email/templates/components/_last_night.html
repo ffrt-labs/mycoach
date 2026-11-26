@@ -1,7 +1,7 @@
 {#- Last night (#241): tiles, the sleep-stage bar and the HRV line, all from the day's
     health snapshot (``email.briefing_views.last_night_view``), then the coach's sleep
     note. Expects ``ui`` (the layout macros) imported by the caller. -#}
-{% from "components/_stat_grid.html" import gutter, stat_grid %}
+{% from "components/_stat_grid.html" import stat_grid %}
 {% macro last_night(ui, layout, view, hrv_line, sleep_note) -%}
 {% if view or hrv_line or sleep_note %}
 {% call ui.section(layout, "Last night") %}
@@ -31,7 +31,7 @@
     <table role="presentation" class="tonight" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;table-layout:fixed;">
       <tr>
         {% for tip in tips %}
-        <td style="width:{{ '%g'|format((100 / tips|length)|round(2, 'floor')) }}%;vertical-align:top;{{ gutter(loop.index0, tips|length) }}">
+        <td style="width:{{ tip.width }}%;vertical-align:top;{{ tip.gutter }}">
           <div class="c-neutral" style="padding:16px;border-radius:10px;">
             {% if tip.chip %}<div style="margin-bottom:8px;">{{ ui.chip(tip.chip) }}</div>{% endif %}
             <div class="strong" style="font:600 14px/1.5 'IBM Plex Sans',sans-serif;">{{ tip.text }}</div>

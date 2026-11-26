@@ -9,7 +9,7 @@
   {% for action in actions %}
   <tr>
     <td style="width:32px;vertical-align:top;padding:{{ '0' if loop.first else '16px' }} 0 0;">
-      <span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:999px;background:#ea6d1f;color:#ffffff;text-align:center;font:600 12px 'IBM Plex Mono',monospace;">{{ loop.index }}</span>
+      <span style="display:inline-block;width:22px;height:22px;border-radius:999px;background:#ea6d1f;color:#ffffff;text-align:center;font:600 12px/22px 'IBM Plex Mono',monospace;">{{ loop.index }}</span>
     </td>
     <td style="vertical-align:top;padding:{{ '0' if loop.first else '16px' }} 0 0;">
       <div class="strong" style="font:600 15px/1.5 'IBM Plex Sans',sans-serif;">{{ action.do }}</div>

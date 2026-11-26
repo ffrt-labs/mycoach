@@ -7,7 +7,7 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize("path", ["/prompt-logs", "/prompt-logs/1"])
-async def test_the_prompt_logs_page_is_gone(client: AsyncClient, path: str) -> None:
+async def test_the_logs_page_is_gone(client: AsyncClient, path: str) -> None:
     resp = await client.get(path)
     assert resp.status_code == 404
 

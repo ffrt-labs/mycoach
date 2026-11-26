@@ -389,7 +389,7 @@ The UI Regenerate button calls `POST /api/plans/generate?week_start=<YYYY-MM-DD>
 4. Creates a `WeeklyPlan` record and flushes to get an ID
 5. **Gym track** — for each gym slot: fetches last week's per-exercise performance → calls LLM (`daily_model`, `GymAdjustmentResponse`) → saves `PlannedSession` with adjusted weights/RPE; falls back to raw routine on LLM failure
 6. **Cardio track** — single call for all cardio slots: fetches last week's cardio performance → calls LLM (`weekly_model`, max 8192 tokens, `CardioPlanResponse`) → saves one `PlannedSession` per session; falls back to placeholder sessions on LLM failure
-7. Each LLM call is logged to `PromptLog`
+7. Each LLM call is traced in Langfuse, as a generation of the plan's trace
 8. Finalizes plan with `summary` and `raw_llm_output`, commits, returns full plan with sessions
 
 Total LLM calls per generation: **N + 1** (one per gym day + one for all cardio slots).
@@ -412,7 +412,7 @@ Total LLM calls per generation: **N + 1** (one per gym day + one for all cardio 
 - *List context* (daily briefing, recap, etc.): compact format with `title`, `sport`, `start_time`, `duration_minutes` only
 - *Detail context* (post-workout): all 12 fields with labels + full gym set breakdown
 
-**Prompt templates** are versioned in `prompts/v1/` to `prompts/v5/` (`BUNDLED_VERSIONS` in `prompt_builder.py` picks each operation's bundled set; `v5` is the structured-output contract, where the answer is Coach notes in typed slots). Each template receives pre-formatted markdown sections assembled by `prompt_builder.py`.
+**Prompt templates** are versioned in `prompts/v2/` to `prompts/v5/` (`BUNDLED_VERSIONS` in `prompt_builder.py` picks each operation's bundled set; `v5` is the structured-output contract, where the answer is Coach notes in typed slots). Each template receives pre-formatted markdown sections assembled by `prompt_builder.py`.
 
 ## Architecture Decisions
 
@@ -421,7 +421,7 @@ Total LLM calls per generation: **N + 1** (one per gym day + one for all cardio 
 - **SQLite for MVP** — Sufficient for single-user; SQLAlchemy ORM makes PostgreSQL migration a config change
 - **APScheduler over Celery** — No broker needed for a few daily jobs in a single-user app
 - **Dual LLM strategy** — Sonnet for cost-efficient daily tasks, Opus for high-quality weekly plan generation
-- **Prompt versioning** — Templates in `v1/`, `v2/` directories; `PromptLog` records which version produced each output
+- **Prompt versioning** — Langfuse holds the served prompts; the bundled templates in `prompts/v2/` to `v5/` are the fallback. Each insight and plan records the prompt version that produced it, and each call is traced in Langfuse
 
 ## License
 

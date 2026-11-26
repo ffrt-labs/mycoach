@@ -141,7 +141,7 @@ Codebase audit confirmed the MVP backend is **built and functional**, not stubs:
 - **PlannedSession** — individual session within a plan (exercises, targets, notes)
 - **CoachingInsight** — daily briefing, post-workout analysis, weekly recap
 - **MesocycleConfig** — training block tracking (phase, progression rules)
-- **PromptLog** — all LLM calls logged (tokens, latency, prompt/response text)
+- **JobRun** — one row per scheduled job run (status, duration, error). The LLM calls themselves are traced in Langfuse
 
 ---
 
@@ -156,7 +156,7 @@ mycoach/
 │   ├── main.py                    # FastAPI app factory
 │   ├── config.py                  # Pydantic Settings
 │   ├── database.py                # DB engine, sessions
-│   ├── models/                    # SQLAlchemy ORM (user, health, activity, plan, coaching, mesocycle, prompt_log)
+│   ├── models/                    # SQLAlchemy ORM (user, health, activity, plan, coaching, mesocycle, job_run)
 │   ├── schemas/                   # Pydantic DTOs
 │   ├── sources/                   # Data source plugin system
 │   │   ├── base.py               # Abstract DataSource interface
@@ -168,7 +168,7 @@ mycoach/
 │   ├── api/pages/                 # PWA HTML page routes
 │   ├── email/                     # sender.py + Jinja2 email templates
 │   ├── scheduler/                 # scheduler.py, jobs.py
-│   ├── prompts/v1/               # Versioned prompt templates + output schemas
+│   ├── prompts/v2/ … v5/         # Bundled prompt templates + output schemas (Langfuse fallback)
 │   ├── templates/                 # PWA Jinja2 templates + components
 │   └── static/                   # CSS, JS (HTMX), Service Worker, manifest
 ├── alembic/                       # DB migrations
@@ -184,10 +184,10 @@ mycoach/
 - **Provider strategy:** The LLM layer is provider-configurable via `MYCOACH_LLM_PROVIDER`. **`openrouter` is the default** (issue #183, ADR 0004): OpenRouter's OpenAI-compatible API, pay-as-you-go against prepaid credits with auto top-up off, with zero data retention and no training demanded on every request (`deepseek/deepseek-v4-pro` for both tiers by default). **`claude_code` stays selectable by hand**: it runs the Claude Code CLI headless (`claude -p`), authenticated with a Claude Pro subscription token, so coaching adds no per-token cost (`sonnet` alias for both tiers by default). Production picks its provider through the `MYCOACH_LLM_PROVIDER` deploy variable. The Anthropic API provider was removed in #183, and Gemini after its prepaid credits ran out (issue #164). Providers are swappable behind a common `LLMClient` interface (`coaching/providers/`).
 - **Model strategy (provider-neutral):** A cheaper/faster model for daily briefings, a stronger/higher-reasoning model for weekly plan generation. Both providers expose the split (`MYCOACH_OPENROUTER_MODEL_DAILY`/`_WEEKLY`, `MYCOACH_CLAUDE_CODE_MODEL_DAILY`/`_WEEKLY`); both currently default the two tiers to the same model.
 - **Token budget management:** Raw Garmin data summarized into compact representations before prompting. Rolling context windows (7 days for plans, 3 days for dailies)
-- **Prompt versioning:** Templates in `prompts/v1/`, `v2/`, etc. PromptLog tracks which version produced each output.
+- **Prompt versioning:** Langfuse serves the `production` label of each prompt; the bundled templates in `prompts/v2/` to `v5/` are the fallback. Insights and plans record the version that produced them, and every call is traced in Langfuse.
 - **Response validation:** JSON parsed → Pydantic validated → retry once on failure → fallback to text
 
-**Estimated monthly cost:** Provider-dependent for a single user. With `openrouter`, spend is capped by the prepaid credits (empty credits fail the run with `LLMQuotaExceeded`), and `PromptLog.estimated_cost_usd` records OpenRouter's own charge for each call. With `claude_code` the marginal cost is zero, within the Pro subscription's usage limits.
+**Estimated monthly cost:** Provider-dependent for a single user. With `openrouter`, spend is capped by the prepaid credits (empty credits fail the run with `LLMQuotaExceeded`), and each call's Langfuse generation records OpenRouter's own charge. With `claude_code` the marginal cost is zero, within the Pro subscription's usage limits.
 
 ---
 

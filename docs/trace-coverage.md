@@ -1,8 +1,8 @@
 # Trace-coverage check
 
 `mycoach.tools.trace_coverage` checks that every scheduled coaching run in the
-last N days has a trace in Langfuse. It is the evidence for the gate that
-retires `prompt_logs` (#169, #179).
+last N days has a trace in Langfuse. It was the evidence for the gate that let
+Langfuse become the only record of coaching calls (#169, #179, #180).
 
 ## Usage
 
@@ -32,16 +32,6 @@ Trace coverage, last 30 days: 41 runs checked, 39 covered, 1 missing, 1 unresolv
 | 0 | Every run is covered |
 | 1 | At least one run is missing its trace, or could not be matched to its artifact |
 | 2 | Langfuse is not configured or the API call failed, or `--days` is out of range |
-
-## Scheduled run
-
-`.github/workflows/trace-coverage.yml` runs the check every day at 23:37 UTC on
-the self-hosted runner, using `docker exec mycoach`. It checks the last 14
-days, but never reaches back past `TRACING_START` (the first full day with
-tracing in production). A missing or unresolved run fails the workflow, so
-GitHub sends an email, and 14 green runs in a row pass the #180 gate. You can
-also start it by hand from the Actions tab, with an optional number of days.
-The workflow is deleted together with `prompt_logs` in #180.
 
 ## What is checked
 

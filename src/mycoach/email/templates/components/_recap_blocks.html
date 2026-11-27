@@ -56,15 +56,12 @@
           is the background of its segments' cells, 3px taller than the bar above and
           below; the bar (the value's fill, or the track outside the band) is a
           nested 6px cell in front. -#}
-      {%- set fill = 'in-range' if row.bar.in_range else 'out-range' %}
       <table class="load-bar" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           {%- for seg in row.bar.segments %}
-          {%- set front = fill if seg.filled else ('track' if seg.layer == 'track' else none) %}
-          {%- set left = '3px' if loop.first else '0' %}
-          {%- set right = '3px' if loop.last or seg.fill_end else '0' %}
-          <td class="bar-seg{% if seg.layer == 'band' %} bar-band{% endif %}" style="width:{{ seg.width_pct }}%;padding:3px 0;{% if seg.layer == 'band' %}background:{{ bar_styles.band.light }};{% endif %}font-size:0;line-height:0;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td{% if front %} class="bar-{{ front }}"{% endif %} style="height:6px;{% if front %}background:{{ bar_styles[front].light }};border-radius:{{ left }} {{ right }} {{ right }} {{ left }};{% endif %}font-size:0;line-height:0;">&nbsp;</td></tr></table>
+          {%- set band = seg.layer == 'band' %}
+          <td class="bar-seg{% if band %} bar-band{% endif %}" style="width:{{ seg.width_pct }}%;padding:3px 0;{% if band %}background:{{ bar_styles.band.light }};{% endif %}font-size:0;line-height:0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td{% if seg.front %} class="bar-{{ seg.front }}"{% endif %} style="height:6px;{% if seg.front %}background:{{ bar_styles[seg.front].light }};border-radius:{{ seg.radius }};{% endif %}font-size:0;line-height:0;">&nbsp;</td></tr></table>
           </td>
           {%- endfor %}
         </tr>

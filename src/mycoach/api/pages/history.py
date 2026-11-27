@@ -1,20 +1,19 @@
 """Activity history page — past workouts with details."""
 
-import contextlib
-import json
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from markupsafe import Markup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mycoach import health
-from mycoach.api.pages.insights import analysis_html
+from mycoach.api.pages.insights import markdown_html
 from mycoach.coaching.athlete import athlete_id_for
+from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.database import get_db
+from mycoach.email.coach_notes import StoredNotes, stored_notes
 from mycoach.models.coaching import CoachingInsight
 from mycoach.sport_display import sport_display
 
@@ -45,9 +44,7 @@ async def history_page(
     # Check which activities have post-workout analyses and fetch content: coaching's own
     # insights, found by the activity's external id; the latest revision is the one shown.
     external_ids = [a["external_id"] for a in activities]
-    analyzed_ids: set[str] = set()
-    analysis_data: dict[str, dict] = {}
-    full_analysis: dict[str, tuple[int, Markup | None]] = {}
+    analyses: dict[str, tuple[int, StoredNotes[PostWorkoutEmail]]] = {}
     if external_ids:
         analysis_result = await session.execute(
             select(CoachingInsight)
@@ -59,15 +56,10 @@ async def history_page(
         )
         for insight in analysis_result.scalars().all():
             if insight.activity_external_id is not None:
-                analyzed_ids.add(insight.activity_external_id)
-                # v5 Coach notes: the panel shows the full analysis and opens its page.
-                full_analysis[insight.activity_external_id] = (
+                analyses[insight.activity_external_id] = (
                     insight.id,
-                    analysis_html(insight.content),
+                    stored_notes(insight.content, PostWorkoutEmail),
                 )
-                if insight.content:
-                    with contextlib.suppress(json.JSONDecodeError, TypeError):
-                        analysis_data[insight.activity_external_id] = json.loads(insight.content)
 
     # Build activity cards data
     activity_cards: list[dict[str, object]] = []
@@ -83,14 +75,19 @@ async def history_page(
 
         started = datetime.fromisoformat(a["start_time"])
         color = sport_display(a["sport"]).colour
-        insight_id, analysis_md = full_analysis.get(a["external_id"], (None, None))
+        insight_id, analysis = analyses.get(a["external_id"], (None, None))
+        notes = analysis.notes if analysis else None
         activity_cards.append(
             {
                 "activity": a,
                 "exercises": exercises,
-                "has_analysis": a["external_id"] in analyzed_ids,
-                "analysis_data": analysis_data.get(a["external_id"]),
-                "full_analysis": analysis_md,
+                # Analyzed, with a panel to expand; or analyzed with no Coach notes.
+                "has_analysis": analysis is not None and not analysis.unavailable,
+                "notes_unavailable": analysis is not None and analysis.unavailable,
+                "notes": notes,
+                "analysis_data": analysis.v4 if analysis else None,
+                # v5 Coach notes: the panel shows the full analysis and opens its page.
+                "full_analysis": markdown_html(notes.analysis_md) if notes else None,
                 "insight_id": insight_id,
                 "color": color,
                 "date_str": started.strftime("%b %d, %Y"),
@@ -145,13 +142,7 @@ async def history_page(
         )
     )
     weekly_recap = recap_result.scalar_one_or_none()
-    recap_data = None
-    if weekly_recap and weekly_recap.content:
-        try:
-            recap_data = json.loads(weekly_recap.content)
-        except (json.JSONDecodeError, TypeError):
-            recap_data = None
-
+    recap = stored_notes(weekly_recap.content, WeeklyRecapEmail) if weekly_recap else None
     templates: Jinja2Templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
@@ -166,7 +157,10 @@ async def history_page(
             "sport_filter": sport,
             "available_sports": available_sports,
             "weekly_recap": weekly_recap,
-            "recap_data": recap_data,
+            # The recap: v5 Coach notes, a v4 recap (until #244), or neither.
+            "recap_notes": recap.notes if recap else None,
+            "recap_data": recap.v4 if recap else None,
+            "recap_unavailable": recap is not None and recap.unavailable,
             "last_monday_iso": last_monday.isoformat(),
             "available_weeks": available_weeks,
             "selected_week_label": selected_week_label,

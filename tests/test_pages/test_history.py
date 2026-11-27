@@ -168,7 +168,7 @@ async def test_history_page_metrics(client: AsyncClient) -> None:
 
 
 async def test_history_page_analysis_badge(client: AsyncClient) -> None:
-    """History page shows Analyzed badge for activities with post-workout analysis."""
+    """A v4 post-workout analysis shows the Analyzed badge and its v4 panel."""
     await _seed_user()
     activity = await _seed_activity(title="Analyzed Workout")
 
@@ -177,7 +177,7 @@ async def test_history_page_analysis_badge(client: AsyncClient) -> None:
             user_id=1,
             insight_type="post_workout",
             insight_date=activity.start_time.date(),
-            content="analysis",
+            content=json.dumps({"performance_summary": "Solid **volume** today."}),
             activity_external_id=activity.external_id,
         )
         session.add(insight)
@@ -186,6 +186,35 @@ async def test_history_page_analysis_badge(client: AsyncClient) -> None:
     resp = await client.get("/history")
     assert resp.status_code == 200
     assert "Analyzed" in resp.text
+    assert "Solid <strong>volume</strong> today." in resp.text
+    assert "Coach notes unavailable" not in resp.text
+
+
+async def test_a_post_workout_without_coach_notes_is_not_shown_as_analyzed(
+    client: AsyncClient,
+) -> None:
+    """#249: an insight stored as ``null`` (the notes fallback) has nothing to expand."""
+    await _seed_user()
+    activity = await _seed_activity(title="Fallback Workout")
+    async with test_session() as session:
+        session.add(
+            CoachingInsight(
+                user_id=1,
+                insight_type="post_workout",
+                insight_date=activity.start_time.date(),
+                content="null",
+                activity_external_id=activity.external_id,
+            )
+        )
+        await session.commit()
+
+    resp = await client.get("/history")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" in resp.text
+    assert "Analyzed" not in resp.text
+    assert f'id="analysis-{activity.external_id}"' not in resp.text
+    assert "Re-analyze" in resp.text
 
 
 async def test_history_page_shows_a_v5_analysis_and_links_its_insight_page(
@@ -214,6 +243,7 @@ async def test_history_page_shows_a_v5_analysis_and_links_its_insight_page(
     resp = await client.get("/history")
 
     assert "Held <strong>Z2</strong> throughout." in resp.text
+    assert "Aerobic" in resp.text  # the Headline's verdict, from the v5 model
     assert "First take." not in resp.text
     assert f'href="/insights/{latest}"' in resp.text
 
@@ -307,3 +337,41 @@ async def test_a_v5_recap_shows_its_lead_and_next_week_actions(client: AsyncClie
     assert resp.status_code == 200
     assert "Both lifts and the swim are in" in resp.text
     assert "Keep one intervals session in the week." in resp.text
+    assert "Resting HR up 5 bpm → Swap intervals for easy Z2" in resp.text
+    assert "Coach notes unavailable" not in resp.text
+
+
+async def _store_recap(content: str | None) -> None:
+    async with test_session() as session:
+        session.add(
+            CoachingInsight(
+                user_id=1,
+                insight_date=date(2026, 11, 2),
+                insight_type="weekly_recap",
+                content=content,
+                prompt_version="bundled:v5",
+            )
+        )
+        await session.commit()
+
+
+async def test_a_v4_recap_shows_its_paragraphs(client: AsyncClient) -> None:
+    await _seed_user()
+    await _store_recap(json.dumps({"week_summary": "A **solid** week.", "mesocycle_progress": "W3"}))
+
+    resp = await client.get("/history?recap_week=2026-11-02")
+
+    assert "A <strong>solid</strong> week." in resp.text
+    assert "Coach notes unavailable" not in resp.text
+
+
+async def test_a_recap_without_coach_notes_says_so(client: AsyncClient) -> None:
+    """#249: a recap stored as ``null`` after the notes fallback."""
+    await _seed_user()
+    await _store_recap("null")
+
+    resp = await client.get("/history?recap_week=2026-11-02")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" in resp.text
+    assert "Regenerate" in resp.text

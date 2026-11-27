@@ -584,7 +584,9 @@ def quick_replies(
             )
         )
     replies.append(
-        QuickReply("I was travelling", "log the trip", prefill_url(settings, "travel", first, last))
+        QuickReply(
+            "I was travelling", "log the trip", prefill_url(settings, "travel", first, last)
+        )
     )
     if health_gap:
         # The dashboard's Garmin sync button; the link itself never syncs or logs in.

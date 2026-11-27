@@ -30,7 +30,7 @@
 
 {% if notes and notes.guardrail %}
 {% call ui.section(layout, "Guardrail · tomorrow", label_gap=4) %}
-    {{ cn.guardrail(notes.guardrail) }}
+    {{ cn.guardrail(ui, notes.guardrail) }}
 {% endcall %}
 {% endif %}
 

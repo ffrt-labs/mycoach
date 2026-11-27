@@ -32,7 +32,7 @@
 {% if notes %}
 {% call ui.section(layout, in_hero=true) %}
     {{ cn.actions_card(ui, notes.actions, "Next week") }}
-    {% if notes.guardrail %}{{ cn.guardrail(notes.guardrail) }}{% endif %}
+    {% if notes.guardrail %}{{ cn.guardrail(ui, notes.guardrail) }}{% endif %}
 {% endcall %}
 {% endif %}
 

@@ -53,9 +53,18 @@
 </tr>
 {%- endmacro %}
 
-{#- A status, intent or tone chip from one of the shared maps (``Chip``). -#}
-{% macro chip(c) -%}
-{%- if c %}<span class="{{ c.css }}">{{ c.label }}</span>{% endif -%}
+{#- A status, intent or tone chip from one of the shared maps (``Chip``); ``style``
+    reshapes it inline. -#}
+{% macro chip(c, style=none) -%}
+{%- if c %}<span class="{{ c.css }}"{% if style %} style="{{ style }}"{% endif %}>{{ c.label }}</span>{% endif -%}
+{%- endmacro %}
+
+{#- The IF / +1 mark: a small square chip in the "mark" style. Its light colours are
+    inline too, so light mode keeps its dark badge without the style sheet (#252). -#}
+{% macro mark(text) -%}
+{%- set c = mark_chip(text) -%}
+{%- set light = chip_styles[c.style].light -%}
+{{ chip(c, "display:inline-block;padding:1px 6px;border:0;border-radius:4px;background:" ~ light.bg ~ ";color:" ~ light.fg ~ ";font:600 11px 'IBM Plex Mono',monospace;") }}
 {%- endmacro %}
 
 {#- The coach card: the caller's text in the orange box, under an optional kicker

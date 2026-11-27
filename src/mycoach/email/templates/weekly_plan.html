@@ -30,7 +30,7 @@
     <table data-table="rules" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for g in guardrails %}
       <tr>
-        <td style="width:44px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ cn.mark_badge("IF") }}</td>
+        <td style="width:44px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;">{{ ui.mark("IF") }}</td>
         <td class="p" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 0 0;">{{ g.when }}</td>
         <td class="msub" style="width:24px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;">&rarr;</td>
         <td class="strong" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 0;font:600 14px/1.6 'IBM Plex Sans',sans-serif;">{{ g.then }}</td>

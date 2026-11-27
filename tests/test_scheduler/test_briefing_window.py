@@ -80,9 +80,7 @@ class TestShouldGenerate:
         assert _window(at=time(10, 30), failed=MAX_FAILED_ATTEMPTS).should_generate is False
 
     def test_still_generating_one_failure_short_of_the_budget(self) -> None:
-        assert (
-            _window(at=time(10, 30), failed=MAX_FAILED_ATTEMPTS - 1).should_generate is True
-        )
+        assert _window(at=time(10, 30), failed=MAX_FAILED_ATTEMPTS - 1).should_generate is True
 
     def test_skips_do_not_count_against_the_failure_budget(self) -> None:
         """The two outcomes are distinguished durably; the loop must honour that."""
@@ -98,14 +96,10 @@ class TestShouldAlert:
         assert _window(at=time(10, 30), skipped=ALERT_AFTER_ATTEMPTS).should_alert is True
 
     def test_never_alerts_twice_in_a_day(self) -> None:
-        assert (
-            _window(at=time(12, 0), skipped=10, alerted=True).should_alert is False
-        )
+        assert _window(at=time(12, 0), skipped=10, alerted=True).should_alert is False
 
     def test_does_not_alert_when_the_briefing_landed(self) -> None:
-        assert (
-            _window(at=time(11, 0), succeeded=True, skipped=6).should_alert is False
-        )
+        assert _window(at=time(11, 0), succeeded=True, skipped=6).should_alert is False
 
     def test_alerts_after_the_generate_cutoff(self) -> None:
         """Past 14:00 nothing more will be generated — which is exactly worth saying."""
@@ -118,9 +112,7 @@ class TestShouldAlert:
         period — so keying only off the attempt count would leave exactly this
         day silent from 09:30 to midnight.
         """
-        assert (
-            _window(at=time(10, 15), failed=MAX_FAILED_ATTEMPTS).should_generate is False
-        )
+        assert _window(at=time(10, 15), failed=MAX_FAILED_ATTEMPTS).should_generate is False
         assert _window(at=time(10, 15), failed=MAX_FAILED_ATTEMPTS).should_alert is True
 
     def test_alerts_past_the_cutoff_even_if_nothing_was_ever_attempted(self) -> None:
@@ -134,8 +126,7 @@ class TestShouldAlert:
     def test_gives_up_on_an_email_backend_that_keeps_refusing(self) -> None:
         """A misconfigured backend must not become forty rejected sends a day."""
         assert (
-            _window(at=time(12, 0), skipped=10, alert_failures=MAX_FAILED_ATTEMPTS)
-            .should_alert
+            _window(at=time(12, 0), skipped=10, alert_failures=MAX_FAILED_ATTEMPTS).should_alert
             is False
         )
 
@@ -179,9 +170,7 @@ class TestBanner:
 
     def test_counts_failures_not_attempts_against_the_budget(self) -> None:
         """Skips are not errors; "attempt 4 of 3" is a lie about both."""
-        banner = _window(
-            at=time(10, 30), skipped=3, failed=1, last_status="failed"
-        ).banner
+        banner = _window(at=time(10, 30), skipped=3, failed=1, last_status="failed").banner
         assert banner is not None
         assert f"1 of {MAX_FAILED_ATTEMPTS}" in banner
 
@@ -216,7 +205,10 @@ def settings() -> Settings:
 
 
 def _run(
-    job_name: str, status: str, at: datetime, error: str | None = None,
+    job_name: str,
+    status: str,
+    at: datetime,
+    error: str | None = None,
     skip_reason: str | None = None,
 ) -> JobRun:
     return JobRun(
@@ -245,11 +237,13 @@ class TestLoadBriefingWindow:
         async with test_session() as session:
             session.add_all(
                 [
-                    _run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30),
-                         skip_reason="no data"),
+                    _run(
+                        BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30), skip_reason="no data"
+                    ),
                     _run(BRIEFING_JOB, "failed", datetime(2026, 8, 25, 8, 45), error="boom"),
-                    _run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 9, 0),
-                         skip_reason="no data"),
+                    _run(
+                        BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 9, 0), skip_reason="no data"
+                    ),
                 ]
             )
             await session.commit()
@@ -292,14 +286,14 @@ class TestLoadBriefingWindow:
         assert window.succeeded is True
         assert window.should_generate is False
 
-    async def test_a_recorded_alert_run_is_the_once_per_day_lock(
-        self, settings: Settings
-    ) -> None:
+    async def test_a_recorded_alert_run_is_the_once_per_day_lock(self, settings: Settings) -> None:
         """No 'have I emailed yet' flag exists; the alert's own run row is it."""
         async with test_session() as session:
             session.add_all(
-                [_run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
-                 for i in range(0, ALERT_AFTER_ATTEMPTS)]
+                [
+                    _run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
+                    for i in range(0, ALERT_AFTER_ATTEMPTS)
+                ]
             )
             session.add(_run(BRIEFING_ALERT_JOB, "success", datetime(2026, 8, 25, 9, 30)))
             await session.commit()
@@ -310,14 +304,14 @@ class TestLoadBriefingWindow:
         assert window.alerted is True
         assert window.should_alert is False
 
-    async def test_an_alert_that_failed_to_send_is_retried(
-        self, settings: Settings
-    ) -> None:
+    async def test_an_alert_that_failed_to_send_is_retried(self, settings: Settings) -> None:
         """Otherwise a rejected send would silence the day it was meant to report."""
         async with test_session() as session:
             session.add_all(
-                [_run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
-                 for i in range(0, ALERT_AFTER_ATTEMPTS)]
+                [
+                    _run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
+                    for i in range(0, ALERT_AFTER_ATTEMPTS)
+                ]
             )
             session.add(_run(BRIEFING_ALERT_JOB, "failed", datetime(2026, 8, 25, 9, 30)))
             await session.commit()
@@ -337,8 +331,10 @@ class TestLoadBriefingWindow:
         """
         async with test_session() as session:
             session.add_all(
-                [_run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
-                 for i in range(0, ALERT_AFTER_ATTEMPTS)]
+                [
+                    _run(BRIEFING_JOB, "skipped", datetime(2026, 8, 25, 8, 30 + i))
+                    for i in range(0, ALERT_AFTER_ATTEMPTS)
+                ]
             )
             session.add(
                 _run(
@@ -384,9 +380,7 @@ class TestLoadBriefingWindow:
         assert window.should_generate is False
         assert window.should_alert is False
 
-    async def test_yesterdays_briefing_does_not_stand_today_down(
-        self, settings: Settings
-    ) -> None:
+    async def test_yesterdays_briefing_does_not_stand_today_down(self, settings: Settings) -> None:
         async with test_session() as session:
             session.add(
                 CoachingInsight(
@@ -403,9 +397,7 @@ class TestLoadBriefingWindow:
 
         assert window.succeeded is False
 
-    async def test_another_insight_type_does_not_stand_today_down(
-        self, settings: Settings
-    ) -> None:
+    async def test_another_insight_type_does_not_stand_today_down(self, settings: Settings) -> None:
         async with test_session() as session:
             session.add(
                 CoachingInsight(

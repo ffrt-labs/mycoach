@@ -175,11 +175,13 @@ def test_the_briefing_prompt_names_each_open_session_by_its_id() -> None:
     _, inputs = CASES["daily_briefing_full"]
     variables = PROMPT_VARIABLES[Operation.DAILY_BRIEFING](**inputs)
 
-    assert "- id 1 · Monday: Squat Day [gym] (60 min), planned day passed" in (
-        variables["open_this_week"]
+    assert (
+        "- id 1 · Monday: Squat Day [gym] (60 min), planned day passed"
+        in (variables["open_this_week"])
     )
-    assert "- id 3 · Wednesday: Pull Day [gym] (60 min), planned for today" in (
-        variables["open_this_week"]
+    assert (
+        "- id 3 · Wednesday: Pull Day [gym] (60 min), planned for today"
+        in (variables["open_this_week"])
     )
 
 

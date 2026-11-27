@@ -33,9 +33,7 @@ def missing_recovery_data(health_today: dict[str, Any]) -> str | None:
     if any(health_today.get(field) is not None for field in RECOVERY_FIELDS):
         return None
     if not health_today:
-        return (
-            "no Garmin health snapshot for today — nothing to base a briefing on"
-        )
+        return "no Garmin health snapshot for today — nothing to base a briefing on"
     return (
         "today's Garmin health snapshot carries no sleep, HRV, or Body Battery "
         "data — nothing to base a briefing on"

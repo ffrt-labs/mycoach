@@ -54,9 +54,7 @@ class TestDispatch:
         async def ok(event) -> None:
             seen.append(event.event_id)
 
-        result = await dispatch(
-            [_recorded()], {CanonicalActivityRecorded: [boom, ok]}
-        )
+        result = await dispatch([_recorded()], {CanonicalActivityRecorded: [boom, ok]})
         assert seen == [_recorded().event_id]
         assert len(result.failures) == 1
         assert result.failures[0].event_id == _recorded().event_id

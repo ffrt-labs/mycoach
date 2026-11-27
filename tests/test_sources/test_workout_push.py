@@ -48,9 +48,7 @@ def _batch() -> dict:
 class TestPushImport:
     @pytest.mark.asyncio
     async def test_valid_batch_creates(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
-        resp = await client.post(
-            "/api/sources/import/workouts", json=_batch()
-        )
+        resp = await client.post("/api/sources/import/workouts", json=_batch())
         assert resp.status_code == 200
         data = resp.json()
         assert data["activities_created"] == 1
@@ -114,14 +112,11 @@ class TestPushImport:
     async def test_invalid_set_type_rejected(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         batch = _batch()
         batch["workouts"][0]["sets"][0]["set_type"] = "bogus"
-        resp = await client.post(
-            "/api/sources/import/workouts", json=batch
-        )
+        resp = await client.post("/api/sources/import/workouts", json=batch)
         assert resp.status_code == 422
 
 
 class TestLoggerExercises:
-
     @pytest.mark.asyncio
     async def test_returns_pinned_catalogue_with_stable_ids(self, client, user: User) -> None:  # type: ignore[no-untyped-def]
         resp = await client.get("/api/logger/exercises")
@@ -181,9 +176,7 @@ class TestPushPrescriptionLink:
         batch = _batch()
         batch["workouts"][0]["planned_session_id"] = planned_id
 
-        resp = await client.post(
-            "/api/sources/import/workouts", json=batch
-        )
+        resp = await client.post("/api/sources/import/workouts", json=batch)
         assert resp.status_code == 200
         assert resp.json()["errors"] == []
 
@@ -199,9 +192,7 @@ class TestPushPrescriptionLink:
         batch = _batch()
         batch["workouts"][0]["planned_session_id"] = 4242
 
-        resp = await client.post(
-            "/api/sources/import/workouts", json=batch
-        )
+        resp = await client.post("/api/sources/import/workouts", json=batch)
         assert resp.status_code == 200
         body = resp.json()
         assert body["activities_created"] == 1
@@ -235,9 +226,7 @@ class TestTimezoneAwareTimestamps:
 
         from mycoach.schemas.workout_import import WorkoutIn
 
-        workout = WorkoutIn(
-            title="Deadlift", start_time="2026-09-26T16:32:11+01:00"
-        ).to_dataclass()
+        workout = WorkoutIn(title="Deadlift", start_time="2026-09-26T16:32:11+01:00").to_dataclass()
 
         assert workout.start_time == datetime(2026, 9, 26, 15, 32, 11)
         assert workout.start_time.tzinfo is None
@@ -248,8 +237,6 @@ class TestTimezoneAwareTimestamps:
 
         from mycoach.schemas.workout_import import WorkoutIn
 
-        workout = WorkoutIn(
-            title="Deadlift", start_time="2026-09-26T15:32:11"
-        ).to_dataclass()
+        workout = WorkoutIn(title="Deadlift", start_time="2026-09-26T15:32:11").to_dataclass()
 
         assert workout.start_time == datetime(2026, 9, 26, 15, 32, 11)

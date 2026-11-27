@@ -149,12 +149,18 @@ class TestImportWorkouts:
             external_id="uuid-two-ex",
             sets=[
                 WorkoutSetImport(
-                    exercise_title="Bench Press", set_index=1, reps=8,
-                    prescribed_weight_kg=80, prescribed_reps=8,
+                    exercise_title="Bench Press",
+                    set_index=1,
+                    reps=8,
+                    prescribed_weight_kg=80,
+                    prescribed_reps=8,
                 ),
                 WorkoutSetImport(
-                    exercise_title="Overhead Press", set_index=1, reps=8,
-                    prescribed_weight_kg=40, prescribed_reps=10,
+                    exercise_title="Overhead Press",
+                    set_index=1,
+                    reps=8,
+                    prescribed_weight_kg=40,
+                    prescribed_reps=10,
                 ),
             ],
         )
@@ -208,8 +214,12 @@ class TestImportWorkouts:
             external_id="uuid-crash",
             sets=[
                 WorkoutSetImport(
-                    exercise_title="Bench Press", set_index=1, weight_kg=80, reps=8,
-                    prescribed_weight_kg=82.5, prescribed_reps=6,
+                    exercise_title="Bench Press",
+                    set_index=1,
+                    weight_kg=80,
+                    reps=8,
+                    prescribed_weight_kg=82.5,
+                    prescribed_reps=6,
                 )
             ],
         )
@@ -423,9 +433,7 @@ class TestPrescriptionLinking:
         from tests.conftest import test_session
 
         async with test_session() as session:
-            result = await log_workouts(
-                session, user.id, [_workout("uuid-none")], source="logger"
-            )
+            result = await log_workouts(session, user.id, [_workout("uuid-none")], source="logger")
             await session.commit()
 
         assert result.activities_created == 1

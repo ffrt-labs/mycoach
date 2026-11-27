@@ -161,6 +161,7 @@ class TestMapHealthSnapshot:
         assert snapshot.body_battery_morning == 72
         assert snapshot.load_focus is not None
         import json
+
         lf = json.loads(snapshot.load_focus)
         assert lf["aerobic_low"] == 30
         assert lf["aerobic_high"] == 50
@@ -445,9 +446,7 @@ class TestImportHealthSnapshot:
             assert len(rows) == 2
             assert {row.data_source for row in rows} == {"garmin", "hevy"}
 
-    async def test_resync_fills_in_a_baseline_band_that_arrived_later(
-        self, setup_db
-    ) -> None:  # type: ignore[no-untyped-def]
+    async def test_resync_fills_in_a_baseline_band_that_arrived_later(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         from tests.conftest import test_session
 
         async with test_session() as session:
@@ -476,9 +475,7 @@ class TestImportHealthSnapshot:
                 43,
             )
 
-    async def test_updated_at_bumped_even_when_no_field_changes(
-        self, setup_db
-    ) -> None:  # type: ignore[no-untyped-def]
+    async def test_updated_at_bumped_even_when_no_field_changes(self, setup_db) -> None:  # type: ignore[no-untyped-def]
         """updated_at advances on every successful touch, not just on real changes.
 
         This is what the dashboard's "last synced" stamp relies on — a re-sync
@@ -540,7 +537,8 @@ class TestImportActivities:
             assert result.activities_skipped == 1
 
     async def test_import_keeps_the_raw_payload_as_an_immutable_source_record(
-        self, setup_db  # type: ignore[no-untyped-def]
+        self,
+        setup_db,  # type: ignore[no-untyped-def]
     ) -> None:
         from mycoach.models.source_record import CanonicalActivitySource, SourceRecord
         from tests.conftest import test_session
@@ -559,7 +557,8 @@ class TestImportActivities:
             assert link.canonical_activity_id == activity.id
 
     async def test_a_resync_does_not_resurrect_an_activity_linked_onto_a_gym_one(
-        self, setup_db  # type: ignore[no-untyped-def]
+        self,
+        setup_db,  # type: ignore[no-untyped-def]
     ) -> None:
         """Linking deletes the Garmin-only canonical activity; its source record remembers."""
         from mycoach.sources.importer import import_workouts
@@ -699,8 +698,7 @@ class TestGarminSource:
         assert failures == []
         info_logs = [r for r in caplog.records if r.levelno == logging.INFO]
         assert any(
-            "sleep_duration_minutes" in r.message and "partial data" in r.message
-            for r in info_logs
+            "sleep_duration_minutes" in r.message and "partial data" in r.message for r in info_logs
         )
 
     async def test_auth_failure(self, setup_db) -> None:  # type: ignore[no-untyped-def]
@@ -786,9 +784,7 @@ class TestGarminSource:
             user = await _create_user(session)
             await session.commit()
 
-            result = await source.fetch_and_import(
-                session, user.id, since=datetime(2026, 8, 14)
-            )
+            result = await source.fetch_and_import(session, user.id, since=datetime(2026, 8, 14))
 
             assert result.errors is not None
             assert any("no usable Garmin health data" in e for e in result.errors)
@@ -816,9 +812,7 @@ class TestGarminSource:
             user = await _create_user(session)
             await session.commit()
 
-            result = await source.fetch_and_import(
-                session, user.id, since=datetime(2026, 8, 14)
-            )
+            result = await source.fetch_and_import(session, user.id, since=datetime(2026, 8, 14))
 
             assert date(2026, 8, 14) in result.empty_health_days
 
@@ -845,9 +839,7 @@ class TestGarminSource:
             user = await _create_user(session)
             await session.commit()
 
-            result = await source.fetch_and_import(
-                session, user.id, since=datetime(2026, 8, 14)
-            )
+            result = await source.fetch_and_import(session, user.id, since=datetime(2026, 8, 14))
 
             assert result.errors is not None
             assert any("get_sleep_data" in e for e in result.errors)
@@ -999,9 +991,7 @@ class TestLastDeviceUpload:
 
     def test_tolerates_a_device_with_no_name(self) -> None:
         client = MagicMock()
-        client.get_device_last_used.return_value = {
-            "lastUsedDeviceUploadTime": 1755577764000
-        }
+        client.get_device_last_used.return_value = {"lastUsedDeviceUploadTime": 1755577764000}
         upload = GarminSource(client=client).get_last_device_upload()
 
         assert upload is not None

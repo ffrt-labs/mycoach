@@ -90,9 +90,7 @@ class GarminSource(DataSource):
                 if not has_data:
                     result.empty_health_days.append(current)
                 if failures:
-                    errors.append(
-                        f"Garmin API calls failed for {current}: {', '.join(failures)}"
-                    )
+                    errors.append(f"Garmin API calls failed for {current}: {', '.join(failures)}")
                 created = await import_health_snapshot(session, snapshot)
                 if created:
                     result.health_snapshots_created += 1
@@ -174,19 +172,13 @@ class GarminSource(DataSource):
         sleep = self._safe_call(self._client.get_sleep_data, day, failures=failures)
         hrv = self._safe_call(self._client.get_hrv_data, day, failures=failures)
         stress = self._safe_call(self._client.get_stress_data, day, failures=failures)
-        body_battery = self._safe_call(
-            self._client.get_body_battery, day, day, failures=failures
-        )
+        body_battery = self._safe_call(self._client.get_body_battery, day, day, failures=failures)
         training_readiness = self._safe_call(
             self._client.get_training_readiness, day, failures=failures
         )
-        training_status = self._safe_call(
-            self._client.get_training_status, day, failures=failures
-        )
+        training_status = self._safe_call(self._client.get_training_status, day, failures=failures)
         max_metrics = self._safe_call(self._client.get_max_metrics, day, failures=failures)
-        respiration = self._safe_call(
-            self._client.get_respiration_data, day, failures=failures
-        )
+        respiration = self._safe_call(self._client.get_respiration_data, day, failures=failures)
         spo2 = self._safe_call(self._client.get_spo2_data, day, failures=failures)
 
         snapshot = map_health_snapshot(
@@ -210,9 +202,7 @@ class GarminSource(DataSource):
         # missing briefing data.
         has_data = snapshot_has_data(snapshot)
         if not has_data:
-            logger.warning(
-                "Garmin health fetch for %s: response carried no usable values", day
-            )
+            logger.warning("Garmin health fetch for %s: response carried no usable values", day)
         else:
             null_fields = snapshot_null_content_fields(snapshot)
             if null_fields:

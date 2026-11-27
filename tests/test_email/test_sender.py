@@ -53,8 +53,6 @@ def test_render_daily_briefing_template() -> None:
     assert "MyCoach" in html
 
 
-
-
 # --- send_email function ---
 
 
@@ -463,9 +461,7 @@ _HRV_WITH_BAND = {
 
 @patch("mycoach.email.sender.send_email", return_value=True)
 def test_daily_briefing_shows_the_hrv_7_day_avg_against_the_band(mock_send: MagicMock) -> None:
-    send_daily_briefing(
-        None, settings=_make_settings(), hrv=_HRV_WITH_BAND
-    )
+    send_daily_briefing(None, settings=_make_settings(), hrv=_HRV_WITH_BAND)
     html = mock_send.call_args[0][2]
     assert "HRV 52 ms 7-day avg · your range 47–58 · Balanced · last night 48 ms" in html
 

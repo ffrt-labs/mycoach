@@ -60,10 +60,12 @@ async def plan_page(
     has_availability = False
     if not plan:
         avail_result = await session.execute(
-            select(WeeklyAvailability.id).where(
+            select(WeeklyAvailability.id)
+            .where(
                 WeeklyAvailability.user_id == USER_ID,
                 WeeklyAvailability.week_start == monday,
-            ).limit(1)
+            )
+            .limit(1)
         )
         has_availability = avail_result.scalar_one_or_none() is not None
 

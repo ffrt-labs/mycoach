@@ -550,9 +550,7 @@ async def _daily_briefing(today: date | None = None) -> None:
             numbers = await _code_rendered_numbers(today)
             views = await _briefing_week_and_life(today, numbers["hrv"])
             _deliver(
-                partial(
-                    send_daily_briefing, content, **numbers, **views, insight_id=insight.id
-                ),
+                partial(send_daily_briefing, content, **numbers, **views, insight_id=insight.id),
                 "daily briefing",
             )
 

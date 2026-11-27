@@ -236,9 +236,7 @@ class TestPostWorkoutTrace:
             await session.commit()
 
             engine = CoachingEngine(llm_client=_post_workout_llm(), tracer=captured.tracer)
-            await engine.generate_post_workout_analysis(
-                session, user.id, activity.external_id
-            )
+            await engine.generate_post_workout_analysis(session, user.id, activity.external_id)
 
         [root] = captured.roots()
         assert trace_hex(root) == trace_id(post_workout_seed("run-1"))
@@ -403,7 +401,7 @@ class TestOpenRouterGeneration:
                 reasoning_tokens=600,
                 cost=0.00321,
                 provider="Fireworks",
-            )
+            ),
         )
         async with new_session() as session:
             user_id = await _create_briefing_user(session)

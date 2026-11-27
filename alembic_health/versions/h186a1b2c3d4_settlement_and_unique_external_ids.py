@@ -76,9 +76,7 @@ def _guard_duplicates(pg: bool, filled: dict[int, str]) -> None:
     rows = (
         op.get_bind()
         .execute(
-            sa.text(
-                f"SELECT id, athlete_id, external_id FROM {_t('canonical_activities', pg)}"
-            )
+            sa.text(f"SELECT id, athlete_id, external_id FROM {_t('canonical_activities', pg)}")
         )
         .all()
     )
@@ -112,9 +110,7 @@ def upgrade() -> None:
 
     # Whatever exists at cutover is settled: it was reconciled, or old enough that the
     # deadline would pass at once. Nothing re-fires final coaching for it.
-    op.execute(
-        f"UPDATE {ca} SET settled_at = CURRENT_TIMESTAMP, settlement_reason = 'reconciled'"
-    )
+    op.execute(f"UPDATE {ca} SET settled_at = CURRENT_TIMESTAMP, settlement_reason = 'reconciled'")
 
     for activity_id, external_id in filled.items():
         op.get_bind().execute(

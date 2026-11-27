@@ -56,9 +56,7 @@ def upgrade() -> None:
         ),
         schema=schema,
     )
-    op.create_index(
-        INDEX, "body_measurements", ["athlete_id", "measured_at"], schema=schema
-    )
+    op.create_index(INDEX, "body_measurements", ["athlete_id", "measured_at"], schema=schema)
     with op.batch_alter_table("athletes", schema=schema) as batch_op:
         batch_op.add_column(sa.Column("height_cm", sa.Float(), nullable=True))
 

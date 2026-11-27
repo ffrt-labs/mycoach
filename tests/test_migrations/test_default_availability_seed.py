@@ -97,9 +97,7 @@ def test_seed_with_no_declared_weeks_is_empty(
     assert rows == []
 
 
-def test_downgrade_drops_table_and_column(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_downgrade_drops_table_and_column(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     db_path = tmp_path / "downgrade.db"
     cfg = _alembic_config(db_path, monkeypatch)
 
@@ -110,9 +108,7 @@ def test_downgrade_drops_table_and_column(
     try:
         tables = {
             row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
         columns = {row[1] for row in conn.execute("PRAGMA table_info(weekly_plans)").fetchall()}
     finally:

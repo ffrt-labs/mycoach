@@ -346,8 +346,8 @@ class TestGymSlotContract:
             for planned in gym_sessions:
                 activity = await _activity(session, user_id)
                 await link_activity_to_planned_session(
-                session, user_id, activity.external_id, planned.id, scores=sink
-            )
+                    session, user_id, activity.external_id, planned.id, scores=sink
+                )
             await session.commit()
 
         linked = {s.metadata["day_of_week"]: s.metadata["generation"] for s in sink.scores}

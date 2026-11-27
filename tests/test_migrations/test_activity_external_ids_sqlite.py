@@ -121,9 +121,11 @@ def test_existing_activities_are_settled_and_every_one_has_an_external_id(
     _seed_activity(at_185, "garmin", None)
     command.upgrade(_health(at_185, monkeypatch), H186)
 
-    assert _rows(
-        at_185, "SELECT external_id FROM canonical_activities ORDER BY id"
-    ) == [("uuid-1",), ("derived:abc",), ("g-1",)]
+    assert _rows(at_185, "SELECT external_id FROM canonical_activities ORDER BY id") == [
+        ("uuid-1",),
+        ("derived:abc",),
+        ("g-1",),
+    ]
     # nothing re-fires final coaching for history
     assert _rows(
         at_185,
@@ -131,9 +133,7 @@ def test_existing_activities_are_settled_and_every_one_has_an_external_id(
     ) == [("reconciled", 1)]
 
 
-def test_external_ids_are_unique_per_athlete(
-    at_185: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_external_ids_are_unique_per_athlete(at_185: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _seed_activity(at_185, "logger", "uuid-1")
     command.upgrade(_health(at_185, monkeypatch), H186)
 
@@ -167,12 +167,14 @@ def test_planned_sessions_and_insights_are_re_keyed_by_external_id(
     command.upgrade(_health(at_185, monkeypatch), H186)
     command.upgrade(_coaching(at_185, monkeypatch), C186)
 
+    assert _rows(at_185, "SELECT id, activity_external_id FROM planned_sessions ORDER BY id") == [
+        (1, "uuid-1"),
+        (2, None),
+    ]
     assert _rows(
-        at_185, "SELECT id, activity_external_id FROM planned_sessions ORDER BY id"
-    ) == [(1, "uuid-1"), (2, None)]
-    assert _rows(
-        at_185, "SELECT id, activity_external_id, revision, source_event_id "
-        "FROM coaching_insights ORDER BY id"
+        at_185,
+        "SELECT id, activity_external_id, revision, source_event_id "
+        "FROM coaching_insights ORDER BY id",
     ) == [(1, "g-1", 1, None), (2, None, 1, None)]
     # the internal id no longer exists on the coaching side
     assert "activity_id" not in _columns(at_185, "planned_sessions")
@@ -203,9 +205,7 @@ def test_it_refuses_to_re_key_before_the_health_revision_ran(
         command.upgrade(_coaching(at_185, monkeypatch), C186)
 
 
-def test_downgrade_restores_the_internal_ids(
-    at_185: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_downgrade_restores_the_internal_ids(at_185: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _seed_activity(at_185, "logger", "uuid-1")
     _plan_row(at_185, 1)
     command.upgrade(_health(at_185, monkeypatch), H186)

@@ -49,6 +49,7 @@ if _is_sqlite:
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
+
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 # The health module's own connection (ticket #186). With ``MYCOACH_HEALTH_DB_URL`` unset it

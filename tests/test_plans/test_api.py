@@ -215,9 +215,7 @@ class TestGeneratePlan:
         assert resp.status_code == 409
 
 
-async def _seed_activity(
-    session: object, user_id: int, with_performed_sets: bool = True
-) -> int:
+async def _seed_activity(session: object, user_id: int, with_performed_sets: bool = True) -> int:
     """Create an Activity, optionally with a performed set. Returns the activity's external id."""
     activity = Activity(
         user_id=user_id,

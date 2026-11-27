@@ -59,8 +59,10 @@ def test_upgrade_creates_schema_views_and_role_on_postgres() -> None:
     module = _load_migration_module()
     executed: list[str] = []
 
-    with patch.object(module.op, "get_bind", return_value=_FakeBind("postgresql")), \
-         patch.object(module.op, "execute", side_effect=lambda sql: executed.append(sql)):
+    with (
+        patch.object(module.op, "get_bind", return_value=_FakeBind("postgresql")),
+        patch.object(module.op, "execute", side_effect=lambda sql: executed.append(sql)),
+    ):
         module.upgrade()
 
     joined = "\n".join(executed)
@@ -84,8 +86,10 @@ def test_downgrade_drops_role_and_schema_on_postgres() -> None:
     module = _load_migration_module()
     executed: list[str] = []
 
-    with patch.object(module.op, "get_bind", return_value=_FakeBind("postgresql")), \
-         patch.object(module.op, "execute", side_effect=lambda sql: executed.append(sql)):
+    with (
+        patch.object(module.op, "get_bind", return_value=_FakeBind("postgresql")),
+        patch.object(module.op, "execute", side_effect=lambda sql: executed.append(sql)),
+    ):
         module.downgrade()
 
     joined = "\n".join(executed)

@@ -172,20 +172,26 @@ def map_health_snapshot(
         if isinstance(tlb, dict):
             for _dev_id, balance in (tlb.get("metricsTrainingLoadBalanceDTOMap") or {}).items():
                 if isinstance(balance, dict) and balance.get("primaryTrainingDevice"):
-                    load_focus_val = json.dumps({
-                        "aerobic_low": balance.get("monthlyLoadAerobicLow"),
-                        "aerobic_high": balance.get("monthlyLoadAerobicHigh"),
-                        "anaerobic": balance.get("monthlyLoadAnaerobic"),
-                        "feedback": balance.get("trainingBalanceFeedbackPhrase"),
-                        # Garmin's target ranges: the recap draws a load bar only
-                        # against one (#242).
-                        "aerobic_low_target_min": balance.get("monthlyLoadAerobicLowTargetMin"),
-                        "aerobic_low_target_max": balance.get("monthlyLoadAerobicLowTargetMax"),
-                        "aerobic_high_target_min": balance.get("monthlyLoadAerobicHighTargetMin"),
-                        "aerobic_high_target_max": balance.get("monthlyLoadAerobicHighTargetMax"),
-                        "anaerobic_target_min": balance.get("monthlyLoadAnaerobicTargetMin"),
-                        "anaerobic_target_max": balance.get("monthlyLoadAnaerobicTargetMax"),
-                    })
+                    load_focus_val = json.dumps(
+                        {
+                            "aerobic_low": balance.get("monthlyLoadAerobicLow"),
+                            "aerobic_high": balance.get("monthlyLoadAerobicHigh"),
+                            "anaerobic": balance.get("monthlyLoadAnaerobic"),
+                            "feedback": balance.get("trainingBalanceFeedbackPhrase"),
+                            # Garmin's target ranges: the recap draws a load bar only
+                            # against one (#242).
+                            "aerobic_low_target_min": balance.get("monthlyLoadAerobicLowTargetMin"),
+                            "aerobic_low_target_max": balance.get("monthlyLoadAerobicLowTargetMax"),
+                            "aerobic_high_target_min": balance.get(
+                                "monthlyLoadAerobicHighTargetMin"
+                            ),
+                            "aerobic_high_target_max": balance.get(
+                                "monthlyLoadAerobicHighTargetMax"
+                            ),
+                            "anaerobic_target_min": balance.get("monthlyLoadAnaerobicTargetMin"),
+                            "anaerobic_target_max": balance.get("monthlyLoadAnaerobicTargetMax"),
+                        }
+                    )
                     break
         # Extract recovery time from mostRecentTrainingStatus
         tsd = training_status.get("mostRecentTrainingStatus")
@@ -361,16 +367,36 @@ async def _snapshot_exists(
 
 
 _UPDATABLE_FIELDS = [
-    "resting_hr", "max_hr", "avg_hr", "hrv_status", "hrv_7day_avg",
-    "hrv_status_text", "hrv_baseline_low", "hrv_baseline_high",
+    "resting_hr",
+    "max_hr",
+    "avg_hr",
+    "hrv_status",
+    "hrv_7day_avg",
+    "hrv_status_text",
+    "hrv_baseline_low",
+    "hrv_baseline_high",
     "hrv_baseline_low_upper",
-    "sleep_duration_minutes", "sleep_score", "sleep_deep_minutes",
-    "sleep_light_minutes", "sleep_rem_minutes", "sleep_awake_minutes",
-    "body_battery_high", "body_battery_low", "body_battery_morning",
+    "sleep_duration_minutes",
+    "sleep_score",
+    "sleep_deep_minutes",
+    "sleep_light_minutes",
+    "sleep_rem_minutes",
+    "sleep_awake_minutes",
+    "body_battery_high",
+    "body_battery_low",
+    "body_battery_morning",
     "avg_stress",
-    "training_readiness", "training_load", "training_status", "vo2_max",
-    "recovery_time_hours", "load_focus",
-    "steps", "respiration_avg", "spo2_avg", "intensity_minutes", "raw_data",
+    "training_readiness",
+    "training_load",
+    "training_status",
+    "vo2_max",
+    "recovery_time_hours",
+    "load_focus",
+    "steps",
+    "respiration_avg",
+    "spo2_avg",
+    "intensity_minutes",
+    "raw_data",
 ]
 
 # raw_data is excluded: it is always written, even for Garmin's empty-day

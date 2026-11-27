@@ -117,4 +117,3 @@ class TestBriefingHrvFields:
         result = self._parse_metrics(hrv_last_night_avg="  ")
         assert result.hrv_last_night_avg is None
         assert result.hrv_status_text is None
-

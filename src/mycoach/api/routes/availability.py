@@ -96,9 +96,7 @@ async def set_default_availability(
     session: AsyncSession = Depends(get_db),
 ) -> list[DefaultAvailability]:
     """Replace the standing weekly schedule. An empty slot list clears it."""
-    await session.execute(
-        delete(DefaultAvailability).where(DefaultAvailability.user_id == USER_ID)
-    )
+    await session.execute(delete(DefaultAvailability).where(DefaultAvailability.user_id == USER_ID))
 
     rows = []
     for slot in body.slots:

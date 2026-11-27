@@ -38,9 +38,7 @@ def _m(days_ago: float, weight: float | None = None, waist: float | None = None)
 
 
 def _body(measurements: list[dict[str, Any]], height_cm: float | None = 180.0) -> BodySummary:
-    return summarize_body(
-        measurements, height_cm=height_cm, now=NOW, tz=ZoneInfo("Europe/London")
-    )
+    return summarize_body(measurements, height_cm=height_cm, now=NOW, tz=ZoneInfo("Europe/London"))
 
 
 def _text(html: str) -> str:

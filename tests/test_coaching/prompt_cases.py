@@ -376,7 +376,11 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
         "gym_adjustment",
         {
             "routine_day_name": "Push A",
-            "routine_exercises": _ROUTINE_EXERCISES,
+            # A 36-set Deadlift is a routine error, planned and so prompted as 3 sets (#250).
+            "routine_exercises": [
+                *_ROUTINE_EXERCISES,
+                {"exercise_name": "Deadlift", "sets": 36, "rep_range": "5", "notes": None},
+            ],
             "health_trends": {
                 "resting_hr": 55.5,
                 "sleep_score": 80.0,

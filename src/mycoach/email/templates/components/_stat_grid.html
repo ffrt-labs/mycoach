@@ -12,7 +12,7 @@
     {% for tile in row %}
     <td style="width:{{ grid.cell_width }}%;vertical-align:top;{{ grid.gutters[loop.index0] }}padding-bottom:{{ '0' if last_row else '8' }}px;">
       {% if tile %}
-      <div class="tile" style="border:1px solid {{ border_styles.rule.light }};border-radius:10px;padding:16px;">
+      <div class="tile bd-rule" style="border:1px solid {{ border_styles.rule.light }};border-radius:10px;padding:16px;">
         <div class="muted">{{ tile.label }}</div>
         <div class="strong tile-v" style="font:600 22px/1.2 'IBM Plex Mono',ui-monospace,Menlo,monospace;margin-top:6px;white-space:nowrap;">{{ tile.value }}{% if tile.unit %}<span class="munit" style="font-weight:400;">{{ tile.unit }}</span>{% endif %}</div>
         {% if tile.sub %}<div class="muted{% if tile.tone %} tone-{{ tile.tone }}{% endif %}" style="margin-top:6px;">{{ tile.sub }}</div>{% endif %}

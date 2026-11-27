@@ -130,11 +130,6 @@ textarea.field { resize: vertical; line-height: 1.5; }
 }
 .check-box.is-on { border-color: #fb923c; background: #fb923c; }
 
-/* bulleted lists + bold */
-ul.list-disc { list-style: disc; margin: 4px 0 0 18px; }
-ul.space-y-1 > li + li { margin-top: 4px; }
-.md-body strong { color: #fafafa; font-weight: 600; }
-
 /* status / feedback banners */
 .banner { border-radius: 10px; padding: 12px 14px; font: 500 13px 'IBM Plex Sans'; }
 .banner-info { background: rgba(251, 146, 60, .1); border: 1px solid rgba(251, 146, 60, .25); color: #fdba74; }

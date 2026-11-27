@@ -42,25 +42,31 @@
 {% macro load_rows(rows) -%}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   {% for row in rows %}
+  {#- The row's rule sits under its bar, when it has one, not between the two. -#}
+  {%- set rule = '' if row.bar else 'mrow bd-row ' %}
+  {%- set below = '8px' if row.bar else '12px' %}
   <tr class="load-row load-row-{{ row.key }}">
-    <td class="mrow bd-row mlabel" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">{{ row.label }}{% if row.target %} <span class="muted">· {{ row.target }}</span>{% endif %}</td>
-    <td class="mrow bd-row strong" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;font:600 14px 'IBM Plex Mono',monospace;">{{ row.value }}</td>
+    <td class="{{ rule }}mlabel" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px {{ below }} 0;">{{ row.label }}{% if row.target %} <span class="muted">· {{ row.target }}</span>{% endif %}</td>
+    <td class="{{ rule }}strong" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 {{ below }};font:600 14px 'IBM Plex Mono',monospace;">{{ row.value }}</td>
   </tr>
   {% if row.bar %}
   <tr>
-    <td colspan="2" style="padding:0 0 12px;">
-      {#- Email-safe: the target band on one track, the value as a fill under it. -#}
+    <td class="mrow bd-row" colspan="2" style="padding:0 0 12px;">
+      {#- Email-safe (#253): one bar cut into segments by the view. The target band
+          is the background of its segments' cells, 3px taller than the bar above and
+          below; the bar (the value's fill, or the track outside the band) is a
+          nested 6px cell in front. -#}
+      {%- set fill = 'in-range' if row.bar.in_range else 'out-range' %}
       <table class="load-bar" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          {% if row.bar.band_start_pct %}<td style="width:{{ row.bar.band_start_pct }}%;height:4px;background:#f4f4f5;font-size:0;line-height:0;">&nbsp;</td>{% endif %}
-          <td style="width:{{ row.bar.band_width_pct }}%;height:4px;background:#a7f3d0;font-size:0;line-height:0;">&nbsp;</td>
-          <td style="height:4px;background:#f4f4f5;font-size:0;line-height:0;">&nbsp;</td>
-        </tr>
-      </table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:2px;">
-        <tr>
-          <td style="width:{{ row.bar.fill_pct }}%;height:6px;border-radius:3px;background:{{ '#047857' if row.bar.in_range else '#b45309' }};font-size:0;line-height:0;">&nbsp;</td>
-          <td style="font-size:0;line-height:0;">&nbsp;</td>
+          {%- for seg in row.bar.segments %}
+          {%- set front = fill if seg.filled else ('track' if seg.layer == 'track' else none) %}
+          {%- set left = '3px' if loop.first else '0' %}
+          {%- set right = '3px' if loop.last or seg.fill_end else '0' %}
+          <td class="bar-seg{% if seg.layer == 'band' %} bar-band{% endif %}" style="width:{{ seg.width_pct }}%;padding:3px 0;{% if seg.layer == 'band' %}background:{{ bar_styles.band.light }};{% endif %}font-size:0;line-height:0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td{% if front %} class="bar-{{ front }}"{% endif %} style="height:6px;{% if front %}background:{{ bar_styles[front].light }};border-radius:{{ left }} {{ right }} {{ right }} {{ left }};{% endif %}font-size:0;line-height:0;">&nbsp;</td></tr></table>
+          </td>
+          {%- endfor %}
         </tr>
       </table>
     </td>

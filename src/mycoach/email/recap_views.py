@@ -165,12 +165,25 @@ _LOAD_FOCUS = (
 
 
 @dataclass(frozen=True)
-class LoadBar:
-    """A bar drawn only against a target range: fill and band as percentages."""
+class BarSegment:
+    """A stretch of the load bar between two of its edges (track, band, value).
 
-    fill_pct: int
-    band_start_pct: int
-    band_width_pct: int
+    ``layer`` is what lies behind it ("track" or "band"); ``filled`` is whether the
+    value's fill runs through it, in front; ``fill_end`` marks where the fill stops.
+    """
+
+    width_pct: int
+    layer: str
+    filled: bool
+    fill_end: bool = False
+
+
+@dataclass(frozen=True)
+class LoadBar:
+    """A bar drawn only against a target range: one track, the target band behind
+    the value, the value's fill in front. Its segments' widths add up to 100."""
+
+    segments: tuple[BarSegment, ...]
     in_range: bool
 
 
@@ -183,14 +196,41 @@ class LoadRow:
     bar: LoadBar | None = None
 
 
+_SCALE_CAP = 3
+"""The load bar's scale ends at most this many times the target's top."""
+
+
+def _pct(x: float, scale: float) -> int:
+    return min(100, max(0, round(100 * x / scale)))
+
+
 def _bar(value: float, low: float, high: float) -> LoadBar:
-    scale = max(value, high) * 1.15 or 1.0
-    return LoadBar(
-        fill_pct=round(100 * value / scale),
-        band_start_pct=round(100 * low / scale),
-        band_width_pct=max(1, round(100 * (high - low) / scale)),
-        in_range=low <= value <= high,
+    """Cut the track at the band's edges and the value's end, in whole percents.
+
+    Email clients cannot stack the band and the fill, so the bar is drawn as the
+    stretches between those edges: each is band or track behind, filled or not in
+    front. The band is at least 1% wide, so a zero-width target still shows. The
+    scale ends past the larger of value and target, but never past 3× the target's
+    top: a far larger value fills the bar rather than squeeze the band to a sliver.
+    """
+    scale = max(value, high) * 1.15
+    if high > 0:
+        scale = min(scale, high * _SCALE_CAP)
+    scale = scale or 1.0
+    fill = _pct(value, scale)
+    start = min(_pct(low, scale), 99)
+    end = max(_pct(high, scale), start + 1)
+    edges = sorted({0, start, end, fill, 100})
+    segments = tuple(
+        BarSegment(
+            width_pct=b - a,
+            layer="band" if start <= a < end else "track",
+            filled=b <= fill,
+            fill_end=b == fill,
+        )
+        for a, b in zip(edges, edges[1:], strict=False)
     )
+    return LoadBar(segments, in_range=low <= value <= high)
 
 
 def _load_focus(snapshots: Iterable[Mapping[str, Any]] | None) -> Mapping[str, Any] | None:
@@ -528,9 +568,7 @@ def quick_replies(
             )
         )
     replies.append(
-        QuickReply(
-            "I was travelling", "log the trip", prefill_url(settings, "travel", first, last)
-        )
+        QuickReply("I was travelling", "log the trip", prefill_url(settings, "travel", first, last))
     )
     if health_gap:
         # The dashboard's Garmin sync button; the link itself never syncs or logs in.

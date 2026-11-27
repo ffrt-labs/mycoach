@@ -76,6 +76,10 @@
   {%- for name, s in text_styles.items() %}
   .tx-{{ name }} { color:{{ s.light }}; }
   {%- endfor %}
+  {#- Bar colours (#253), from BAR_STYLES: the recap load bar's track, band and value. -#}
+  {%- for name, s in bar_styles.items() %}
+  .bar-{{ name }} { background:{{ s.light }}; }
+  {%- endfor %}
 
   .ws-q { border:2px solid #ea6d1f !important; }
 
@@ -130,6 +134,9 @@
     {%- endfor %}
     {%- for name, s in text_styles.items() %}
     .tx-{{ name }} { color:{{ s.dark }} !important; }
+    {%- endfor %}
+    {%- for name, s in bar_styles.items() %}
+    .bar-{{ name }} { background:{{ s.dark }} !important; }
     {%- endfor %}
     .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }

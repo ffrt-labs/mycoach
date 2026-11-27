@@ -114,6 +114,11 @@ def tone_chip(tone: str, label: str) -> Chip:
     return Chip(label, tone if tone in TONES else "neutral")
 
 
+def mark_chip(label: str) -> Chip:
+    """The IF or +1 mark on a Guardrail or the week addition (#252)."""
+    return Chip(label, "mark")
+
+
 def _heading(label: str) -> str:
     return label[0].upper() + label[1:]
 
@@ -176,6 +181,7 @@ JINJA_GLOBALS = {
     "session_status_chip": SESSION_STATUS_CHIP,
     "intent_chip": intent_chip,
     "tone_chip": tone_chip,
+    "mark_chip": mark_chip,
     "life_context_style": LIFE_CONTEXT_STYLE,
     "quality_intents": QUALITY_INTENTS,
 }

@@ -55,27 +55,21 @@
 </table>
 {%- endmacro %}
 
-{#- The IF / +1 mark, in the "mark" chip's colours: inline for light mode, from its
-    class in dark mode (#252). -#}
-{% macro mark_badge(text) -%}
-<span class="c-mark" style="display:inline-block;padding:1px 6px;border-radius:4px;background:{{ chip_styles.mark.light.bg }};color:{{ chip_styles.mark.light.fg }};font:600 11px 'IBM Plex Mono',monospace;">{{ text }}</span>
-{%- endmacro %}
-
 {#- A boxed one-line note under a block table: a ``Guardrail`` (IF when → then) or the
     week addition (+1 …). -#}
-{% macro _boxed(mark, body) -%}
+{% macro _boxed(ui, mark, body) -%}
 <table class="bd-rule" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;border:1px solid {{ border_styles.rule.light }};border-radius:10px;">
   <tr>
-    <td style="width:44px;vertical-align:top;padding:12px 0 12px 16px;">{{ mark_badge(mark) }}</td>
+    <td style="width:44px;vertical-align:top;padding:12px 0 12px 16px;">{{ ui.mark(mark) }}</td>
     <td class="p" style="vertical-align:top;padding:12px 16px 12px 0;">{{ body }}</td>
   </tr>
 </table>
 {%- endmacro %}
 
-{% macro guardrail(g) -%}
-{{ _boxed("IF", g.when ~ " → " ~ g.then) }}
+{% macro guardrail(ui, g) -%}
+{{ _boxed(ui, "IF", g.when ~ " → " ~ g.then) }}
 {%- endmacro %}
 
-{% macro week_addition(text) -%}
-{{ _boxed("+1", "This week: " ~ text) }}
+{% macro week_addition(ui, text) -%}
+{{ _boxed(ui, "+1", "This week: " ~ text) }}
 {%- endmacro %}

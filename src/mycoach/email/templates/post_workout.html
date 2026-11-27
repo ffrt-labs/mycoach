@@ -60,8 +60,8 @@
 {% if blocks or notes.guardrails or notes.week_addition %}
 {% call ui.section(layout, "Next session") %}
     {% if blocks %}{{ cn.block_table(blocks) }}{% endif %}
-    {% for g in notes.guardrails %}{{ cn.guardrail(g) }}{% endfor %}
-    {% if notes.week_addition %}{{ cn.week_addition(notes.week_addition) }}{% endif %}
+    {% for g in notes.guardrails %}{{ cn.guardrail(ui, g) }}{% endfor %}
+    {% if notes.week_addition %}{{ cn.week_addition(ui, notes.week_addition) }}{% endif %}
 {% endcall %}
 {% endif %}
 

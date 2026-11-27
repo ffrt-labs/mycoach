@@ -5,9 +5,8 @@ The Coach notes views are shared by the plan email and the dashboard's plan page
 which both render a cardio session's stored Blocks and the plan's focus and Guardrails.
 """
 
-import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -17,12 +16,18 @@ from pydantic import ValidationError
 from mycoach.coaching.email_schemas import Block, PlanNotes
 from mycoach.coaching.life_context import DayEffect, Episode, LifeContext
 from mycoach.config import Settings
-from mycoach.email.coach_notes import NO_VALUE, NOTES_UNAVAILABLE, BlockRow, block_rows, coach_notes
+from mycoach.email.coach_notes import (
+    NO_VALUE,
+    NOTES_UNAVAILABLE,
+    BlockRow,
+    block_rows,
+    stored_notes,
+)
 from mycoach.email.life_views import EQUIPMENT_LABEL
 from mycoach.email.links import default_schedule_url
 from mycoach.email.tones import LIFE_CONTEXT_STYLE, QUALITY_INTENTS
 from mycoach.models.life_context import EpisodeKind, IllnessSeverity
-from mycoach.models.plan import INTENT_LABEL
+from mycoach.models.plan import INTENT_LABEL, PlannedSession, Track, WeeklyPlan
 from mycoach.models.routine import ROUTINE_ERROR_PLANNED_SETS, is_routine_error
 from mycoach.sport_display import sport_display
 
@@ -50,12 +55,20 @@ def plan_block_rows(details: Mapping[str, Any] | None) -> list[BlockRow]:
 def stored_plan_notes(stored: str | None) -> PlanNotes | None:
     """``WeeklyPlan.coach_notes`` as ``PlanNotes``, or ``None`` when there are none
     (or they are not valid JSON on the contract)."""
-    if not stored:
-        return None
-    try:
-        return coach_notes(json.loads(stored), PlanNotes)
-    except json.JSONDecodeError:
-        return None
+    return stored_notes(stored, PlanNotes).notes
+
+
+def plan_notes_unavailable(plan: WeeklyPlan, sessions: Iterable[PlannedSession]) -> bool:
+    """The plan's v5 cardio prompt ran and left no Coach notes: the notes fell back.
+
+    The plan email and the plan page say so with the same rule (#249). The cardio
+    prompt was served (``cardio_prompt_version``) yet no ``PlanNotes`` were stored and
+    no cardio session generated: a parsed v5 cardio plan always stores its notes, so a
+    plan from before Coach notes, whose cardio sessions did generate, shows nothing.
+    """
+    if not plan.cardio_prompt_version or stored_plan_notes(plan.coach_notes) is not None:
+        return False
+    return not any(s.track == Track.CARDIO and s.generation_error is None for s in sessions)
 
 
 def _routine_error_sets(ex: Mapping[str, Any]) -> int | None:

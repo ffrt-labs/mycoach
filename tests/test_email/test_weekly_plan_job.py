@@ -4,6 +4,8 @@ import json
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from sqlalchemy import select
+
 from mycoach.coaching.life_context import EpisodeKind
 from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -139,8 +141,19 @@ async def test_the_plan_email_gets_the_plans_coach_notes() -> None:
     assert send.call_args.kwargs["notes_unavailable"] is False
 
 
+async def _fail_the_cardio_sessions(plan_id: int) -> None:
+    """What the engine stores when the cardio plan does not parse: placeholders."""
+    async with db_session() as session:
+        for ps in (await session.execute(select(PlannedSession))).scalars():
+            if ps.plan_id == plan_id and ps.track == "cardio":
+                ps.generation_error = "cardio plan generation failed"
+        await session.commit()
+
+
 async def test_a_cardio_plan_without_coach_notes_says_they_are_unavailable() -> None:
-    send = await _run(await _seed_plan(), None, "bundled:v5")
+    plan_id = await _seed_plan()
+    await _fail_the_cardio_sessions(plan_id)
+    send = await _run(plan_id, None, "bundled:v5")
     assert send.call_args.kwargs["notes"] is None
     assert send.call_args.kwargs["notes_unavailable"] is True
 

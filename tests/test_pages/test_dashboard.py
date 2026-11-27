@@ -211,40 +211,93 @@ async def _store_briefing(content: str) -> None:
         await session.commit()
 
 
-async def test_dashboard_reads_a_v5_briefing(client: AsyncClient) -> None:
-    """Coach notes (#241): the verdict, the Lead and tonight's tips, until #244."""
-    await _seed_user()
-    await _store_briefing(
-        json.dumps(
+def _page_text(html: str) -> str:
+    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+
+
+def _v5_briefing(**overrides: object) -> str:
+    """Coach notes (``DailyBriefingEmail``) with an option named by title, not by an
+    open session."""
+    from tests.test_email.test_briefing_notes import NOTES
+
+    notes = {
+        **NOTES,
+        "readiness": "active_recovery",
+        "headline": {"tone": "watch", "summary": "Short night; keep it easy."},
+        "options": [
             {
-                "readiness": "active_recovery",
-                "headline": {"tone": "watch", "summary": "Short night; keep it easy."},
-                "options": [],
-                "guardrail": None,
-                "sleep_note": "Restless.",
-                "tonight": [{"tone": "neutral", "text": "Bed by 22:00"}],
-                "key_metrics": {},
-                "analysis_md": "",
+                "open_session_id": None,
+                "title": "Easy spin",
+                "steps": ["30 min Z1", "Cadence 90"],
+                "why": "Moves the legs without load.",
+                "recommended": True,
             }
-        )
-    )
+        ],
+        "guardrail": {"when": "RHR up 5 tomorrow", "then": "Rest day"},
+        "sleep_note": "Restless, awake 40 min.",
+        "tonight": [{"tone": "watch", "text": "Bed by 22:00"}],
+    }
+    notes.update(overrides)
+    return json.dumps(notes)
+
+
+async def test_dashboard_renders_a_v5_briefing_from_its_coach_notes(client: AsyncClient) -> None:
+    """#249: the same parts as the email: verdict, Lead, options, Guardrail, tonight."""
+    await _seed_user()
+    await _store_briefing(_v5_briefing())
 
     resp = await client.get("/")
 
     assert resp.status_code == 200
-    assert "active recovery" in resp.text
-    assert "Short night; keep it easy." in resp.text
-    assert "Bed by 22:00" in resp.text
+    text = _page_text(resp.text)
+    assert "Active recovery" in text
+    assert "Short night; keep it easy." in text
+    assert "Easy spin" in text
+    assert "30 min Z1" in text
+    assert "Moves the legs without load." in text
+    assert "Recommended" in text
+    assert "IF RHR up 5 tomorrow → Rest day" in text
+    assert "Restless, awake 40 min." in text
+    assert "Bed by 22:00" in text
+    assert "Coach notes unavailable" not in text
 
 
-async def test_dashboard_survives_a_briefing_without_coach_notes(client: AsyncClient) -> None:
+async def test_a_v5_option_names_its_open_session(client: AsyncClient) -> None:
+    """An option linked by id takes its title from Open this week, as in the email."""
+    await _seed_user()
+    today = _local_today()
+    await _plan_this_week(
+        [PlannedSession(day_of_week=today.weekday(), sport="gym", title="Squat Day")]
+    )
+    async with test_session() as session:
+        open_id = (await session.execute(select(PlannedSession.id))).scalar_one()
+    option = {
+        "open_session_id": open_id,
+        "title": None,
+        "steps": ["Last working weights"],
+        "why": "Fresh legs today.",
+        "recommended": True,
+    }
+    await _store_briefing(_v5_briefing(options=[option]))
+
+    resp = await client.get("/")
+
+    text = _page_text(resp.text)
+    assert "Fresh legs today." in text
+    assert "Planned today · gym" in text  # the option's context, from its open session
+
+
+async def test_a_briefing_without_coach_notes_says_so(client: AsyncClient) -> None:
+    """#249: a briefing stored as ``null`` after the notes fallback."""
     await _seed_user()
     await _store_briefing("null")
 
     resp = await client.get("/")
 
     assert resp.status_code == 200
+    assert "Coach notes unavailable" in resp.text
     assert "Regenerate briefing" in resp.text
+    assert "Awaiting briefing" not in resp.text
 
 
 async def test_dashboard_with_plan(client: AsyncClient) -> None:

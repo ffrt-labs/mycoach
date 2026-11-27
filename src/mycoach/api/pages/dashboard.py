@@ -18,9 +18,17 @@ from mycoach.coaching.context import (
     get_today_health,
     sessions_excused_ill_between,
 )
+from mycoach.coaching.email_schemas import DailyBriefingEmail
 from mycoach.coaching.recovery_data import missing_recovery_data
 from mycoach.config import get_settings
 from mycoach.database import get_db
+from mycoach.email.briefing_views import (
+    RECOMMENDED_CHIP,
+    headline_view,
+    options_view,
+    tonight_view,
+)
+from mycoach.email.coach_notes import NOTES_UNAVAILABLE, stored_notes
 from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.life_context import EpisodeKind
@@ -93,27 +101,6 @@ async def _logged_line(session: AsyncSession, episode_id: int | None, today: dat
     return f"Logged ill {days} · {excused} {noun} excused"
 
 
-def _briefing_read(content: Any) -> dict[str, Any] | None:
-    """Today's briefing in the shape the hero and "The read" print.
-
-    A v5 briefing (Coach notes, #241) is mapped onto the v4 fields: the verdict from
-    ``readiness``, the Lead as the recovery status, tonight's tips as the read. A
-    briefing stored without Coach notes (``null``) has none. #244 replaces this.
-    """
-    if not isinstance(content, dict):
-        return None
-    if "readiness" not in content:
-        return content  # v4
-    headline = content.get("headline") or {}
-    tips = [t.get("text") for t in content.get("tonight") or [] if isinstance(t, dict)]
-    return {
-        "readiness_verdict": content.get("readiness"),
-        "recovery_status": headline.get("summary"),
-        "workout_adjustments": None,
-        "sleep_recommendation": " · ".join(t for t in tips if t) or None,
-    }
-
-
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
@@ -155,13 +142,6 @@ async def dashboard(
         )
     )
     briefing = briefing_result.scalar_one_or_none()
-    # Parse briefing content JSON
-    briefing_data = None
-    if briefing and briefing.content:
-        try:
-            briefing_data = _briefing_read(json.loads(briefing.content))
-        except (json.JSONDecodeError, TypeError):
-            briefing_data = None
 
     # Fetch current week's plan + today's session
     monday = today - timedelta(days=weekday_num)
@@ -192,6 +172,12 @@ async def dashboard(
 
     # The week's work still owed (#218), not just today's slot.
     open_this_week = await get_open_this_week(session, USER_ID, today)
+
+    # Today's briefing (#249): v5 Coach notes in the email's parts, a v4 briefing
+    # (until #244), or neither after the notes fallback.
+    read = stored_notes(briefing.content, DailyBriefingEmail) if briefing else None
+    notes = read.notes if read else None
+    options = options_view(notes.options, open_this_week) if notes else None
 
     # Life context (#220): an open illness, or the ramp-back after one.
     open_illness = next(
@@ -244,7 +230,13 @@ async def dashboard(
             "yesterday_health": yesterday_health,
             "avg_metrics": avg_metrics,
             "briefing": briefing,
-            "briefing_data": briefing_data,
+            "briefing_data": read.v4 if read else None,
+            "briefing_notes": notes,
+            "notes_unavailable": NOTES_UNAVAILABLE,
+            "briefing_headline": headline_view(notes.readiness, notes.headline) if notes else None,
+            "briefing_options": options,
+            "recommended_chip": RECOMMENDED_CHIP,
+            "tonight_tips": tonight_view(notes.tonight) if notes else [],
             "plan": plan,
             "today_session": today_session,
             "today_session_details": today_session_details,

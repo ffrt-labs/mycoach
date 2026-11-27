@@ -357,7 +357,7 @@ async def _store_recap(content: str | None) -> None:
 
 async def test_a_v4_recap_shows_its_paragraphs(client: AsyncClient) -> None:
     await _seed_user()
-    await _store_recap(json.dumps({"week_summary": "A **solid** week.", "mesocycle_progress": "W3"}))
+    await _store_recap(json.dumps({"week_summary": "A **solid** week."}))
 
     resp = await client.get("/history?recap_week=2026-11-02")
 

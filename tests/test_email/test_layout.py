@@ -15,7 +15,8 @@ import pytest
 from mycoach.coaching.life_context import Episode, LifeContext, RampBack
 from mycoach.config import Settings
 from mycoach.email import sender
-from mycoach.email.tones import BORDER_STYLES, CHIP_STYLES, TEXT_STYLES
+from mycoach.email.recap_views import load_rows
+from mycoach.email.tones import BAR_STYLES, BORDER_STYLES, CHIP_STYLES, TEXT_STYLES
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 from tests.test_email.test_briefing_notes import NOTES as BRIEFING_NOTES
@@ -708,3 +709,146 @@ def test_no_inline_style_types_a_tones_text_colour() -> None:
         if any(re.search(r"(?<![\w-])color:" + re.escape(c), style) for c in colours)
     ]
     assert not typed, typed
+
+
+# --- The recap load bar (#253) ---------------------------------------------------------
+
+
+def _load_bar(html: str) -> str:
+    """The first ``load-bar`` table, nested tables and all."""
+    start = html.index('<table class="load-bar"')
+    depth, i = 0, start
+    for tag in re.finditer(r"<(/?)table\b", html[start:]):
+        depth += -1 if tag.group(1) else 1
+        if not depth:
+            i = start + tag.end()
+            break
+    return html[start : html.index(">", i) + 1]
+
+
+def test_the_load_bar_is_one_bar_with_the_band_behind_the_value() -> None:
+    """One bar: the target band is the background of its segments' cells, padded
+    taller than the bar, and the bar is a nested cell in front: the value's fill
+    where it reaches, the track after it. Nested tables and cell backgrounds only:
+    no positioning, flexbox or grid."""
+    html = _render("weekly_recap")
+    bar = _load_bar(html)
+    behind = re.findall(r'<td class="bar-seg( bar-band)?"', bar)
+    front = re.findall(r'<td(?: class="bar-([\w-]+)")? style="height:6px;', bar)
+
+    # 412 on a 300–600 target: track, band under the fill, band, track (see below).
+    # The band shows through where neither fill nor track is drawn in front.
+    assert [b.strip() or "-" for b in behind] == ["-", "bar-band", "bar-band", "-"]
+    assert front == ["in-range", "in-range", "", "track"]
+    band = _tds(bar, "bar-band")
+    assert all(_style("padding:3px 0").items() <= s.items() for s in band), band
+    assert not re.search(r"position|display:\s*(flex|grid)", bar)
+    assert html[html.index(bar) + len(bar) :].lstrip().startswith("</td>"), "no second bar"
+
+
+def test_a_load_rows_rule_sits_under_its_bar() -> None:
+    """The rule between load rows closes a row with a bar below the bar, not between
+    the label and the bar it belongs to; a row without a bar keeps it under the value."""
+    html = _render("weekly_recap")
+    rows = re.findall(r'<tr class="load-row load-row-(\w+)">(.*?)</tr>', html, re.S)
+    ruled = {key: "mrow" in cells for key, cells in rows}
+    assert ruled == {"aerobic_low": False, "aerobic_high": True, "anaerobic": True}
+    start = html.index('<table class="load-bar"')
+    assert "mrow" in html[html.rindex("<td", 0, start) : start]
+
+
+def test_the_load_bar_colours_come_from_bar_styles_light_and_dark() -> None:
+    """Every bar cell types its BAR_STYLES light colour inline and carries the
+    ``bar-<name>`` class, which dark mode recolours."""
+    html = _render("weekly_recap")
+    dark = _media_block(html, "prefers-color-scheme: dark")
+    cells = [
+        (name, style)
+        for classes, style in re.findall(r'<td class="([^"]*)" style="([^"]*)"', _load_bar(html))
+        for name in re.findall(r"\bbar-(track|band|in-range|out-range)\b", classes)
+    ]
+    assert {name for name, _ in cells} == {"track", "band", "in-range"}
+    for name, style in cells:
+        assert _style(style)["background"] == BAR_STYLES[name].light, name
+    for name, shade in BAR_STYLES.items():
+        rule = re.search(r"\.bar-" + re.escape(name) + r"\s*\{([^}]*)\}", dark)
+        assert rule and f"background:{shade.dark} !important" in rule.group(1), name
+
+
+def test_a_value_outside_its_target_fills_in_the_out_of_range_colour() -> None:
+    focus = {"aerobic_low": 100, "aerobic_low_target_min": 300, "aerobic_low_target_max": 600}
+    with patch("mycoach.email.sender.send_email", return_value=True) as mock_send:
+        sender.send_weekly_recap(
+            RECAP_NOTES,
+            "2026-11-09",
+            _settings(),
+            adherence=WEEK_2026_11_02_ADHERENCE,
+            episodes=[],
+            health_week=[{"snapshot_date": "2026-11-08", "load_focus": focus}],
+        )
+    bar = _load_bar(str(mock_send.call_args[0][2]))
+    assert re.findall(r'<td class="bar-(in-range|out-range)"', bar) == ["out-range"]
+
+
+def _segments(value: float, low: float, high: float) -> list[tuple[int, str, bool]]:
+    """The load bar's (width %, layer behind, filled) for one Low aerobic value."""
+    focus = {"aerobic_low": value, "aerobic_low_target_min": low, "aerobic_low_target_max": high}
+    (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": focus}])
+    assert row.bar
+    return [(s.width_pct, s.layer, s.filled) for s in row.bar.segments]
+
+
+@pytest.mark.parametrize(
+    ("value", "low", "high", "segments"),
+    [
+        # In range: the scale is 600 × 1.15 = 690, so the band is 43–87% and the
+        # value 60%. The fill runs through the track and into the band.
+        (
+            412,
+            300,
+            600,
+            [(43, "track", True), (17, "band", True), (27, "band", False), (13, "track", False)],
+        ),
+        # Under the target: the fill stops short of the band.
+        (
+            100,
+            300,
+            600,
+            [(14, "track", True), (29, "track", False), (44, "band", False), (13, "track", False)],
+        ),
+        # Over the target: the scale is 700 × 1.15 = 805; the fill covers the band.
+        (
+            700,
+            300,
+            600,
+            [(37, "track", True), (38, "band", True), (12, "track", True), (13, "track", False)],
+        ),
+        # Over the scale max (3 × the target's top): the fill is full and the band
+        # keeps its width instead of shrinking to a sliver.
+        (2400, 300, 600, [(17, "track", True), (16, "band", True), (67, "track", True)]),
+        # A zero value: no fill at all.
+        (0, 300, 600, [(43, "track", False), (44, "band", False), (13, "track", False)]),
+        # A target from zero: the band starts at the track's start.
+        (50, 0, 100, [(43, "band", True), (44, "band", False), (13, "track", False)]),
+        # All zero: no division by zero, and the band is still 1% wide.
+        (0, 0, 0, [(1, "band", False), (99, "track", False)]),
+    ],
+)
+def test_the_load_bar_segments_are_computed_in_whole_percents(
+    value: float, low: float, high: float, segments: list[tuple[int, str, bool]]
+) -> None:
+    assert _segments(value, low, high) == segments
+
+
+@pytest.mark.parametrize(
+    ("value", "in_range"), [(300, True), (600, True), (299, False), (601, False), (0, False)]
+)
+def test_the_fill_is_out_of_range_outside_the_target(value: float, in_range: bool) -> None:
+    focus = {"aerobic_low": value, "aerobic_low_target_min": 300, "aerobic_low_target_max": 600}
+    (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": focus}])
+    assert row.bar and row.bar.in_range is in_range
+
+
+def test_a_load_row_without_a_target_keeps_the_plain_value() -> None:
+    (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": {"anaerobic": 19}}])
+    assert (row.value, row.target, row.bar) == ("19", None, None)

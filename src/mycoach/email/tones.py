@@ -107,6 +107,18 @@ TEXT_STYLES: dict[str, Shade] = {
 """Text colours a template types inline (#252); ``base.html`` makes them ``.tx-<name>``
 classes, light and dark, after the type classes so they win."""
 
+BAR_STYLES: dict[str, Shade] = {
+    # A bar's empty track, and the target range drawn behind its value (#253).
+    "track": Shade("#f4f4f5", "rgba(255,255,255,.06)"),
+    "band": Shade("#a7f3d0", "rgba(52,211,153,.22)"),
+    # The value: green inside the target range, amber outside it.
+    "in-range": Shade("#10b981", "#34d399"),
+    "out-range": Shade("#f59e0b", "#fbbf24"),
+}
+"""Bar colours (#253); ``base.html`` makes them ``.bar-<name>`` background classes,
+light and dark. A template types the light colour inline from here and adds the
+class, so dark mode can recolour it."""
+
 
 @dataclass(frozen=True)
 class Chip:
@@ -190,6 +202,7 @@ JINJA_GLOBALS = {
     "zone_styles": ZONE_STYLES,
     "border_styles": BORDER_STYLES,
     "text_styles": TEXT_STYLES,
+    "bar_styles": BAR_STYLES,
     "session_status_chip": SESSION_STATUS_CHIP,
     "intent_chip": intent_chip,
     "tone_chip": tone_chip,

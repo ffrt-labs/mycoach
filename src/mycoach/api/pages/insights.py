@@ -4,8 +4,7 @@ Revisions are immutable, so ``/insights/{id}`` always shows what the email that 
 to it was rendered from. A newer revision of the same insight is linked, not shown.
 """
 
-import contextlib
-import json
+from collections.abc import Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -15,7 +14,9 @@ from markupsafe import Markup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mycoach.coaching.email_schemas import DailyBriefingEmail, PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.database import get_db
+from mycoach.email.coach_notes import NotesKind, StoredNotes, stored_notes
 from mycoach.models.coaching import CoachingInsight
 
 router = APIRouter(tags=["pages"])
@@ -33,16 +34,25 @@ def markdown_html(markdown: str | None) -> Markup | None:
     return Markup(_MARKDOWN.render(markdown))  # noqa: S704 — html disabled above
 
 
-def analysis_html(content: str | None) -> Markup | None:
-    """The insight's ``analysis_md`` as HTML, or None when it has none.
+_NOTES_MODEL: Mapping[str, type[PostWorkoutEmail | WeeklyRecapEmail | DailyBriefingEmail]] = {
+    "post_workout": PostWorkoutEmail,
+    "weekly_recap": WeeklyRecapEmail,
+    "daily_briefing": DailyBriefingEmail,
+}
+"""Each insight type's v5 Coach notes; every one carries ``analysis_md``."""
 
-    v5 Coach notes carry ``analysis_md``; a v4 insight or a Coach notes fallback
-    (content ``null``) does not.
+
+def insight_notes(
+    insight: CoachingInsight,
+) -> StoredNotes[PostWorkoutEmail | WeeklyRecapEmail | DailyBriefingEmail]:
+    """The insight's stored content through the shared v5/legacy/fallback check (#249).
+
+    An insight type without Coach notes has none to show: the fallback.
     """
-    data = None
-    with contextlib.suppress(json.JSONDecodeError, TypeError):
-        data = json.loads(content or "")
-    return markdown_html(data.get("analysis_md") if isinstance(data, dict) else None)
+    model = _NOTES_MODEL.get(insight.insight_type)
+    if model is None:
+        return StoredNotes(NotesKind.FALLBACK)
+    return stored_notes(insight.content, model)
 
 
 async def _newest_revision(
@@ -77,6 +87,7 @@ async def insight_page(
     insight = await session.get(CoachingInsight, insight_id)
     if insight is None or insight.user_id != USER_ID:
         raise HTTPException(status_code=404, detail="Insight not found")
+    stored = insight_notes(insight)
     templates: Jinja2Templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
@@ -84,7 +95,8 @@ async def insight_page(
         {
             "active_page": "history",
             "insight": insight,
-            "analysis": analysis_html(insight.content),
+            "insight_notes": stored,
+            "analysis": markdown_html(stored.notes.analysis_md) if stored.notes else None,
             "newer": await _newest_revision(session, insight),
         },
     )

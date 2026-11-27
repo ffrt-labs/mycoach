@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.user import User
 from tests.conftest import test_session
+from tests.test_email.test_recap_notes import NOTES
 
 pytestmark = pytest.mark.anyio
 
@@ -104,14 +105,51 @@ async def test_insight_page_escapes_html_in_the_analysis(client: AsyncClient) ->
     assert 'href="javascript:' not in resp.text
 
 
-async def test_insight_page_says_so_when_the_revision_has_no_analysis(
+async def test_insight_page_renders_a_v5_recaps_analysis(client: AsyncClient) -> None:
+    """The recap's "Full analysis →" opens here too: read as ``WeeklyRecapEmail``."""
+    async with test_session() as session:
+        if await session.get(User, 1) is None:
+            session.add(User(id=1, email="test@example.com", name="Test User"))
+            await session.flush()
+        recap = CoachingInsight(
+            user_id=1,
+            insight_date=date(2026, 11, 16),
+            insight_type="weekly_recap",
+            content=json.dumps({**NOTES, "analysis_md": "## Week\n\nA **steady** block."}),
+        )
+        session.add(recap)
+        await session.commit()
+
+    resp = await client.get(f"/insights/{recap.id}")
+
+    assert resp.status_code == 200
+    assert "A <strong>steady</strong> block." in resp.text
+
+
+async def test_insight_page_names_a_v4_insight_as_predating_coach_notes(
     client: AsyncClient,
 ) -> None:
-    """A Coach notes fallback stores ``null``; a v4 insight has no ``analysis_md``."""
-    fallback = await _seed_insight("null")
-    v4 = await _seed_insight(json.dumps({"performance_summary": "Good swim."}), revision=2)
+    """#244: a v4 insight is not rendered, even its fields that look like Markdown."""
+    insight_id = await _seed_insight(
+        json.dumps({"performance_summary": "Good swim.", "analysis_md": "**Old** text"})
+    )
 
-    for insight_id in (fallback, v4):
-        resp = await client.get(f"/insights/{insight_id}")
-        assert resp.status_code == 200
-        assert "No full analysis for this revision." in resp.text
+    resp = await client.get(f"/insights/{insight_id}")
+
+    assert resp.status_code == 200
+    assert "Analysis predates Coach notes" in resp.text
+    assert "Old" not in resp.text
+    assert "Coach notes unavailable" not in resp.text
+
+
+async def test_insight_page_says_coach_notes_unavailable_after_the_fallback(
+    client: AsyncClient,
+) -> None:
+    """#249: the notes fallback stores ``null``."""
+    insight_id = await _seed_insight("null")
+
+    resp = await client.get(f"/insights/{insight_id}")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" in resp.text
+    assert "predates Coach notes" not in resp.text

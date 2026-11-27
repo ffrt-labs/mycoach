@@ -167,7 +167,7 @@ async def test_history_page_metrics(client: AsyncClient) -> None:
     assert "350" in resp.text
 
 
-async def test_a_v4_post_workout_is_named_as_an_earlier_version(client: AsyncClient) -> None:
+async def test_a_v4_post_workout_is_named_as_predating_coach_notes(client: AsyncClient) -> None:
     """#244: a v4 analysis is not rendered and has no panel to expand."""
     await _seed_user()
     activity = await _seed_activity(title="Old Workout")
@@ -185,7 +185,7 @@ async def test_a_v4_post_workout_is_named_as_an_earlier_version(client: AsyncCli
 
     resp = await client.get("/history")
     assert resp.status_code == 200
-    assert "Analysis from an earlier version isn&#39;t shown" in resp.text
+    assert "Analysis predates Coach notes" in resp.text
     assert "Solid" not in resp.text
     assert "Analyzed" not in resp.text
     assert f'id="analysis-{activity.external_id}"' not in resp.text
@@ -358,7 +358,7 @@ async def _store_recap(content: str | None) -> None:
         await session.commit()
 
 
-async def test_a_v4_recap_is_named_as_an_earlier_version(client: AsyncClient) -> None:
+async def test_a_v4_recap_is_named_as_predating_coach_notes(client: AsyncClient) -> None:
     """#244: a v4 recap's paragraphs are no longer rendered."""
     await _seed_user()
     await _store_recap(json.dumps({"week_summary": "A **solid** week."}))
@@ -366,7 +366,7 @@ async def test_a_v4_recap_is_named_as_an_earlier_version(client: AsyncClient) ->
     resp = await client.get("/history?recap_week=2026-11-02")
 
     assert resp.status_code == 200
-    assert "Analysis from an earlier version isn&#39;t shown" in resp.text
+    assert "This recap predates Coach notes" in resp.text
     assert "A **solid** week." not in resp.text
     assert "A <strong>solid</strong> week." not in resp.text
     assert "Coach notes unavailable" not in resp.text
@@ -381,5 +381,5 @@ async def test_a_recap_without_coach_notes_says_so(client: AsyncClient) -> None:
     resp = await client.get("/history?recap_week=2026-11-02")
 
     assert resp.status_code == 200
-    assert "Coach notes unavailable" in resp.text
+    assert "Coach notes unavailable for this week" in resp.text
     assert "Regenerate" in resp.text

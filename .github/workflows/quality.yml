@@ -1,0 +1,33 @@
+name: Python quality
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: ruff + mypy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Each check runs even if an earlier one fails, so one run reports all three.
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      - name: ruff check
+        if: ${{ !cancelled() }}
+        run: uv run ruff check src/ tests/
+
+      - name: mypy
+        if: ${{ !cancelled() }}
+        run: uv run mypy src/mycoach/

@@ -235,12 +235,13 @@ uv run pytest
 # Run a specific test file
 uv run pytest tests/test_api/test_system.py
 
-# Lint and format
+# Lint and format (CI runs these three on every pull request)
+uv run ruff format --check .
 uv run ruff check src/ tests/
-uv run ruff format src/ tests/
-
-# Type check
 uv run mypy src/mycoach/
+
+# Apply formatting
+uv run ruff format .
 
 # Create a new database migration
 uv run alembic revision --autogenerate -m "description"

@@ -375,6 +375,13 @@ def test_a_hero_block_hugs_the_hero_with_no_divider(html: str) -> None:
         assert "border-top" not in style, style
 
 
+def test_a_hero_block_draws_no_divider_from_a_class_either(html: str) -> None:
+    """``block-b`` gives a cell a top border from base.html, so a hero block must not
+    carry it, or the divider comes back in every client that keeps <style>."""
+    for tag in re.findall(r"<td\b[^>]*\bhero-block\b[^>]*>", html):
+        assert "block-b" not in tag, tag
+
+
 def test_every_other_section_has_32_32_padding_under_a_divider(html: str) -> None:
     in_hero = _tds(html, "hero-block")
     for style in _tds(html, "section"):

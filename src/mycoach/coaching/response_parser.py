@@ -19,32 +19,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
-class WeeklyPlanSessionResponse(BaseModel):
-    day_of_week: int = Field(ge=0, le=6)
-    sport: str
-    title: str
-    duration_minutes: int | None = None
-    details: dict[str, Any] = Field(default_factory=dict)
-    notes: str | None = None
-
-
-class WeeklyPlanResponse(BaseModel):
-    summary: str
-    sessions: list[WeeklyPlanSessionResponse] = Field(min_length=1)
-
-
-class SlotAssignment(BaseModel):
-    slot_index: int = Field(ge=0)
-    track: str = Field(pattern=r"^(gym|cardio)$")
-    routine_day_index: int | None = None
-    rationale: str
-
-
-class ScheduleDistributionResponse(BaseModel):
-    schedule: list[SlotAssignment] = Field(min_length=1)
-    distribution_notes: str
-
-
 class GymAdjustmentExercise(BaseModel):
     exercise_id: str | None = None
     exercise_name: str

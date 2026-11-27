@@ -469,7 +469,12 @@ async def test_the_plan_shows_its_guardrails_and_goal_assessment(client: AsyncCl
     assert "Coach notes unavailable" not in text
 
 
-async def _cardio_plan(*, coach_notes: str | None, generation_error: str | None) -> None:
+async def _cardio_plan(
+    *,
+    coach_notes: str | None,
+    generation_error: str | None,
+    cardio_prompt_version: str = "lf:7",
+) -> None:
     """This week's plan whose cardio prompt was served (``cardio_prompt_version``)."""
     today = local_today(get_settings().timezone)
     async with test_session() as session:
@@ -478,7 +483,7 @@ async def _cardio_plan(*, coach_notes: str | None, generation_error: str | None)
             week_start=today - timedelta(days=today.weekday()),
             status="active",
             prompt_version="v5",
-            cardio_prompt_version="lf:7",
+            cardio_prompt_version=cardio_prompt_version,
             coach_notes=coach_notes,
         )
         session.add(plan)
@@ -504,7 +509,40 @@ async def test_a_v5_plan_whose_coach_notes_fell_back_says_so(client: AsyncClient
     resp = await client.get("/plan")
 
     assert resp.status_code == 200
-    assert "Coach notes unavailable" in resp.text
+    assert "Coach notes unavailable for this week" in resp.text
+
+
+async def test_a_v4_plan_from_langfuse_whose_cardio_all_failed_reads_as_a_fallback(
+    client: AsyncClient,
+) -> None:
+    """The rule's known limit: a Langfuse version (``lf:<n>``) does not say whether the
+    prompt was v4 or v5, so a v4 plan whose cardio sessions all failed is
+    indistinguishable from a v5 plan whose notes fell back, and says the same."""
+    await _seed_user()
+    await _cardio_plan(
+        coach_notes=None, generation_error="cardio plan generation failed",
+        cardio_prompt_version="lf:3",
+    )
+
+    resp = await client.get("/plan")
+
+    assert "Coach notes unavailable for this week" in resp.text
+
+
+async def test_a_bundled_v4_plan_whose_cardio_all_failed_shows_nothing_extra(
+    client: AsyncClient,
+) -> None:
+    """A bundled prompt records its template set, so a v4 one is known not to be v5."""
+    await _seed_user()
+    await _cardio_plan(
+        coach_notes=None, generation_error="cardio plan generation failed",
+        cardio_prompt_version="bundled:v4",
+    )
+
+    resp = await client.get("/plan")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" not in resp.text
 
 
 async def test_an_old_v4_plan_without_coach_notes_shows_nothing_extra(
@@ -533,7 +571,7 @@ async def test_a_plan_without_a_cardio_prompt_shows_nothing_extra(client: AsyncC
     assert "Coach notes unavailable" not in resp.text
 
 
-async def test_a_v4_cardio_session_names_its_details_as_an_earlier_version(
+async def test_a_v4_cardio_session_names_its_details_as_predating_coach_notes(
     client: AsyncClient,
 ) -> None:
     """#244: a v4 cardio session's free-text details are no longer rendered."""
@@ -560,6 +598,6 @@ async def test_a_v4_cardio_session_names_its_details_as_an_earlier_version(
     text = _page_text(resp.text)
     assert "Recovery swim" in text
     assert "Keep it loose." in text
-    assert "Details from an earlier version aren't shown" in text
+    assert "Details predate Coach notes" in text
     assert "Easy 4×100 pull" not in text
     assert "main set" not in text.lower()

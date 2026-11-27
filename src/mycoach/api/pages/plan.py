@@ -16,12 +16,7 @@ from mycoach.coaching.context import (
 )
 from mycoach.config import get_settings
 from mycoach.database import get_db
-from mycoach.email.coach_notes import NOTES_UNAVAILABLE
-from mycoach.email.plan_views import (
-    plan_block_rows,
-    plan_notes_unavailable,
-    stored_plan_notes,
-)
+from mycoach.email.plan_views import plan_block_rows, plan_coach_notes
 from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.availability import WeeklyAvailability
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -76,7 +71,7 @@ async def plan_page(
     sessions_by_day: dict[int, dict] = {}
     total_sessions = 0
     completed_sessions = 0
-    notes_fell_back = False
+    plan_notes = None
 
     if plan:
         sessions_result = await session.execute(
@@ -85,7 +80,8 @@ async def plan_page(
             .order_by(PlannedSession.day_of_week)
         )
         planned = sessions_result.scalars().all()
-        notes_fell_back = plan_notes_unavailable(plan, planned)
+        # The plan's Coach notes, by the plan email's rule (#249).
+        plan_notes = plan_coach_notes(plan, planned)
         # Week completion (ADR 0005), the count Open this week uses: a session
         # done on another day, or substituted, is done though nobody ticked it.
         completion = await week_completion_of(session, USER_ID, plan, today)
@@ -165,8 +161,6 @@ async def plan_page(
             "has_availability": has_availability,
             "week_start_iso": monday.isoformat(),
             "open_this_week": open_this_week,
-            "plan_notes": stored_plan_notes(plan.coach_notes) if plan else None,
-            "plan_notes_unavailable": notes_fell_back,
-            "notes_unavailable": NOTES_UNAVAILABLE,
+            "plan_notes": plan_notes,
         },
     )

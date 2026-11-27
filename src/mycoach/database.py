@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -42,7 +43,7 @@ engine = (
 if _is_sqlite:
 
     @event.listens_for(_raw_engine.sync_engine, "connect")
-    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    def _set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA busy_timeout=5000")

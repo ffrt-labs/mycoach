@@ -72,10 +72,17 @@ def is_routine_error(sets: object) -> bool:
     return isinstance(sets, int) and not isinstance(sets, bool) and sets > ROUTINE_MAX_SETS
 
 
+def planned_set_count(routine_sets: int) -> int:
+    """The set count the plan stores for a routine exercise: a routine error is planned
+    as ``ROUTINE_ERROR_PLANNED_SETS``, anything else as the routine's count."""
+    return ROUTINE_ERROR_PLANNED_SETS if is_routine_error(routine_sets) else routine_sets
+
+
 def planned_sets(routine_sets: int) -> dict[str, int]:
     """A planned exercise's ``sets`` from its routine's: a routine error is planned as
     ``ROUTINE_ERROR_PLANNED_SETS``, the routine's count kept as ``routine_sets`` so the
     plan email's Routine error notice can name it."""
+    planned = {"sets": planned_set_count(routine_sets)}
     if is_routine_error(routine_sets):
-        return {"sets": ROUTINE_ERROR_PLANNED_SETS, "routine_sets": routine_sets}
-    return {"sets": routine_sets}
+        planned["routine_sets"] = routine_sets
+    return planned

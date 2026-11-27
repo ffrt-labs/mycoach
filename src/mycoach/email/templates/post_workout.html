@@ -28,15 +28,17 @@
     {% endif %}
 {% endcall %}
 
-{% if grid %}
-{% call ui.section(layout) %}
-    {{ stat_grid(grid) }}
-{% endcall %}
-{% endif %}
-
+{#- The actions come before the stat grid for every reader, so the first two show
+    without scrolling at 390 x 844 (#253, #230 user story 2). -#}
 {% if notes %}
 {% call ui.section(layout) %}
     {{ cn.actions_card(ui, notes.actions, "Next time") }}
+{% endcall %}
+{% endif %}
+
+{% if grid %}
+{% call ui.section(layout) %}
+    {{ stat_grid(grid) }}
 {% endcall %}
 {% endif %}
 

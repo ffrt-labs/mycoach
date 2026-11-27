@@ -198,7 +198,11 @@ async def test_daily_briefing_defaults_to_the_local_day_not_the_servers(
     tz = next(
         z for z in ("Pacific/Kiritimati", "Etc/GMT+12") if local_today(z) != date.today()
     )
-    monkeypatch.setattr(get_settings(), "scheduler_timezone", tz)
+    # get_settings() builds a fresh Settings on every call, so the override has to
+    # replace what the job reads; patching one instance would leave the job on the
+    # default timezone and pass only when its date happens to match ``tz``'s (#257).
+    settings = get_settings().model_copy(update={"scheduler_timezone": tz})
+    monkeypatch.setattr("mycoach.scheduler.jobs.get_settings", lambda: settings)
     with (
         patch(
             "mycoach.scheduler.jobs._garmin_sync",

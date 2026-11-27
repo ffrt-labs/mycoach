@@ -213,40 +213,9 @@
                 {% endif %}
             </div>
             {% elif day.details %}
-            {# Fallback for non-exercise details (swimming, running, etc.) #}
+            {#- Neither exercises nor Blocks: a v4 cardio session, no longer rendered (#244). -#}
             <div class="px-4 pb-3 border-t {% if day.is_today %}border-accent/20{% else %}border-white/[0.06]{% endif %}">
-                <div class="mt-2 text-sm text-zinc-300 space-y-1">
-                    {% for key, value in day.details.items() %}
-                    {% if value %}
-                    <div>
-                        <span class="font-medium capitalize text-zinc-200">{{ key | replace('_', ' ') }}:</span>
-                        {% if value is mapping %}
-                        <ul class="ml-4 list-disc text-zinc-400">
-                            {% for k, v in value.items() %}
-                            <li><span class="font-medium">{{ k }}:</span> {{ v }}</li>
-                            {% endfor %}
-                        </ul>
-                        {% elif value is iterable and value is not string %}
-                        <ul class="ml-4 list-disc text-zinc-400">
-                            {% for item in value %}
-                            {% if item is mapping %}
-                            <li>
-                                {% for k, v in item.items() %}
-                                <span class="font-medium">{{ k | replace('_', ' ') }}:</span> {{ v }}{% if not loop.last %}, {% endif %}
-                                {% endfor %}
-                            </li>
-                            {% else %}
-                            <li>{{ item }}</li>
-                            {% endif %}
-                            {% endfor %}
-                        </ul>
-                        {% else %}
-                        {{ value }}
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
+                <p class="text-xs text-zinc-500 mt-2">Details from an earlier version aren't shown.</p>
             </div>
             {% endif %}
         </div>

@@ -43,7 +43,7 @@
   </tr>
   {% for row in rows %}
   <tr>
-    <td class="sec bd-row" style="{{ cell }}width:96px;color:#3f3f46;">{{ row.phase }}</td>
+    <td class="sec tx-body bd-row" style="{{ cell }}width:96px;color:{{ text_styles.body.light }};">{{ row.phase }}</td>
     <td class="bd-row" style="{{ cell }}padding-right:12px;">
       <div class="strong" style="font:600 14px 'IBM Plex Mono',monospace;">{{ row.set }}</div>
       {% if row.cue %}<div class="muted" style="margin-top:2px;">{{ row.cue }}</div>{% endif %}

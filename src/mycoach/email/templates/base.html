@@ -72,6 +72,10 @@
   {%- for name, s in border_styles.items() %}
   .bd-{{ name }} { border-color:{{ s.light }}; }
   {%- endfor %}
+  {#- Text colours (#252), from TEXT_STYLES. -#}
+  {%- for name, s in text_styles.items() %}
+  .tx-{{ name }} { color:{{ s.light }}; }
+  {%- endfor %}
 
   .ws-q { border:2px solid #ea6d1f !important; }
 
@@ -123,6 +127,9 @@
     {%- endfor %}
     {%- for name, s in border_styles.items() %}
     .bd-{{ name }} { border-color:{{ s.dark }} !important; }
+    {%- endfor %}
+    {%- for name, s in text_styles.items() %}
+    .tx-{{ name }} { color:{{ s.dark }} !important; }
     {%- endfor %}
     .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }

@@ -15,7 +15,7 @@ import pytest
 from mycoach.coaching.life_context import Episode, LifeContext, RampBack
 from mycoach.config import Settings
 from mycoach.email import sender
-from mycoach.email.tones import BORDER_STYLES, CHIP_STYLES
+from mycoach.email.tones import BORDER_STYLES, CHIP_STYLES, TEXT_STYLES
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 from tests.test_email.test_briefing_notes import NOTES as BRIEFING_NOTES
@@ -663,3 +663,48 @@ def test_only_the_gaps_between_sleep_stage_bands_carry_the_stage_gap_class() -> 
         gap = i < len(bands) - 1
         assert ("bd-stage-gap" in classes.split()) is gap, classes
         assert ("border-right" in _style(style)) is gap, style
+
+
+def test_tones_text_colours_are_inline_in_light_and_overridden_in_dark(html: str) -> None:
+    """A TEXT_STYLES colour typed inline (the block table's phase, a routine-error set
+    count) carries its ``tx-<name>`` class, which dark mode recolours."""
+    dark = _media_block(html, "prefers-color-scheme: dark")
+    body = html[html.index("<body") :]
+    for name, shade in TEXT_STYLES.items():
+        rule = re.search(r"\.tx-" + re.escape(name) + r"\s*\{([^}]*)\}", dark)
+        assert rule and f"color:{shade.dark} !important" in rule.group(1), name
+        for tag in re.findall(r"<\w+\b[^>]*>", body):
+            style = re.search(r'style="([^"]*)"', tag)
+            if style and _style(style.group(1)).get("color") == shade.light:
+                classes = re.search(r'class="([^"]*)"', tag)
+                assert classes and f"tx-{name}" in classes.group(1).split(), tag
+
+
+@pytest.mark.parametrize(
+    ("name", "pattern", "text"),
+    [
+        # The routine-error count ("3* × 5"), and each block's phase cell.
+        ("weekly_plan", r"<td\b[^>]*>3\*[^<]*</td>", "warm"),
+        ("post_workout", r'<td class="sec\b[^>]*width:96px[^>]*>', "body"),
+    ],
+)
+def test_the_routine_error_count_and_block_phase_take_their_text_style(
+    name: str, pattern: str, text: str
+) -> None:
+    """The routine-error set count stays warm and a block's phase stays body-coloured
+    in dark mode, instead of the white or grey of the cell's own class."""
+    tags = re.findall(pattern, _render(name))
+    assert tags
+    for tag in tags:
+        assert f"tx-{text}" in re.search(r'class="([^"]*)"', tag).group(1).split(), tag  # type: ignore[union-attr]
+
+
+def test_no_inline_style_types_a_tones_text_colour() -> None:
+    colours = {s.light for s in TEXT_STYLES.values()}
+    typed = [
+        (path.name, style)
+        for path in TEMPLATES
+        for style in re.findall(r'style="([^"]*)"', path.read_text())
+        if any(re.search(r"(?<![\w-])color:" + re.escape(c), style) for c in colours)
+    ]
+    assert not typed, typed

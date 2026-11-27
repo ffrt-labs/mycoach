@@ -619,3 +619,21 @@ def test_every_inline_border_colour_has_a_dark_mode_override(html: str) -> None:
         if coloured and not overridden & set(classes.group(1).split() if classes else []):
             bare.append((coloured, tag[:120]))
     assert not bare, bare
+
+
+def test_the_if_and_plus_one_badges_take_the_mark_chip_colours() -> None:
+    """The IF and +1 badges are coloured by the shared "mark" chip style: its class
+    carries the dark colours (legible, per test_tones), and the inline light colours
+    are read from it, so light mode keeps its dark badge."""
+    from mycoach.email.tones import CHIP_STYLES
+
+    mark = CHIP_STYLES["mark"].light
+    seen = set()
+    for name in EMAILS:
+        for tag, text in re.findall(r"(<span\b[^>]*>)(IF|\+1)</span>", _render(name)):
+            seen.add(text)
+            classes = re.search(r'class="([^"]*)"', tag)
+            assert classes and "c-mark" in classes.group(1).split(), (name, tag)
+            style = _style(re.search(r'style="([^"]*)"', tag).group(1))  # type: ignore[union-attr]
+            assert (style["background"], style["color"]) == (mark.bg, mark.fg), (name, tag)
+    assert seen == {"IF", "+1"}, "the fixtures render both badges"

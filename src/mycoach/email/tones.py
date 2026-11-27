@@ -57,6 +57,8 @@ CHIP_STYLES: dict[str, ChipStyle] = {
     "accent": _filled("#ea6d1f", "#ffffff", "#fb923c", "#0a0b0d"),
     # Soft orange: a strength-type sport on the weekly plan, a drop in daily steps.
     "warm": _filled("#fff7ed", "#c2410c", "#2a1d14", "#fdba74"),
+    # The IF and +1 marks on a Guardrail or the week addition (#252).
+    "mark": _filled("#18191b", "#ffffff", "#3f3f46", "#fafafa"),
     "neutral-outline": _outlined("#d4d4d8", "#52525b", "#3f3f46", "#c9c9cd"),
     "muted-outline": _outlined("#e4e4e7", "#71717a", "#3f3f46", "#a1a1aa"),
     # Session intents other than the quality ones.

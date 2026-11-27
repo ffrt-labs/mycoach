@@ -841,6 +841,11 @@ def _segments(value: float, low: float, high: float) -> list[tuple[int, str, boo
         (50, 0, 100, [(43, "band", True), (44, "band", False), (13, "track", False)]),
         # All zero: no division by zero, and the band is still 1% wide.
         (0, 0, 0, [(1, "band", False), (99, "track", False)]),
+        # A value on a zero-width target: the scale is 345, the band is widened to
+        # 87–88%, and the fill reaches through it.
+        (300, 300, 300, [(87, "track", True), (1, "band", True), (12, "track", False)]),
+        # A tiny value rounds to 0% but still shows a 1% fill.
+        (1, 300, 600, [(1, "track", True), (42, "track", False), (44, "band", False), (13, "track", False)]),
     ],
 )
 def test_the_load_bar_segments_are_computed_in_whole_percents(

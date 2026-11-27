@@ -28,7 +28,7 @@ from mycoach.email.briefing_views import (
     options_view,
     tonight_view,
 )
-from mycoach.email.coach_notes import EARLIER_VERSION, NOTES_UNAVAILABLE, stored_notes
+from mycoach.email.coach_notes import stored_notes
 from mycoach.localtime import WEEKDAY_NAMES, local_today
 from mycoach.models.coaching import CoachingInsight
 from mycoach.models.life_context import EpisodeKind
@@ -174,9 +174,9 @@ async def dashboard(
     open_this_week = await get_open_this_week(session, USER_ID, today)
 
     # Today's briefing (#249): v5 Coach notes in the email's parts, or none to show
-    # (the notes fallback, or a briefing from an earlier version, #244).
-    read = stored_notes(briefing.content, DailyBriefingEmail) if briefing else None
-    notes = read.notes if read else None
+    # (the notes fallback, or a legacy briefing, #244).
+    briefing_notes = stored_notes(briefing.content, DailyBriefingEmail) if briefing else None
+    notes = briefing_notes.notes if briefing_notes else None
     options = options_view(notes.options, open_this_week) if notes else None
 
     # Life context (#220): an open illness, or the ramp-back after one.
@@ -230,11 +230,7 @@ async def dashboard(
             "yesterday_health": yesterday_health,
             "avg_metrics": avg_metrics,
             "briefing": briefing,
-            "briefing_notes": notes,
-            "notes_unavailable": (
-                EARLIER_VERSION if read and read.earlier_version else NOTES_UNAVAILABLE
-            ),
-            "briefing_earlier_version": read is not None and read.earlier_version,
+            "briefing_notes": briefing_notes,
             "briefing_headline": headline_view(notes.readiness, notes.headline) if notes else None,
             "briefing_options": options,
             "recommended_chip": RECOMMENDED_CHIP,

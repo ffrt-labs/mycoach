@@ -24,6 +24,10 @@
         [&_li]:mb-1 [&_code]:font-mono [&_code]:text-zinc-100">
         {% if analysis %}
         {{ analysis }}
+        {% elif insight_notes.legacy %}
+        <p class="text-zinc-500">{{ copy.legacy_analysis }}.</p>
+        {% elif insight_notes.fell_back %}
+        <p class="text-zinc-500">{{ copy.notes_unavailable_short }}.</p>
         {% else %}
         <p class="text-zinc-500">No full analysis for this revision.</p>
         {% endif %}

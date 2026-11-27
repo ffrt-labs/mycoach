@@ -8,6 +8,7 @@ labels, chips and table layout around it are decided here.
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -18,10 +19,33 @@ from mycoach.email.tones import Chip, tone_chip
 M = TypeVar("M", bound=BaseModel)
 
 NOTES_UNAVAILABLE = "Coach notes unavailable today"
-"""The neutral Notice an email shows in place of its Coach notes (``notes_fallback``)."""
+"""The neutral Notice an email shows in place of its Coach notes (``notes_fallback``);
+also the dashboard briefing's."""
 
-EARLIER_VERSION = "Analysis from an earlier version isn't shown"
-"""What a page shows for a stored insight from before Coach notes (v4, #244)."""
+# What the pages say for a stored insight without Coach notes to show (#249, #244).
+# The fallback (``NotesKind.FALLBACK``) and a legacy insight (``NotesKind.LEGACY``)
+# each get a short, neutral line per context. Exposed to the templates as ``copy``.
+NOTES_UNAVAILABLE_THIS_WEEK = "Coach notes unavailable for this week"
+"""A weekly recap's or a plan's notes fallback."""
+NOTES_UNAVAILABLE_SHORT = "Coach notes unavailable"
+"""A post-workout's notes fallback: History's badge and its insight page."""
+LEGACY_BRIEFING = "This briefing predates Coach notes"
+LEGACY_RECAP = "This recap predates Coach notes"
+LEGACY_ANALYSIS = "Analysis predates Coach notes"
+"""A legacy post-workout: History's badge and its insight page."""
+LEGACY_SESSION_DETAILS = "Details predate Coach notes"
+"""A legacy cardio session on the plan page."""
+
+PAGE_COPY: Mapping[str, str] = {
+    "notes_unavailable": NOTES_UNAVAILABLE,
+    "notes_unavailable_this_week": NOTES_UNAVAILABLE_THIS_WEEK,
+    "notes_unavailable_short": NOTES_UNAVAILABLE_SHORT,
+    "legacy_briefing": LEGACY_BRIEFING,
+    "legacy_recap": LEGACY_RECAP,
+    "legacy_analysis": LEGACY_ANALYSIS,
+    "legacy_session_details": LEGACY_SESSION_DETAILS,
+}
+"""The lines above by name, as the page templates read them (``copy.legacy_recap``)."""
 
 BLOCK_PHASE_LABEL: Mapping[str, str] = {
     "warmup": "Warm-up",
@@ -53,43 +77,53 @@ def coach_notes(content: Mapping[str, Any] | M | None, model: type[M]) -> M | No
         return None
 
 
+class NotesKind(StrEnum):
+    """Which of the three things a stored insight holds (#249, #244)."""
+
+    COACH_NOTES = "coach_notes"
+    """v5 Coach notes, rendered."""
+    LEGACY = "legacy"
+    """An insight from before Coach notes (prompt v4): no longer rendered, only named."""
+    FALLBACK = "fallback"
+    """The engine's notes fallback (content ``null``): the prompt ran, no notes came."""
+
+
 @dataclass(frozen=True)
 class StoredNotes(Generic[M]):
-    """What a stored insight holds, as a page renders it (#249, #244): v5 Coach notes,
-    or nothing to show.
+    """What a stored insight holds, as a page renders it (#249, #244): its ``kind``,
+    and the v5 Coach notes when that kind is ``COACH_NOTES``."""
 
-    Nothing to show is either the notes fallback or an insight from an earlier
-    version (v4), which pages no longer render and only name as such.
-    """
-
+    kind: NotesKind
     notes: M | None = None
-    """The v5 Coach notes, validated as the page's model."""
-    earlier_version: bool = False
-    """The content is a JSON object that is not valid v5: an insight from before Coach
-    notes. Pages say ``EARLIER_VERSION`` for it instead of rendering it."""
+    """The v5 Coach notes, validated as the page's model; ``None`` for the other kinds."""
 
     @property
-    def unavailable(self) -> bool:
-        """No Coach notes to show: the fallback, or an earlier version's insight."""
-        return self.notes is None
+    def legacy(self) -> bool:
+        return self.kind is NotesKind.LEGACY
+
+    @property
+    def fell_back(self) -> bool:
+        return self.kind is NotesKind.FALLBACK
 
 
 def stored_notes(content: str | None, model: type[M]) -> StoredNotes[M]:
     """An insight's stored JSON ``content`` read for a page: the one place pages tell
-    v5, an earlier version and the fallback apart.
+    v5 Coach notes, a legacy insight and the fallback apart.
 
-    A JSON object that validates as ``model`` is v5; any other JSON object is an
-    earlier version. ``null`` (the engine's notes fallback), no content, and anything
-    that is not a JSON object are the fallback.
+    A JSON object that validates as ``model`` is v5; any other JSON object is legacy.
+    ``null`` (the engine's notes fallback), no content, and anything that is not a JSON
+    object are the fallback.
     """
     try:
         data = json.loads(content) if content else None
     except json.JSONDecodeError:
-        return StoredNotes()
+        return StoredNotes(NotesKind.FALLBACK)
     if not isinstance(data, dict):
-        return StoredNotes()
+        return StoredNotes(NotesKind.FALLBACK)
     notes = coach_notes(data, model)
-    return StoredNotes(notes=notes) if notes is not None else StoredNotes(earlier_version=True)
+    if notes is None:
+        return StoredNotes(NotesKind.LEGACY)
+    return StoredNotes(NotesKind.COACH_NOTES, notes)
 
 
 @dataclass(frozen=True)

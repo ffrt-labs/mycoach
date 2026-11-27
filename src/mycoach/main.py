@@ -45,6 +45,7 @@ from mycoach.api.routes.sport_profiles import router as sport_profiles_router
 from mycoach.api.routes.system import router as system_router
 from mycoach.config import announce_email_config, get_settings
 from mycoach.database import Base, engine
+from mycoach.email.coach_notes import PAGE_COPY
 from mycoach.logging_config import setup_logging
 from mycoach.observability.tracing import announce_langfuse_config, shutdown_tracer
 from mycoach.scheduler.scheduler import create_scheduler
@@ -148,6 +149,8 @@ def create_app() -> FastAPI:
         return value.astimezone(local_tz)
 
     templates.env.filters["localtime"] = _localtime
+    # The pages' lines for an insight without Coach notes to show (#249, #244).
+    templates.env.globals["copy"] = PAGE_COPY
     app.state.templates = templates
 
     # API routes (JSON)

@@ -257,7 +257,7 @@ async def test_a_v5_option_names_its_open_session(client: AsyncClient) -> None:
     assert "Planned today · gym" in text  # the option's context, from its open session
 
 
-async def test_a_v4_briefing_is_named_as_an_earlier_version(client: AsyncClient) -> None:
+async def test_a_v4_briefing_is_named_as_predating_coach_notes(client: AsyncClient) -> None:
     """#244: a v4 briefing's verdict and read are no longer rendered."""
     await _seed_user()
     await _store_briefing(
@@ -275,7 +275,8 @@ async def test_a_v4_briefing_is_named_as_an_earlier_version(client: AsyncClient)
 
     assert resp.status_code == 200
     text = _page_text(resp.text)
-    assert "Analysis from an earlier version isn&#39;t shown" in text
+    assert "This briefing predates Coach notes" in text
+    assert "Analysis" not in text
     assert "go hard" not in text
     assert "Fully recovered" not in text
     assert "7.5 hours tonight" not in text

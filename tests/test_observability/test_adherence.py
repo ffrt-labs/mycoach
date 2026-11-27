@@ -125,7 +125,8 @@ class TestGymAdherence:
     def test_the_sets_own_prescription_wins_over_the_plan_details(self) -> None:
         details = {"exercises": [prescribed("bench", 1, reps="8", weight=100)]}
         sets = [performed("bench", weight=90, reps=10)]
-        # The fulfillment is coaching's, keyed by the set's exercise and index (performed() uses title=id, 0).
+        # The fulfillment is coaching's, keyed by the set's exercise and index
+        # (performed() uses title=id, 0).
         fulfilled = {("bench", 0): Prescription(weight_kg=90, reps=12)}
 
         values = gym_adherence(details, sets, fulfilled)

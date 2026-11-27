@@ -9,9 +9,9 @@ from mycoach.coaching.context import (
     get_activity_with_details,
     get_similar_activities,
 )
-from mycoach.models.prescription import PrescriptionFulfillment
 from mycoach.models.activity import Activity, GymWorkoutDetail
 from mycoach.models.plan import PlannedSession, WeeklyPlan
+from mycoach.models.prescription import PrescriptionFulfillment
 from mycoach.models.user import User
 from tests.conftest import test_session
 

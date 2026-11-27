@@ -1,11 +1,10 @@
 """Tests for the availability input page route."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
-
-import re
 
 from mycoach.models.availability import DefaultAvailability, WeeklyAvailability
 from mycoach.models.user import User

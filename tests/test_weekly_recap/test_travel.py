@@ -1,7 +1,7 @@
 """Travel in week completion (#221): adapted sessions count, travel days stay owed.
 
-A session filled in adapted form by an activity on a travel day is **Adapted (travel)** and counts as
-done. A session not done while travelling stays in the denominator as **Not done
+A session filled in adapted form by an activity on a travel day is **Adapted (travel)** and
+counts as done. A session not done while travelling stays in the denominator as **Not done
 (travelling)**. Only days under "no training possible" excuse a session, like sick days.
 """
 

@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — MyCoach{% endblock %}
 
+{#- A Coach notes chip (``email.tones.Chip``) in the dashboard's dark palette. -#}
+{% macro chip(c) -%}
+{%- set styles = {
+    'good': 'bg-emerald-500/15 text-emerald-300',
+    'watch': 'bg-amber-500/15 text-amber-300',
+    'alert': 'bg-red-500/15 text-red-300',
+    'accent': 'bg-accent/15 text-accent-soft',
+} -%}
+<span class="inline-block align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full {{ styles.get(c.style, 'bg-white/5 text-zinc-400') }}">{{ c.label }}</span>
+{%- endmacro %}
+
 {% block content %}
 <div class="pb-20 sm:pb-6">
 
@@ -35,15 +46,30 @@
 
     {% if briefing %}
     <!-- ===== Verdict hero ===== -->
+    {#- v5 Coach notes (#249): the verdict from readiness and the coach's Lead, as in the
+        email. A v4 briefing keeps its own fields until #244; without notes (the
+        notes fallback), the hero says so. -#}
     <div class="mt-8">
+        {% if briefing_headline %}
+        <h1 class="font-bold tracking-[-0.02em] text-zinc-50" style="font-size:clamp(56px,10vw,116px);line-height:0.9;">{{ briefing_headline.verdict }}</h1>
+        <div class="h-[5px] w-[200px] bg-accent rounded mt-5"></div>
+        {% elif briefing_data %}
         <h1 class="font-bold tracking-[-0.02em] text-zinc-50 capitalize" style="font-size:clamp(56px,10vw,116px);line-height:0.9;">
             {{ briefing_data.readiness_verdict | replace('_', ' ') if briefing_data.readiness_verdict else 'Ready' }}
         </h1>
         <div class="h-[5px] w-[200px] bg-accent rounded mt-5"></div>
+        {% else %}
+        <h1 class="font-bold tracking-[-0.02em] text-zinc-300" style="font-size:clamp(48px,8vw,88px);line-height:0.95;">{{ notes_unavailable }}</h1>
+        <div class="h-[5px] w-[200px] bg-white/[0.12] rounded mt-5"></div>
+        {% endif %}
     </div>
     <div class="flex items-start gap-5 mt-4">
         <p class="text-[17px] leading-relaxed text-zinc-400 max-w-[600px]">
-            {% if health and health.training_readiness is not none %}Readiness <span class="text-zinc-50 font-semibold">{{ health.training_readiness }} / 100</span>. {% endif %}{{ briefing_data.recovery_status }}
+            {% if health and health.training_readiness is not none %}Readiness <span class="text-zinc-50 font-semibold">{{ health.training_readiness }} / 100</span>. {% endif %}
+            {%- if briefing_headline %} {{ chip(briefing_headline.chip) }} {{ briefing_headline.summary }}
+            {%- elif briefing_data %} {{ briefing_data.recovery_status }}
+            {%- else %} The briefing went out without the coach's read; regenerate it to try again.
+            {%- endif %}
         </p>
         <button id="regen-briefing-btn" onclick="regenerateBriefing()"
             class="ml-auto shrink-0 font-semibold text-xs text-zinc-500 hover:text-accent-soft transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
@@ -162,7 +188,50 @@
 
     <!-- ===== The read / Today ===== -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-        {% if briefing %}
+        {% if briefing_notes %}
+        {#- The email's parts (#249): options, tomorrow's Guardrail, last night, tonight. -#}
+        <div class="space-y-8">
+            {% if briefing_options %}
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Do today · pick one</div>
+                <ul class="space-y-4">
+                    {% for o in briefing_options.options %}
+                    <li>
+                        <div class="text-[17px] font-semibold text-zinc-50">{{ o.title }}{% if o.minutes %} <span class="font-mono text-sm text-zinc-500">{{ o.minutes }}</span>{% endif %}{% if o.recommended %} {{ chip(recommended_chip) }}{% endif %}</div>
+                        {% if o.context %}<div class="text-xs text-zinc-500 mt-0.5">{{ o.context }}</div>{% endif %}
+                        <ul class="mt-1.5 space-y-0.5">
+                            {% for step in o.steps %}<li class="text-sm text-zinc-300">· {{ step }}</li>{% endfor %}
+                        </ul>
+                        <p class="text-sm text-zinc-400 mt-1">{{ o.why }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if briefing_options.stack_note %}<p class="text-xs text-zinc-500 mt-2">{{ briefing_options.stack_note }}</p>{% endif %}
+            </div>
+            {% endif %}
+            {% if briefing_notes.guardrail %}
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Guardrail · tomorrow</div>
+                <p class="text-sm text-zinc-300"><span class="font-semibold text-zinc-50">IF</span> {{ briefing_notes.guardrail.when }} → {{ briefing_notes.guardrail.then }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Last night</div>
+                <p class="text-sm text-zinc-300">{{ briefing_notes.sleep_note }}</p>
+            </div>
+            {% if tonight_tips %}
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">Tonight</div>
+                <ul class="space-y-1.5">
+                    {% for tip in tonight_tips %}
+                    <li class="text-sm text-zinc-300">{% if tip.chip %}{{ chip(tip.chip) }} {% endif %}{{ tip.text }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            <a href="/insights/{{ briefing.id }}" class="inline-block text-xs text-accent-soft hover:underline">Full analysis →</a>
+        </div>
+        {% elif briefing_data %}
         <div>
             <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">The read</div>
             <p class="text-[15px] leading-[1.7] text-zinc-300">

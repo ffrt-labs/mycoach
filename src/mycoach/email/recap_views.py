@@ -11,7 +11,7 @@ import logging
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from mycoach.coaching.email_schemas import LiftNote, SessionNote
 from mycoach.coaching.life_context import (
@@ -168,14 +168,17 @@ _LOAD_FOCUS = (
 class BarSegment:
     """A stretch of the load bar between two of its edges (track, band, value).
 
-    ``layer`` is what lies behind it ("track" or "band"); ``filled`` is whether the
-    value's fill runs through it, in front; ``fill_end`` marks where the fill stops.
+    ``layer`` is what lies behind it; ``filled`` is whether the value's fill runs
+    through it, in front. ``front`` is the ``BAR_STYLES`` key drawn in front (the
+    fill's colour, the track, or none where the band shows through), and ``radius``
+    its CSS corners: round at the bar's ends and where the fill stops.
     """
 
     width_pct: int
-    layer: str
+    layer: Literal["track", "band"]
     filled: bool
-    fill_end: bool = False
+    front: str | None
+    radius: str
 
 
 @dataclass(frozen=True)
@@ -196,8 +199,14 @@ class LoadRow:
     bar: LoadBar | None = None
 
 
+_SCALE_HEADROOM = 1.15
+"""The load bar's scale runs this far past the larger of value and target's top."""
+
 _SCALE_CAP = 3
 """The load bar's scale ends at most this many times the target's top."""
+
+_ROUND = "3px"
+"""The bar's corner radius, half its height."""
 
 
 def _pct(x: float, scale: float) -> int:
@@ -210,10 +219,11 @@ def _bar(value: float, low: float, high: float) -> LoadBar:
     Email clients cannot stack the band and the fill, so the bar is drawn as the
     stretches between those edges: each is band or track behind, filled or not in
     front. The band is at least 1% wide, so a zero-width target still shows. The
-    scale ends past the larger of value and target, but never past 3× the target's
-    top: a far larger value fills the bar rather than squeeze the band to a sliver.
+    scale ends past the larger of value and target, but never past ``_SCALE_CAP``
+    times the target's top: a far larger value fills the bar rather than squeeze the
+    band to a sliver.
     """
-    scale = max(value, high) * 1.15
+    scale = max(value, high) * _SCALE_HEADROOM
     if high > 0:
         scale = min(scale, high * _SCALE_CAP)
     scale = scale or 1.0
@@ -224,17 +234,19 @@ def _bar(value: float, low: float, high: float) -> LoadBar:
         # Any value shows; at or past the target's top, the fill runs through the
         # band, however it was widened.
         fill = max(fill, end if value >= high else 1)
+    in_range = low <= value <= high
+    colour = "in-range" if in_range else "out-range"
     edges = sorted({0, start, end, fill, 100})
-    segments = tuple(
-        BarSegment(
-            width_pct=b - a,
-            layer="band" if start <= a < end else "track",
-            filled=b <= fill,
-            fill_end=b == fill,
-        )
-        for a, b in zip(edges, edges[1:], strict=False)
-    )
-    return LoadBar(segments, in_range=low <= value <= high)
+    segments = []
+    for a, b in zip(edges, edges[1:], strict=False):
+        layer: Literal["track", "band"] = "band" if start <= a < end else "track"
+        filled = b <= fill
+        front = colour if filled else ("track" if layer == "track" else None)
+        left = _ROUND if a == 0 else "0"
+        right = _ROUND if b in (fill, 100) else "0"
+        radius = f"{left} {right} {right} {left}"
+        segments.append(BarSegment(b - a, layer, filled, front, radius))
+    return LoadBar(tuple(segments), in_range=in_range)
 
 
 def _load_focus(snapshots: Iterable[Mapping[str, Any]] | None) -> Mapping[str, Any] | None:

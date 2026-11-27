@@ -652,3 +652,14 @@ def test_no_template_types_a_border_colour() -> None:
     ]
     assert TEMPLATES
     assert not typed, typed
+
+
+def test_only_the_gaps_between_sleep_stage_bands_carry_the_stage_gap_class() -> None:
+    """Each band but the last ends in a page-coloured gap; the last has no border, so
+    no gap class either."""
+    bands = re.findall(r'<td class="(sl-[\w-]+[^"]*)" style="([^"]*)"', _render("daily_briefing"))
+    assert len(bands) == 3, bands
+    for i, (classes, style) in enumerate(bands):
+        gap = i < len(bands) - 1
+        assert ("bd-stage-gap" in classes.split()) is gap, classes
+        assert ("border-right" in _style(style)) is gap, style

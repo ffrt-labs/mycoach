@@ -852,3 +852,13 @@ def test_the_fill_is_out_of_range_outside_the_target(value: float, in_range: boo
 def test_a_load_row_without_a_target_keeps_the_plain_value() -> None:
     (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": {"anaerobic": 19}}])
     assert (row.value, row.target, row.bar) == ("19", None, None)
+
+
+def test_the_post_workout_actions_sit_between_the_hero_and_the_stat_grid() -> None:
+    """#253: hero, then the Next time actions, then the stat grid, for every reader, so
+    the first two actions show without scrolling at 390 x 844 (#230 user story 2)."""
+    html = _render("post_workout")
+    hero = html.index('class="px hero"')
+    starts = [m.start() for m in re.finditer(r'class="px section', html)]
+    assert hero < starts[0] < html.index("Next time") < starts[1]
+    assert starts[1] < html.index('class="stat-grid"') < starts[2]

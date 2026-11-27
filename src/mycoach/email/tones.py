@@ -90,7 +90,7 @@ BORDER_STYLES: dict[str, BorderStyle] = {
     # The rule between a table's rows.
     "row": BorderStyle("#f4f4f5", "rgba(255,255,255,.06)"),
     # The page-coloured gap between the sleep-stage bands.
-    "gap": BorderStyle("#ffffff", DARK_PAGE),
+    "stage-gap": BorderStyle("#ffffff", DARK_PAGE),
 }
 """Border colours (#252); ``base.html`` makes them ``.bd-<name>`` classes, light and
 dark. A template types the light colour inline from here (clients that drop the style

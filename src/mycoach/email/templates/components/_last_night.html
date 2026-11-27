@@ -10,7 +10,7 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
       <tr>
         {% for stage in view.stages %}
-        <td class="{{ stage.css }} bd-gap" style="width:{{ stage.width }}%;height:8px;line-height:8px;font-size:0;{% if not loop.last %}border-right:2px solid {{ border_styles.gap.light }};{% endif %}">&nbsp;</td>
+        <td class="{{ stage.css }}{% if not loop.last %} bd-stage-gap{% endif %}" style="width:{{ stage.width }}%;height:8px;line-height:8px;font-size:0;{% if not loop.last %}border-right:2px solid {{ border_styles["stage-gap"].light }};{% endif %}">&nbsp;</td>
         {% endfor %}
       </tr>
     </table>

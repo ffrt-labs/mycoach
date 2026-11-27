@@ -14,12 +14,12 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {% for row in view.rows %}
       <tr>
-        <td class="st-day" style="width:48px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">{{ row.day|upper }}</td>
-        <td style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 8px {{ '0' if loop.last else '12px' }} 0;{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">
+        <td class="st-day bd-row" style="width:48px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid {{ border_styles.row.light }};{% endif %}">{{ row.day|upper }}</td>
+        <td class="bd-row" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 8px {{ '0' if loop.last else '12px' }} 0;{% if not loop.last %}border-bottom:1px solid {{ border_styles.row.light }};{% endif %}">
           <div class="mlabel">{{ row.title }}</div>
           <div class="msub" style="margin-top:2px;">{{ row.detail }}</div>
         </td>
-        <td style="text-align:right;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid #f4f4f5;{% endif %}">{{ ui.chip(row.chip) }}</td>
+        <td class="bd-row" style="text-align:right;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 {{ '0' if loop.last else '12px' }};{% if not loop.last %}border-bottom:1px solid {{ border_styles.row.light }};{% endif %}">{{ ui.chip(row.chip) }}</td>
       </tr>
       {% endfor %}
     </table>

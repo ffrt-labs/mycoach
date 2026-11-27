@@ -22,7 +22,7 @@
 {#- The 40 px side padding, inline on every row; the ``px`` class in base.html drops
     it to 20 px at ≤ 480 px. -#}
 {% set side_padding = "padding-left:40px;padding-right:40px;" %}
-{% set divider = "border-top:1px solid #e7e5e4;" %}
+{% set divider = "border-top:1px solid " ~ border_styles.rule.light ~ ";" %}
 
 {% macro hero(eyebrow=none, closes_layout=none) -%}
 {%- if closes_layout is not none %}{% set closes_layout.after_hero = false %}{% endif -%}

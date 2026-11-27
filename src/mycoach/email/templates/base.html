@@ -68,6 +68,10 @@
   .zone-{{ name }} { background:{{ s.light.bg }}; color:{{ s.light.fg }}; }
   {%- endfor %}
   .tile { border-color:#e7e5e4; }
+  {#- Border colours (#252), from BORDER_STYLES. -#}
+  {%- for name, s in border_styles.items() %}
+  .bd-{{ name }} { border-color:{{ s.light }}; }
+  {%- endfor %}
 
   .ws-q { border:2px solid #ea6d1f !important; }
 
@@ -121,6 +125,9 @@
     .zone-{{ name }} { background:{{ s.dark.bg }} !important; color:{{ s.dark.fg }} !important; }
     {%- endfor %}
     .tile { border-color:rgba(255,255,255,.10) !important; }
+    {%- for name, s in border_styles.items() %}
+    .bd-{{ name }} { border-color:{{ s.dark }} !important; }
+    {%- endfor %}
     .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }
     .st-track { background:rgba(255,255,255,.06) !important; }

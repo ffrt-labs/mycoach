@@ -55,6 +55,7 @@ from mycoach.coaching.life_context import (
 from mycoach.coaching.steps import StepsSummary, load_steps_summary
 from mycoach.config import get_settings
 from mycoach.database import async_session
+from mycoach.email.plan_views import plan_notes_unavailable
 from mycoach.email.sender import (
     EmailSendError,
     send_briefing_unavailable,
@@ -752,7 +753,7 @@ async def _weekly_plan(today: date | None = None) -> None:
                     # The cardio plan's Coach notes (#243). A cardio prompt was served
                     # but left no notes: the notes fell back.
                     notes=json.loads(plan.coach_notes) if plan.coach_notes else None,
-                    notes_unavailable=bool(plan.cardio_prompt_version and not plan.coach_notes),
+                    notes_unavailable=plan_notes_unavailable(plan, sessions),
                 ),
                 "weekly plan",
             )

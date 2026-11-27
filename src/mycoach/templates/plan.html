@@ -68,9 +68,16 @@
 
     {% include "_open_this_week.html" %}
 
-    {% if plan.summary %}
+    {% if plan_notes_unavailable %}
+    {#- The v5 cardio prompt ran and left no Coach notes (#249), as the plan email says. -#}
+    <div class="rounded-xl border border-white/[0.07] bg-surface p-4">
+        <p class="text-sm text-zinc-400"><span class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500 mr-2">Coach</span>{{ notes_unavailable }}.</p>
+    </div>
+    {% endif %}
+
+    {% if plan_notes or plan.summary %}
     <div class="bg-accent/[0.06] rounded-xl border border-accent/20 p-4">
-        <p class="text-sm text-accent-soft leading-relaxed">{{ plan.summary }}</p>
+        <p class="text-sm text-accent-soft leading-relaxed">{{ plan_notes.focus if plan_notes else plan.summary }}</p>
         {% if plan_notes and plan_notes.goal_assessment %}
         <p class="text-sm text-zinc-400 mt-2 leading-relaxed">{{ plan_notes.goal_assessment }}</p>
         {% endif %}

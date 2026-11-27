@@ -466,3 +466,68 @@ async def test_the_plan_shows_its_guardrails_and_goal_assessment(client: AsyncCl
     text = _page_text(resp.text)
     assert "IF Legs heavy → Skip the strides" in text
     assert "On track for the 1500 m." in text
+    assert "Coach notes unavailable" not in text
+
+
+async def _cardio_plan(*, coach_notes: str | None, generation_error: str | None) -> None:
+    """This week's plan whose cardio prompt was served (``cardio_prompt_version``)."""
+    today = local_today(get_settings().timezone)
+    async with test_session() as session:
+        plan = WeeklyPlan(
+            user_id=1,
+            week_start=today - timedelta(days=today.weekday()),
+            status="active",
+            prompt_version="v5",
+            cardio_prompt_version="lf:7",
+            coach_notes=coach_notes,
+        )
+        session.add(plan)
+        await session.flush()
+        session.add(
+            PlannedSession(
+                plan_id=plan.id,
+                day_of_week=3,
+                sport="swimming",
+                title="Swim Session",
+                track="cardio",
+                generation_error=generation_error,
+            )
+        )
+        await session.commit()
+
+
+async def test_a_v5_plan_whose_coach_notes_fell_back_says_so(client: AsyncClient) -> None:
+    """#249: the cardio prompt ran and left no Coach notes, as the plan email says."""
+    await _seed_user()
+    await _cardio_plan(coach_notes=None, generation_error="cardio plan generation failed")
+
+    resp = await client.get("/plan")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" in resp.text
+
+
+async def test_an_old_v4_plan_without_coach_notes_shows_nothing_extra(
+    client: AsyncClient,
+) -> None:
+    """A plan from before Coach notes: its cardio sessions generated, no notes stored."""
+    await _seed_user()
+    await _cardio_plan(coach_notes=None, generation_error=None)
+
+    resp = await client.get("/plan")
+
+    assert resp.status_code == 200
+    assert "Coach notes unavailable" not in resp.text
+
+
+async def test_a_plan_without_a_cardio_prompt_shows_nothing_extra(client: AsyncClient) -> None:
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    await _plan_for(
+        today - timedelta(days=today.weekday()),
+        [PlannedSession(day_of_week=1, sport="gym", title="Squat Day", track="gym")],
+    )
+
+    resp = await client.get("/plan")
+
+    assert "Coach notes unavailable" not in resp.text

@@ -108,9 +108,11 @@ TEXT_STYLES: dict[str, Shade] = {
 classes, light and dark, after the type classes so they win."""
 
 BAR_STYLES: dict[str, Shade] = {
-    # A bar's empty track, and the target range drawn behind its value (#253).
-    "track": Shade("#f4f4f5", "rgba(255,255,255,.06)"),
-    "band": Shade("#a7f3d0", "rgba(52,211,153,.22)"),
+    # A bar's empty track: the rule between a table's rows (#253).
+    "track": BORDER_STYLES["row"],
+    # The target range drawn behind its value: the recovery intent's mint border,
+    # and in dark mode the in-range green, #34d399, at 22%.
+    "band": Shade(CHIP_STYLES["intent-recovery"].light.border, "rgba(52,211,153,.22)"),
     # The value: green inside the target range, amber outside it.
     "in-range": Shade("#10b981", "#34d399"),
     "out-range": Shade("#f59e0b", "#fbbf24"),

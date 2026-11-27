@@ -84,7 +84,7 @@
   .ws-q { border:2px solid #ea6d1f !important; }
 
   .st-tick { font:600 12px 'IBM Plex Sans',sans-serif; color:#047857; }
-  .st-track { background:#f4f4f5; }
+  .st-track { background:{{ bar_styles.track.light }}; }
   .st-bar { background:#a1a1aa; border-radius:3px 3px 0 0; }
   .st-bar-y { background:#ea6d1f; }
   .st-day { font:500 12px 'IBM Plex Mono',monospace; color:#71717a; }
@@ -140,7 +140,7 @@
     {%- endfor %}
     .ws-q { border-color:#fb923c !important; }
     .st-tick { color:#6ee7b7 !important; }
-    .st-track { background:rgba(255,255,255,.06) !important; }
+    .st-track { background:{{ bar_styles.track.dark }} !important; }
     .st-bar { background:#57575c !important; }
     .st-bar-y { background:#fb923c !important; }
     .st-day { color:#8b8b93 !important; }

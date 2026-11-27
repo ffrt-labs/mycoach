@@ -79,22 +79,33 @@ ZONE_STYLES: dict[str, ChipStyle] = {
 
 
 @dataclass(frozen=True)
-class BorderStyle:
+class Shade:
+    """One colour, light and dark."""
+
     light: str
     dark: str
 
 
-BORDER_STYLES: dict[str, BorderStyle] = {
+BORDER_STYLES: dict[str, Shade] = {
     # A table's header rule, a boxed note, a tile or a rest day on the week strip.
-    "rule": BorderStyle("#e7e5e4", "rgba(255,255,255,.10)"),
+    "rule": Shade("#e7e5e4", "rgba(255,255,255,.10)"),
     # The rule between a table's rows.
-    "row": BorderStyle("#f4f4f5", "rgba(255,255,255,.06)"),
+    "row": Shade("#f4f4f5", "rgba(255,255,255,.06)"),
     # The page-coloured gap between the sleep-stage bands.
-    "stage-gap": BorderStyle("#ffffff", DARK_PAGE),
+    "stage-gap": Shade("#ffffff", DARK_PAGE),
 }
 """Border colours (#252); ``base.html`` makes them ``.bd-<name>`` classes, light and
 dark. A template types the light colour inline from here (clients that drop the style
 sheet keep it) and adds the class, so dark mode can mute it."""
+
+TEXT_STYLES: dict[str, Shade] = {
+    # Body text where a cell's class is muted: a block's phase on its block table.
+    "body": Shade("#3f3f46", "#c9c9cd"),
+    # The warm chip's text: a routine-error set count on the exercise table.
+    "warm": Shade(CHIP_STYLES["warm"].light.fg, CHIP_STYLES["warm"].dark.fg),
+}
+"""Text colours a template types inline (#252); ``base.html`` makes them ``.tx-<name>``
+classes, light and dark, after the type classes so they win."""
 
 
 @dataclass(frozen=True)
@@ -178,6 +189,7 @@ JINJA_GLOBALS = {
     "tones": TONES,
     "zone_styles": ZONE_STYLES,
     "border_styles": BORDER_STYLES,
+    "text_styles": TEXT_STYLES,
     "session_status_chip": SESSION_STATUS_CHIP,
     "intent_chip": intent_chip,
     "tone_chip": tone_chip,

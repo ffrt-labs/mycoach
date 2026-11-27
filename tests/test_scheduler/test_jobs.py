@@ -1,7 +1,7 @@
 """Tests for scheduler job functions."""
 
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -189,21 +189,62 @@ async def test_daily_briefing_success(mock_session: AsyncMock, mock_engine: Magi
     mock_engine.generate_daily_briefing.assert_awaited_once()
 
 
+_ELEVEN_UTC = datetime(2026, 11, 20, 11, tzinfo=UTC)
+_HALF_PAST_TWENTY_THREE_UTC = datetime(2026, 11, 20, 23, 30, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("now_utc", "scheduler_tz", "athlete_tz", "expected"),
+    [
+        # 11:00 UTC on the 20th: UTC+14 is already on the 21st, UTC-12 still on the 19th.
+        pytest.param(
+            _ELEVEN_UTC,
+            "Pacific/Kiritimati",
+            "Etc/GMT+12",
+            date(2026, 11, 21),
+            id="scheduler-ahead-of-athlete",
+        ),
+        pytest.param(
+            _ELEVEN_UTC,
+            "Etc/GMT+12",
+            "Pacific/Kiritimati",
+            date(2026, 11, 19),
+            id="scheduler-behind-athlete",
+        ),
+        # 23:30 UTC on the 20th: UTC+14 is on the 21st, the server and UTC on the 20th.
+        pytest.param(
+            _HALF_PAST_TWENTY_THREE_UTC,
+            "Pacific/Kiritimati",
+            "UTC",
+            date(2026, 11, 21),
+            id="scheduler-ahead-of-server",
+        ),
+    ],
+)
 async def test_daily_briefing_defaults_to_the_local_day_not_the_servers(
-    mock_session: AsyncMock, mock_engine: MagicMock, monkeypatch: pytest.MonkeyPatch
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    now_utc: datetime,
+    scheduler_tz: str,
+    athlete_tz: str,
+    expected: date,
 ) -> None:
-    """Without a ``today`` the job briefs on the scheduler's local day, as the poll does."""
-    # UTC+14 and UTC-12 are 26 hours apart: one of them is always on another date
-    # than the server's clock.
-    tz = next(
-        z for z in ("Pacific/Kiritimati", "Etc/GMT+12") if local_today(z) != date.today()
-    )
-    # get_settings() builds a fresh Settings on every call, so the override has to
-    # replace what the job reads; patching one instance would leave the job on the
-    # default timezone and pass only when its date happens to match ``tz``'s (#257).
-    settings = get_settings().model_copy(update={"scheduler_timezone": tz})
-    monkeypatch.setattr("mycoach.scheduler.jobs.get_settings", lambda: settings)
+    """Without a ``today`` the job briefs on the scheduler's local day, as the poll does.
+
+    ``athlete_tz`` sits on another date than ``scheduler_tz``, so a job that ignored
+    ``scheduler_timezone`` for ``timezone`` (or for the server's UTC date) would fail.
+    """
+    # get_settings() builds a fresh Settings per call, so configure it through the env.
+    monkeypatch.setenv("MYCOACH_SCHEDULER_TIMEZONE", scheduler_tz)
+    monkeypatch.setenv("MYCOACH_TIMEZONE", athlete_tz)
     with (
+        # Pin the clock but keep the real zone lookup, unlike the ``return_value``
+        # stubs elsewhere: the job's choice of zone is what this test checks.
+        patch(
+            "mycoach.scheduler.jobs.local_today",
+            lambda tz, now=None: local_today(tz, now=now_utc),
+        ),
         patch(
             "mycoach.scheduler.jobs._garmin_sync",
             AsyncMock(return_value=MagicMock(empty_health_days=[], errors=None)),
@@ -213,7 +254,7 @@ async def test_daily_briefing_defaults_to_the_local_day_not_the_servers(
     ):
         await _daily_briefing()
 
-    assert mock_engine.generate_daily_briefing.await_args.kwargs["today"] == local_today(tz)
+    assert mock_engine.generate_daily_briefing.await_args.kwargs["today"] == expected
 
 
 async def test_daily_briefing_syncs_before_generating(

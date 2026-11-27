@@ -531,3 +531,35 @@ async def test_a_plan_without_a_cardio_prompt_shows_nothing_extra(client: AsyncC
     resp = await client.get("/plan")
 
     assert "Coach notes unavailable" not in resp.text
+
+
+async def test_a_v4_cardio_session_names_its_details_as_an_earlier_version(
+    client: AsyncClient,
+) -> None:
+    """#244: a v4 cardio session's free-text details are no longer rendered."""
+    await _seed_user()
+    today = local_today(get_settings().timezone)
+    v4_details = {"description": "Easy 4×100 pull", "main_set": {"reps": "4×100"}}
+    await _plan_for(
+        today - timedelta(days=today.weekday()),
+        [
+            PlannedSession(
+                day_of_week=2,
+                sport="swimming",
+                title="Recovery swim",
+                track="cardio",
+                notes="Keep it loose.",
+                details=json.dumps(v4_details),
+            )
+        ],
+    )
+
+    resp = await client.get("/plan")
+
+    assert resp.status_code == 200
+    text = _page_text(resp.text)
+    assert "Recovery swim" in text
+    assert "Keep it loose." in text
+    assert "Details from an earlier version aren't shown" in text
+    assert "Easy 4×100 pull" not in text
+    assert "main set" not in text.lower()

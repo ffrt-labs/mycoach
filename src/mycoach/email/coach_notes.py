@@ -5,9 +5,10 @@ Shared by every email on the structured-output contract; the matching macros are
 labels, chips and table layout around it are decided here.
 """
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -47,6 +48,44 @@ def coach_notes(content: Mapping[str, Any] | M | None, model: type[M]) -> M | No
         return model.model_validate(content)
     except ValidationError:
         return None
+
+
+@dataclass(frozen=True)
+class StoredNotes(Generic[M]):
+    """What a stored insight holds, as a page renders it (#249): v5 Coach notes, a v4
+    analysis, or neither (the notes fallback).
+
+    At most one of ``notes`` and ``v4`` is set. When #244 retires the v4 rendering,
+    ``v4`` goes and a v4 insight is simply content that is not valid v5: unavailable.
+    """
+
+    notes: M | None = None
+    """The v5 Coach notes, validated as the page's model."""
+    v4: Mapping[str, Any] | None = None
+    """A pre-v5 analysis, the raw JSON object the v4 templates read. Removed by #244."""
+
+    @property
+    def unavailable(self) -> bool:
+        """Nothing to show: the page renders its "Coach notes unavailable" state."""
+        return self.notes is None and self.v4 is None
+
+
+def stored_notes(content: str | None, model: type[M]) -> StoredNotes[M]:
+    """An insight's stored JSON ``content`` read for a page: the one place pages tell
+    v5, v4 and the fallback apart.
+
+    A JSON object that validates as ``model`` is v5; any other JSON object is v4.
+    ``null`` (the engine's notes fallback), no content, and anything that is not a JSON
+    object are unavailable.
+    """
+    try:
+        data = json.loads(content) if content else None
+    except json.JSONDecodeError:
+        return StoredNotes()
+    if not isinstance(data, dict):
+        return StoredNotes()
+    notes = coach_notes(data, model)
+    return StoredNotes(notes=notes) if notes is not None else StoredNotes(v4=data)
 
 
 @dataclass(frozen=True)

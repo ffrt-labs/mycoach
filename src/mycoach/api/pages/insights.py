@@ -26,6 +26,13 @@ USER_ID = 1  # Single-user MVP
 _MARKDOWN = MarkdownIt("commonmark", {"html": False})
 
 
+def markdown_html(markdown: str | None) -> Markup | None:
+    """The coach's Markdown as HTML, or None when there is none."""
+    if not isinstance(markdown, str) or not markdown.strip():
+        return None
+    return Markup(_MARKDOWN.render(markdown))  # noqa: S704 — html disabled above
+
+
 def analysis_html(content: str | None) -> Markup | None:
     """The insight's ``analysis_md`` as HTML, or None when it has none.
 
@@ -35,10 +42,7 @@ def analysis_html(content: str | None) -> Markup | None:
     data = None
     with contextlib.suppress(json.JSONDecodeError, TypeError):
         data = json.loads(content or "")
-    analysis = data.get("analysis_md") if isinstance(data, dict) else None
-    if not isinstance(analysis, str) or not analysis.strip():
-        return None
-    return Markup(_MARKDOWN.render(analysis))  # noqa: S704 — html disabled above
+    return markdown_html(data.get("analysis_md") if isinstance(data, dict) else None)
 
 
 async def _newest_revision(

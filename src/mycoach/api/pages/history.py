@@ -13,7 +13,7 @@ from mycoach.api.pages.insights import markdown_html
 from mycoach.coaching.athlete import athlete_id_for
 from mycoach.coaching.email_schemas import PostWorkoutEmail, WeeklyRecapEmail
 from mycoach.database import get_db
-from mycoach.email.coach_notes import StoredNotes, stored_notes
+from mycoach.email.coach_notes import EARLIER_VERSION, StoredNotes, stored_notes
 from mycoach.models.coaching import CoachingInsight
 from mycoach.sport_display import sport_display
 
@@ -81,11 +81,12 @@ async def history_page(
             {
                 "activity": a,
                 "exercises": exercises,
-                # Analyzed, with a panel to expand; or analyzed with no Coach notes.
-                "has_analysis": analysis is not None and not analysis.unavailable,
+                # Analyzed, with a panel to expand; or analyzed with no Coach notes to
+                # show: the fallback, or an earlier version's analysis (#244).
+                "has_analysis": notes is not None,
                 "notes_unavailable": analysis is not None and analysis.unavailable,
+                "earlier_version": analysis is not None and analysis.earlier_version,
                 "notes": notes,
-                "analysis_data": analysis.v4 if analysis else None,
                 # v5 Coach notes: the panel shows the full analysis and opens its page.
                 "full_analysis": markdown_html(notes.analysis_md) if notes else None,
                 "insight_id": insight_id,
@@ -157,10 +158,12 @@ async def history_page(
             "sport_filter": sport,
             "available_sports": available_sports,
             "weekly_recap": weekly_recap,
-            # The recap: v5 Coach notes, a v4 recap (until #244), or neither.
+            # The recap: v5 Coach notes, or none to show (the fallback, or an earlier
+            # version's recap, #244).
             "recap_notes": recap.notes if recap else None,
-            "recap_data": recap.v4 if recap else None,
             "recap_unavailable": recap is not None and recap.unavailable,
+            "recap_earlier_version": recap is not None and recap.earlier_version,
+            "earlier_version": EARLIER_VERSION,
             "last_monday_iso": last_monday.isoformat(),
             "available_weeks": available_weeks,
             "selected_week_label": selected_week_label,

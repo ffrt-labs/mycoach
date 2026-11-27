@@ -167,36 +167,6 @@ async def test_dashboard_7day_baseline_excludes_today(client: AsyncClient) -> No
     assert "9,006" not in resp.text
 
 
-async def test_dashboard_with_briefing(client: AsyncClient) -> None:
-    """Dashboard shows readiness verdict from daily briefing."""
-    await _seed_user()
-    briefing_content = json.dumps(
-        {
-            "readiness_verdict": "go_hard",
-            "recovery_status": "Fully recovered and ready to train.",
-            "workout_adjustments": "No adjustments needed.",
-            "sleep_recommendation": "Aim for 7.5 hours tonight.",
-        }
-    )
-    async with test_session() as session:
-        insight = CoachingInsight(
-            user_id=1,
-            insight_date=_local_today(),
-            insight_type="daily_briefing",
-            content=briefing_content,
-            prompt_version="v1",
-        )
-        session.add(insight)
-        await session.commit()
-
-    resp = await client.get("/")
-    assert resp.status_code == 200
-    # Template emits "go hard" and relies on a CSS `capitalize` class for display casing.
-    assert "go hard" in resp.text
-    assert "Fully recovered" in resp.text
-    assert "7.5 hours tonight" in resp.text
-
-
 async def _store_briefing(content: str) -> None:
     async with test_session() as session:
         session.add(
@@ -285,6 +255,32 @@ async def test_a_v5_option_names_its_open_session(client: AsyncClient) -> None:
     text = _page_text(resp.text)
     assert "Fresh legs today." in text
     assert "Planned today · gym" in text  # the option's context, from its open session
+
+
+async def test_a_v4_briefing_is_named_as_an_earlier_version(client: AsyncClient) -> None:
+    """#244: a v4 briefing's verdict and read are no longer rendered."""
+    await _seed_user()
+    await _store_briefing(
+        json.dumps(
+            {
+                "readiness_verdict": "go_hard",
+                "recovery_status": "Fully recovered and ready to train.",
+                "workout_adjustments": "No adjustments needed.",
+                "sleep_recommendation": "Aim for 7.5 hours tonight.",
+            }
+        )
+    )
+
+    resp = await client.get("/")
+
+    assert resp.status_code == 200
+    text = _page_text(resp.text)
+    assert "Analysis from an earlier version isn&#39;t shown" in text
+    assert "go hard" not in text
+    assert "Fully recovered" not in text
+    assert "7.5 hours tonight" not in text
+    assert "Coach notes unavailable" not in text
+    assert "Regenerate briefing" in text
 
 
 async def test_a_briefing_without_coach_notes_says_so(client: AsyncClient) -> None:

@@ -77,6 +77,25 @@ ZONE_STYLES: dict[str, ChipStyle] = {
 
 
 @dataclass(frozen=True)
+class BorderStyle:
+    light: str
+    dark: str
+
+
+BORDER_STYLES: dict[str, BorderStyle] = {
+    # A table's header rule, a boxed note, a tile or a rest day on the week strip.
+    "rule": BorderStyle("#e7e5e4", "rgba(255,255,255,.10)"),
+    # The rule between a table's rows.
+    "row": BorderStyle("#f4f4f5", "rgba(255,255,255,.06)"),
+    # The page-coloured gap between the sleep-stage bands.
+    "gap": BorderStyle("#ffffff", DARK_PAGE),
+}
+"""Border colours (#252); ``base.html`` makes them ``.bd-<name>`` classes, light and
+dark. A template types the light colour inline from here (clients that drop the style
+sheet keep it) and adds the class, so dark mode can mute it."""
+
+
+@dataclass(frozen=True)
 class Chip:
     """A label and the ``CHIP_STYLES`` entry it renders in."""
 
@@ -151,6 +170,7 @@ JINJA_GLOBALS = {
     "chip_styles": CHIP_STYLES,
     "tones": TONES,
     "zone_styles": ZONE_STYLES,
+    "border_styles": BORDER_STYLES,
     "session_status_chip": SESSION_STATUS_CHIP,
     "intent_chip": intent_chip,
     "tone_chip": tone_chip,

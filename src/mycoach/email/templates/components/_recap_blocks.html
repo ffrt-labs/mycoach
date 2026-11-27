@@ -8,7 +8,7 @@
   <tr>
     {% for tile in tiles %}
     <td style="width:50%;vertical-align:top;{% if not loop.first %}padding-left:8px;{% elif not loop.last %}padding-right:8px;{% endif %}">
-      <div class="recovery-tile" style="border:1px solid #e7e5e4;border-radius:10px;padding:16px;">
+      <div class="recovery-tile bd-rule" style="border:1px solid {{ border_styles.rule.light }};border-radius:10px;padding:16px;">
         <div class="mlabel">{{ tile.label }}</div>
         <div style="margin-top:4px;"><span class="strong" style="font:600 22px 'IBM Plex Mono',ui-monospace,Menlo,monospace;">{{ tile.value }}</span>{% if tile.unit %}<span class="munit"> {{ tile.unit }}</span>{% endif %}</div>
         <div class="muted" style="margin-top:4px;">{{ tile.sub }}</div>
@@ -21,18 +21,18 @@
 
 {#- Strength: one row per catalogue exercise, its top set this week, the coach's trend. -#}
 {% macro lift_table(ui, rows) -%}
-{%- set cell = "vertical-align:top;padding:12px 0;border-bottom:1px solid #f4f4f5;" -%}
+{%- set cell = "vertical-align:top;padding:12px 0;border-bottom:1px solid " ~ border_styles.row.light ~ ";" -%}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td class="msub" style="padding-bottom:8px;border-bottom:1px solid #e7e5e4;">Lift</td>
-    <td class="msub" style="padding-bottom:8px;border-bottom:1px solid #e7e5e4;text-align:right;">Top set</td>
-    <td class="msub" style="padding-bottom:8px;border-bottom:1px solid #e7e5e4;text-align:right;">Trend</td>
+    <td class="msub bd-rule" style="padding-bottom:8px;border-bottom:1px solid {{ border_styles.rule.light }};">Lift</td>
+    <td class="msub bd-rule" style="padding-bottom:8px;border-bottom:1px solid {{ border_styles.rule.light }};text-align:right;">Top set</td>
+    <td class="msub bd-rule" style="padding-bottom:8px;border-bottom:1px solid {{ border_styles.rule.light }};text-align:right;">Trend</td>
   </tr>
   {% for row in rows %}
   <tr class="lift-row">
-    <td class="mlabel" style="{{ cell }}padding-right:12px;">{{ row.name }}</td>
-    <td class="strong" style="{{ cell }}text-align:right;white-space:nowrap;font:600 14px 'IBM Plex Mono',monospace;padding-right:12px;">{{ row.top_set }}</td>
-    <td style="{{ cell }}text-align:right;">{{ ui.chip(row.chip) }}</td>
+    <td class="mlabel bd-row" style="{{ cell }}padding-right:12px;">{{ row.name }}</td>
+    <td class="strong bd-row" style="{{ cell }}text-align:right;white-space:nowrap;font:600 14px 'IBM Plex Mono',monospace;padding-right:12px;">{{ row.top_set }}</td>
+    <td class="bd-row" style="{{ cell }}text-align:right;">{{ ui.chip(row.chip) }}</td>
   </tr>
   {% endfor %}
 </table>

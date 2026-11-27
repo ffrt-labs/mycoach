@@ -576,3 +576,46 @@ def test_the_action_numbers_are_centred_in_their_circles(name: str) -> None:
         order = [k for k in style if k in ("line-height", "font")]
         assert order[-1] == "line-height" or "/" + style["height"] in style["font"], decls
         assert style.get("line-height", style["height"]) == style["height"], decls
+
+
+# --- Borders and badges in dark mode (#252) -------------------------------------------
+
+
+def test_dark_mode_overrides_every_border_class(html: str) -> None:
+    from mycoach.email.tones import BORDER_STYLES
+
+    dark = _media_block(html, "prefers-color-scheme: dark")
+    for name, style in BORDER_STYLES.items():
+        rule = re.search(r"\.bd-" + re.escape(name) + r"\s*\{([^}]*)\}", dark)
+        assert rule, name
+        assert f"border-color:{style.dark} !important" in rule.group(1), name
+
+
+def _dark_border_classes(dark: str) -> set[str]:
+    """Every class the dark-mode block gives an ``!important`` border colour."""
+    classes: set[str] = set()
+    for selectors, body in re.findall(r"([^{}]+)\{([^}]*)\}", dark):
+        if re.search(r"border-color:[^;]*!important", body):
+            classes |= set(re.findall(r"\.([\w-]+)", selectors))
+    return classes
+
+
+def test_every_inline_border_colour_has_a_dark_mode_override(html: str) -> None:
+    """An inline border colour beats the style sheet unless dark mode overrides it with
+    !important: without a class that does, the border stays light on a dark page."""
+    overridden = _dark_border_classes(_media_block(html, "prefers-color-scheme: dark"))
+    body = html[html.index("<body") :]
+    bare = []
+    for tag in re.findall(r"<\w+\b[^>]*>", body):
+        style = re.search(r'style="([^"]*)"', tag)
+        if not style:
+            continue
+        coloured = [
+            f"{k}:{v}"
+            for k, v in _style(style.group(1)).items()
+            if k.startswith("border") and re.search(r"#[0-9a-fA-F]{3,6}", v)
+        ]
+        classes = re.search(r'class="([^"]*)"', tag)
+        if coloured and not overridden & set(classes.group(1).split() if classes else []):
+            bare.append((coloured, tag[:120]))
+    assert not bare, bare

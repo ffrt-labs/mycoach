@@ -6,6 +6,7 @@ Adjust the weights, RPE, and volume for today's gym session based on last week's
 1a. Bench Press — 3 sets x 8-10 [exercise_id: custom] [Superset A] (Pause at bottom)
 1b. Bent Over Row — 3 sets x 8-10 [exercise_id: custom] [Superset A]
 2. Lateral Raise — 3 sets x 12-15 [exercise_id: custom]
+3. Deadlift — 3 sets x 5 [exercise_id: custom]
 
 ## Last Week's Full Training Log
 - 2024-06-10: Push Day [gym] (60 min, avg HR 120)

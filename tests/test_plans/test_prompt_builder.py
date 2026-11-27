@@ -211,3 +211,39 @@ class TestFormatRoutineExercises:
         ]
         result = _format_routine_exercises(exercises)
         assert "(Pause at bottom)" in result
+
+    def test_routine_error_set_count_shows_the_planned_three_sets(self) -> None:
+        """#250: a 36-set routine typo is planned as 3 sets, so the prompt shows 3."""
+        exercises = [
+            {"exercise_name": "Deadlift", "sets": 36, "rep_range": "5", "notes": None},
+        ]
+        result = _format_routine_exercises(exercises)
+        assert result == "1. Deadlift — 3 sets x 5 [exercise_id: custom]"
+
+    def test_routine_error_set_count_in_a_superset_shows_three_sets(self) -> None:
+        exercises = [
+            {
+                "exercise_name": "Deadlift",
+                "sets": 36,
+                "rep_range": "5",
+                "notes": None,
+                "superset_group": 0,
+            },
+            {
+                "exercise_name": "Plank",
+                "sets": 3,
+                "rep_range": "60s",
+                "notes": None,
+                "superset_group": 0,
+            },
+        ]
+        result = _format_routine_exercises(exercises)
+        assert "1a. Deadlift — 3 sets x 5 [exercise_id: custom] [Superset A]" in result
+        assert "36" not in result
+
+    def test_ten_sets_render_unchanged(self) -> None:
+        exercises = [
+            {"exercise_name": "Calf Raise", "sets": 10, "rep_range": "15", "notes": None},
+        ]
+        result = _format_routine_exercises(exercises)
+        assert result == "1. Calf Raise — 10 sets x 15 [exercise_id: custom]"

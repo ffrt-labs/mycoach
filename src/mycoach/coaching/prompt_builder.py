@@ -29,6 +29,7 @@ from mycoach.coaching.life_context import (
 from mycoach.coaching.strict_schema import strict_json_schema
 from mycoach.localtime import WEEKDAY_NAMES
 from mycoach.models.plan import INTENT_LABEL
+from mycoach.models.routine import planned_sets
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -1278,6 +1279,12 @@ def build_weekly_recap_prompt(
     return compile_prompt(Operation.WEEKLY_RECAP, variables, version=version).user
 
 
+def _shown_sets(routine_sets: int) -> int:
+    """The set count the plan stores for a routine exercise, so the prompt plans
+    against what the athlete sees: a routine error shows as its planned 3 (#250)."""
+    return planned_sets(routine_sets)["sets"]
+
+
 def _format_routine_exercises(exercises: list[dict[str, Any]]) -> str:
     """Format routine exercises for the gym adjustment prompt.
 
@@ -1316,7 +1323,7 @@ def _format_routine_exercises(exercises: list[dict[str, Any]]) -> str:
                 exercise_id = gex.get("exercise_id") or "custom"
                 line = (
                     f"{num}{suffix}. {gex['exercise_name']} — "
-                    f"{gex['sets']} sets x {gex['rep_range']} "
+                    f"{_shown_sets(gex['sets'])} sets x {gex['rep_range']} "
                     f"[exercise_id: {exercise_id}] [Superset {label}]"
                 )
                 if gex.get("notes"):
@@ -1326,7 +1333,8 @@ def _format_routine_exercises(exercises: list[dict[str, Any]]) -> str:
             num += 1
             exercise_id = ex.get("exercise_id") or "custom"
             line = (
-                f"{num}. {ex['exercise_name']} — {ex['sets']} sets x {ex['rep_range']} "
+                f"{num}. {ex['exercise_name']} — "
+                f"{_shown_sets(ex['sets'])} sets x {ex['rep_range']} "
                 f"[exercise_id: {exercise_id}]"
             )
             if ex.get("notes"):

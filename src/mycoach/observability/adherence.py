@@ -101,9 +101,9 @@ def gym_adherence(
 
     A set's own prescription (what the logger showed on that set: the coaching
     fulfillment under the set's ``(exercise_title, set_index)`` in ``fulfillments``)
-    wins over the plan's per-exercise targets. The reps delta is the mean of performed minus prescribed reps, a prescribed range
-    counting as its midpoint (``"8-10"`` is 9). The weight delta is a
-    percentage of the prescribed weight.
+    wins over the plan's per-exercise targets. The reps delta is the mean of performed minus
+    prescribed reps, a prescribed range counting as its midpoint (``"8-10"`` is 9). The
+    weight delta is a percentage of the prescribed weight.
     """
     prescriptions = _prescriptions(details)
     total = sum(p.sets for p in prescriptions.values())

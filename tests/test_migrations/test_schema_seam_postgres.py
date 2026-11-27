@@ -95,7 +95,8 @@ def _legacy_layout(conn_sync: Any) -> None:
     for statement in (
         "DROP TABLE public.canonical_activity_sources",
         "DROP TABLE public.source_records",
-        "ALTER TABLE public.gym_workout_details DROP CONSTRAINT gym_workout_details_exercise_id_fkey",
+        "ALTER TABLE public.gym_workout_details "
+        "DROP CONSTRAINT gym_workout_details_exercise_id_fkey",
         "DROP TABLE public.exercises",
         "ALTER TABLE public.canonical_activities RENAME TO activities",
         "ALTER TABLE public.gym_workout_details RENAME COLUMN canonical_activity_id TO activity_id",
@@ -174,7 +175,8 @@ def _seed_legacy(url: str) -> None:
         "external_id, created_at) VALUES (7, 'gym', 'Legs', now(), 'logger', 'uuid-1', now())",
         "INSERT INTO public.gym_workout_details (activity_id, exercise_title, set_index, "
         "set_type, weight_kg, reps, prescribed_weight_kg, prescribed_reps) VALUES "
-        "(1, 'Squat', 1, 'normal', 100, 5, 102.5, 5), (1, 'Squat', 2, 'normal', 100, 5, NULL, NULL)",
+        "(1, 'Squat', 1, 'normal', 100, 5, 102.5, 5), "
+        "(1, 'Squat', 2, 'normal', 100, 5, NULL, NULL)",
         "INSERT INTO public.daily_health_snapshots (user_id, snapshot_date, data_source, "
         "created_at, updated_at) VALUES (7, '2024-06-10', 'garmin', now(), now())",
     )
@@ -182,7 +184,7 @@ def _seed_legacy(url: str) -> None:
 
 @pytest.fixture
 def pg_db() -> Iterator[str]:
-    """A throwaway database in the pre-seam layout, with the two migration histories pointed at it."""
+    """A throwaway database in the pre-seam layout, both migration histories pointed at it."""
     assert PG_URL
     admin = PG_URL
     name = f"seam_{uuid.uuid4().hex[:10]}"
@@ -287,7 +289,8 @@ def test_coaching_role_gets_a_permission_error_against_health(migrated: str) -> 
         "SELECT * FROM health.source_records",
         "SELECT * FROM health.daily_health_snapshots",
         # the cross-schema join the seam exists to make fail
-        "SELECT * FROM coaching.planned_sessions p JOIN health.canonical_activities a ON a.external_id = p.activity_external_id",
+        "SELECT * FROM coaching.planned_sessions p JOIN health.canonical_activities a "
+        "ON a.external_id = p.activity_external_id",
     ):
         with pytest.raises(Exception) as err:
             _as_role(migrated, "coaching_role", statement)
@@ -349,7 +352,8 @@ def test_no_foreign_key_crosses_the_seam(migrated: str) -> None:
         migrated,
         "SELECT conrelid::regclass::text, confrelid::regclass::text FROM pg_constraint c "
         "WHERE contype = 'f' AND "
-        "(conrelid::regclass::text LIKE 'health.%' AND confrelid::regclass::text NOT LIKE 'health.%' "
+        "(conrelid::regclass::text LIKE 'health.%' "
+        "AND confrelid::regclass::text NOT LIKE 'health.%' "
         " OR conrelid::regclass::text LIKE 'coaching.%' AND confrelid::regclass::text "
         "NOT LIKE 'coaching.%')",
     )

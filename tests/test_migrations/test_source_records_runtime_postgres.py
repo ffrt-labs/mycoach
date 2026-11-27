@@ -8,10 +8,10 @@ bridge login, and replay cleanly.
 from datetime import datetime
 
 import pytest
-from alembic import command
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from alembic import command
 from mycoach.models.activity import Activity
 from mycoach.sources.intake import intake_source_record
 from mycoach.sources.reconcile import link_garmin_to_gym

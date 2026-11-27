@@ -123,8 +123,8 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
 
     # CORS for the standalone logger origin, once split out (settings.logger_origin
-    # set). The logger sends no cookies or credentials, so credentials stay disabled — pinning to the exact origin is what
-    # actually matters here, not credential support.
+    # set). The logger sends no cookies or credentials, so credentials stay disabled —
+    # pinning to the exact origin is what actually matters here, not credential support.
     if settings.logger_origin:
         app.add_middleware(
             CORSMiddleware,

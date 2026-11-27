@@ -33,8 +33,8 @@ async def log_workouts(
 
     A workout carrying a ``planned_session_id`` is linked to that prescription once it is
     recorded. Deduplicated workouts are not re-linked (the first import already did it) but their
-    prescription rows are re-checked, which repairs a crash between the two commits. A claim that cannot be honoured is reported in ``errors`` and the
-    workout still lands.
+    prescription rows are re-checked, which repairs a crash between the two commits. A claim
+    that cannot be honoured is reported in ``errors`` and the workout still lands.
     """
     athlete_id = await athlete_id_for(db, user_id)
     recorded = await health.record_workouts(athlete_id, source, workouts)

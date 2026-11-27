@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import select
 
 from mycoach.models.activity import Activity
-from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.athlete import Athlete
+from mycoach.models.health import DailyHealthSnapshot
 from mycoach.models.user import User
 from mycoach.sources.garmin.mappers import (
     import_activities,

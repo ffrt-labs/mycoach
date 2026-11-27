@@ -47,16 +47,11 @@
     {% if briefing %}
     <!-- ===== Verdict hero ===== -->
     {#- v5 Coach notes (#249): the verdict from readiness and the coach's Lead, as in the
-        email. A v4 briefing keeps its own fields until #244; without notes (the
-        notes fallback), the hero says so. -#}
+        email. Without notes to show (the notes fallback, or a briefing from an earlier
+        version, #244), the hero says so. -#}
     <div class="mt-8">
         {% if briefing_headline %}
         <h1 class="font-bold tracking-[-0.02em] text-zinc-50" style="font-size:clamp(56px,10vw,116px);line-height:0.9;">{{ briefing_headline.verdict }}</h1>
-        <div class="h-[5px] w-[200px] bg-accent rounded mt-5"></div>
-        {% elif briefing_data %}
-        <h1 class="font-bold tracking-[-0.02em] text-zinc-50 capitalize" style="font-size:clamp(56px,10vw,116px);line-height:0.9;">
-            {{ briefing_data.readiness_verdict | replace('_', ' ') if briefing_data.readiness_verdict else 'Ready' }}
-        </h1>
         <div class="h-[5px] w-[200px] bg-accent rounded mt-5"></div>
         {% else %}
         <h1 class="font-bold tracking-[-0.02em] text-zinc-300" style="font-size:clamp(48px,8vw,88px);line-height:0.95;">{{ notes_unavailable }}</h1>
@@ -67,8 +62,7 @@
         <p class="text-[17px] leading-relaxed text-zinc-400 max-w-[600px]">
             {% if health and health.training_readiness is not none %}Readiness <span class="text-zinc-50 font-semibold">{{ health.training_readiness }} / 100</span>. {% endif %}
             {%- if briefing_headline %} {{ chip(briefing_headline.chip) }} {{ briefing_headline.summary }}
-            {%- elif briefing_data %} {{ briefing_data.recovery_status }}
-            {%- else %} The briefing went out without the coach's read; regenerate it to try again.
+            {%- elif not briefing_earlier_version %} The briefing went out without the coach's read; regenerate it to try again.
             {%- endif %}
         </p>
         <button id="regen-briefing-btn" onclick="regenerateBriefing()"
@@ -230,15 +224,6 @@
             </div>
             {% endif %}
             <a href="/insights/{{ briefing.id }}" class="inline-block text-xs text-accent-soft hover:underline">Full analysis →</a>
-        </div>
-        {% elif briefing_data %}
-        <div>
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 mb-3">The read</div>
-            <p class="text-[15px] leading-[1.7] text-zinc-300">
-                {% if briefing_data.workout_adjustments %}{{ briefing_data.workout_adjustments }}{% endif %}
-                {% if briefing_data.sleep_recommendation %} {{ briefing_data.sleep_recommendation }}{% endif %}
-                {% if not briefing_data.workout_adjustments and not briefing_data.sleep_recommendation %}{{ briefing_data.recovery_status }}{% endif %}
-            </p>
         </div>
         {% endif %}
 

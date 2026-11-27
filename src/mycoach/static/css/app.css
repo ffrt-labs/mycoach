@@ -130,7 +130,7 @@ textarea.field { resize: vertical; line-height: 1.5; }
 }
 .check-box.is-on { border-color: #fb923c; background: #fb923c; }
 
-/* support for the md_bold Jinja filter's output (bulleted lists + bold) */
+/* bulleted lists + bold */
 ul.list-disc { list-style: disc; margin: 4px 0 0 18px; }
 ul.space-y-1 > li + li { margin-top: 4px; }
 .md-body strong { color: #fafafa; font-weight: 600; }

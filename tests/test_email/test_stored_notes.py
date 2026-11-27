@@ -1,5 +1,5 @@
-"""The one way pages tell stored v5 Coach notes, a v4 insight and the notes fallback
-apart (#249)."""
+"""The one way pages tell stored v5 Coach notes, an earlier-version insight and the
+notes fallback apart (#249, #244)."""
 
 import json
 
@@ -13,18 +13,19 @@ def test_v5_content_reads_as_its_model() -> None:
 
     assert isinstance(stored.notes, WeeklyRecapEmail)
     assert stored.notes.headline.summary.startswith("Both lifts")
-    assert stored.v4 is None
+    assert not stored.earlier_version
     assert not stored.unavailable
 
 
-def test_v4_content_is_kept_as_its_dict() -> None:
+def test_v4_content_is_an_earlier_version_with_nothing_to_show() -> None:
+    """#244: a v4 insight is no longer rendered, only named as an earlier version."""
     v4 = {"week_summary": "A solid week.", "adherence_analysis": "3/3 done."}
 
     stored = stored_notes(json.dumps(v4), WeeklyRecapEmail)
 
     assert stored.notes is None
-    assert stored.v4 == v4
-    assert not stored.unavailable
+    assert stored.earlier_version
+    assert stored.unavailable
 
 
 def test_the_notes_fallback_is_unavailable() -> None:
@@ -32,7 +33,7 @@ def test_the_notes_fallback_is_unavailable() -> None:
         stored = stored_notes(content, WeeklyRecapEmail)
 
         assert stored.notes is None
-        assert stored.v4 is None
+        assert not stored.earlier_version
         assert stored.unavailable
 
 

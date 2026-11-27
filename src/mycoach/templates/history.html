@@ -52,139 +52,8 @@
             {% endif %}
             <a href="/insights/{{ weekly_recap.id }}" class="inline-block text-xs text-accent-soft hover:underline">Full analysis →</a>
             {% elif recap_unavailable %}
-            <p class="text-zinc-500 text-sm">Coach notes unavailable for this week.</p>
-            {% elif recap_data %}
-            <!-- Week Summary -->
-            {% if recap_data.week_summary %}
-            <p class="text-zinc-200 text-sm mb-4 leading-relaxed">{{ recap_data.week_summary|md_bold }}</p>
-            {% endif %}
-
-            <!-- Adherence | Training Load | Recovery -->
-            {% if recap_data.adherence_analysis or recap_data.training_load_analysis or recap_data.recovery_assessment %}
-            <div class="grid grid-cols-3 gap-3 mb-4 border-t border-white/[0.06] pt-4">
-                {% if recap_data.adherence_analysis %}
-                <div>
-                    <h3 class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em] mb-1">Adherence</h3>
-                    <p class="text-zinc-400 text-xs leading-relaxed">{{ recap_data.adherence_analysis|md_bold }}</p>
-                </div>
-                {% endif %}
-                {% if recap_data.training_load_analysis %}
-                <div>
-                    <h3 class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em] mb-1">Training Load</h3>
-                    <p class="text-zinc-400 text-xs leading-relaxed">{{ recap_data.training_load_analysis|md_bold }}</p>
-                </div>
-                {% endif %}
-                {% if recap_data.recovery_assessment %}
-                <div>
-                    <h3 class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em] mb-1">Recovery</h3>
-                    <p class="text-zinc-400 text-xs leading-relaxed">{{ recap_data.recovery_assessment|md_bold }}</p>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-
-            <!-- Highlights | Concerns -->
-            {% if recap_data.performance_highlights or recap_data.areas_of_concern %}
-            <div class="grid grid-cols-2 gap-4 mb-4 border-t border-white/[0.06] pt-4">
-                {% if recap_data.performance_highlights %}
-                <div>
-                    <h3 class="text-[10px] font-semibold text-emerald-300 uppercase tracking-[0.12em] mb-2">Highlights</h3>
-                    <ul class="text-zinc-400 text-xs list-disc ml-4 space-y-1">
-                        {% for h in recap_data.performance_highlights %}
-                        <li>{{ h|md_bold }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-                {% if recap_data.areas_of_concern %}
-                <div>
-                    <h3 class="text-[10px] font-semibold text-amber-300 uppercase tracking-[0.12em] mb-2">Concerns</h3>
-                    <ul class="text-zinc-400 text-xs list-disc ml-4 space-y-1">
-                        {% for c in recap_data.areas_of_concern %}
-                        <li>{{ c|md_bold }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-
-            <!-- Next Week Recommendations -->
-            {% if recap_data.next_week_recommendations %}
-            <div class="border-t border-white/[0.06] pt-4 mb-3">
-                <h3 class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em] mb-1">Next Week</h3>
-                <p class="text-zinc-200 text-sm leading-relaxed">{{ recap_data.next_week_recommendations|md_bold }}</p>
-            </div>
-            {% endif %}
-
-            <!-- Gym Coaching -->
-            {% if recap_data.gym_coaching %}
-            <div class="border-t border-white/[0.06] pt-4 mb-3">
-                <div class="bg-amber-500/[0.06] border border-amber-500/20 rounded-lg p-3">
-                    <h3 class="text-[10px] font-semibold text-amber-300 uppercase tracking-[0.12em] mb-3">Strength Analysis</h3>
-                    {% for day in recap_data.gym_coaching %}
-                    <div class="{% if not loop.first %}mt-3 pt-3 border-t border-amber-500/15{% endif %}">
-                        <h4 class="text-sm font-semibold text-amber-200 mb-1">{{ day.day_label }}</h4>
-                        <ul class="text-zinc-300 text-sm list-disc ml-4 space-y-1">
-                            {% for ex in day.exercises %}
-                            <li>{{ ex|md_bold }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Exercise Substitutions -->
-            {% if recap_data.exercise_substitutions %}
-            <div class="mb-3">
-                <h3 class="text-[10px] font-semibold text-amber-300 uppercase tracking-[0.12em] mb-2">Exercise Substitutions</h3>
-                <div class="flex flex-wrap gap-2">
-                    {% for sub in recap_data.exercise_substitutions %}
-                    <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25">{{ sub }}</span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Cardio Coaching -->
-            {% if recap_data.cardio_coaching %}
-            <div class="mb-3">
-                <div class="bg-teal-500/[0.06] border border-teal-500/20 rounded-lg p-3">
-                    <h3 class="text-[10px] font-semibold text-teal-300 uppercase tracking-[0.12em] mb-3">Cardio Analysis</h3>
-                    {% for discipline in recap_data.cardio_coaching %}
-                    <div class="{% if not loop.first %}mt-3 pt-3 border-t border-teal-500/15{% endif %}">
-                        <h4 class="text-sm font-semibold text-teal-200 mb-1">{{ discipline.sport }}</h4>
-                        <p class="text-zinc-300 text-sm mb-1 leading-relaxed">{{ discipline.analysis|md_bold }}</p>
-                        <p class="text-teal-300/80 text-sm italic">{{ discipline.recommendation|md_bold }}</p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Coach Recommendations -->
-            {% if recap_data.coach_recommendations %}
-            <div class="mb-3">
-                <div class="bg-purple-500/[0.06] border border-purple-500/20 rounded-lg p-3">
-                    <h3 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-2">Coach Recommendations</h3>
-                    <ol class="text-zinc-300 text-xs list-decimal ml-4 space-y-1">
-                        {% for rec in recap_data.coach_recommendations %}
-                        <li>{{ rec|md_bold }}</li>
-                        {% endfor %}
-                    </ol>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Mesocycle Progress -->
-            {% if recap_data.mesocycle_progress %}
-            <div class="flex items-center gap-2">
-                <span class="text-[10px] font-semibold text-accent-soft uppercase tracking-[0.12em]">Mesocycle:</span>
-                <span class="text-xs text-zinc-300 bg-white/[0.06] px-2 py-0.5 rounded-full font-mono">{{ recap_data.mesocycle_progress }}</span>
-            </div>
-            {% endif %}
+            {#- No Coach notes to show: an earlier version's recap (#244) or the fallback. -#}
+            <p class="text-zinc-500 text-sm">{% if recap_earlier_version %}{{ earlier_version }}.{% else %}Coach notes unavailable for this week.{% endif %}</p>
             {% endif %}
             <div id="recap-status"></div>
         </div>
@@ -268,8 +137,9 @@
                             {% if card.has_analysis %}
                             <button onclick="toggleAnalysis({{ card.activity.external_id|tojson|forceescape }})" class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer">Analyzed</button>
                             {% else %}
-                            {#- The notes fell back (#249): analyzed, but nothing to expand. -#}
-                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">Coach notes unavailable</span>
+                            {#- Analyzed, but nothing to expand: an earlier version's analysis
+                                (#244) or the notes fallback (#249). -#}
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">{% if card.earlier_version %}{{ earlier_version }}{% else %}Coach notes unavailable{% endif %}</span>
                             {% endif %}
                             <button onclick="analyzeActivity({{ card.activity.external_id|tojson|forceescape }}, this, true)"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-zinc-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -328,8 +198,6 @@
                     <!-- Post-workout analysis panel -->
                     {% if card.has_analysis %}
                     <div id="analysis-{{ card.activity.external_id }}" class="analysis-panel hidden border-t border-purple-500/20 bg-purple-500/[0.05] px-4 py-4">
-                        {% set ad = card.analysis_data or {} %}
-
                         <!-- v5 Coach notes: the Headline, then the full analysis, opened on its insight page -->
                         {% if card.notes %}
                         <p class="text-zinc-200 text-sm mb-3 leading-relaxed"><span class="font-semibold text-zinc-50">{{ card.notes.headline.verdict }}</span> · {{ card.notes.headline.summary }}</p>
@@ -339,83 +207,6 @@
                         <a href="/insights/{{ card.insight_id }}" class="mt-2 inline-block text-xs text-purple-300 hover:underline">Full analysis →</a>
                         {% endif %}
 
-                        <!-- Performance Summary -->
-                        {% if ad.performance_summary %}
-                        <p class="text-zinc-200 text-sm mb-4 leading-relaxed">{{ ad.performance_summary|md_bold }}</p>
-                        {% endif %}
-
-                        <!-- 3-col grid: Planned vs Actual | HR Analysis | Training Effect -->
-                        {% if ad.planned_vs_actual or ad.hr_analysis or ad.training_effect_assessment %}
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 border-t border-purple-500/15 pt-4">
-                            {% if ad.planned_vs_actual %}
-                            <div>
-                                <h4 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-1">Planned vs Actual</h4>
-                                <p class="text-zinc-400 text-xs leading-relaxed">{{ ad.planned_vs_actual|md_bold }}</p>
-                            </div>
-                            {% endif %}
-                            {% if ad.hr_analysis %}
-                            <div>
-                                <h4 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-1">HR Analysis</h4>
-                                <p class="text-zinc-400 text-xs leading-relaxed">{{ ad.hr_analysis|md_bold }}</p>
-                            </div>
-                            {% endif %}
-                            {% if ad.training_effect_assessment %}
-                            <div>
-                                <h4 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-1">Training Effect</h4>
-                                <p class="text-zinc-400 text-xs leading-relaxed">{{ ad.training_effect_assessment|md_bold }}</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        <!-- 2-col grid: Highlights (green) | Areas for Improvement (amber) -->
-                        {% if ad.key_highlights or ad.areas_for_improvement %}
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 border-t border-purple-500/15 pt-4">
-                            {% if ad.key_highlights %}
-                            <div>
-                                <h4 class="text-[10px] font-semibold text-emerald-300 uppercase tracking-[0.12em] mb-2">Key Highlights</h4>
-                                <ul class="text-zinc-400 text-xs list-disc ml-4 space-y-1">
-                                    {% for h in ad.key_highlights %}
-                                    <li>{{ h|md_bold }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            {% endif %}
-                            {% if ad.areas_for_improvement %}
-                            <div>
-                                <h4 class="text-[10px] font-semibold text-amber-300 uppercase tracking-[0.12em] mb-2">Areas for Improvement</h4>
-                                <ul class="text-zinc-400 text-xs list-disc ml-4 space-y-1">
-                                    {% for a in ad.areas_for_improvement %}
-                                    <li>{{ a|md_bold }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        <!-- Performance Trends -->
-                        {% if ad.performance_trends %}
-                        <div class="border-t border-purple-500/15 pt-4 mb-3">
-                            <h4 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-1">Performance Trends</h4>
-                            <p class="text-zinc-300 text-xs leading-relaxed">{{ ad.performance_trends|md_bold }}</p>
-                        </div>
-                        {% endif %}
-
-                        <!-- Next Session Recommendations -->
-                        {% if ad.next_session_recommendations %}
-                        <div class="border-t border-purple-500/15 pt-4 mb-3">
-                            <h4 class="text-[10px] font-semibold text-purple-300 uppercase tracking-[0.12em] mb-1">Next Session</h4>
-                            <p class="text-zinc-300 text-xs leading-relaxed">{{ ad.next_session_recommendations|md_bold }}</p>
-                        </div>
-                        {% endif %}
-
-                        <!-- Recovery Notes -->
-                        {% if ad.recovery_notes %}
-                        <div class="border-t border-purple-500/15 pt-3">
-                            <p class="text-zinc-500 text-xs italic">{{ ad.recovery_notes|md_bold }}</p>
-                        </div>
-                        {% endif %}
                     </div>
                     {% endif %}
                 </div>

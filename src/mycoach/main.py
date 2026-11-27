@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,7 +11,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from markupsafe import Markup
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 import mycoach.models  # noqa: F401 — register all models with Base.metadata
@@ -149,26 +147,7 @@ def create_app() -> FastAPI:
             value = value.replace(tzinfo=UTC)
         return value.astimezone(local_tz)
 
-    _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
-    _BULLET_RE = re.compile(r"(?:^|\n)\s*- ")
-
-    def _md_bold(value: str) -> Markup:
-        """Convert **bold** markdown and `- ` bullets to HTML (XSS-safe)."""
-        escaped = str(Markup.escape(value))
-        html = _BOLD_RE.sub(r"<strong>\1</strong>", escaped)
-        # If text contains bullet points, split into intro paragraph + <ul> list
-        if _BULLET_RE.search(html):
-            parts = re.split(r"(?:^|\n)\s*- ", html)
-            intro = parts[0].strip()
-            items = [p.strip() for p in parts[1:] if p.strip()]
-            if items:
-                li = "".join(f"<li>{item}</li>" for item in items)
-                intro_html = f"<p>{intro}</p>" if intro else ""
-                html = f'{intro_html}<ul class="list-disc ml-4 mt-1 space-y-1">{li}</ul>'
-        return Markup(html)
-
     templates.env.filters["localtime"] = _localtime
-    templates.env.filters["md_bold"] = _md_bold
     app.state.templates = templates
 
     # API routes (JSON)

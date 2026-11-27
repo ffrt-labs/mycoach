@@ -881,9 +881,8 @@ async def get_last_performed(athlete_id: int) -> list[dict[str, Any]]:
             "date": start_time.date().isoformat(),
             "sets": sets_by_key.get(key, []),
         }
-        for key, (start_time, _id, title) in latest.items()
+        for key, (start_time, _id, title) in sorted(latest.items(), key=lambda item: item[1][2])
     ]
-    rows.sort(key=lambda row: row["title"])
     return rows
 
 

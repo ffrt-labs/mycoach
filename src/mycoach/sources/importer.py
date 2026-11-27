@@ -35,7 +35,8 @@ def source_external_id(workout: WorkoutImport) -> str:
 
 def _raw_payload(workout: WorkoutImport) -> dict[str, Any]:
     """What the source sent, JSON-safe: the workout and every set as received."""
-    return json.loads(json.dumps(dataclasses.asdict(workout), default=_iso))
+    payload: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(workout), default=_iso))
+    return payload
 
 
 def _iso(value: Any) -> str:

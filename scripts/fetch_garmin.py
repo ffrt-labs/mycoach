@@ -58,7 +58,9 @@ def connect() -> Garmin:
     return api
 
 
-def fetch_all(api: Garmin, day: date, end_day: date, only: list[str], split_dir: Path | None = None) -> dict:
+def fetch_all(
+    api: Garmin, day: date, end_day: date, only: list[str], split_dir: Path | None = None
+) -> dict:
     d = day.isoformat()
     e = end_day.isoformat()
     results = {}
@@ -74,20 +76,22 @@ def fetch_all(api: Garmin, day: date, end_day: date, only: list[str], split_dir:
             results[name] = {"error": str(ex)}
             print(f"ERROR: {ex}")
         if split_dir is not None and name in results:
-            (split_dir / f"{name}.json").write_text(json.dumps(results[name], indent=2, default=str))
+            (split_dir / f"{name}.json").write_text(
+                json.dumps(results[name], indent=2, default=str)
+            )
 
-    run("stats",               api.get_stats,               d)
-    run("heart_rates",         api.get_heart_rates,         d)
-    run("hrv",                 api.get_hrv_data,            d)
-    run("sleep",               api.get_sleep_data,          d)
-    run("stress",              api.get_stress_data,         d)
-    run("body_battery",        api.get_body_battery,        d, e)
-    run("training_readiness",  api.get_training_readiness,  d)
-    run("training_status",     api.get_training_status,     d)
-    run("max_metrics",         api.get_max_metrics,         d)
-    run("respiration",         api.get_respiration_data,    d)
-    run("spo2",                api.get_spo2_data,           d)
-    run("activities",          api.get_activities_by_date,  d, e)
+    run("stats", api.get_stats, d)
+    run("heart_rates", api.get_heart_rates, d)
+    run("hrv", api.get_hrv_data, d)
+    run("sleep", api.get_sleep_data, d)
+    run("stress", api.get_stress_data, d)
+    run("body_battery", api.get_body_battery, d, e)
+    run("training_readiness", api.get_training_readiness, d)
+    run("training_status", api.get_training_status, d)
+    run("max_metrics", api.get_max_metrics, d)
+    run("respiration", api.get_respiration_data, d)
+    run("spo2", api.get_spo2_data, d)
+    run("activities", api.get_activities_by_date, d, e)
 
     return results
 
@@ -149,7 +153,7 @@ def main():
         Path(args.out).write_text(output)
         print(f"\n[OK] Saved to {args.out}")
     else:
-        print(f"\n{'='*60}\n")
+        print(f"\n{'=' * 60}\n")
         print(output)
 
 

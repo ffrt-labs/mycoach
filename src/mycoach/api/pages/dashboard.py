@@ -40,8 +40,14 @@ router = APIRouter(tags=["pages"])
 USER_ID = 1  # Single-user MVP
 
 _AVG_FIELDS = [
-    "resting_hr", "hrv_status", "sleep_score", "sleep_duration_minutes",
-    "steps", "avg_stress", "body_battery_morning", "training_readiness",
+    "resting_hr",
+    "hrv_status",
+    "sleep_score",
+    "sleep_duration_minutes",
+    "steps",
+    "avg_stress",
+    "body_battery_morning",
+    "training_readiness",
 ]
 
 
@@ -211,9 +217,7 @@ async def dashboard(
 
     # And why the Generate button would refuse — the same guard the endpoint
     # behind the button now enforces, asked before the click rather than after.
-    briefing_blocked_reason = missing_recovery_data(
-        await get_today_health(session, USER_ID, today)
-    )
+    briefing_blocked_reason = missing_recovery_data(await get_today_health(session, USER_ID, today))
 
     templates: Jinja2Templates = request.app.state.templates
 

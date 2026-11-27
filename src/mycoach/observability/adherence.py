@@ -120,7 +120,9 @@ def gym_adherence(
         p = prescriptions[s["exercise_id"]]
         done[s["exercise_id"]] = done.get(s["exercise_id"], 0) + 1
 
-        own = (fulfillments or {}).get((s["exercise_title"], s["set_index"]), Prescription(None, None))
+        own = (fulfillments or {}).get(
+            (s["exercise_title"], s["set_index"]), Prescription(None, None)
+        )
         target_weight = own.weight_kg if own.weight_kg is not None else p.weight_kg
         if s["weight_kg"] is not None and target_weight:
             weight_deltas.append((s["weight_kg"] - target_weight) / target_weight * 100)
@@ -178,7 +180,8 @@ def adherence_scores(
         values = gym_adherence(details, sets, fulfillments)
     else:
         values = cardio_adherence(
-            planned_minutes=planned.duration_minutes, actual_minutes=activity.get("duration_minutes")
+            planned_minutes=planned.duration_minutes,
+            actual_minutes=activity.get("duration_minutes"),
         )
     metadata: dict[str, Any] = {
         "planned_session_id": planned.id,

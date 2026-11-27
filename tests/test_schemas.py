@@ -102,9 +102,7 @@ class TestAvailabilitySchemas:
 
     def test_slot_invalid_day(self) -> None:
         with pytest.raises(ValidationError):
-            AvailabilitySlot(
-                day_of_week=7, start_time=time(9, 0), duration_minutes=60, sport="gym"
-            )
+            AvailabilitySlot(day_of_week=7, start_time=time(9, 0), duration_minutes=60, sport="gym")
 
     def test_slot_invalid_sport(self) -> None:
         with pytest.raises(ValidationError):

@@ -96,9 +96,7 @@ async def link_garmin(athlete_id: int) -> LinkOutcome:
     return LinkOutcome(result.linked, list(result.errors or []), list(result.events))
 
 
-async def settle_due_activities(
-    athlete_id: int, now: datetime | None = None
-) -> list[HealthEvent]:
+async def settle_due_activities(athlete_id: int, now: datetime | None = None) -> list[HealthEvent]:
     """Settle gym-sourced activities whose deadline has passed without a Garmin match.
 
     Only gym-sourced ones (not ``garmin``): a Garmin-only activity expects no second source (#112).

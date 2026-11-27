@@ -245,9 +245,7 @@ async def test_plan_page_tags_each_session_with_its_intent(client: AsyncClient) 
                     title="Easy Long Run",
                     intent="aerobic_base",
                 ),
-                PlannedSession(
-                    plan_id=plan.id, day_of_week=3, sport="swimming", title="Old Swim"
-                ),
+                PlannedSession(plan_id=plan.id, day_of_week=3, sport="swimming", title="Old Swim"),
             ]
         )
         await session.commit()
@@ -520,7 +518,8 @@ async def test_a_v4_plan_from_langfuse_whose_cardio_all_failed_reads_as_a_fallba
     indistinguishable from a v5 plan whose notes fell back, and says the same."""
     await _seed_user()
     await _cardio_plan(
-        coach_notes=None, generation_error="cardio plan generation failed",
+        coach_notes=None,
+        generation_error="cardio plan generation failed",
         cardio_prompt_version="lf:3",
     )
 
@@ -535,7 +534,8 @@ async def test_a_bundled_v4_plan_whose_cardio_all_failed_shows_nothing_extra(
     """A bundled prompt records its template set, so a v4 one is known not to be v5."""
     await _seed_user()
     await _cardio_plan(
-        coach_notes=None, generation_error="cardio plan generation failed",
+        coach_notes=None,
+        generation_error="cardio plan generation failed",
         cardio_prompt_version="bundled:v4",
     )
 

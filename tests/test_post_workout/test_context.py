@@ -64,7 +64,9 @@ class TestGetActivityWithDetails:
             )
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(session, activity.external_id, user_id)
+            act_dict, gym_details = await get_activity_with_details(
+                session, activity.external_id, user_id
+            )
             assert act_dict["sport"] == "gym"
             assert act_dict["title"] == "Upper Body"
             assert act_dict["external_id"] == activity.external_id
@@ -88,7 +90,9 @@ class TestGetActivityWithDetails:
             session.add(activity)
             await session.commit()
 
-            act_dict, gym_details = await get_activity_with_details(session, activity.external_id, user_id)
+            act_dict, gym_details = await get_activity_with_details(
+                session, activity.external_id, user_id
+            )
             assert act_dict["sport"] == "swimming"
             assert gym_details == []
 
@@ -469,7 +473,11 @@ class TestFindMatchingPlannedSession:
             )
             await session.commit()
 
-            activity_dict = {"external_id": "this-activity", "sport": "gym", "start_time": "2024-06-13 09:00:00"}
+            activity_dict = {
+                "external_id": "this-activity",
+                "sport": "gym",
+                "start_time": "2024-06-13 09:00:00",
+            }
             result = await find_matching_planned_session(session, activity_dict, user_id)
             assert result is None
 

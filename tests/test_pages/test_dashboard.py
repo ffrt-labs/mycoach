@@ -490,9 +490,7 @@ async def test_dashboard_reports_the_retry_loops_own_state(client: AsyncClient) 
     always_open = get_settings().model_copy(
         update={"scheduler_briefing_hour": 0, "scheduler_briefing_minute": 0}
     )
-    with patch(
-        "mycoach.scheduler.briefing_window.get_settings", return_value=always_open
-    ):
+    with patch("mycoach.scheduler.briefing_window.get_settings", return_value=always_open):
         resp = await client.get("/")
 
     assert resp.status_code == 200
@@ -506,9 +504,7 @@ async def test_dashboard_disables_the_button_it_knows_would_be_refused(
     """Six days of inviting a click that would have briefed on nothing."""
     await _seed_user()
     async with test_session() as session:
-        session.add(
-            DailyHealthSnapshot(user_id=1, snapshot_date=_local_today(), resting_hr=58)
-        )
+        session.add(DailyHealthSnapshot(user_id=1, snapshot_date=_local_today(), resting_hr=58))
         await session.commit()
 
     resp = await client.get("/")

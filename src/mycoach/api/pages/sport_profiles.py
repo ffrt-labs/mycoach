@@ -23,9 +23,7 @@ async def sport_profiles_page(
 ) -> HTMLResponse:
     """Render the sport profiles management page."""
     result = await session.execute(
-        select(SportProfile)
-        .where(SportProfile.user_id == USER_ID)
-        .order_by(SportProfile.sport)
+        select(SportProfile).where(SportProfile.user_id == USER_ID).order_by(SportProfile.sport)
     )
     profiles = list(result.scalars().all())
 

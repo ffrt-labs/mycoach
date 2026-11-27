@@ -169,8 +169,7 @@ def test_garmin_sync_job_logs_auth_failure(
         job_garmin_sync()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "garmin_sync failed" in r.message
-        for r in caplog.records
+        r.levelno == logging.ERROR and "garmin_sync failed" in r.message for r in caplog.records
     )
 
 
@@ -482,9 +481,7 @@ async def test_daily_briefing_job_logs_skip(
         # only the recording wrapper the poll delegates to is under test.
         await _record_run("daily_briefing", _daily_briefing())
 
-    skip_logs = [
-        r for r in caplog.records if "daily_briefing skipped" in r.message
-    ]
+    skip_logs = [r for r in caplog.records if "daily_briefing skipped" in r.message]
     assert skip_logs and all(r.levelno == logging.INFO for r in skip_logs)
     assert not any(r.levelno >= logging.ERROR for r in caplog.records)
 
@@ -516,11 +513,9 @@ async def test_daily_briefing_job_logs_malformed_response_as_failure(
         await _record_run("daily_briefing", _daily_briefing())
 
     assert any(
-        r.levelno == logging.ERROR and "daily_briefing failed" in r.message
-        for r in caplog.records
+        r.levelno == logging.ERROR and "daily_briefing failed" in r.message for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)
-
 
 
 async def test_weekly_plan_calculates_next_monday(
@@ -715,8 +710,7 @@ def test_weekly_plan_job_logs_failure(
         job_weekly_plan()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "weekly_plan failed" in r.message
-        for r in caplog.records
+        r.levelno == logging.ERROR and "weekly_plan failed" in r.message for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)
 
@@ -778,14 +772,14 @@ def test_weekly_recap_job_logs_failure(
         job_weekly_recap()  # must not raise
 
     assert any(
-        r.levelno == logging.ERROR and "weekly_recap failed" in r.message
-        for r in caplog.records
+        r.levelno == logging.ERROR and "weekly_recap failed" in r.message for r in caplog.records
     )
     assert not any("skipped" in r.message for r in caplog.records)
 
 
 async def test_post_workout_analysis_processes_new_activities(
-    mock_session: AsyncMock, mock_engine: MagicMock,
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
 ) -> None:
     """Post-workout job should analyze activities without existing insights."""
     mock_engine.generate_post_workout_analysis = AsyncMock()
@@ -813,7 +807,8 @@ async def test_post_workout_analysis_processes_new_activities(
 
 
 async def test_post_workout_analysis_no_activities_raises_skip(
-    mock_session: AsyncMock, mock_engine: MagicMock,
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
 ) -> None:
     """Post-workout job raises PipelineSkip when there are no new activities."""
     mock_engine.generate_post_workout_analysis = AsyncMock()
@@ -835,7 +830,8 @@ async def test_post_workout_analysis_no_activities_raises_skip(
 
 
 async def test_post_workout_analysis_skips_existing_per_activity(
-    mock_session: AsyncMock, mock_engine: MagicMock,
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
 ) -> None:
     """A per-activity PipelineSkip is caught in the loop so the batch continues."""
     mock_activity_1 = {"external_id": "ext-10", "title": "Morning Swim"}
@@ -898,13 +894,15 @@ async def test_post_workout_analysis_failure_does_not_abort_batch(
 
     assert mock_engine.generate_post_workout_analysis.await_count == 2
     assert any(
-        r.levelno == logging.ERROR and "post-workout analysis failed for activity ext-10" in r.message
+        r.levelno == logging.ERROR
+        and "post-workout analysis failed for activity ext-10" in r.message
         for r in caplog.records
     )
 
 
 async def test_post_workout_analysis_all_skipped_raises_skip(
-    mock_session: AsyncMock, mock_engine: MagicMock,
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
 ) -> None:
     """A batch where every activity already had an insight is a skip, not a success."""
     mock_engine.generate_post_workout_analysis = AsyncMock(
@@ -933,7 +931,8 @@ async def test_post_workout_analysis_all_skipped_raises_skip(
 
 
 async def test_post_workout_analysis_sends_email(
-    mock_session: AsyncMock, mock_engine: MagicMock,
+    mock_session: AsyncMock,
+    mock_engine: MagicMock,
 ) -> None:
     """Post-workout job should send email when user preference is enabled."""
     mock_insight = MagicMock()
@@ -1032,9 +1031,7 @@ class TestDailyBriefingPoll:
 
         assert seen == [date(2026, 8, 25)]
 
-    async def test_rereads_the_window_after_an_attempt(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_rereads_the_window_after_an_attempt(self, mock_session: AsyncMock) -> None:
         """The attempt just made is the one that decides whether to alert."""
         before = self._window(should_generate=True, should_alert=True)
         after = self._window(should_generate=False, should_alert=False)
@@ -1051,9 +1048,7 @@ class TestDailyBriefingPoll:
         # The stale `should_alert=True` must not survive an attempt that succeeded.
         assert [c.args[0] for c in recorded.await_args_list] == ["daily_briefing"]
 
-    async def test_alerts_and_generates_on_the_same_tick(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_alerts_and_generates_on_the_same_tick(self, mock_session: AsyncMock) -> None:
         """Hitting the grace period is no reason to skip that tick's attempt."""
         still_stuck = self._window(should_generate=True, should_alert=True)
         load = AsyncMock(side_effect=[still_stuck, still_stuck])
@@ -1071,9 +1066,7 @@ class TestDailyBriefingPoll:
             "daily_briefing_alert",
         ]
 
-    async def test_alerts_without_generating_past_the_cutoff(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_alerts_without_generating_past_the_cutoff(self, mock_session: AsyncMock) -> None:
         """Between 14:00 and 20:00 the loop no longer tries but still reports."""
         recorded = AsyncMock()
         with (

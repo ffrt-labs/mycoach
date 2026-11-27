@@ -133,9 +133,7 @@ class TestClaimPlannedSession:
             )
             await session.commit()  # health reads on its own connection
 
-            declined = await claim_planned_session(
-                session, user_id, activity.external_id, first.id
-            )
+            declined = await claim_planned_session(session, user_id, activity.external_id, first.id)
             assert declined is None
             assert first.completed is True
             assert first.activity_external_id == activity.external_id

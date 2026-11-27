@@ -169,9 +169,7 @@ async def test_daily_briefing_body_records_skip() -> None:
 async def test_daily_briefing_body_records_failure() -> None:
     """A real failure out of the body records a failed run with the detail."""
     mock_engine = MagicMock()
-    mock_engine.generate_daily_briefing = AsyncMock(
-        side_effect=RuntimeError("LLM call failed")
-    )
+    mock_engine.generate_daily_briefing = AsyncMock(side_effect=RuntimeError("LLM call failed"))
 
     with (
         patch(
@@ -231,9 +229,7 @@ async def test_garmin_auth_failure_records_failed_run() -> None:
     runs = await _job_runs()
     assert len(runs) == 1
     assert runs[0].status == "failed"
-    assert runs[0].error == (
-        "Garmin authentication failed: Garmin rejected the email or password"
-    )
+    assert runs[0].error == ("Garmin authentication failed: Garmin rejected the email or password")
     source.fetch_and_import.assert_not_awaited()
 
 

@@ -45,6 +45,7 @@ VALID_LLM_RESPONSE = """{
   "analysis_md": "## Today. Well recovered."
 }"""
 
+
 def _mock_llm_client(content: str = VALID_LLM_RESPONSE) -> MagicMock:
     client = MagicMock()
     client.call.return_value = LLMResponse(
@@ -294,15 +295,11 @@ class TestGenerateDailyBriefing:
         async with test_session() as session:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
-            session.add(
-                DailyHealthSnapshot(user_id=user_id, snapshot_date=today, resting_hr=58)
-            )
+            session.add(DailyHealthSnapshot(user_id=user_id, snapshot_date=today, resting_hr=58))
             await session.commit()
 
             engine = CoachingEngine(llm_client=_mock_llm_client())
-            insight = await engine.generate_daily_briefing(
-                session, user_id, today, force=True
-            )
+            insight = await engine.generate_daily_briefing(session, user_id, today, force=True)
 
         assert insight.insight_type == "daily_briefing"
 
@@ -312,9 +309,7 @@ class TestGenerateDailyBriefing:
             user_id = await _create_user(session)
             today = date(2024, 6, 10)
             session.add(
-                DailyHealthSnapshot(
-                    user_id=user_id, snapshot_date=today, body_battery_morning=64
-                )
+                DailyHealthSnapshot(user_id=user_id, snapshot_date=today, body_battery_morning=64)
             )
             await session.commit()
 

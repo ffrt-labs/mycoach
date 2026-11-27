@@ -185,6 +185,7 @@ _GYM_DETAILS: list[dict[str, Any]] = [
     }
 ]
 
+
 def _body_reading(day: int, weight: float | None, waist: float | None = None,
                   note: str | None = None, month: int = 6) -> dict[str, Any]:  # fmt: skip
     return {"id": day, "measured_at": f"2024-{month:02d}-{day:02d} 06:30:00", "weight_kg": weight,
@@ -317,8 +318,12 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 today=date(2024, 6, 13),
                 episodes=[
                     Episode(
-                        id=1, kind="illness", started_on=date(2024, 6, 12), ended_on=None,
-                        severity="sick", note="fever, aches",
+                        id=1,
+                        kind="illness",
+                        started_on=date(2024, 6, 12),
+                        ended_on=None,
+                        severity="sick",
+                        note="fever, aches",
                     )  # fmt: skip
                 ],
                 ramp_back=None,
@@ -336,12 +341,19 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 today=date(2024, 6, 13),
                 episodes=[
                     Episode(
-                        id=2, kind="travel", started_on=date(2024, 6, 12),
-                        ended_on=date(2024, 6, 15), equipment="none", tz_shift_hours=-6.0,
+                        id=2,
+                        kind="travel",
+                        started_on=date(2024, 6, 12),
+                        ended_on=date(2024, 6, 15),
+                        equipment="none",
+                        tz_shift_hours=-6.0,
                         note="Conference in Boston",
                     ),
                     Episode(
-                        id=3, kind="illness", started_on=date(2024, 6, 13), ended_on=None,
+                        id=3,
+                        kind="illness",
+                        started_on=date(2024, 6, 13),
+                        ended_on=None,
                         severity="mild",
                     ),
                 ],  # fmt: skip
@@ -360,7 +372,11 @@ CASES: dict[str, tuple[str, dict[str, Any]]] = {
                 today=date(2024, 6, 13),
                 episodes=[],
                 ramp_back=RampBack(
-                    episode_id=1, day=5, length=5, load_pct=90, ends_on=date(2024, 6, 13),
+                    episode_id=1,
+                    day=5,
+                    length=5,
+                    load_pct=90,
+                    ends_on=date(2024, 6, 13),
                     extend_because=RecoverySignals(
                         hrv_below_baseline=False, resting_hr_elevated=True
                     ),

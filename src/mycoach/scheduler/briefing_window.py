@@ -280,9 +280,7 @@ async def _briefing_exists(session: AsyncSession, day: date) -> bool:
     return found is not None
 
 
-async def _runs_on_local_day(
-    session: AsyncSession, day: date, tz: ZoneInfo
-) -> list[JobRun]:
+async def _runs_on_local_day(session: AsyncSession, day: date, tz: ZoneInfo) -> list[JobRun]:
     """Briefing and alert runs that started on ``day`` in ``tz``, oldest first.
 
     ``JobRun.started_at`` is a naive UTC timestamp, so the local day's bounds

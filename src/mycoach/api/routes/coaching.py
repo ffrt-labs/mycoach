@@ -69,7 +69,6 @@ async def generate_today_briefing(
     return insight
 
 
-
 @router.get("/weekly-recap", response_model=CoachingInsightRead)
 async def get_weekly_recap(
     week_start: date | None = Query(
@@ -114,9 +113,7 @@ async def generate_weekly_recap(
     """
     engine = CoachingEngine()
     try:
-        insight = await engine.generate_weekly_recap(
-            session, USER_ID, week_start, force=force
-        )
+        insight = await engine.generate_weekly_recap(session, USER_ID, week_start, force=force)
     except (PipelineSkip, ValueError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     except RuntimeError as e:

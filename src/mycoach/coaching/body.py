@@ -83,7 +83,7 @@ class BodySummary:
 
 
 def when_text(measured_on: date, today: date) -> str:
-    """"measured today", "measured yesterday", "measured Thu (2 days ago)", "measured 5 Nov
+    """ "measured today", "measured yesterday", "measured Thu (2 days ago)", "measured 5 Nov
     (9 days ago)" (a weekday name is ambiguous past six days)."""
     days = (today - measured_on).days
     if days <= 0:
@@ -152,9 +152,7 @@ def _weight(readings: list[_Reading], today: date) -> WeightSummary | None:
     )
 
 
-def _waist(
-    readings: list[_Reading], height_cm: float | None, today: date
-) -> WaistSummary | None:
+def _waist(readings: list[_Reading], height_cm: float | None, today: date) -> WaistSummary | None:
     if not readings:
         return None
     latest = readings[-1]

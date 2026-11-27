@@ -169,23 +169,27 @@ class TestFormatActivities:
 
 class TestFormatHrZones:
     def test_minutes_format(self) -> None:
-        zones = json.dumps([
-            {"zone": 1, "minutes": 10},
-            {"zone": 2, "minutes": 25},
-            {"zone": 3, "minutes": 15},
-            {"zone": 4, "minutes": 5},
-            {"zone": 5, "minutes": 2},
-        ])
+        zones = json.dumps(
+            [
+                {"zone": 1, "minutes": 10},
+                {"zone": 2, "minutes": 25},
+                {"zone": 3, "minutes": 15},
+                {"zone": 4, "minutes": 5},
+                {"zone": 5, "minutes": 2},
+            ]
+        )
         result = _format_hr_zones(zones)
         assert "Zone 1: 10 min" in result
         assert "Zone 2: 25 min" in result
         assert "Zone 5: 2 min" in result
 
     def test_garmin_secs_format(self) -> None:
-        zones = json.dumps([
-            {"zoneNumber": 1, "secsInZone": 600},
-            {"zoneNumber": 2, "secsInZone": 1500},
-        ])
+        zones = json.dumps(
+            [
+                {"zoneNumber": 1, "secsInZone": 600},
+                {"zoneNumber": 2, "secsInZone": 1500},
+            ]
+        )
         result = _format_hr_zones(zones)
         assert "Zone 1: 10.0 min" in result
         assert "Zone 2: 25.0 min" in result
@@ -403,12 +407,14 @@ class TestFormatTrainingStatus:
 
 class TestFormatLoadFocus:
     def test_full_json(self) -> None:
-        val = json.dumps({
-            "aerobic_low": 148.26,
-            "aerobic_high": 0.0,
-            "anaerobic": 10.58,
-            "feedback": "AEROBIC_LOW_SHORTAGE",
-        })
+        val = json.dumps(
+            {
+                "aerobic_low": 148.26,
+                "aerobic_high": 0.0,
+                "anaerobic": 10.58,
+                "feedback": "AEROBIC_LOW_SHORTAGE",
+            }
+        )
         result = _format_load_focus(val)
         assert "Low aerobic 148.3" in result
         assert "High aerobic 0.0" in result
@@ -416,20 +422,24 @@ class TestFormatLoadFocus:
         assert "Lacking low-aerobic training load" in result
 
     def test_balanced_feedback(self) -> None:
-        val = json.dumps({
-            "aerobic_low": 50.0,
-            "aerobic_high": 50.0,
-            "anaerobic": 50.0,
-            "feedback": "BALANCED",
-        })
+        val = json.dumps(
+            {
+                "aerobic_low": 50.0,
+                "aerobic_high": 50.0,
+                "anaerobic": 50.0,
+                "feedback": "BALANCED",
+            }
+        )
         result = _format_load_focus(val)
         assert "Balanced training load" in result
 
     def test_unknown_feedback_title_cased(self) -> None:
-        val = json.dumps({
-            "aerobic_low": 10.0,
-            "feedback": "SOME_NEW_STATUS",
-        })
+        val = json.dumps(
+            {
+                "aerobic_low": 10.0,
+                "feedback": "SOME_NEW_STATUS",
+            }
+        )
         result = _format_load_focus(val)
         assert "Some New Status" in result
 
@@ -516,10 +526,15 @@ class TestPostWorkoutConditionalSections:
     def test_gym_section_when_present(self) -> None:
         result = build_post_workout_prompt(
             activity={"title": "Push", "sport": "gym"},
-            gym_details=[{
-                "exercise_title": "Bench", "set_index": 1,
-                "set_type": "normal", "weight_kg": 80, "reps": 8,
-            }],
+            gym_details=[
+                {
+                    "exercise_title": "Bench",
+                    "set_index": 1,
+                    "set_type": "normal",
+                    "weight_kg": 80,
+                    "reps": 8,
+                }
+            ],
             planned_session=None,
             similar_activities=[],
             health_context={},
@@ -582,11 +597,13 @@ class TestSwimmingActivityDetail:
             "distance_meters": 2400,
             "moving_duration_seconds": 2700.0,
             "duration_minutes": 60,
-            "hr_zones": json.dumps([
-                {"zoneNumber": 1, "secsInZone": 300},
-                {"zoneNumber": 2, "secsInZone": 1200},
-                {"zoneNumber": 3, "secsInZone": 900},
-            ]),
+            "hr_zones": json.dumps(
+                [
+                    {"zoneNumber": 1, "secsInZone": 300},
+                    {"zoneNumber": 2, "secsInZone": 1200},
+                    {"zoneNumber": 3, "secsInZone": 900},
+                ]
+            ),
             "training_effect_aerobic": 3.5,
             "epoc": 92.0,
             "fastest_split_100_seconds": 105.0,

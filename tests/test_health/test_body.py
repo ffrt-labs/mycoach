@@ -62,9 +62,7 @@ async def test_listing_since_a_time_returns_everything_after_it() -> None:
             ATHLETE, measured_at=datetime(2026, 11, day, 7, 0), weight_kg=80.0
         )
 
-    rows = await health.list_body_measurements(
-        ATHLETE, since=datetime(2026, 11, 5), limit=None
-    )
+    rows = await health.list_body_measurements(ATHLETE, since=datetime(2026, 11, 5), limit=None)
 
     assert [r["measured_at"][:10] for r in rows] == ["2026-11-09", "2026-11-05"]
 

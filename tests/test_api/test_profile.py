@@ -40,9 +40,7 @@ async def test_get_profile(client: AsyncClient, user: User) -> None:
 
 async def test_create_profile_gets_a_health_athlete_id(client: AsyncClient) -> None:
     """The health schema issues the athlete; the new user stores its id (ticket #108)."""
-    resp = await client.post(
-        "/api/profile", json={"name": "New User", "email": "new@example.com"}
-    )
+    resp = await client.post("/api/profile", json={"name": "New User", "email": "new@example.com"})
     assert resp.status_code in (200, 201)
 
     async with test_session() as session:

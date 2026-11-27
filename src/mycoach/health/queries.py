@@ -189,9 +189,7 @@ async def _activities(session: AsyncSession, stmt: Any) -> list[dict[str, Any]]:
 # --- daily health ---------------------------------------------------------------------
 
 
-async def get_today_health(
-    athlete_id: int, today: date | None = None
-) -> dict[str, Any]:
+async def get_today_health(athlete_id: int, today: date | None = None) -> dict[str, Any]:
     """That day's health snapshot as a dict (empty dict if none)."""
     today = today or date.today()
     async with health_session() as session:
@@ -324,7 +322,7 @@ async def list_snapshots(
         if until is not None:
             stmt = stmt.where(DailyHealthSnapshot.snapshot_date < until)
         order = DailyHealthSnapshot.snapshot_date
-        rows = (await session.execute(stmt.order_by(order.desc() if newest_first else order)))
+        rows = await session.execute(stmt.order_by(order.desc() if newest_first else order))
         return [_snapshot_full(s) for s in rows.scalars()]
 
 
@@ -423,9 +421,7 @@ async def has_performed_sets(athlete_id: int, activity_external_id: str) -> bool
             await session.execute(
                 select(GymWorkoutDetail.id)
                 .join(Activity, Activity.id == GymWorkoutDetail.activity_id)
-                .where(
-                    Activity.external_id == activity_external_id, Activity.user_id == athlete_id
-                )
+                .where(Activity.external_id == activity_external_id, Activity.user_id == athlete_id)
                 .limit(1)
             )
         ).first()

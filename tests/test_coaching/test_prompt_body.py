@@ -47,8 +47,7 @@ def test_a_stale_latest_weight_is_marked() -> None:
     text = _text(_body([_m(d, weight=80.0) for d in (15, 16, 17, 18)]))
 
     assert (
-        "Latest weight: 80.0 kg, measured 30 Oct (15 days ago). "
-        "STALE: last weigh-in 15 days ago."
+        "Latest weight: 80.0 kg, measured 30 Oct (15 days ago). STALE: last weigh-in 15 days ago."
     ) in text
     assert "Weight trend: not enough weigh-ins (needs 4+ days in the last 14)." in text
 

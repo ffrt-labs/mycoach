@@ -199,9 +199,12 @@ def test_the_migrations_leave_every_external_id_unique_and_settled(
 ) -> None:
     from tests.test_migrations.test_schema_seam_postgres import _rows, _scalar
 
-    assert _scalar(
-        migrated, "SELECT count(*) FROM health.canonical_activities WHERE external_id IS NULL"
-    ) == 0
+    assert (
+        _scalar(
+            migrated, "SELECT count(*) FROM health.canonical_activities WHERE external_id IS NULL"
+        )
+        == 0
+    )
     assert _rows(
         migrated, "SELECT DISTINCT settlement_reason FROM health.canonical_activities"
     ) == [("reconciled",)]

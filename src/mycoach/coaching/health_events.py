@@ -195,4 +195,3 @@ def post_workout_on_revised(
         return None
 
     return on_revised
-

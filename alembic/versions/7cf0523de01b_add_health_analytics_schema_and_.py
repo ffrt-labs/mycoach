@@ -38,13 +38,14 @@ usable login is a secrets-management step, done by hand per
 homelab-host/SECRETS.md conventions (`ALTER ROLE grafana_role WITH LOGIN
 PASSWORD '<secret>'`), not something this migration should embed.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '7cf0523de01b'
-down_revision: str | Sequence[str] | None = 'e7f8a9b0c1d2'
+revision: str = "7cf0523de01b"
+down_revision: str | Sequence[str] | None = "e7f8a9b0c1d2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

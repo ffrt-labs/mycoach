@@ -10,7 +10,9 @@ class DailyHealthSnapshot(Base):
     __tablename__ = "daily_health_snapshots"
     __table_args__ = (
         UniqueConstraint(
-            "athlete_id", "snapshot_date", "data_source",
+            "athlete_id",
+            "snapshot_date",
+            "data_source",
             name="uq_daily_health_snapshots_user_date_source",
         ),
         {"schema": HEALTH_SCHEMA},

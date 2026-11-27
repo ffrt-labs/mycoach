@@ -186,8 +186,12 @@ class TestSettlement:
         async with health_session() as session:
             session.add(
                 Activity(
-                    user_id=ATHLETE, sport="running", title="Run", start_time=START,
-                    data_source="garmin", external_id="g-legacy",
+                    user_id=ATHLETE,
+                    sport="running",
+                    title="Run",
+                    start_time=START,
+                    data_source="garmin",
+                    external_id="g-legacy",
                 )
             )
             await session.commit()

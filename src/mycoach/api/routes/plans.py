@@ -151,9 +151,7 @@ async def mark_session_completed(
         raise HTTPException(status_code=404, detail="Plan not found.")
 
     if activity_external_id is not None:
-        declined = await claim_planned_session(
-            session, USER_ID, activity_external_id, session_id
-        )
+        declined = await claim_planned_session(session, USER_ID, activity_external_id, session_id)
         if declined:
             raise HTTPException(status_code=409, detail=declined)
     else:

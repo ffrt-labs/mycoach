@@ -92,9 +92,7 @@ async def test_the_list_holds_the_last_ten(client: AsyncClient) -> None:
 
 async def test_delete_a_measurement(client: AsyncClient) -> None:
     await _create_user()
-    created = (
-        await client.post("/api/body/measurements", json={"weight_kg": 82.0})
-    ).json()
+    created = (await client.post("/api/body/measurements", json={"weight_kg": 82.0})).json()
 
     resp = await client.delete(f"/api/body/measurements/{created['id']}")
 

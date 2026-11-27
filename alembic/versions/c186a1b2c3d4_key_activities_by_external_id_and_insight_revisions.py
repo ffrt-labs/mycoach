@@ -99,9 +99,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("activity_external_id", sa.String(100), nullable=True))
     with op.batch_alter_table("coaching_insights", schema=schema) as batch_op:
         batch_op.add_column(sa.Column("activity_external_id", sa.String(100), nullable=True))
-        batch_op.add_column(
-            sa.Column("revision", sa.Integer(), nullable=False, server_default="1")
-        )
+        batch_op.add_column(sa.Column("revision", sa.Integer(), nullable=False, server_default="1"))
         batch_op.add_column(sa.Column("source_event_id", sa.String(64), nullable=True))
 
     if _health_activities_exist(pg):

@@ -21,6 +21,7 @@ router = APIRouter(tags=["pages"])
 
 USER_ID = 1  # Single-user MVP
 
+
 @router.get("/history", response_class=HTMLResponse)
 async def history_page(
     request: Request,

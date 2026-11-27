@@ -7,16 +7,16 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   {% for row in rows %}
   <tr class="session-row">
-    <td class="mrow" style="width:52px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
+    <td class="mrow bd-row" style="width:52px;vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
       <span class="msub" style="font-weight:600;letter-spacing:.04em;">{{ row.day }}</span>
     </td>
-    <td class="mrow" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">
+    <td class="mrow bd-row" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">
       <div class="strong session-title" style="font:600 16px/1.4 'IBM Plex Sans',sans-serif;{% if row.struck %}text-decoration:line-through;color:#71717a;{% endif %}">{{ row.title }}</div>
       <div class="muted" style="font-size:13px;">{{ row.meta }}</div>
       {% if row.detail %}<div class="muted session-detail" style="font-size:13px;margin-top:2px;">{{ row.detail }}</div>{% endif %}
       {% if row.note %}<div class="p session-note" style="font-size:14px;margin-top:4px;">{{ row.note }}</div>{% endif %}
     </td>
-    <td class="mrow" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
+    <td class="mrow bd-row" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;">
       {{ ui.chip(row.chip) }}
     </td>
   </tr>

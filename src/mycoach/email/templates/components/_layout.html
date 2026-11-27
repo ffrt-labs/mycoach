@@ -38,7 +38,7 @@
 {%- set in_hero = in_hero or (layout is not none and layout.after_hero) -%}
 {%- if layout is not none %}{% set layout.after_hero = false %}{% endif -%}
 <tr>
-  <td class="px section block-b{{ ' hero-block' if in_hero }}" style="padding-top:{{ '0px' if in_hero else '32px' }};padding-bottom:32px;{{ side_padding }}{{ '' if in_hero else divider }}">
+  <td class="px section block-b bd-rule{{ ' hero-block' if in_hero }}" style="padding-top:{{ '0px' if in_hero else '32px' }};padding-bottom:32px;{{ side_padding }}{{ '' if in_hero else divider }}">
     {% if label %}<div class="sec" style="margin-bottom:{{ label_gap }}px;">{{ label }}</div>{% endif %}
     {{ caller() }}
   </td>

@@ -43,8 +43,8 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   {% for row in rows %}
   <tr class="load-row load-row-{{ row.key }}">
-    <td class="mrow mlabel" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">{{ row.label }}{% if row.target %} <span class="muted">· {{ row.target }}</span>{% endif %}</td>
-    <td class="mrow strong" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;font:600 14px 'IBM Plex Mono',monospace;">{{ row.value }}</td>
+    <td class="mrow bd-row mlabel" style="vertical-align:top;padding:{{ '0' if loop.first else '12px' }} 12px 12px 0;">{{ row.label }}{% if row.target %} <span class="muted">· {{ row.target }}</span>{% endif %}</td>
+    <td class="mrow bd-row strong" style="vertical-align:top;text-align:right;white-space:nowrap;padding:{{ '0' if loop.first else '12px' }} 0 12px;font:600 14px 'IBM Plex Mono',monospace;">{{ row.value }}</td>
   </tr>
   {% if row.bar %}
   <tr>

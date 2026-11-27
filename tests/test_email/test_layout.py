@@ -7,6 +7,7 @@ Every email is rendered through its public ``send_*`` function with today's
 import re
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,7 @@ import pytest
 from mycoach.coaching.life_context import Episode, LifeContext, RampBack
 from mycoach.config import Settings
 from mycoach.email import sender
+from mycoach.email.tones import BORDER_STYLES, CHIP_STYLES
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
 from tests.test_email.test_briefing_notes import NOTES as BRIEFING_NOTES
@@ -582,8 +584,6 @@ def test_the_action_numbers_are_centred_in_their_circles(name: str) -> None:
 
 
 def test_dark_mode_overrides_every_border_class(html: str) -> None:
-    from mycoach.email.tones import BORDER_STYLES
-
     dark = _media_block(html, "prefers-color-scheme: dark")
     for name, style in BORDER_STYLES.items():
         rule = re.search(r"\.bd-" + re.escape(name) + r"\s*\{([^}]*)\}", dark)
@@ -625,8 +625,6 @@ def test_the_if_and_plus_one_badges_take_the_mark_chip_colours() -> None:
     """The IF and +1 badges are coloured by the shared "mark" chip style: its class
     carries the dark colours (legible, per test_tones), and the inline light colours
     are read from it, so light mode keeps its dark badge."""
-    from mycoach.email.tones import CHIP_STYLES
-
     mark = CHIP_STYLES["mark"].light
     seen = set()
     for name in EMAILS:
@@ -637,3 +635,20 @@ def test_the_if_and_plus_one_badges_take_the_mark_chip_colours() -> None:
             style = _style(re.search(r'style="([^"]*)"', tag).group(1))  # type: ignore[union-attr]
             assert (style["background"], style["color"]) == (mark.bg, mark.fg), (name, tag)
     assert seen == {"IF", "+1"}, "the fixtures render both badges"
+
+
+TEMPLATES = sorted((Path(sender.__file__).parent / "templates").rglob("*.html"))
+
+
+def test_no_template_types_a_border_colour() -> None:
+    """BORDER_STYLES is the one source of border colours: no template (style sheet or
+    inline style) types one, so a class and its inline twin cannot drift apart."""
+    colours = {c for s in BORDER_STYLES.values() for c in (s.light, s.dark)}
+    typed = [
+        (path.name, decl)
+        for path in TEMPLATES
+        for decl in re.findall(r"border[\w-]*\s*:[^;}\"]*", path.read_text())
+        if any(c in decl for c in colours)
+    ]
+    assert TEMPLATES
+    assert not typed, typed

@@ -11,11 +11,8 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
-    field_validator,
     model_validator,
 )
-
-from mycoach.models.plan import SessionIntent
 
 logger = logging.getLogger(__name__)
 
@@ -34,44 +31,6 @@ class WeeklyPlanSessionResponse(BaseModel):
 class WeeklyPlanResponse(BaseModel):
     summary: str
     sessions: list[WeeklyPlanSessionResponse] = Field(min_length=1)
-
-
-class PostWorkoutResponse(BaseModel):
-    performance_summary: str
-    planned_vs_actual: str | None = None
-    performance_trends: str
-    hr_analysis: str
-    training_effect_assessment: str
-    key_highlights: list[str] = Field(min_length=1)
-    areas_for_improvement: list[str] = Field(min_length=1)
-    next_session_recommendations: str
-    recovery_notes: str
-
-
-class GymDayCoaching(BaseModel):
-    day_label: str
-    exercises: list[str] = Field(min_length=1)
-
-
-class CardioDisciplineCoaching(BaseModel):
-    sport: str
-    analysis: str
-    recommendation: str
-
-
-class WeeklyRecapResponse(BaseModel):
-    week_summary: str
-    adherence_analysis: str
-    performance_highlights: list[str] = Field(min_length=2, max_length=6)
-    areas_of_concern: list[str] = Field(min_length=1, max_length=5)
-    recovery_assessment: str
-    training_load_analysis: str
-    gym_coaching: list[GymDayCoaching] = Field(default_factory=list)
-    exercise_substitutions: list[str] = Field(default_factory=list)
-    cardio_coaching: list[CardioDisciplineCoaching] = Field(default_factory=list)
-    coach_recommendations: list[str] = Field(default_factory=list)
-    next_week_recommendations: str
-    mesocycle_progress: str
 
 
 class SlotAssignment(BaseModel):
@@ -100,31 +59,6 @@ class GymAdjustmentResponse(BaseModel):
     exercises: list[GymAdjustmentExercise] = Field(min_length=1)
     session_notes: str
     estimated_duration_minutes: int | None = None
-
-
-class CardioSessionResponse(BaseModel):
-    day_of_week: int = Field(ge=0, le=6)
-    sport: str
-    title: str
-    intent: SessionIntent | None = None
-    duration_minutes: int | None = None
-    details: dict[str, Any] = Field(default_factory=dict)
-    notes: str | None = None
-
-    @field_validator("intent", mode="before")
-    @classmethod
-    def _unknown_intent_is_null(cls, value: Any) -> Any:
-        """Drop an intent outside the enum rather than fail the whole plan (#215)."""
-        if value is None or value in {i.value for i in SessionIntent}:
-            return value
-        logger.warning("Ignoring unknown session intent %r from the cardio plan", value)
-        return None
-
-
-class CardioPlanResponse(BaseModel):
-    sessions: list[CardioSessionResponse] = Field(min_length=1)
-    goal_assessment: str
-    weekly_summary: str
 
 
 # The keys the model may put the overnight HRV number under: the current field
@@ -193,16 +127,6 @@ class DailyBriefingKeyMetrics(BaseModel):
             if data["hrv_status_text"] is None:
                 data["hrv_status_text"] = text
         return data
-
-
-class DailyBriefingResponse(BaseModel):
-    sleep_assessment: str
-    recovery_status: str
-    readiness_verdict: str = Field(pattern=r"^(go_hard|moderate|active_recovery|rest)$")
-    readiness_explanation: str
-    workout_adjustments: str
-    sleep_recommendation: str
-    key_metrics: DailyBriefingKeyMetrics
 
 
 def _extract_json(text: str) -> str:

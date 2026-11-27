@@ -15,11 +15,14 @@ from pydantic import ValidationError
 
 from mycoach.coaching.email_schemas import Block, PlanNotes
 from mycoach.coaching.life_context import DayEffect, Episode, LifeContext
+from mycoach.coaching.prompt_builder import COACH_NOTES_VERSION
 from mycoach.config import Settings
 from mycoach.email.coach_notes import (
     NO_VALUE,
     NOTES_UNAVAILABLE,
     BlockRow,
+    NotesKind,
+    StoredNotes,
     block_rows,
     stored_notes,
 )
@@ -52,23 +55,39 @@ def plan_block_rows(details: Mapping[str, Any] | None) -> list[BlockRow]:
     return block_rows(valid)
 
 
-def stored_plan_notes(stored: str | None) -> PlanNotes | None:
-    """``WeeklyPlan.coach_notes`` as ``PlanNotes``, or ``None`` when there are none
-    (or they are not valid JSON on the contract)."""
-    return stored_notes(stored, PlanNotes).notes
+_BUNDLED_PREFIX = "bundled:"
 
 
-def plan_notes_unavailable(plan: WeeklyPlan, sessions: Iterable[PlannedSession]) -> bool:
-    """The plan's v5 cardio prompt ran and left no Coach notes: the notes fell back.
+def plan_coach_notes(
+    plan: WeeklyPlan, sessions: Iterable[PlannedSession]
+) -> StoredNotes[PlanNotes] | None:
+    """The plan's Coach notes, read once for the plan email and the plan page (#249).
 
-    The plan email and the plan page say so with the same rule (#249). The cardio
-    prompt was served (``cardio_prompt_version``) yet no ``PlanNotes`` were stored and
-    no cardio session generated: a parsed v5 cardio plan always stores its notes, so a
-    plan from before Coach notes, whose cardio sessions did generate, shows nothing.
+    ``WeeklyPlan.coach_notes`` goes through the shared check. With no notes stored,
+    it is ``None`` when no cardio prompt was served (no notes were ever due); else a
+    v5 fallback and a v4 (legacy) plan both store none, and are told apart by this rule:
+
+    - A bundled prompt records its template set (``bundled:v5``), so any other bundled
+      set is legacy for certain.
+    - A Langfuse prompt (``lf:<n>``) does not say which contract it was, so the rule
+      infers it: a parsed v5 cardio plan always stores its notes and generates its
+      sessions, so no notes with no cardio session generated is the fallback, and no
+      notes with one generated is legacy.
+
+    The inference's limit: a v4 plan from Langfuse whose cardio sessions all failed
+    reads as the fallback, and says "Coach notes unavailable".
     """
-    if not plan.cardio_prompt_version or stored_plan_notes(plan.coach_notes) is not None:
-        return False
-    return not any(s.track == Track.CARDIO and s.generation_error is None for s in sessions)
+    stored = stored_notes(plan.coach_notes, PlanNotes)
+    if not stored.fell_back:
+        return stored
+    version = plan.cardio_prompt_version
+    if not version:
+        return None
+    if version.startswith(_BUNDLED_PREFIX) and version != _BUNDLED_PREFIX + COACH_NOTES_VERSION:
+        return StoredNotes(NotesKind.LEGACY)
+    if any(s.track == Track.CARDIO and s.generation_error is None for s in sessions):
+        return StoredNotes(NotesKind.LEGACY)
+    return stored
 
 
 def _routine_error_sets(ex: Mapping[str, Any]) -> int | None:

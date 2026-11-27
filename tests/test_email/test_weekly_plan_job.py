@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy import select
 
+from mycoach.coaching.email_schemas import PlanNotes
 from mycoach.coaching.life_context import EpisodeKind
 from mycoach.models.life_context import LifeContextEpisode
 from mycoach.models.plan import PlannedSession, WeeklyPlan
@@ -137,7 +138,7 @@ NOTES = {
 async def test_the_plan_email_gets_the_plans_coach_notes() -> None:
     """#243: the focus and Guardrails stored on the plan reach the email."""
     send = await _run(await _seed_plan(), json.dumps(NOTES), "bundled:v5")
-    assert send.call_args.kwargs["notes"] == NOTES
+    assert send.call_args.kwargs["notes"] == PlanNotes.model_validate(NOTES)
     assert send.call_args.kwargs["notes_unavailable"] is False
 
 

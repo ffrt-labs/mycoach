@@ -68,27 +68,29 @@
 
     {% include "_open_this_week.html" %}
 
-    {% if plan_notes_unavailable %}
+    {#- The plan's Coach notes (``StoredNotes``), or none when no cardio prompt ran. -#}
+    {% set notes = plan_notes.notes if plan_notes else none %}
+    {% if plan_notes and plan_notes.fell_back %}
     {#- The v5 cardio prompt ran and left no Coach notes (#249), as the plan email says. -#}
     <div class="rounded-xl border border-white/[0.07] bg-surface p-4">
-        <p class="text-sm text-zinc-400"><span class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500 mr-2">Coach</span>{{ notes_unavailable }}.</p>
+        <p class="text-sm text-zinc-400"><span class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500 mr-2">Coach</span>{{ copy.notes_unavailable_this_week }}.</p>
     </div>
     {% endif %}
 
-    {% if plan_notes or plan.summary %}
+    {% if notes or plan.summary %}
     <div class="bg-accent/[0.06] rounded-xl border border-accent/20 p-4">
-        <p class="text-sm text-accent-soft leading-relaxed">{{ plan_notes.focus if plan_notes else plan.summary }}</p>
-        {% if plan_notes and plan_notes.goal_assessment %}
-        <p class="text-sm text-zinc-400 mt-2 leading-relaxed">{{ plan_notes.goal_assessment }}</p>
+        <p class="text-sm text-accent-soft leading-relaxed">{{ notes.focus if notes else plan.summary }}</p>
+        {% if notes and notes.goal_assessment %}
+        <p class="text-sm text-zinc-400 mt-2 leading-relaxed">{{ notes.goal_assessment }}</p>
         {% endif %}
     </div>
     {% endif %}
 
-    {% if plan_notes and plan_notes.guardrails %}
+    {% if notes and notes.guardrails %}
     <div class="rounded-xl border border-white/[0.07] bg-surface p-4">
         <p class="text-[10px] uppercase font-semibold tracking-[0.1em] text-zinc-500 mb-2">Rules this week</p>
         <ul class="space-y-1.5 text-sm text-zinc-300">
-            {% for g in plan_notes.guardrails %}
+            {% for g in notes.guardrails %}
             <li><span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-zinc-100">IF</span> {{ g.when }} → <span class="font-semibold text-zinc-100">{{ g.then }}</span></li>
             {% endfor %}
         </ul>
@@ -213,9 +215,9 @@
                 {% endif %}
             </div>
             {% elif day.details %}
-            {#- Neither exercises nor Blocks: a v4 cardio session, no longer rendered (#244). -#}
+            {#- Neither exercises nor Blocks: a legacy (v4) cardio session, no longer rendered (#244). -#}
             <div class="px-4 pb-3 border-t {% if day.is_today %}border-accent/20{% else %}border-white/[0.06]{% endif %}">
-                <p class="text-xs text-zinc-500 mt-2">Details from an earlier version aren't shown.</p>
+                <p class="text-xs text-zinc-500 mt-2">{{ copy.legacy_session_details }}.</p>
             </div>
             {% endif %}
         </div>

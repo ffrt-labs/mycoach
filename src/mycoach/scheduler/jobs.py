@@ -55,7 +55,7 @@ from mycoach.coaching.life_context import (
 from mycoach.coaching.steps import StepsSummary, load_steps_summary
 from mycoach.config import get_settings
 from mycoach.database import async_session
-from mycoach.email.plan_views import plan_notes_unavailable
+from mycoach.email.plan_views import plan_coach_notes
 from mycoach.email.sender import (
     EmailSendError,
     send_briefing_unavailable,
@@ -742,6 +742,8 @@ async def _weekly_plan(today: date | None = None) -> None:
                     session, USER_ID, next_monday, next_monday + timedelta(days=6), today=today
                 ),
             )
+            # The cardio plan's Coach notes (#243), by the plan page's rule (#249).
+            plan_notes = plan_coach_notes(plan, sessions)
             _deliver(
                 partial(
                     send_weekly_plan,
@@ -750,10 +752,8 @@ async def _weekly_plan(today: date | None = None) -> None:
                     week_start=str(next_monday),
                     availability_source=plan.availability_source,
                     life=life,
-                    # The cardio plan's Coach notes (#243). A cardio prompt was served
-                    # but left no notes: the notes fell back.
-                    notes=json.loads(plan.coach_notes) if plan.coach_notes else None,
-                    notes_unavailable=plan_notes_unavailable(plan, sessions),
+                    notes=plan_notes.notes if plan_notes else None,
+                    notes_unavailable=plan_notes is not None and plan_notes.fell_back,
                 ),
                 "weekly plan",
             )

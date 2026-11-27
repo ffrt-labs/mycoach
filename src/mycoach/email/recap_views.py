@@ -217,9 +217,13 @@ def _bar(value: float, low: float, high: float) -> LoadBar:
     if high > 0:
         scale = min(scale, high * _SCALE_CAP)
     scale = scale or 1.0
-    fill = _pct(value, scale)
-    start = min(_pct(low, scale), 99)
+    start = _pct(low, scale)
     end = max(_pct(high, scale), start + 1)
+    fill = _pct(value, scale)
+    if value > 0:
+        # Any value shows; at or past the target's top, the fill runs through the
+        # band, however it was widened.
+        fill = max(fill, end if value >= high else 1)
     edges = sorted({0, start, end, fill, 100})
     segments = tuple(
         BarSegment(

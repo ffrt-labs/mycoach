@@ -8,6 +8,7 @@ import re
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +16,7 @@ import pytest
 from mycoach.coaching.life_context import Episode, LifeContext, RampBack
 from mycoach.config import Settings
 from mycoach.email import sender
-from mycoach.email.recap_views import load_rows
+from mycoach.email.recap_views import LoadBar, load_rows
 from mycoach.email.tones import BAR_STYLES, BORDER_STYLES, CHIP_STYLES, TEXT_STYLES
 from mycoach.models.life_context import EpisodeKind, Equipment, IllnessSeverity
 from tests.test_coaching.prompt_cases import WEEK_2026_11_02_ADHERENCE
@@ -775,8 +776,19 @@ def test_the_load_bar_colours_come_from_bar_styles_light_and_dark() -> None:
         assert rule and f"background:{shade.dark} !important" in rule.group(1), name
 
 
+def _low_aerobic(value: float, low: float, high: float) -> list[dict[str, Any]]:
+    """A week's health snapshots whose load focus holds one Low aerobic value and target."""
+    focus = {"aerobic_low": value, "aerobic_low_target_min": low, "aerobic_low_target_max": high}
+    return [{"snapshot_date": "2026-11-08", "load_focus": focus}]
+
+
+def _low_aerobic_bar(value: float, low: float, high: float) -> LoadBar:
+    (row,) = load_rows(_low_aerobic(value, low, high))
+    assert row.bar
+    return row.bar
+
+
 def test_a_value_outside_its_target_fills_in_the_out_of_range_colour() -> None:
-    focus = {"aerobic_low": 100, "aerobic_low_target_min": 300, "aerobic_low_target_max": 600}
     with patch("mycoach.email.sender.send_email", return_value=True) as mock_send:
         sender.send_weekly_recap(
             RECAP_NOTES,
@@ -784,7 +796,7 @@ def test_a_value_outside_its_target_fills_in_the_out_of_range_colour() -> None:
             _settings(),
             adherence=WEEK_2026_11_02_ADHERENCE,
             episodes=[],
-            health_week=[{"snapshot_date": "2026-11-08", "load_focus": focus}],
+            health_week=_low_aerobic(100, 300, 600),
         )
     bar = _load_bar(str(mock_send.call_args[0][2]))
     assert re.findall(r'<td class="bar-(in-range|out-range)"', bar) == ["out-range"]
@@ -792,10 +804,7 @@ def test_a_value_outside_its_target_fills_in_the_out_of_range_colour() -> None:
 
 def _segments(value: float, low: float, high: float) -> list[tuple[int, str, bool]]:
     """The load bar's (width %, layer behind, filled) for one Low aerobic value."""
-    focus = {"aerobic_low": value, "aerobic_low_target_min": low, "aerobic_low_target_max": high}
-    (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": focus}])
-    assert row.bar
-    return [(s.width_pct, s.layer, s.filled) for s in row.bar.segments]
+    return [(s.width_pct, s.layer, s.filled) for s in _low_aerobic_bar(value, low, high).segments]
 
 
 @pytest.mark.parametrize(
@@ -844,9 +853,7 @@ def test_the_load_bar_segments_are_computed_in_whole_percents(
     ("value", "in_range"), [(300, True), (600, True), (299, False), (601, False), (0, False)]
 )
 def test_the_fill_is_out_of_range_outside_the_target(value: float, in_range: bool) -> None:
-    focus = {"aerobic_low": value, "aerobic_low_target_min": 300, "aerobic_low_target_max": 600}
-    (row,) = load_rows([{"snapshot_date": "2026-11-08", "load_focus": focus}])
-    assert row.bar and row.bar.in_range is in_range
+    assert _low_aerobic_bar(value, 300, 600).in_range is in_range
 
 
 def test_a_load_row_without_a_target_keeps_the_plain_value() -> None:
